@@ -54,9 +54,10 @@ export default async function CatalogPage({
     }
   }
 
-  // Apply text search
+  // Apply text search (ilike for partial matching)
   if (q) {
-    nodesQuery = nodesQuery.textSearch('search_vector', q, { config: 'russian' })
+    const pattern = `%${q}%`
+    nodesQuery = nodesQuery.or(`title.ilike.${pattern},fields->description.ilike.${pattern}`)
   }
 
   const { data: nodes } = await nodesQuery

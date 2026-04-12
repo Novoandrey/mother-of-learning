@@ -43,7 +43,7 @@ export function CreateEdgeForm({
       .select('id, title')
       .eq('campaign_id', campaignId)
       .neq('id', sourceId)
-      .textSearch('search_vector', q, { config: 'russian' })
+      .ilike('title', `%${q}%`)
       .limit(5)
 
     if (data) setResults(data)
