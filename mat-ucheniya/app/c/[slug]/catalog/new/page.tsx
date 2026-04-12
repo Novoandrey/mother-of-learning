@@ -2,6 +2,17 @@ import { getCampaignBySlug } from '@/lib/campaign'
 import { notFound } from 'next/navigation'
 import { CreateNodeForm } from '@/components/create-node-form'
 import Link from 'next/link'
+import type { Metadata } from 'next'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const campaign = await getCampaignBySlug(slug)
+  return { title: campaign ? `Новая сущность — ${campaign.name}` : 'Новая сущность' }
+}
 
 export default async function NewNodePage({
   params,

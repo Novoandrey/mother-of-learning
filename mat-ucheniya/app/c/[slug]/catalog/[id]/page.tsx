@@ -3,6 +3,26 @@ import { getCampaignBySlug } from '@/lib/campaign'
 import { notFound } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
 import Link from 'next/link'
+import type { Metadata } from 'next'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string; id: string }>
+}): Promise<Metadata> {
+  const { slug, id } = await params
+  const campaign = await getCampaignBySlug(slug)
+  if (!campaign) return { title: 'Не найдено' }
+
+  const supabase = await createClient()
+  const { data: node } = await supabase
+    .from('nodes')
+    .select('title')
+    .eq('id', id)
+    .single()
+
+  return { title: node ? `${node.title} — ${campaign.name}` : 'Не найдено' }
+}
 
 export default async function NodePage({
   params,

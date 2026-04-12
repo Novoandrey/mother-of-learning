@@ -5,6 +5,17 @@ import { SearchInput } from '@/components/search-input'
 import { TypeFilter } from '@/components/type-filter'
 import { NodeList } from '@/components/node-list'
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const campaign = await getCampaignBySlug(slug)
+  return { title: campaign ? `Каталог — ${campaign.name}` : 'Каталог' }
+}
 
 export default async function CatalogPage({
   params,
