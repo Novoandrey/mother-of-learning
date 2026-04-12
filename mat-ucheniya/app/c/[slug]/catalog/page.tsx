@@ -56,8 +56,7 @@ export default async function CatalogPage({
 
   // Apply text search (ilike for partial matching)
   if (q) {
-    const pattern = `%${q}%`
-    nodesQuery = nodesQuery.or(`title.ilike.${pattern},fields->description.ilike.${pattern}`)
+    nodesQuery = nodesQuery.ilike('title', `%${q}%`)
   }
 
   const { data: nodes } = await nodesQuery
