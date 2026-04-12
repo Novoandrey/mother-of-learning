@@ -1,0 +1,149 @@
+'use client'
+
+import { createClient } from '@/lib/supabase/client'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+
+type EdgeType = { id: string; slug: string; label: string }
+type SearchResult = { id: string; title: string }
+
+export function CreateEdgeForm({
+  sourceId, campaignId, campaignSlug, onDone,
+}: {
+  sourceId: string; campaignId: string; campaignSlug: string; onDone: () => void
+}) {
+  const supabase = createClient()
+  const router = useRouter()
+  const [edgeTypes, setEdgeTypes] = useState<EdgeType[]>([])
+  const [selectedTypeId, setSelectedTypeId] = useState('')
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [targetId, setTargetId] = useState('')
+  const [targetTitle, setTargetTitle] = useState('')
+  const [label, setLabel] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('edge_types')
+      .select('id, slug, label')
+      .or(`is_base.eq.true,campaign_id.eq.${campaignId}`)
+      .then(({ data }) => {
+        if (data) {
+          setEdgeTypes(data)
+          if (data.length > 0) setSelectedTypeId(data[0].id)
+        }
+      })
+  }, [campaignId, supabase])
+
+  const search = useCallback(async (q: string) => {
+    if (q.length < 2) { setResults([]); return }
+    const { data } = await supabase
+      .from('nodes')
+      .select('id, title')
+      .eq('campaign_id', campaignId)
+      .neq('id', sourceId)
+      .textSearch('search_vector', q, { config: 'russian' })
+      .limit(5)
+
+    if (data) setResults(data)
+  }, [campaignId, sourceId, supabase])
+
+  useEffect(() => {
+    const timer = setTimeout(() => search(query), 300)
+    return () => clearTimeout(timer)
+  }, [query, search])
+
+  function selectTarget(node: SearchResult) {
+    setTargetId(node.id)
+    setTargetTitle(node.title)
+    setQuery('')
+    setResults([])
+  }
+
+  async function handleSubmit() {
+    if (!selectedTypeId || !targetId) return
+    setSaving(true)
+    await supabase.from('edges').insert({
+      campaign_id: campaignId,
+      source_id: sourceId,
+      target_id: targetId,
+      type_id: selectedTypeId,
+      label: label.trim() || null,
+    })
+    setSaving(false)
+    onDone()
+    router.refresh()
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="mb-1 block text-xs font-medium text-gray-500">Тип связи</label>
+        <select
+          value={selectedTypeId}
+          onChange={(e) => setSelectedTypeId(e.target.value)}
+          className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+        >
+          {edgeTypes.map((t) => (
+            <option key={t.id} value={t.id}>{t.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium text-gray-500">Цель</label>
+        {targetId ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{targetTitle}</span>
+            <button onClick={() => { setTargetId(''); setTargetTitle('') }} className="text-xs text-red-500 hover:underline">
+              убрать
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск сущности..."
+              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            {results.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full rounded border border-gray-200 bg-white shadow-sm">
+                {results.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => selectTarget(r)}
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                  >
+                    {r.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium text-gray-500">Подпись (необязательно)</label>
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="подруга, создатель, староста..."
+          className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+
+      <button
+        onClick={handleSubmit}
+        disabled={saving || !targetId || !selectedTypeId}
+        className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+      >
+        {saving ? 'Сохраняю...' : 'Добавить'}
+      </button>
+    </div>
+  )
+}
