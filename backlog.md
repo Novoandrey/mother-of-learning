@@ -11,6 +11,7 @@ Updated: 2026-04-13
 
 ### ~~BUG-001~~ ✅ FIXED
 New entity didn't appear in catalog without page reload.
+Fixed: `router.refresh()` after `router.push()` in `create-node-form.tsx`.
 
 ---
 
@@ -18,6 +19,7 @@ New entity didn't appear in catalog without page reload.
 
 ### ~~FEAT-002~~ ✅ DONE
 Incoming edge creation from target node card.
+Done: direction toggle in `create-edge-form.tsx`, flips source/target on save.
 
 ### FEAT-001 [P3] Edge type constraints (allowed source/target types)
 - **Feature**: 001-entity-graph
@@ -40,8 +42,8 @@ Incoming edge creation from target node card.
 - **Feature**: dx
 - "Original → fork → new original" pattern for constitution
 
-### IDEA-003 Каталог-дерево в сайдбаре (Chronicler-style)
-- **Feature**: 003-catalog-tree
+### IDEA-003 Каталог-дерево в сайдбаре (Chronicler-style) 🔜 NEXT
+- **Feature**: 004-catalog-tree
 - Левый сайдбар: верхний уровень = типы сущностей, внутри = ноды, вложенность через `contains`
 - Master-detail layout: клик по ноде → детали справа
 - Референс: Chronicler (worldanvil), Obsidian
@@ -54,3 +56,24 @@ Incoming edge creation from target node card.
 - **Feature**: ui
 - 375px viewport support for encounter tracker (horizontal scroll on table)
 - Mobile-friendly catalog navigation
+
+### IDEA-006 Карточка персонажа с Markdown-контентом
+- **Feature**: 005-character-card
+- Поле `content` (markdown) на карточке ноды: полноценный редактор + рендеринг
+- Поддержка статов, таблиц, изображений по ссылке
+- Заготовка под чарлисты для PC и NPC
+- Заглушка уже есть в node-detail.tsx (раздел «Контент»)
+
+### IDEA-007 Летопись персонажа
+- **Feature**: 005-character-card (вместе с IDEA-006)
+- Раздел «Летопись» на карточке персонажа
+- Таблица `chronicles`: заголовок, markdown-текст, номер петли, внутриигровая дата
+- Фанфики, рассказы, заметки ДМа привязанные к персонажу и моменту времени
+- Миграция 008 уже применена, заглушка в node-detail.tsx готова
+
+### IDEA-008 Петли — таймлайн и события
+- **Feature**: 006-loops
+- Страница `/loops`: список петель (текущая + прошедшие)
+- Таймлайн по дням внутри петли, события, накопленная информация
+- Что помнят путешественники между петлями (персистентное состояние)
+- Миграция 008 уже применена, роут `/loops` и навигация готовы (заглушка)
