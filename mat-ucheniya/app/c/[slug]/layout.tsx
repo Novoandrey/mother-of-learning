@@ -1,6 +1,8 @@
 import { getCampaignBySlug } from '@/lib/campaign'
+import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { CatalogSidebar } from '@/components/catalog-sidebar'
 
 export default async function CampaignLayout({
   children,
@@ -13,25 +15,65 @@ export default async function CampaignLayout({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
+  const supabase = await createClient()
+
+  // Fetch node types for sidebar
+  const { data: nodeTypes } = await supabase
+    .from('node_types')
+    .select('id, slug, label, icon')
+    .eq('campaign_id', campaign.id)
+    .order('sort_order')
+
+  // Fetch all nodes (lightweight: id, title, type_slug only)
+  const { data: nodeRows } = await supabase
+    .from('nodes')
+    .select('id, title, type:node_types(slug)')
+    .eq('campaign_id', campaign.id)
+    .order('title')
+    .limit(500)
+
+  const nodes = (nodeRows || []).map((n: any) => ({
+    id: n.id,
+    title: n.title,
+    type_slug: n.type?.slug ?? '',
+  }))
+
+  // Fetch contains edges for tree nesting
+  const { data: containsEdgeRows } = await supabase
+    .from('edges')
+    .select('source_id, target_id, edge_type:edge_types(slug)')
+    .eq('campaign_id', campaign.id)
+
+  const containsEdges = (containsEdgeRows || [])
+    .filter((e: any) => e.edge_type?.slug === 'contains')
+    .map((e: any) => ({ source_id: e.source_id, target_id: e.target_id }))
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
-          <Link href={`/c/${slug}/catalog`} className="font-semibold text-lg hover:text-blue-600 transition-colors">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Top nav */}
+      <header className="border-b border-gray-200 bg-white flex-shrink-0">
+        <div className="px-4 py-2.5 flex items-center justify-between">
+          <Link
+            href={"/c/" + slug + "/catalog"}
+            className="font-semibold text-base hover:text-blue-600 transition-colors"
+          >
             {campaign.name}
           </Link>
-          <nav className="flex items-center gap-4">
-            <Link href={`/c/${slug}/catalog`} className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
-              Каталог
-            </Link>
-            <Link href={`/c/${slug}/encounters`} className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+          <nav className="flex items-center gap-3">
+            <Link
+              href={"/c/" + slug + "/encounters"}
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            >
               Энкаунтеры
             </Link>
-            <Link href={`/c/${slug}/loops`} className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+            <Link
+              href={"/c/" + slug + "/loops"}
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            >
               Петли
             </Link>
             <Link
-              href={`/c/${slug}/catalog/new`}
+              href={"/c/" + slug + "/catalog/new"}
               className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >
               <span className="text-lg leading-none">+</span> Создать
@@ -39,9 +81,34 @@ export default async function CampaignLayout({
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">
-        {children}
-      </main>
+
+      {/* Body: sidebar + content */}
+      <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 49px)' }}>
+        {/* Left sidebar */}
+        <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+          <div className="pt-3 px-2 pb-1 flex-shrink-0">
+            <Link
+              href={"/c/" + slug + "/catalog"}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              Каталог
+            </Link>
+          </div>
+          <CatalogSidebar
+            nodeTypes={nodeTypes || []}
+            nodes={nodes}
+            containsEdges={containsEdges}
+            campaignSlug={slug}
+          />
+        </aside>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl px-6 py-6">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
