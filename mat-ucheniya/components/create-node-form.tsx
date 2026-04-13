@@ -56,6 +56,7 @@ export function CreateNodeForm({ campaignId, campaignSlug }: { campaignId: strin
       return
     }
     router.push(`/c/${campaignSlug}/catalog/${data.id}`)
+    router.refresh()
   }
 
   return (

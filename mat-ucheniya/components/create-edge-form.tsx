@@ -21,6 +21,7 @@ export function CreateEdgeForm({
   const [targetId, setTargetId] = useState('')
   const [targetTitle, setTargetTitle] = useState('')
   const [label, setLabel] = useState('')
+  const [direction, setDirection] = useState<'outgoing' | 'incoming'>('outgoing')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -64,10 +65,13 @@ export function CreateEdgeForm({
   async function handleSubmit() {
     if (!selectedTypeId || !targetId) return
     setSaving(true)
+    // For incoming: flip source/target so the other node points TO this node
+    const finalSourceId = direction === 'outgoing' ? sourceId : targetId
+    const finalTargetId = direction === 'outgoing' ? targetId : sourceId
     await supabase.from('edges').insert({
       campaign_id: campaignId,
-      source_id: sourceId,
-      target_id: targetId,
+      source_id: finalSourceId,
+      target_id: finalTargetId,
       type_id: selectedTypeId,
       label: label.trim() || null,
     })
@@ -78,6 +82,25 @@ export function CreateEdgeForm({
 
   return (
     <div className="space-y-3">
+      {/* Direction toggle */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-gray-500">Направление</label>
+        <div className="flex rounded border border-gray-300 overflow-hidden text-sm">
+          <button
+            onClick={() => setDirection('outgoing')}
+            className={`flex-1 px-3 py-1.5 transition-colors ${direction === 'outgoing' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+          >
+            Исходящая →
+          </button>
+          <button
+            onClick={() => setDirection('incoming')}
+            className={`flex-1 px-3 py-1.5 transition-colors ${direction === 'incoming' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+          >
+            ← Входящая
+          </button>
+        </div>
+      </div>
+
       <div>
         <label className="mb-1 block text-xs font-medium text-gray-500">Тип связи</label>
         <select
@@ -92,7 +115,9 @@ export function CreateEdgeForm({
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-500">Цель</label>
+        <label className="mb-1 block text-xs font-medium text-gray-500">
+          {direction === 'outgoing' ? 'Цель' : 'Источник'}
+        </label>
         {targetId ? (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{targetTitle}</span>
