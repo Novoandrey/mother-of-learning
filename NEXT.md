@@ -17,25 +17,23 @@
 MarkdownContent, Chronicles.
 
 ### Spec-003: Петли и сессии как ноды графа ✅
-- Миграция 012: loops/sessions → nodes + edges, DROP старых таблиц
-- search_vector: индексирует ВСЕ текстовые поля из JSONB
-- lib/loops.ts: все запросы из nodes
-- Единая форма create-node-form.tsx: умные лейблы, textarea, dropdown,
-  date picker, auto-title, contains edge management, edit + delete
-- Универсальная страница /catalog/[id]/edit для любой ноды
-- Удалены loop-form.tsx, session-form.tsx
-- Навигация: Каталог + Петли + Сессии + Энкаунтеры в сайдбаре
-- Дерево каталога: ВСЕ типы нод без исключений (конституция!)
-- Поиск в сайдбаре: локальный + Enter → полнотекстовый /catalog?q=
-- node-detail: человеческие лейблы полей, кнопки Редактировать/Удалить,
-  ссылки-мостики на спецстраницы петель и сессий
-- Спецстраницы /loops, /sessions остались как view-линзы поверх графа
+- Миграция 012: loops/sessions → nodes + edges
+- Единая форма, универсальная /catalog/[id]/edit, дерево в сайдбаре
 
 ### FEAT-005: max_hp + statblock_url ✅
 - Миграция 013: creature → "Монстр", max_hp + statblock_url в default_fields для NPC и monster
 - Энкаунтер: авто-HP из каталога, ссылка на статблок рядом с именем участника
-- Каталог: node-detail рендерит URL-поля как кликабельные ссылки
-- Форма создания: URL-инпут с placeholder для statblock_url/link
+- node-detail: URL-поля рендерятся как кликабельные ссылки
+- create-node-form: URL-инпут с placeholder для statblock_url/link
+
+### Багфиксы этого чата ✅
+- Таблица энкаунтера: min-w-[900px] + overflow-x-auto (колонки не схлопываются)
+- Контейнер контента: max-w-3xl → max-w-5xl (больше места для таблицы)
+- Оптимистичное обновление: node data из catalogNodes при добавлении (статблок сразу виден)
+
+## ⚠️ Применить миграцию
+
+Миграция `013_monster_statblock.sql` — применить в Supabase SQL Editor.
 
 ## Следующая задача
 
@@ -43,10 +41,6 @@ MarkdownContent, Chronicles.
 - IDEA-008: Граф-визуализация
 - IDEA-009: Realtime-синхронизация энкаунтера (мультиплеер)
 - IDEA-005: Responsive mobile layout
-
-## ⚠️ Применить миграцию
-
-Миграция `013_monster_statblock.sql` — применить в Supabase SQL Editor.
 
 ## Стек и окружение
 
