@@ -38,6 +38,7 @@ type Props = {
   onEffectsChange: (id: string, effects: string[]) => void
   onToggleActive: (id: string, isActive: boolean) => void
   onDelete: (id: string) => void
+  onClone: (id: string) => void
   onRename: (id: string, newName: string) => void
 }
 
@@ -55,6 +56,7 @@ export function ParticipantRow({
   onEffectsChange,
   onToggleActive,
   onDelete,
+  onClone,
   onRename,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
@@ -188,6 +190,12 @@ export function ParticipantRow({
                   className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
                   {p.is_active ? 'Убрать из боя' : 'Вернуть в бой'}
+                </button>
+                <button
+                  onClick={() => { onClone(p.id); setShowMenu(false) }}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  📋 Клонировать
                 </button>
                 <hr className="my-1 border-gray-100" />
                 <button

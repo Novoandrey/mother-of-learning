@@ -19,6 +19,7 @@ import {
   updateTempHp,
   toggleParticipantActive,
   deleteParticipant,
+  cloneParticipant,
   updateEncounterStatus,
   addParticipantFromCatalog,
   addParticipantManual,
@@ -139,6 +140,20 @@ export function CombatTracker({
   const handleDelete = useCallback(async (id: string) => {
     setParticipants((prev) => prev.filter((p) => p.id !== id))
     try { await deleteParticipant(id) } catch { router.refresh() }
+  }, [router])
+
+  const handleClone = useCallback(async (id: string) => {
+    try {
+      const result = await cloneParticipant(id)
+      setParticipants((prev) => {
+        const updated = prev.map((p) =>
+          p.id === id ? { ...p, display_name: result.updatedOriginalName } : p
+        )
+        const clone = result.clone as typeof prev[0]
+        const idx = updated.findIndex((p) => p.id === id)
+        return [...updated.slice(0, idx + 1), clone, ...updated.slice(idx + 1)]
+      })
+    } catch { router.refresh() }
   }, [router])
 
   const handleRename = useCallback(async (id: string, newName: string) => {
@@ -267,6 +282,7 @@ export function CombatTracker({
                 onEffectsChange={handleEffectsChange}
                 onToggleActive={handleToggleActive}
                 onDelete={handleDelete}
+                onClone={handleClone}
                 onRename={handleRename}
               />
             ))}

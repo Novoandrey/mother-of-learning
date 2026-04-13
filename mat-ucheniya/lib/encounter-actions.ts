@@ -170,3 +170,54 @@ export async function updateEffects(participantId: string, effects: string[]) {
     .eq('id', participantId)
   if (error) throw error
 }
+
+// Clone participant: original gets " 1" suffix, clone gets " 2" with full HP, no conditions/effects
+export async function cloneParticipant(participantId: string) {
+  const supabase = createClient()
+
+  const { data: original, error: fetchError } = await supabase
+    .from('encounter_participants')
+    .select('*')
+    .eq('id', participantId)
+    .single()
+
+  if (fetchError) throw fetchError
+
+  // Strip any existing " 1" / " 2" suffix from name before re-applying
+  const baseName = original.display_name.replace(/ \d+$/, '')
+
+  // Rename original to " 1"
+  const { error: renameError } = await supabase
+    .from('encounter_participants')
+    .update({ display_name: `${baseName} 1` })
+    .eq('id', participantId)
+
+  if (renameError) throw renameError
+
+  // Insert clone with " 2", full HP, no conditions/effects
+  const { data: clone, error: insertError } = await supabase
+    .from('encounter_participants')
+    .insert({
+      encounter_id: original.encounter_id,
+      node_id: original.node_id,
+      display_name: `${baseName} 2`,
+      initiative: null,
+      max_hp: original.max_hp,
+      current_hp: original.max_hp,
+      temp_hp: 0,
+      role: original.role,
+      sort_order: original.sort_order + 1,
+      is_active: true,
+      conditions: [],
+      effects: [],
+    })
+    .select()
+    .single()
+
+  if (insertError) throw insertError
+
+  return {
+    updatedOriginalName: `${baseName} 1`,
+    clone,
+  }
+}

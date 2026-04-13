@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { notFound } from 'next/navigation'
 import { CombatTracker } from '@/components/combat-tracker'
+import { PartyBar } from '@/components/party-bar'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -64,13 +65,20 @@ export default async function EncounterPage({
   )
 
   return (
-    <div>
+    <div className="space-y-4">
       <Link
         href={`/c/${slug}/encounters`}
-        className="mb-4 inline-block text-sm text-gray-400 hover:text-gray-600"
+        className="inline-block text-sm text-gray-400 hover:text-gray-600"
       >
         ← Энкаунтеры
       </Link>
+      <PartyBar
+        campaignId={campaign.id}
+        campaignSlug={slug}
+        encounterId={encounter.id}
+        catalogNodes={filteredCatalog.map((n: any) => ({ id: n.id, title: n.title, fields: n.fields }))}
+        isEncounterCompleted={encounter.status === 'completed'}
+      />
       <CombatTracker
         encounter={{
           id: encounter.id,

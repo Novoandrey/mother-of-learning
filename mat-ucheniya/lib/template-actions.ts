@@ -30,6 +30,8 @@ export async function saveAsTemplate(
     node_id: string | null
   }>
 ) {
+  // PCs are managed via the party — exclude them from templates
+  participants = participants.filter((p) => p.role !== 'pc')
   const supabase = createClient()
 
   const { data: template, error: templateError } = await supabase
