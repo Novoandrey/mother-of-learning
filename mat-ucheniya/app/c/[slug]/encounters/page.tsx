@@ -27,18 +27,33 @@ export default async function EncountersPage({
 
   const supabase = await createClient()
 
-  const { data: encounters } = await supabase
+  const { data: encounters, error } = await supabase
     .from('encounters')
-    .select('id, title, status, current_round, updated_at, encounter_participants(id)')
+    .select('id, title, status, current_round, updated_at')
     .eq('campaign_id', campaign.id)
     .order('updated_at', { ascending: false })
+
+  if (error) console.error('encounters fetch error:', error)
+
+  const encounterIds = (encounters || []).map((e: any) => e.id)
+  const { data: participantRows } = encounterIds.length > 0
+    ? await supabase
+        .from('encounter_participants')
+        .select('encounter_id')
+        .in('encounter_id', encounterIds)
+    : { data: [] }
+
+  const countMap: Record<string, number> = {}
+  for (const row of participantRows || []) {
+    countMap[row.encounter_id] = (countMap[row.encounter_id] || 0) + 1
+  }
 
   const items = (encounters || []).map((e: any) => ({
     id: e.id,
     title: e.title,
     status: e.status as 'active' | 'completed',
     current_round: e.current_round,
-    participant_count: e.encounter_participants?.length || 0,
+    participant_count: countMap[e.id] || 0,
   }))
 
   return (
