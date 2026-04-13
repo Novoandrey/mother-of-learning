@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
   getParty,
@@ -8,6 +8,7 @@ import {
   updatePartyMember,
   removePartyMember,
   addPartyToEncounter,
+  createNpcNode,
   PartyMember,
 } from '@/lib/party-actions'
 
@@ -30,16 +31,13 @@ export function PartyBar({ campaignId, campaignSlug, encounterId, catalogNodes, 
   const [members, setMembers] = useState<PartyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
-  const [addMode, setAddMode] = useState<'catalog' | 'manual'>('catalog')
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedNode, setSelectedNode] = useState<CatalogNode | null>(null)
-  const [manualName, setManualName] = useState('')
-  const [manualHp, setManualHp] = useState('')
   const [saving, setSaving] = useState(false)
   const [addingToEncounter, setAddingToEncounter] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editHp, setEditHp] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     getParty(campaignId)
@@ -51,28 +49,49 @@ export function PartyBar({ campaignId, campaignSlug, encounterId, catalogNodes, 
       .finally(() => setLoading(false))
   }, [campaignId])
 
-  const filteredNodes = catalogNodes.filter((n) =>
-    n.title.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  useEffect(() => {
+    if (showAdd) {
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [showAdd])
 
-  async function handleAddMember() {
+  const filteredNodes = searchQuery.trim()
+    ? catalogNodes.filter((n) =>
+        n.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : []
+
+  const showCreateOption =
+    searchQuery.trim().length > 0 &&
+    !filteredNodes.some((n) => n.title.toLowerCase() === searchQuery.trim().toLowerCase())
+
+  function resetAdd() {
+    setShowAdd(false)
+    setSearchQuery('')
+  }
+
+  async function handleSelect(node: CatalogNode) {
     if (!partyId) return
     setSaving(true)
     try {
-      if (addMode === 'catalog' && selectedNode) {
-        const hp = parseInt(manualHp) || 0
-        const member = await addPartyMember(partyId, selectedNode.title, hp, selectedNode.id)
-        setMembers((prev) => [...prev, member])
-      } else if (addMode === 'manual' && manualName.trim()) {
-        const hp = parseInt(manualHp) || 0
-        const member = await addPartyMember(partyId, manualName.trim(), hp, null)
-        setMembers((prev) => [...prev, member])
-      }
-      setShowAdd(false)
-      setSelectedNode(null)
-      setManualName('')
-      setManualHp('')
-      setSearchQuery('')
+      const member = await addPartyMember(partyId, node.title, 0, node.id)
+      setMembers((prev) => [...prev, member])
+      resetAdd()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleCreateNpc() {
+    if (!partyId || !searchQuery.trim()) return
+    setSaving(true)
+    try {
+      const node = await createNpcNode(campaignId, searchQuery.trim())
+      const member = await addPartyMember(partyId, node.title, 0, node.id)
+      setMembers((prev) => [...prev, member])
+      resetAdd()
     } catch (e) {
       console.error(e)
     } finally {
@@ -92,7 +111,7 @@ export function PartyBar({ campaignId, campaignSlug, encounterId, catalogNodes, 
   async function handleStartEdit(m: PartyMember) {
     setEditingId(m.id)
     setEditName(m.display_name)
-    setEditHp(String(m.max_hp))
+    setEditHp(String(m.max_hp || ''))
   }
 
   async function handleSaveEdit(memberId: string) {
@@ -114,7 +133,6 @@ export function PartyBar({ campaignId, campaignSlug, encounterId, catalogNodes, 
     setAddingToEncounter(true)
     try {
       await addPartyToEncounter(encounterId, members)
-      // Reload page to show new participants
       window.location.reload()
     } catch (e) {
       console.error(e)
@@ -136,7 +154,6 @@ export function PartyBar({ campaignId, campaignSlug, encounterId, catalogNodes, 
             onClick={handleAddToEncounter}
             disabled={addingToEncounter}
             className="rounded bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-            title="Добавить всю группу в этот энкаунтер"
           >
             {addingToEncounter ? '...' : '+ В энкаунтер'}
           </button>
@@ -146,22 +163,20 @@ export function PartyBar({ campaignId, campaignSlug, encounterId, catalogNodes, 
             onClick={() => setShowAdd(true)}
             className="rounded border border-indigo-300 bg-white px-2.5 py-1 text-xs text-indigo-600 hover:bg-indigo-50 transition-colors"
           >
-            + Добавить PC
+            + Добавить
           </button>
         )}
       </div>
 
-      {/* Members horizontal strip */}
-      <div className="flex items-center gap-2 overflow-x-auto px-4 py-2.5 min-h-[52px]">
+      {/* Members strip */}
+      <div className="flex items-center gap-2 overflow-x-auto px-4 py-2.5 min-h-[52px] flex-wrap">
         {members.length === 0 && !showAdd ? (
-          <p className="text-xs text-indigo-400 italic">
-            Группа пустая — добавь PC, они будут здесь между сессиями
-          </p>
+          <p className="text-xs text-indigo-400 italic">Группа пустая — добавь участников</p>
         ) : (
           members.map((m) => (
             <div
               key={m.id}
-              className="group flex-shrink-0 flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-sm"
+              className="group flex-shrink-0 flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5"
             >
               {editingId === m.id ? (
                 <>
@@ -218,83 +233,52 @@ export function PartyBar({ campaignId, campaignSlug, encounterId, catalogNodes, 
         )}
       </div>
 
-      {/* Add member form */}
+      {/* Inline add */}
       {showAdd && (
-        <div className="border-t border-indigo-200 px-4 py-3 space-y-2">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setAddMode('catalog')}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${addMode === 'catalog' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'}`}
-            >
-              Из каталога
-            </button>
-            <button
-              onClick={() => setAddMode('manual')}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${addMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'}`}
-            >
-              Вручную
-            </button>
-          </div>
-
-          {addMode === 'catalog' ? (
-            <div className="space-y-2">
-              <input
-                autoFocus
-                placeholder="Поиск по каталогу..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setSelectedNode(null) }}
-                className="w-full rounded border border-indigo-200 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
-              />
-              {searchQuery && (
-                <div className="max-h-32 overflow-y-auto rounded border border-indigo-200 bg-white">
-                  {filteredNodes.slice(0, 8).map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => { setSelectedNode(n); setSearchQuery(n.title) }}
-                      className={`w-full px-3 py-1.5 text-left text-xs hover:bg-indigo-50 ${selectedNode?.id === n.id ? 'bg-indigo-50 font-medium text-indigo-700' : 'text-gray-700'}`}
-                    >
-                      {n.title}
-                    </button>
-                  ))}
-                  {filteredNodes.length === 0 && (
-                    <p className="px-3 py-2 text-xs text-gray-400">Ничего не найдено</p>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
+        <div className="border-t border-indigo-200 px-4 py-3">
+          <div className="relative">
             <input
-              autoFocus
-              placeholder="Имя персонажа..."
-              value={manualName}
-              onChange={(e) => setManualName(e.target.value)}
-              className="w-full rounded border border-indigo-200 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
-            />
-          )}
-
-          <div className="flex items-center gap-2">
-            <input
-              placeholder="Макс. HP"
-              value={manualHp}
-              onChange={(e) => setManualHp(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
-              className="w-20 rounded border border-indigo-200 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
-              type="number"
-              min="0"
+              ref={inputRef}
+              placeholder="Найти в каталоге или ввести имя…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') resetAdd()
+                if (e.key === 'Enter' && showCreateOption && filteredNodes.length === 0) handleCreateNpc()
+              }}
+              disabled={saving}
+              className="w-full rounded border border-indigo-200 px-3 py-1.5 text-xs focus:border-indigo-400 focus:outline-none pr-16"
             />
             <button
-              onClick={handleAddMember}
-              disabled={saving || (addMode === 'catalog' ? !selectedNode : !manualName.trim())}
-              className="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-            >
-              {saving ? '...' : 'Добавить'}
-            </button>
-            <button
-              onClick={() => { setShowAdd(false); setSelectedNode(null); setManualName(''); setManualHp(''); setSearchQuery('') }}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              onClick={resetAdd}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
             >
               Отмена
             </button>
+
+            {searchQuery.trim() && (
+              <div className="absolute z-10 w-full mt-1 rounded border border-indigo-200 bg-white shadow-sm overflow-hidden">
+                {filteredNodes.slice(0, 8).map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleSelect(n)}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-indigo-50 text-gray-700 border-b border-indigo-50 last:border-0"
+                  >
+                    {n.title}
+                  </button>
+                ))}
+                {showCreateOption && (
+                  <button
+                    onClick={handleCreateNpc}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-left text-xs text-indigo-600 hover:bg-indigo-50 font-medium"
+                  >
+                    {saving ? '…' : `✦ Создать «${searchQuery.trim()}» как НПС`}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -84,6 +84,33 @@ export async function removePartyMember(memberId: string) {
   if (error) throw error
 }
 
+// Create a new NPC node and return its id
+export async function createNpcNode(
+  campaignId: string,
+  name: string
+): Promise<{ id: string; title: string }> {
+  const supabase = createClient()
+
+  // Find the npc node_type for this campaign
+  const { data: nodeType } = await supabase
+    .from('node_types')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('slug', 'npc')
+    .single()
+
+  if (!nodeType) throw new Error('NPC node type not found')
+
+  const { data, error } = await supabase
+    .from('nodes')
+    .insert({ campaign_id: campaignId, type_id: nodeType.id, title: name, fields: {} })
+    .select('id, title')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 // Add all party members to an encounter as participants (role='pc')
 export async function addPartyToEncounter(encounterId: string, members: PartyMember[]) {
   if (members.length === 0) return
