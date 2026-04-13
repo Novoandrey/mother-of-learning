@@ -10,6 +10,7 @@ import {
   updateInitiative,
   updateHp,
   updateParticipantName,
+  updateConditions,
   toggleParticipantActive,
   deleteParticipant,
   updateEncounterStatus,
@@ -33,6 +34,7 @@ type Participant = {
   sort_order: number
   is_active: boolean
   node_id: string | null
+  conditions: string[]
   node?: { id: string; title: string; type?: { slug: string } } | null
 }
 
@@ -97,6 +99,11 @@ export function CombatTracker({
     try { await updateHp(id, newHp) } catch { router.refresh() }
   }, [router])
 
+  const handleConditionsChange = useCallback(async (id: string, conditions: string[]) => {
+    setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, conditions } : p)))
+    try { await updateConditions(id, conditions) } catch { router.refresh() }
+  }, [router])
+
   const handleToggleActive = useCallback(async (id: string, isActive: boolean) => {
     setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: isActive } : p)))
     try { await toggleParticipantActive(id, isActive) } catch { router.refresh() }
@@ -125,7 +132,7 @@ export function CombatTracker({
   const handleAddManual = useCallback(async (displayName: string, maxHp: number) => {
     try {
       const newRow = await addParticipantManual(encounter.id, displayName, maxHp)
-      setParticipants((prev) => [...prev, { ...newRow, node: null }])
+      setParticipants((prev) => [...prev, { ...newRow, node: null, conditions: newRow.conditions || [] }])
     } catch (e) { console.error(e) }
   }, [encounter.id])
 
@@ -134,7 +141,7 @@ export function CombatTracker({
   ) => {
     try {
       const newRows = await addParticipantFromCatalog(encounter.id, nodeId, displayName, maxHp, quantity)
-      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({ ...r, node: null }))])
+      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({ ...r, node: null, conditions: r.conditions || [] }))])
       router.refresh()
     } catch (e) { console.error(e) }
   }, [encounter.id, router])
@@ -197,6 +204,7 @@ export function CombatTracker({
                 campaignSlug={campaignSlug}
                 onInitiativeChange={handleInitiativeChange}
                 onHpChange={handleHpChange}
+                onConditionsChange={handleConditionsChange}
                 onToggleActive={handleToggleActive}
                 onDelete={handleDelete}
                 onRename={handleRename}

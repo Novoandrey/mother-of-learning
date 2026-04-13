@@ -125,3 +125,12 @@ export async function deleteParticipant(participantId: string) {
     .eq('id', participantId)
   if (error) throw error
 }
+
+export async function updateConditions(participantId: string, conditions: string[]) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('encounter_participants')
+    .update({ conditions })
+    .eq('id', participantId)
+  if (error) throw error
+}

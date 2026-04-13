@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { InitiativeInput } from './initiative-input'
 import { HpControl } from './hp-control'
+import { ConditionPicker } from './condition-picker'
 
 type Participant = {
   id: string
@@ -13,6 +14,7 @@ type Participant = {
   current_hp: number
   is_active: boolean
   node_id: string | null
+  conditions: string[]
   node?: { id: string; title: string; type?: { slug: string } } | null
 }
 
@@ -22,6 +24,7 @@ type Props = {
   campaignSlug: string
   onInitiativeChange: (id: string, value: number | null) => void
   onHpChange: (id: string, newHp: number) => void
+  onConditionsChange: (id: string, conditions: string[]) => void
   onToggleActive: (id: string, isActive: boolean) => void
   onDelete: (id: string) => void
   onRename: (id: string, newName: string) => void
@@ -33,6 +36,7 @@ export function ParticipantRow({
   campaignSlug,
   onInitiativeChange,
   onHpChange,
+  onConditionsChange,
   onToggleActive,
   onDelete,
   onRename,
@@ -99,6 +103,13 @@ export function ParticipantRow({
           </div>
         )}
       </div>
+
+      {/* Conditions */}
+      <ConditionPicker
+        value={p.conditions || []}
+        onChange={(conds) => onConditionsChange(p.id, conds)}
+        disabled={isCompleted}
+      />
 
       {/* HP */}
       {p.max_hp > 0 && (
