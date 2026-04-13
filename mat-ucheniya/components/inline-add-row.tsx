@@ -18,7 +18,7 @@ export function InlineAddRow({ onAdd }: Props) {
   }
 
   return (
-    <div className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2">
+    <div className="mt-1 flex min-w-[900px] items-center gap-2 rounded-lg px-3 py-2">
       <div className="w-14" /> {/* spacer for initiative column */}
       <input
         type="text"

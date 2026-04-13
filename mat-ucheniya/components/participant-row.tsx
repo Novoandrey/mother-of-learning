@@ -78,7 +78,7 @@ export function ParticipantRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 transition-colors ${roleStyle.row} ${
+      className={`flex min-w-[900px] items-center gap-3 px-4 py-3 transition-colors ${roleStyle.row} ${
         dimmed ? 'opacity-40' : ''
       } ${isDown ? '!bg-red-100' : ''}`}
     >
