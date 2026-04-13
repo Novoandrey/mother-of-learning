@@ -34,6 +34,14 @@ UI consistency: unified design tokens across all non-encounter components.
 - **Feature**: dx
 - One README.md per directory (components/, lib/, app/) describing files and relationships
 
+### FEAT-005 [P2] НПС/Монстры: max_hp + ссылка на статблок → авто-HP в энкаунтере
+- **Feature**: encounter + catalog
+- Переименовать node_type `creature` → `monster` (label "Монстр")
+- Добавить в default_fields для `npc` и `monster`: `max_hp` (int), `statblock_url` (string)
+- Энкаунтер: при добавлении НПС/монстра из каталога — автозаполнение max_hp из node.fields.max_hp
+- Энкаунтер: display_name кликабелен → открывает statblock_url (если заполнен) в новой вкладке
+- Каталог: ссылка на статблок видна на карточке ноды
+
 ---
 
 ## Ideas

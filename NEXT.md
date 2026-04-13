@@ -36,14 +36,23 @@
 - Теги: inline добавление/удаление на карточке ноды
 - Удаление сущностей: кнопка + confirm + CASCADE рёбра
 - Сайдбар: навигация Петли/Сессии/Энкаунтеры над деревом каталога
+- API: PATCH/DELETE /api/nodes/[id] (теги, удаление сущностей)
+- Конституция v2.1.0: принцип XI (единообразие UI), STYLE.md с токенами
+- Spec-003: полный цикл specify → plan → tasks для миграции петель/сессий в граф
 
 ## Следующая задача
 
-Обсудить с пользователем. Кандидаты:
-- Заполнение реальными данными кампании (60 сессий, 150 НПС)
-- Граф-визуализация (IDEA-006 из backlog — react-flow / cytoscape.js)
-- Responsive mobile layout (IDEA-005)
-- Что-то другое
+**Spec-003: Петли и сессии как ноды графа** (ГОТОВО: specify + plan + tasks)
+
+Полный цикл спецификации в `.specify/specs/003-loops-sessions-as-nodes/`:
+- `spec.md` — 4 user stories, 10 FR, clarifications done
+- `plan.md` — data model, search_vector trigger, source structure
+- `tasks.md` — 22 задачи, 5 фаз, начинать с T001 (SQL migration)
+
+⚠️ Ключевое: миграция + код деплоятся ОДНИМ коммитом (иначе сайт ломается).
+
+### Также в бэклоге (другой чат)
+- FEAT-005: НПС/Монстры — max_hp + statblock_url → авто-HP в энкаунтере
 
 ## Стек и окружение
 
