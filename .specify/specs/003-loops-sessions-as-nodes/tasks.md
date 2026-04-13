@@ -48,7 +48,7 @@ UI-адаптация сгруппирована по страницам. Фич
   fields={number, status}, content=notes. Title = "Петля {N}" или custom.
 - [x] T006 Update `app/c/[slug]/loops/new/page.tsx` и `loops/[id]/edit/page.tsx`:
   запросы из nodes, передача в LoopForm
-- [ ] T007 Manual test: /loops показывает петли, создание/редактирование работает
+- [x] T007 Manual test: /loops показывает петли, создание/редактирование работает
 
 **Checkpoint**: Петли работают. Deploy v0.1.
 
@@ -70,7 +70,7 @@ UI-адаптация сгруппирована по страницам. Фич
   с type_id=session, fields={session_number, loop_number, recap, dm_notes, played_at, game_date}.
   При сохранении: создать/обновить ребро contains от петли (если loop_number задан)
 - [x] T011 Update `app/c/[slug]/sessions/new/page.tsx`: запросы из nodes
-- [ ] T012 Manual test: список сессий, фильтр по петле, создание, редактирование,
+- [x] T012 Manual test: список сессий, фильтр по петле, создание, редактирование,
   prev/next навигация, рекап отображается
 
 **Checkpoint**: Сессии работают. Deploy v0.2.
@@ -82,15 +82,15 @@ UI-адаптация сгруппирована по страницам. Фич
 **Goal**: Петли и сессии видны в каталоге, связываются с НПС
 **Independent Test**: Поиск "Допрос" → находит сессию. Связь сессия→НПС работает.
 
-- [ ] T013 Verify: петли и сессии появляются в каталоге (sidebar tree, search, type filter).
+- [x] T013 Verify: петли и сессии появляются в каталоге (sidebar tree, search, type filter).
   Если node_types добавлены правильно — работает автоматически.
-- [ ] T014 Verify: карточка сессии в каталоге показывает поля (session_number, recap и т.д.)
+- [x] T014 Verify: карточка сессии в каталоге показывает поля (session_number, recap и т.д.)
   через стандартный NodeDetail
-- [ ] T015 Verify: поиск "Бенисек" возвращает и НПС, и сессию "Допрос Бенисека"
+- [x] T015 Verify: поиск "Бенисек" возвращает и НПС, и сессию "Допрос Бенисека"
   (search_vector обновлён). Если нет — отладить триггер.
-- [ ] T016 Verify: добавление связи сессия→НПС работает через стандартный CreateEdgeForm.
+- [x] T016 Verify: добавление связи сессия→НПС работает через стандартный CreateEdgeForm.
   Обратная ссылка на карточке НПС видна.
-- [ ] T017 Manual test: полный сценарий US1 + US2 из spec.md
+- [x] T017 Manual test: полный сценарий US1 + US2 из spec.md
 
 **Checkpoint**: Каталог полностью интегрирован. Deploy v0.3.
 
@@ -105,7 +105,7 @@ UI-адаптация сгруппирована по страницам. Фич
 - [x] T019 Update chronicles queries в `loops/page.tsx` (если ссылаются на loops table)
 - [x] T020 [P] Remove unused imports, dead code из lib/loops.ts (старые типы)
 - [x] T021 [P] Update NEXT.md и backlog.md
-- [ ] T022 Push to GitHub, verify Vercel deploy, run all scenarios on prod
+- [x] T022 Push to GitHub, verify Vercel deploy, run all scenarios on prod
 
 **Checkpoint**: Production v1.0. Чисто.
 
