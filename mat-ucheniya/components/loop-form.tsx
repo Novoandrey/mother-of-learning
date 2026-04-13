@@ -10,8 +10,6 @@ type Loop = {
   title?: string | null
   status?: string
   notes?: string | null
-  started_at?: string | null
-  ended_at?: string | null
 }
 
 type Props = {
@@ -31,8 +29,6 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
   const [title, setTitle] = useState(loop?.title ?? '')
   const [status, setStatus] = useState(loop?.status ?? 'past')
   const [notes, setNotes] = useState(loop?.notes ?? '')
-  const [startedAt, setStartedAt] = useState(loop?.started_at ?? '')
-  const [endedAt, setEndedAt] = useState(loop?.ended_at ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,8 +43,6 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
       title: title.trim() || null,
       status,
       notes: notes.trim() || null,
-      started_at: startedAt || null,
-      ended_at: endedAt || null,
     }
 
     let err
@@ -118,28 +112,6 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Начало (игровая дата)</label>
-          <input
-            type="text"
-            placeholder="День 1"
-            value={startedAt}
-            onChange={(e) => setStartedAt(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Конец (игровая дата)</label>
-          <input
-            type="text"
-            placeholder="День 31"
-            value={endedAt}
-            onChange={(e) => setEndedAt(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Заметки ДМа</label>
