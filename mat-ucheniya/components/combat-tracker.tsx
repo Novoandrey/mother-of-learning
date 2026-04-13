@@ -193,7 +193,7 @@ export function CombatTracker({
       )}
 
       {/* Participant table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-gray-200 bg-white">
         {/* Table header */}
         <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
           <div className="w-14 text-center">Иниц.</div>
