@@ -145,7 +145,7 @@
 - [x] T040 [P] Responsive check: 375px viewport
 - [x] T041 Push to GitHub, Vercel auto-deploys
 - [x] T042 Run all quickstart scenarios + edge creation on prod
-- [ ] T043 Share URL with players
+- [x] T043 Share URL with players
 
 **Checkpoint**: Production v1.0.
 

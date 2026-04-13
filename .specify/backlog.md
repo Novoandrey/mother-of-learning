@@ -9,24 +9,22 @@ Updated: 2026-04-13
 
 ## Bugs
 
-### BUG-001 [P3] New entity doesn't appear in catalog without page reload
-- **Feature**: 001-entity-graph
-- **Symptom**: After creating a node via CreateNodeForm, the catalog list is stale
-- **Fix**: Add `router.refresh()` or `revalidatePath` after insert
+### ~~BUG-001~~ ✅ FIXED
+New entity didn't appear in catalog without page reload.
+Fixed: `router.refresh()` after `router.push()` in `create-node-form.tsx`.
 
 ---
 
 ## Features
 
+### ~~FEAT-002~~ ✅ DONE
+Incoming edge creation from target node card.
+Done: direction toggle in `create-edge-form.tsx`, flips source/target on save.
+
 ### FEAT-001 [P3] Edge type constraints (allowed source/target types)
 - **Feature**: 001-entity-graph
 - `edge_types` gets `allowed_source_types` / `allowed_target_types` arrays
 - CreateEdgeForm filters target nodes by constraint
-
-### FEAT-002 [P3] Incoming edge creation from target node card
-- **Feature**: 001-entity-graph
-- Toggle "Outgoing / Incoming" on CreateEdgeForm
-- Display format: "[Бенисек] состоит в" for incoming edges
 
 ### FEAT-003 [P2] Directory README files for code documentation
 - **Feature**: dx
@@ -36,11 +34,12 @@ Updated: 2026-04-13
 
 ## Ideas
 
-### IDEA-001 Encounter templates (save → clone → modify)
+### IDEA-001 Encounter templates (save → clone → modify) 🔜 NEXT
 - **Feature**: 003-encounter-templates
 - Save participant list as template, clone into new encounter
 - Useful for recurring combat setups (random encounters, arena)
-- **Next step**: spec + implement in new chat
+- Infrastructure already exists: migration 007, template-actions.ts, save-as-template-button.tsx
+- **Next step**: new chat → spec + implement
 
 ### IDEA-002 Git-style constitution versioning
 - **Feature**: dx

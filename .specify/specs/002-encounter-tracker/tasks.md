@@ -105,3 +105,10 @@
 - **42 done, 0 remaining**
 - Feature complete. Deployed to production.
 - Migrations applied: 002, 003, 004, 005
+
+---
+
+## Hotfixes (post-release)
+
+- [x] BUG-001 `router.refresh()` after node creation so catalog updates without reload (`create-node-form.tsx`)
+- [x] FEAT-002 Incoming/outgoing direction toggle in `create-edge-form.tsx` — flips source/target on save
