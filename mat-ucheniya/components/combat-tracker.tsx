@@ -9,6 +9,7 @@ import {
   updateRound,
   updateInitiative,
   updateHp,
+  updateMaxHp,
   updateParticipantName,
   updateConditions,
   toggleParticipantActive,
@@ -97,6 +98,11 @@ export function CombatTracker({
   const handleHpChange = useCallback(async (id: string, newHp: number) => {
     setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, current_hp: newHp } : p)))
     try { await updateHp(id, newHp) } catch { router.refresh() }
+  }, [router])
+
+  const handleMaxHpChange = useCallback(async (id: string, maxHp: number, currentHp: number) => {
+    setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, max_hp: maxHp, current_hp: currentHp } : p)))
+    try { await updateMaxHp(id, maxHp, currentHp) } catch { router.refresh() }
   }, [router])
 
   const handleConditionsChange = useCallback(async (id: string, conditions: string[]) => {
@@ -213,6 +219,7 @@ export function CombatTracker({
                 campaignSlug={campaignSlug}
                 onInitiativeChange={handleInitiativeChange}
                 onHpChange={handleHpChange}
+                onMaxHpChange={handleMaxHpChange}
                 onConditionsChange={handleConditionsChange}
                 onToggleActive={handleToggleActive}
                 onDelete={handleDelete}

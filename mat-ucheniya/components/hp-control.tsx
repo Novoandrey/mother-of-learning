@@ -6,11 +6,14 @@ type Props = {
   currentHp: number
   maxHp: number
   onChange: (newHp: number) => void
+  onMaxHpChange: (maxHp: number, currentHp: number) => void
   disabled?: boolean
 }
 
-export function HpControl({ currentHp, maxHp, onChange, disabled }: Props) {
+export function HpControl({ currentHp, maxHp, onChange, onMaxHpChange, disabled }: Props) {
   const [amount, setAmount] = useState('')
+  const [editingMax, setEditingMax] = useState(false)
+  const [maxDraft, setMaxDraft] = useState('')
 
   function applyDamage() {
     const n = parseInt(amount)
@@ -26,6 +29,54 @@ export function HpControl({ currentHp, maxHp, onChange, disabled }: Props) {
     setAmount('')
   }
 
+  function startEditMax() {
+    if (disabled) return
+    setMaxDraft(maxHp > 0 ? String(maxHp) : '')
+    setEditingMax(true)
+  }
+
+  function commitMax() {
+    setEditingMax(false)
+    const n = parseInt(maxDraft)
+    if (!isNaN(n) && n >= 0 && n !== maxHp) {
+      // When setting max HP, also set current HP to max (full health)
+      const newCurrent = n > maxHp ? Math.min(currentHp + (n - maxHp), n) : Math.min(currentHp, n)
+      onMaxHpChange(n, maxHp === 0 ? n : newCurrent)
+    }
+  }
+
+  // No max HP set — show setup prompt
+  if (maxHp === 0 && !editingMax) {
+    return (
+      <button
+        onClick={startEditMax}
+        disabled={disabled}
+        className="rounded border border-dashed border-gray-300 px-2 py-1 text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+      >
+        + HP
+      </button>
+    )
+  }
+
+  if (editingMax) {
+    return (
+      <input
+        autoFocus
+        type="text"
+        inputMode="numeric"
+        value={maxDraft}
+        onChange={(e) => setMaxDraft(e.target.value.replace(/[^0-9]/g, ''))}
+        onBlur={commitMax}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commitMax()
+          if (e.key === 'Escape') setEditingMax(false)
+        }}
+        placeholder="Макс HP"
+        className="w-20 rounded border border-blue-400 px-2 py-1 text-center text-xs font-medium focus:outline-none"
+      />
+    )
+  }
+
   const pct = maxHp > 0 ? (currentHp / maxHp) * 100 : 0
   const barColor = pct > 50 ? 'bg-green-500' : pct > 25 ? 'bg-yellow-500' : pct > 0 ? 'bg-red-500' : 'bg-gray-300'
 
@@ -37,7 +88,14 @@ export function HpControl({ currentHp, maxHp, onChange, disabled }: Props) {
           <span className={`text-sm font-mono font-bold ${currentHp === 0 ? 'text-red-500' : 'text-gray-900'}`}>
             {currentHp}
           </span>
-          <span className="text-xs text-gray-400">/ {maxHp}</span>
+          <button
+            onClick={startEditMax}
+            disabled={disabled}
+            className="text-xs text-gray-400 hover:text-blue-500 transition-colors"
+            title="Изменить макс. HP"
+          >
+            / {maxHp}
+          </button>
         </div>
         <div className="mt-0.5 h-1.5 rounded-full bg-gray-200">
           <div

@@ -24,6 +24,7 @@ type Props = {
   campaignSlug: string
   onInitiativeChange: (id: string, value: number | null) => void
   onHpChange: (id: string, newHp: number) => void
+  onMaxHpChange: (id: string, maxHp: number, currentHp: number) => void
   onConditionsChange: (id: string, conditions: string[]) => void
   onToggleActive: (id: string, isActive: boolean) => void
   onDelete: (id: string) => void
@@ -36,6 +37,7 @@ export function ParticipantRow({
   campaignSlug,
   onInitiativeChange,
   onHpChange,
+  onMaxHpChange,
   onConditionsChange,
   onToggleActive,
   onDelete,
@@ -119,16 +121,13 @@ export function ParticipantRow({
 
       {/* HP */}
       <div className="w-36">
-        {p.max_hp > 0 ? (
-          <HpControl
-            currentHp={p.current_hp}
-            maxHp={p.max_hp}
-            onChange={(hp) => onHpChange(p.id, hp)}
-            disabled={isCompleted}
-          />
-        ) : (
-          <span className="text-xs text-gray-300">—</span>
-        )}
+        <HpControl
+          currentHp={p.current_hp}
+          maxHp={p.max_hp}
+          onChange={(hp) => onHpChange(p.id, hp)}
+          onMaxHpChange={(maxHp, currentHp) => onMaxHpChange(p.id, maxHp, currentHp)}
+          disabled={isCompleted}
+        />
       </div>
 
       {/* Actions menu */}

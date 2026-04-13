@@ -99,6 +99,15 @@ export async function updateHp(participantId: string, currentHp: number) {
   if (error) throw error
 }
 
+export async function updateMaxHp(participantId: string, maxHp: number, currentHp: number) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('encounter_participants')
+    .update({ max_hp: maxHp, current_hp: currentHp })
+    .eq('id', participantId)
+  if (error) throw error
+}
+
 export async function updateParticipantName(participantId: string, displayName: string) {
   const supabase = createClient()
   const { error } = await supabase
