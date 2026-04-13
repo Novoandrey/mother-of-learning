@@ -26,6 +26,10 @@ Done: direction toggle in `create-edge-form.tsx`, flips source/target on save.
 - `edge_types` gets `allowed_source_types` / `allowed_target_types` arrays
 - CreateEdgeForm filters target nodes by constraint
 
+### ~~FEAT-004~~ ✅ DONE
+UI consistency: unified design tokens across all non-encounter components.
+16 files, single token system: inputs, buttons, cards, headers, empty states, errors.
+
 ### FEAT-003 [P2] Directory README files for code documentation
 - **Feature**: dx
 - One README.md per directory (components/, lib/, app/) describing files and relationships
