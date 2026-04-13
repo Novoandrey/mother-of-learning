@@ -43,6 +43,44 @@ type Props = {
 
 const HIDDEN_FIELDS = ['tags']
 
+// Human-readable field labels
+const FIELD_LABELS: Record<string, string> = {
+  description: 'Описание',
+  status: 'Статус',
+  player: 'Игрок',
+  number: 'Номер петли',
+  session_number: 'Номер сессии',
+  loop_number: 'Петля',
+  recap: 'Рекап',
+  dm_notes: 'Заметки ДМа',
+  played_at: 'Дата игры',
+  game_date: 'Игровая дата',
+  notes: 'Заметки',
+  title: 'Подзаголовок',
+  max_hp: 'Макс. HP',
+  statblock_url: 'Ссылка на статблок',
+  armor_class: 'Класс брони',
+  challenge_rating: 'Показатель опасности',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  past: 'Прошедшая',
+  current: 'Текущая',
+  future: 'Будущая',
+}
+
+function formatFieldValue(key: string, value: unknown): string {
+  if (value == null || value === '') return '—'
+  const str = String(value)
+  if (key === 'status' && STATUS_LABELS[str]) return STATUS_LABELS[str]
+  if (key === 'played_at' && str) {
+    try { return new Date(str).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) }
+    catch { return str }
+  }
+  if (key === 'loop_number' && str) return `Петля ${str}`
+  return str
+}
+
 export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }: Props) {
   const router = useRouter()
   const [showEdgeForm, setShowEdgeForm] = useState(false)
@@ -161,9 +199,11 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
           <div className="space-y-3">
             {fields.map(([key, value]) => (
               <div key={key}>
-                <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{key}</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                  {FIELD_LABELS[key] || key}
+                </dt>
                 <dd className="mt-0.5 whitespace-pre-wrap text-sm text-gray-700">
-                  {String(value || '—')}
+                  {formatFieldValue(key, value)}
                 </dd>
               </div>
             ))}
