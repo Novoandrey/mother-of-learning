@@ -6,6 +6,7 @@ import { MarkdownContent } from './markdown-content'
 import { Chronicles } from './chronicles'
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 type Edge = {
   id: string
@@ -107,7 +108,24 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
           {node.type.icon && <span>{node.type.icon}</span>}
           <span className="text-sm font-medium text-gray-500">{node.type.label}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">{node.title}</h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">{node.title}</h1>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href={`/c/${campaignSlug}/catalog/${node.id}/edit`}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Редактировать
+            </Link>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {deleting ? '…' : 'Удалить'}
+            </button>
+          </div>
+        </div>
         {/* Tags — editable */}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {tags.map((tag) => (
@@ -190,17 +208,6 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
         {edges.length === 0 && !showEdgeForm && (
           <p className="text-sm text-gray-400">Нет связей</p>
         )}
-      </div>
-
-      {/* Delete */}
-      <div className="pt-2">
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50"
-        >
-          {deleting ? 'Удаляю…' : 'Удалить сущность'}
-        </button>
       </div>
     </div>
   )

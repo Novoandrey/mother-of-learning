@@ -13,58 +13,41 @@
 Боевой трекер: инициатива, HP, temp HP, роли, условия, эффекты,
 детали энкаунтера, inline-добавление участников из каталога.
 
-### Петли и Сессии ✅
-- Миграции 008 (loops + chronicles), 009 (sessions), 010 (game_date)
-- `/loops` — дашборд текущей петли, список петель, сессии в петле
-- `/sessions` — список с фильтрами по петлям и поиском
-- `/sessions/[id]` — детальная страница с рекапом, prev/next навигацией
-- Формы создания/редактирования петель и сессий
-- Корневой редирект: / → /loops
+### Петли и Сессии → Markdown wiki → Летопись ✅
+Миграции 008–011. Специализированные страницы /loops, /sessions.
+MarkdownContent, Chronicles, API routes.
 
-### Markdown wiki + Летопись ✅
-- Миграция 011: колонка `content` (text) в nodes + обновлён search_vector
-- MarkdownContent: редактор/просмотр markdown на карточке ноды (IDEA-006)
-- Chronicles: CRUD записей летописи с привязкой к петле и дате (IDEA-007)
-- API: PUT /api/nodes/[id]/content, CRUD /api/chronicles
-- @tailwindcss/typography + react-markdown + remark-gfm
+### Spec-003: Петли и сессии как ноды графа ✅
+- Миграция 012: loops/sessions → nodes + edges, DROP старых таблиц
+- search_vector: индексирует ВСЕ текстовые поля из JSONB (не только description)
+- lib/loops.ts: все запросы из nodes
+- Унифицированная форма: create-node-form.tsx для ВСЕХ типов нод
+  (умные лейблы, textarea, dropdown статуса/петли, date picker, auto-title)
+- Универсальная страница редактирования: /catalog/[id]/edit
+- Удалены: loop-form.tsx, session-form.tsx (−664 строк)
+- Навигация: убрана дублирующая из хедера, осталась в сайдбаре
+- Петли/сессии скрыты из дерева каталога (свои страницы в навигации)
+- Кнопка "Редактировать" на карточке ноды → /catalog/[id]/edit
 
 ### Hotfixes ✅
-- BUG-001: router.refresh() после создания ноды
-- FEAT-002: переключатель направления в форме создания связи
-- Убраны поля дат из формы редактирования петли
-- UI consistency: унификация всех стилей (16 файлов) к единой дизайн-системе
-- Теги: inline добавление/удаление на карточке ноды
-- Удаление сущностей: кнопка + confirm + CASCADE рёбра
-- Сайдбар: навигация Петли/Сессии/Энкаунтеры над деревом каталога
-- API: PATCH/DELETE /api/nodes/[id] (теги, удаление сущностей)
-- Конституция v2.1.0: принцип XI (единообразие UI), STYLE.md с токенами
-- Spec-003: полный цикл specify → plan → tasks для миграции петель/сессий в граф
-
-### Spec-003: Петли и сессии как ноды графа — В ПРОЦЕССЕ
-- ✅ Миграция 012: SQL написан, node_types loop/session, данные мигрируются,
-  search_vector обновлён на ALL text values from JSONB fields, старые таблицы DROP
-- ✅ Код: lib/loops.ts, loop-form.tsx, session-form.tsx, все страницы loops/sessions
-  обновлены на чтение/запись из nodes вместо loops/sessions таблиц
-- ✅ Build проходит без ошибок
-- ⏳ T002: Миграция ещё НЕ ПРИМЕНЕНА в Supabase (пользователь вручную)
+- BUG-001, FEAT-002, FEAT-004, UI consistency, теги, удаление, сайдбар
 
 ## Следующая задача
 
-**Spec-003: Применить миграцию и протестировать**
+Ручное тестирование spec-003 на проде:
+- T007: /loops — петли с сессиями, создание/редактирование через unified form
+- T012: /sessions — список, фильтры, prev/next, edit → catalog/[id]/edit
+- T013-T016: каталог — поиск сессий, фильтр по типу, связи сессия→НПС
+- T022: финальная проверка на проде
 
-1. ⚠️ Применить миграцию 012 в Supabase SQL Editor (файл уже отдан)
-2. Запушить код в GitHub (деплой на Vercel автоматически)
-3. ⚠️ ВАЖНО: миграция и код MUST деплоиться ОДНОВРЕМЕННО
-4. Протестировать: T007 (loops), T012 (sessions), T013-T017 (каталог)
-5. T018-T019: проверить хроники
-6. T020-T022: cleanup + финальный деплой
-
-### Также в бэклоге (другой чат)
-- FEAT-005: НПС/Монстры — max_hp + statblock_url → авто-HP в энкаунтере
+После тестирования — выбрать из бэклога:
+- FEAT-005: НПС/Монстры max_hp + statblock_url
+- IDEA-008: Граф-визуализация
+- Или новая фича
 
 ## Стек и окружение
 
-- Next.js 14 (App Router) + Supabase + Tailwind v4
+- Next.js 16 (App Router) + Supabase + Tailwind v4
 - Vercel: https://mother-of-learning.vercel.app/
 - GitHub: https://github.com/Novoandrey/mother-of-learning
 - Кампания: slug `mat-ucheniya`

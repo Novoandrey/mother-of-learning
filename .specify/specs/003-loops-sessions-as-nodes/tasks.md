@@ -104,7 +104,7 @@ UI-адаптация сгруппирована по страницам. Фич
   теперь через nodes.fields->>'number' вместо loops.number
 - [x] T019 Update chronicles queries в `loops/page.tsx` (если ссылаются на loops table)
 - [x] T020 [P] Remove unused imports, dead code из lib/loops.ts (старые типы)
-- [ ] T021 [P] Update NEXT.md и backlog.md
+- [x] T021 [P] Update NEXT.md и backlog.md
 - [ ] T022 Push to GitHub, verify Vercel deploy, run all scenarios on prod
 
 **Checkpoint**: Production v1.0. Чисто.
