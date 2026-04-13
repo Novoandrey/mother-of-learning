@@ -89,6 +89,11 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
   const [containsEdgeTypeId, setContainsEdgeTypeId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const [showNewType, setShowNewType] = useState(false)
+  const [newTypeLabel, setNewTypeLabel] = useState('')
+  const [newTypeIcon, setNewTypeIcon] = useState('')
+  const [creatingType, setCreatingType] = useState(false)
+
   const isEdit = !!editNode
 
   // Load node types
@@ -157,6 +162,53 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId])
+
+  function slugify(str: string): string {
+    // Simple transliteration for common Cyrillic
+    const map: Record<string, string> = {
+      'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'j',
+      'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
+      'х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
+    }
+    return str.toLowerCase().split('').map(c => map[c] ?? c).join('')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 50) || 'custom'
+  }
+
+  async function createCustomType() {
+    const label = newTypeLabel.trim()
+    if (!label) return
+    setCreatingType(true)
+
+    const slug = slugify(label)
+    const maxSort = types.length > 0 ? Math.max(...types.map(t => 0)) + 100 : 100
+
+    const { data, error: err } = await supabase
+      .from('node_types')
+      .insert({
+        campaign_id: campaignId,
+        slug,
+        label,
+        icon: newTypeIcon.trim() || null,
+        default_fields: { description: '' },
+        sort_order: maxSort,
+      })
+      .select('id, slug, label, icon, default_fields')
+      .single()
+
+    if (err || !data) {
+      setError(err?.message || 'Не удалось создать тип')
+      setCreatingType(false)
+      return
+    }
+
+    const newType = data as NodeType
+    setTypes(prev => [...prev, newType])
+    setShowNewType(false)
+    setNewTypeLabel('')
+    setNewTypeIcon('')
+    setCreatingType(false)
+    selectType(newType)
+  }
 
   function initType(t: NodeType, existingFields?: Record<string, unknown>) {
     setSelectedType(t)
@@ -449,6 +501,55 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
               </button>
             ))}
           </div>
+
+          {/* Create custom type */}
+          {!showNewType ? (
+            <button
+              onClick={() => setShowNewType(true)}
+              className="mt-3 w-full rounded-lg border border-dashed border-gray-300 p-3 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+            >
+              + Создать свой тип
+            </button>
+          ) : (
+            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-3">
+              <p className="text-sm font-medium text-gray-700">Новый тип сущности</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newTypeIcon}
+                  onChange={(e) => setNewTypeIcon(e.target.value)}
+                  placeholder="🎨"
+                  className="w-14 rounded-lg border border-gray-200 px-3 py-2 text-sm text-center placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+                  maxLength={4}
+                />
+                <input
+                  type="text"
+                  value={newTypeLabel}
+                  onChange={(e) => setNewTypeLabel(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') createCustomType() }}
+                  placeholder="Название типа"
+                  className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={createCustomType}
+                  disabled={creatingType || !newTypeLabel.trim()}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {creatingType ? 'Создаю...' : 'Создать'}
+                </button>
+                <button
+                  onClick={() => { setShowNewType(false); setError('') }}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

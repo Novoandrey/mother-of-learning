@@ -27,6 +27,13 @@ type Chronicle = {
   updated_at: string
 }
 
+type ChildNode = {
+  id: string
+  title: string
+  typeIcon?: string
+  typeLabel?: string
+}
+
 type Props = {
   node: {
     id: string
@@ -36,6 +43,7 @@ type Props = {
     type: { slug: string; label: string; icon: string | null }
   }
   edges: Edge[]
+  children: ChildNode[]
   chronicles: Chronicle[]
   campaignSlug: string
   campaignId: string
@@ -100,7 +108,7 @@ function prettifyUrl(url: string): string {
   }
 }
 
-export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }: Props) {
+export function NodeDetail({ node, edges, children: childNodes, chronicles, campaignSlug, campaignId }: Props) {
   const router = useRouter()
   const [showEdgeForm, setShowEdgeForm] = useState(false)
   const [tags, setTags] = useState<string[]>((node.fields?.tags as string[]) || [])
@@ -212,6 +220,30 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
           />
         </div>
       </div>
+
+      {/* Children (contains) */}
+      {childNodes.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Содержит
+          </h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {childNodes.map((child) => (
+              <Link
+                key={child.id}
+                href={`/c/${campaignSlug}/catalog/${child.id}`}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 hover:border-gray-300 hover:bg-white transition-colors"
+              >
+                {child.typeIcon && <span className="text-sm">{child.typeIcon}</span>}
+                <span className="font-medium text-sm text-gray-900">{child.title}</span>
+                {child.typeLabel && (
+                  <span className="ml-auto text-xs text-gray-400">{child.typeLabel}</span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Link to specialized view for loops and sessions */}
       {node.type.slug === 'loop' && (

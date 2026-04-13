@@ -30,7 +30,7 @@ export default async function CatalogPage({
 
   const supabase = await createClient()
 
-  // Load node types for type filter (still needed for slug→id resolution)
+  // Load node types for type filter
   const { data: nodeTypes } = await supabase
     .from('node_types')
     .select('id, slug, label, icon')
@@ -61,24 +61,93 @@ export default async function CatalogPage({
   const { data: nodes } = await nodesQuery
   const count = nodes?.length ?? 0
 
+  const isSearching = !!q || !!type
+
   const heading = type
     ? (nodeTypes?.find((t) => t.slug === type)?.label ?? type)
     : q
     ? `Поиск: «${q}»`
-    : 'Все сущности'
+    : null
+
+  // Count nodes per type for the home view
+  const typeCounts: Record<string, number> = {}
+  if (!isSearching && nodeTypes) {
+    const { data: allNodes } = await supabase
+      .from('nodes')
+      .select('type_id')
+      .eq('campaign_id', campaign.id)
+    if (allNodes) {
+      for (const n of allNodes) {
+        typeCounts[n.type_id] = (typeCounts[n.type_id] || 0) + 1
+      }
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">{heading}</h2>
-        <span className="text-sm text-gray-400">{count}</span>
+    <div className="space-y-6">
+      {/* Hero search */}
+      <div className={isSearching ? '' : 'pt-8 pb-4'}>
+        <form action={`/c/${slug}/catalog`} method="get">
+          <div className="relative mx-auto max-w-xl">
+            <svg
+              className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              name="q"
+              defaultValue={q || ''}
+              placeholder="Найти персонажа, локацию, предмет..."
+              className={`w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all ${
+                isSearching ? 'py-2.5 text-sm' : 'py-3.5 text-base shadow-sm'
+              }`}
+              autoFocus={!isSearching}
+            />
+            {type && <input type="hidden" name="type" value={type} />}
+          </div>
+        </form>
       </div>
-      {count === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
-          <p className="text-gray-400">Ничего не найдено</p>
+
+      {/* Results or type grid */}
+      {isSearching ? (
+        <div className="space-y-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">{heading}</h2>
+            <span className="text-sm text-gray-400">{count}</span>
+          </div>
+          {count === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
+              <p className="text-gray-400">Ничего не найдено</p>
+            </div>
+          ) : (
+            <NodeList nodes={(nodes as any[]) || []} campaignSlug={slug} />
+          )}
         </div>
       ) : (
-        <NodeList nodes={(nodes as any[]) || []} campaignSlug={slug} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {(nodeTypes || []).map((t) => {
+            const cnt = typeCounts[t.id] || 0
+            if (cnt === 0) return null
+            return (
+              <a
+                key={t.slug}
+                href={`/c/${slug}/catalog?type=${t.slug}`}
+                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 hover:shadow-sm transition-all"
+              >
+                <span className="text-xl">{t.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-gray-900">{t.label}</span>
+                </div>
+                <span className="text-sm text-gray-400">{cnt}</span>
+              </a>
+            )
+          })}
+        </div>
       )}
     </div>
   )
