@@ -31,12 +31,22 @@ MarkdownContent, Chronicles.
   ссылки-мостики на спецстраницы петель и сессий
 - Спецстраницы /loops, /sessions остались как view-линзы поверх графа
 
+### FEAT-005: max_hp + statblock_url ✅
+- Миграция 013: creature → "Монстр", max_hp + statblock_url в default_fields для NPC и monster
+- Энкаунтер: авто-HP из каталога, ссылка на статблок рядом с именем участника
+- Каталог: node-detail рендерит URL-поля как кликабельные ссылки
+- Форма создания: URL-инпут с placeholder для statblock_url/link
+
 ## Следующая задача
 
 Выбрать из бэклога:
-- FEAT-005: НПС/Монстры max_hp + statblock_url → авто-HP в энкаунтере
 - IDEA-008: Граф-визуализация
 - IDEA-009: Realtime-синхронизация энкаунтера (мультиплеер)
+- IDEA-005: Responsive mobile layout
+
+## ⚠️ Применить миграцию
+
+Миграция `013_monster_statblock.sql` — применить в Supabase SQL Editor.
 
 ## Стек и окружение
 
