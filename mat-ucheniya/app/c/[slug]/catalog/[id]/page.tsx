@@ -40,7 +40,7 @@ export default async function NodePage({
   // Fetch node
   const { data: node } = await supabase
     .from('nodes')
-    .select('id, title, fields, type:node_types(slug, label, icon)')
+    .select('id, title, fields, content, type:node_types(slug, label, icon)')
     .eq('id', id)
     .single()
 
@@ -77,6 +77,14 @@ export default async function NodePage({
     })),
   ]
 
+  // Fetch chronicles for this node
+  const { data: chronicles } = await supabase
+    .from('chronicles')
+    .select('id, title, content, loop_number, game_date, created_at, updated_at')
+    .eq('node_id', id)
+    .order('loop_number', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+
   return (
     <div>
       <Link
@@ -88,6 +96,7 @@ export default async function NodePage({
       <NodeDetail
         node={node as any}
         edges={edges}
+        chronicles={chronicles || []}
         campaignSlug={slug}
         campaignId={campaign.id}
       />

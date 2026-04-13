@@ -2,6 +2,8 @@
 
 import { EdgeList } from './edge-list'
 import { CreateEdgeForm } from './create-edge-form'
+import { MarkdownContent } from './markdown-content'
+import { Chronicles } from './chronicles'
 import { useState } from 'react'
 
 type Edge = {
@@ -13,21 +15,33 @@ type Edge = {
   related_title: string
 }
 
+type Chronicle = {
+  id: string
+  title: string
+  content: string
+  loop_number: number | null
+  game_date: string | null
+  created_at: string
+  updated_at: string
+}
+
 type Props = {
   node: {
     id: string
     title: string
     fields: Record<string, unknown>
+    content: string
     type: { slug: string; label: string; icon: string | null }
   }
   edges: Edge[]
+  chronicles: Chronicle[]
   campaignSlug: string
   campaignId: string
 }
 
 const HIDDEN_FIELDS = ['tags']
 
-export function NodeDetail({ node, edges, campaignSlug, campaignId }: Props) {
+export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }: Props) {
   const [showEdgeForm, setShowEdgeForm] = useState(false)
   const fields = Object.entries(node.fields || {}).filter(
     ([key]) => !HIDDEN_FIELDS.includes(key)
@@ -68,28 +82,18 @@ export function NodeDetail({ node, edges, campaignSlug, campaignId }: Props) {
         </div>
       )}
 
+      <MarkdownContent
+        nodeId={node.id}
+        initialContent={node.content || ''}
+        campaignSlug={campaignSlug}
+      />
 
-      {/* Markdown content stub */}
-      <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white p-4">
-        <div className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Контент</h2>
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-600">скоро</span>
-        </div>
-        <p className="text-sm text-gray-400 italic">
-          Markdown-страница: статы, описание, картинки, таблицы
-        </p>
-      </div>
-
-      {/* Chronicles stub */}
-      <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white p-4">
-        <div className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Летопись</h2>
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-600">скоро</span>
-        </div>
-        <p className="text-sm text-gray-400 italic">
-          Рассказы, фанфики и заметки с привязкой к петле и дате
-        </p>
-      </div>
+      <Chronicles
+        nodeId={node.id}
+        campaignId={campaignId}
+        campaignSlug={campaignSlug}
+        initialChronicles={chronicles}
+      />
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
