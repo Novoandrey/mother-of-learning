@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { getCampaignBySlug } from '@/lib/campaign'
+import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({
@@ -16,28 +18,173 @@ export async function generateMetadata({
 
 export default async function LoopsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ loop?: string }>
 }) {
   const { slug } = await params
+  const sp = await searchParams
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
+  const supabase = await createClient()
+
+  const { data: loops } = await supabase
+    .from('loops')
+    .select('*')
+    .eq('campaign_id', campaign.id)
+    .order('number', { ascending: true })
+
+  const currentLoop = sp.loop
+    ? (loops?.find((l) => l.number === parseInt(sp.loop!)) ?? loops?.find((l) => l.status === 'current') ?? loops?.[0])
+    : (loops?.find((l) => l.status === 'current') ?? loops?.[0])
+
+  const { data: sessions } = currentLoop
+    ? await supabase
+        .from('sessions')
+        .select('id, session_number, title, played_at')
+        .eq('campaign_id', campaign.id)
+        .eq('loop_number', currentLoop.number)
+        .order('session_number', { ascending: true })
+    : { data: [] }
+
+  const { data: chronicles } = currentLoop
+    ? await supabase
+        .from('chronicles')
+        .select('id, title, game_date, node_id, node:nodes(id, title)')
+        .eq('campaign_id', campaign.id)
+        .eq('loop_number', currentLoop.number)
+        .order('created_at', { ascending: false })
+        .limit(10)
+    : { data: [] }
+
+  const statusLabel: Record<string, string> = { past: 'Завершена', current: 'Текущая', future: 'Будущая' }
+  const statusColors: Record<string, string> = {
+    past: 'bg-gray-100 text-gray-600',
+    current: 'bg-green-100 text-green-700',
+    future: 'bg-blue-100 text-blue-600',
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Петли</h1>
-          <p className="mt-1 text-sm text-gray-500">Таймлайн, события и накопленная информация по каждой петле</p>
+    <div className="flex gap-6">
+      {/* Loop list */}
+      <div className="w-44 flex-shrink-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Петли</p>
+        {!loops?.length && <p className="text-sm text-gray-400 italic">Нет петель</p>}
+        <div className="space-y-1">
+          {loops?.map((loop) => (
+            <Link
+              key={loop.id}
+              href={`/c/${slug}/loops?loop=${loop.number}`}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                currentLoop?.id === loop.id
+                  ? 'bg-blue-50 text-blue-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span className="text-gray-400 text-xs">#{loop.number}</span>
+              <span className="truncate">{loop.title ?? `Петля ${loop.number}`}</span>
+            </Link>
+          ))}
+        </div>
+        <div className="mt-4 border-t border-gray-100 pt-4">
+          <Link href={`/c/${slug}/sessions`} className="block text-sm text-gray-500 hover:text-gray-900 transition-colors">
+            Все сессии →
+          </Link>
         </div>
       </div>
 
-      <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white py-16 text-center">
-        <div className="text-4xl mb-3">🔄</div>
-        <p className="text-lg font-medium text-gray-500">В разработке</p>
-        <p className="mt-1 text-sm text-gray-400 max-w-md mx-auto">
-          Здесь будет таймлайн петель: текущая и прошедшие, события по дням, что помнят путешественники
-        </p>
+      {/* Selected loop detail */}
+      <div className="flex-1 min-w-0">
+        {!currentLoop ? (
+          <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white py-16 text-center">
+            <div className="text-4xl mb-3">🔄</div>
+            <p className="text-lg font-medium text-gray-500">Петли не созданы</p>
+            <p className="mt-1 text-sm text-gray-400">Запустите seed_loops_sessions.sql в Supabase SQL Editor</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-2xl font-bold text-gray-900">Петля {currentLoop.number}</span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[currentLoop.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {statusLabel[currentLoop.status] ?? currentLoop.status}
+                    </span>
+                  </div>
+                  {currentLoop.title && <p className="text-lg text-gray-600">{currentLoop.title}</p>}
+                </div>
+                {sessions && sessions.length > 0 && (
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-2xl font-bold text-gray-900">{sessions.length}</p>
+                    <p className="text-xs text-gray-400">сессий</p>
+                  </div>
+                )}
+              </div>
+              {currentLoop.notes && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{currentLoop.notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Sessions */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Сессии в петле</h2>
+                <Link href={`/c/${slug}/sessions/new?loop=${currentLoop.number}`} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                  + Добавить
+                </Link>
+              </div>
+              {!sessions?.length ? (
+                <div className="rounded-lg bg-gray-50 border border-dashed border-gray-200 px-4 py-6 text-center">
+                  <p className="text-sm text-gray-400">Нет сессий для этой петли</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {sessions.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={`/c/${slug}/sessions/${s.id}`}
+                      className="flex items-center gap-3 rounded-lg bg-white border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+                    >
+                      <span className="text-sm font-mono text-gray-400 w-8">#{s.session_number}</span>
+                      <span className="flex-1 text-sm text-gray-900 font-medium truncate">{s.title ?? `Сессия ${s.session_number}`}</span>
+                      {s.played_at && (
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {new Date(s.played_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Chronicles */}
+            {chronicles && chronicles.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">Хроники</h2>
+                <div className="space-y-1.5">
+                  {(chronicles as any[]).map((ch) => (
+                    <div key={ch.id} className="flex items-center gap-3 rounded-lg bg-white border border-gray-200 px-4 py-3">
+                      {ch.game_date && <span className="text-xs text-gray-400 flex-shrink-0 w-16">{ch.game_date}</span>}
+                      <span className="flex-1 text-sm text-gray-900 font-medium truncate">{ch.title}</span>
+                      {ch.node && (
+                        <Link href={`/c/${slug}/catalog/${ch.node.id}`} className="text-xs text-blue-600 hover:underline flex-shrink-0">
+                          {ch.node.title}
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

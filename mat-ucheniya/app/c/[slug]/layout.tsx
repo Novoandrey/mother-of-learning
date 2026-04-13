@@ -51,17 +51,20 @@ export default async function CampaignLayout({
       <header className="flex-shrink-0 border-b border-gray-200 bg-white">
         <div className="px-4 py-2.5 flex items-center justify-between">
           <Link
-            href={`/c/${slug}/catalog`}
+            href={`/c/${slug}/loops`}
             className="font-semibold text-base hover:text-blue-600 transition-colors"
           >
             {campaign.name}
           </Link>
           <nav className="flex items-center gap-3">
-            <Link href={`/c/${slug}/encounters`} className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
-              Энкаунтеры
-            </Link>
             <Link href={`/c/${slug}/loops`} className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
               Петли
+            </Link>
+            <Link href={`/c/${slug}/sessions`} className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+              Сессии
+            </Link>
+            <Link href={`/c/${slug}/encounters`} className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+              Энкаунтеры
             </Link>
             <Link
               href={`/c/${slug}/catalog/new`}
