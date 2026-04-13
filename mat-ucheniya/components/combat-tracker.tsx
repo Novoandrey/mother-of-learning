@@ -6,6 +6,7 @@ import { ParticipantRow } from './participant-row'
 import { InlineAddRow } from './inline-add-row'
 import { CatalogPanel } from './catalog-panel'
 import { EncounterDetailsCard } from './encounter-details-card'
+import { SaveAsTemplateButton } from './save-as-template-button'
 import {
   updateRound,
   updateInitiative,
@@ -214,6 +215,17 @@ export function CombatTracker({
             </button>
           </div>
           <div className="flex-1" />
+          <SaveAsTemplateButton
+            campaignId={campaignId}
+            participants={participants.map((p) => ({
+              id: p.id,
+              display_name: p.display_name,
+              max_hp: p.max_hp,
+              role: p.role,
+              sort_order: p.sort_order,
+              node_id: p.node_id,
+            }))}
+          />
           <button
             onClick={handleEndCombat}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors"
