@@ -4,7 +4,8 @@ import { EdgeList } from './edge-list'
 import { CreateEdgeForm } from './create-edge-form'
 import { MarkdownContent } from './markdown-content'
 import { Chronicles } from './chronicles'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Edge = {
   id: string
@@ -42,11 +43,62 @@ type Props = {
 const HIDDEN_FIELDS = ['tags']
 
 export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }: Props) {
+  const router = useRouter()
   const [showEdgeForm, setShowEdgeForm] = useState(false)
+  const [tags, setTags] = useState<string[]>((node.fields?.tags as string[]) || [])
+  const [tagInput, setTagInput] = useState('')
+  const [savingTags, setSavingTags] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const fields = Object.entries(node.fields || {}).filter(
     ([key]) => !HIDDEN_FIELDS.includes(key)
   )
-  const tags = (node.fields?.tags as string[]) || []
+  
+  const saveTags = useCallback(async (newTags: string[]) => {
+    setSavingTags(true)
+    try {
+      await fetch(`/api/nodes/${node.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { tags: newTags } }),
+      })
+      setTags(newTags)
+    } catch (err) {
+      console.error('Failed to save tags:', err)
+    } finally {
+      setSavingTags(false)
+    }
+  }, [node.id])
+
+  function handleAddTag() {
+    const tag = tagInput.trim().toLowerCase()
+    if (!tag || tags.includes(tag)) { setTagInput(''); return }
+    saveTags([...tags, tag])
+    setTagInput('')
+  }
+
+  function handleRemoveTag(tag: string) {
+    saveTags(tags.filter((t) => t !== tag))
+  }
+
+  function handleTagKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); handleAddTag() }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Удалить «${node.title}»? Все связи тоже будут удалены.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/nodes/${node.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        router.push(`/c/${campaignSlug}/catalog`)
+        router.refresh()
+      }
+    } catch (err) {
+      console.error('Failed to delete:', err)
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -56,15 +108,34 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
           <span className="text-sm font-medium text-gray-500">{node.type.label}</span>
         </div>
         <h1 className="text-2xl font-bold text-gray-900">{node.title}</h1>
-        {tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {tags.map((tag) => (
-              <span key={tag} className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Tags — editable */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="group inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"
+            >
+              {tag}
+              <button
+                onClick={() => handleRemoveTag(tag)}
+                className="hidden group-hover:inline text-gray-400 hover:text-red-500"
+                title="Удалить тег"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            onBlur={() => { if (tagInput.trim()) handleAddTag() }}
+            placeholder="+ тег"
+            className="w-20 border-none bg-transparent px-1 py-0.5 text-xs text-gray-500 placeholder:text-gray-300 focus:outline-none focus:w-28 transition-all"
+            disabled={savingTags}
+          />
+        </div>
       </div>
 
       {fields.length > 0 && (
@@ -119,6 +190,17 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
         {edges.length === 0 && !showEdgeForm && (
           <p className="text-sm text-gray-400">Нет связей</p>
         )}
+      </div>
+
+      {/* Delete */}
+      <div className="pt-2">
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50"
+        >
+          {deleting ? 'Удаляю…' : 'Удалить сущность'}
+        </button>
       </div>
     </div>
   )
