@@ -43,7 +43,7 @@ type Props = {
     type: { slug: string; label: string; icon: string | null }
   }
   edges: Edge[]
-  children: ChildNode[]
+  childNodes: ChildNode[]
   chronicles: Chronicle[]
   campaignSlug: string
   campaignId: string
@@ -108,7 +108,7 @@ function prettifyUrl(url: string): string {
   }
 }
 
-export function NodeDetail({ node, edges, children: childNodes, chronicles, campaignSlug, campaignId }: Props) {
+export function NodeDetail({ node, edges, childNodes, chronicles, campaignSlug, campaignId }: Props) {
   const router = useRouter()
   const [showEdgeForm, setShowEdgeForm] = useState(false)
   const [tags, setTags] = useState<string[]>((node.fields?.tags as string[]) || [])

@@ -142,7 +142,7 @@ export default async function NodePage({
       <NodeDetail
         node={node as any}
         edges={edges}
-        children={childrenWithTypes}
+        childNodes={childrenWithTypes}
         chronicles={chronicles || []}
         campaignSlug={slug}
         campaignId={campaign.id}
