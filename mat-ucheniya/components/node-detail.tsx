@@ -194,6 +194,24 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
         </div>
       </div>
 
+      {/* Link to specialized view for loops and sessions */}
+      {node.type.slug === 'loop' && (
+        <Link
+          href={`/c/${campaignSlug}/loops?loop=${node.fields?.number ?? ''}`}
+          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          🔄 Открыть на странице петли →
+        </Link>
+      )}
+      {node.type.slug === 'session' && (
+        <Link
+          href={`/c/${campaignSlug}/sessions/${node.id}`}
+          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          📋 Открыть на странице сессии →
+        </Link>
+      )}
+
       {fields.length > 0 && (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="space-y-3">
