@@ -81,6 +81,25 @@ function formatFieldValue(key: string, value: unknown): string {
   return str
 }
 
+const URL_FIELDS = ['statblock_url', 'link', 'url']
+
+function isUrl(key: string, value: unknown): boolean {
+  if (value == null || value === '') return false
+  const str = String(value)
+  if (URL_FIELDS.includes(key)) return str.startsWith('http')
+  return false
+}
+
+function prettifyUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const path = u.pathname.replace(/\/$/, '')
+    return u.hostname + (path.length > 1 ? path : '')
+  } catch {
+    return url
+  }
+}
+
 export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }: Props) {
   const router = useRouter()
   const [showEdgeForm, setShowEdgeForm] = useState(false)
@@ -221,7 +240,21 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
                   {FIELD_LABELS[key] || key}
                 </dt>
                 <dd className="mt-0.5 whitespace-pre-wrap text-sm text-gray-700">
-                  {formatFieldValue(key, value)}
+                  {isUrl(key, value) ? (
+                    <a
+                      href={String(value)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:underline break-all"
+                    >
+                      {prettifyUrl(String(value))}
+                      <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                      </svg>
+                    </a>
+                  ) : (
+                    formatFieldValue(key, value)
+                  )}
                 </dd>
               </div>
             ))}

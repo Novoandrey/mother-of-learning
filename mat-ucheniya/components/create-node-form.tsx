@@ -55,6 +55,9 @@ const TEXTAREA_FIELDS = ['description', 'recap', 'dm_notes', 'notes']
 // Fields that should use number input
 const NUMBER_FIELDS = ['number', 'session_number', 'max_hp', 'armor_class']
 
+// Fields that should use URL input
+const URL_FIELDS = ['statblock_url', 'link']
+
 // Fields that should use date input
 const DATE_FIELDS = ['played_at']
 
@@ -384,6 +387,22 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
       )
     }
 
+    // URL input
+    if (URL_FIELDS.includes(key)) {
+      return (
+        <div key={key}>
+          <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+          <input
+            type="url"
+            value={value}
+            onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
+            placeholder="https://..."
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+      )
+    }
+
     // Default: text input
     return (
       <div key={key}>
@@ -406,6 +425,7 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
       if (k === 'title' || k === 'player') return 2
       if (DATE_FIELDS.includes(k)) return 3
       if (k === 'game_date') return 4
+      if (URL_FIELDS.includes(k)) return 4.5
       if (TEXTAREA_FIELDS.includes(k)) return 5
       return 3
     }

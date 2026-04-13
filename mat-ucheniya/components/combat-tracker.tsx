@@ -46,7 +46,7 @@ type Participant = {
   node_id: string | null
   conditions: string[]
   effects: string[]
-  node?: { id: string; title: string; type?: { slug: string } } | null
+  node?: { id: string; title: string; fields?: Record<string, unknown>; type?: { slug: string } } | null
 }
 
 export type CatalogNode = {

@@ -49,7 +49,7 @@ export default async function EncounterPage({
 
   const { data: participants } = await supabase
     .from('encounter_participants')
-    .select('*, node:nodes(id, title, type:node_types(slug))')
+    .select('*, node:nodes(id, title, fields, type:node_types(slug))')
     .eq('encounter_id', id)
     .order('initiative', { ascending: false, nullsFirst: false })
     .order('sort_order', { ascending: true })

@@ -21,7 +21,7 @@ type Participant = {
   node_id: string | null
   conditions: string[]
   effects: string[]
-  node?: { id: string; title: string; type?: { slug: string } } | null
+  node?: { id: string; title: string; fields?: Record<string, unknown>; type?: { slug: string } } | null
 }
 
 type Props = {
@@ -65,6 +65,7 @@ export function ParticipantRow({
   const isDown = p.current_hp === 0 && p.max_hp > 0
   const dimmed = !p.is_active
   const roleStyle = getRoleStyle(p.role || 'enemy')
+  const statblockUrl = p.node?.fields?.statblock_url as string | undefined
 
   function commitName() {
     setEditingName(false)
@@ -123,6 +124,19 @@ export function ParticipantRow({
               <span className={`truncate font-medium ${isDown ? 'text-red-700 line-through' : 'text-gray-900'}`}>
                 {p.display_name}
               </span>
+            )}
+            {statblockUrl && (
+              <a
+                href={statblockUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 text-gray-300 hover:text-blue-500 transition-colors"
+                title="Статблок"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+              </a>
             )}
           </div>
         )}

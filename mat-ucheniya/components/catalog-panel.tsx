@@ -80,6 +80,7 @@ export function CatalogPanel({ nodes, onAdd }: Props) {
               <div className="space-y-0.5">
                 {group.nodes.map((node) => {
                   const hp = parseInt(String(node.fields?.max_hp ?? node.fields?.hp ?? '0'))
+                  const hasStatblock = !!node.fields?.statblock_url
                   return (
                     <button
                       key={node.id}
@@ -87,6 +88,9 @@ export function CatalogPanel({ nodes, onAdd }: Props) {
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-sm hover:bg-blue-50 transition-colors"
                     >
                       <span className="font-medium text-gray-700">{node.title}</span>
+                      {hasStatblock && (
+                        <span className="text-xs text-gray-300" title="Есть статблок">📋</span>
+                      )}
                       {!isNaN(hp) && hp > 0 && (
                         <span className="text-xs text-gray-400">{hp} HP</span>
                       )}
