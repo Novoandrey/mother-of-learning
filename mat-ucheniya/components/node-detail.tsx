@@ -68,6 +68,29 @@ export function NodeDetail({ node, edges, campaignSlug, campaignId }: Props) {
         </div>
       )}
 
+
+      {/* Markdown content stub */}
+      <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Контент</h2>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-600">скоро</span>
+        </div>
+        <p className="text-sm text-gray-400 italic">
+          Markdown-страница: статы, описание, картинки, таблицы
+        </p>
+      </div>
+
+      {/* Chronicles stub */}
+      <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Летопись</h2>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-600">скоро</span>
+        </div>
+        <p className="text-sm text-gray-400 italic">
+          Рассказы, фанфики и заметки с привязкой к петле и дате
+        </p>
+      </div>
+
       <div className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">Связи</h2>
