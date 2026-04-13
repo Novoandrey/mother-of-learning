@@ -178,13 +178,17 @@ export function CombatTracker({
     nodeId: string, displayName: string, maxHp: number, quantity: number
   ) => {
     try {
+      const catalogNode = catalogNodes.find((n) => n.id === nodeId)
+      const nodeData = catalogNode
+        ? { id: catalogNode.id, title: catalogNode.title, fields: catalogNode.fields, type: catalogNode.type ? { slug: catalogNode.type.slug } : undefined }
+        : null
       const newRows = await addParticipantFromCatalog(encounter.id, nodeId, displayName, maxHp, quantity)
       setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({
-        ...r, node: null, conditions: r.conditions || [], effects: r.effects || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy',
+        ...r, node: nodeData, conditions: r.conditions || [], effects: r.effects || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy',
       }))])
       router.refresh()
     } catch (e) { console.error(e) }
-  }, [encounter.id, router])
+  }, [encounter.id, router, catalogNodes])
 
   // ── Render ────────────────────────────────────────────────
 
