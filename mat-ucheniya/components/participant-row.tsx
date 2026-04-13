@@ -6,6 +6,7 @@ import { InitiativeInput } from './initiative-input'
 import { HpControl } from './hp-control'
 import { TempHpInput } from './temp-hp-input'
 import { ConditionPicker } from './condition-picker'
+import { EffectPicker } from './effect-picker'
 import { RoleSelector, getRoleStyle } from './role-selector'
 
 type Participant = {
@@ -19,12 +20,14 @@ type Participant = {
   is_active: boolean
   node_id: string | null
   conditions: string[]
+  effects: string[]
   node?: { id: string; title: string; type?: { slug: string } } | null
 }
 
 type Props = {
   participant: Participant
   isCompleted: boolean
+  campaignId: string
   campaignSlug: string
   onInitiativeChange: (id: string, value: number | null) => void
   onHpChange: (id: string, newHp: number) => void
@@ -32,6 +35,7 @@ type Props = {
   onTempHpChange: (id: string, tempHp: number) => void
   onRoleChange: (id: string, role: string) => void
   onConditionsChange: (id: string, conditions: string[]) => void
+  onEffectsChange: (id: string, effects: string[]) => void
   onToggleActive: (id: string, isActive: boolean) => void
   onDelete: (id: string) => void
   onRename: (id: string, newName: string) => void
@@ -40,6 +44,7 @@ type Props = {
 export function ParticipantRow({
   participant: p,
   isCompleted,
+  campaignId,
   campaignSlug,
   onInitiativeChange,
   onHpChange,
@@ -47,6 +52,7 @@ export function ParticipantRow({
   onTempHpChange,
   onRoleChange,
   onConditionsChange,
+  onEffectsChange,
   onToggleActive,
   onDelete,
   onRename,
@@ -70,9 +76,9 @@ export function ParticipantRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${roleStyle.row} ${
+      className={`flex items-center gap-3 px-4 py-3 transition-colors ${roleStyle.row} ${
         dimmed ? 'opacity-40' : ''
-      } ${isDown ? '!bg-red-100/70' : ''}`}
+      } ${isDown ? '!bg-red-100' : ''}`}
     >
       {/* Role */}
       <RoleSelector
@@ -101,19 +107,19 @@ export function ParticipantRow({
               if (e.key === 'Enter') commitName()
               if (e.key === 'Escape') { setNameDraft(p.display_name); setEditingName(false) }
             }}
-            className="w-full rounded border border-blue-400 px-1.5 py-0.5 text-sm focus:outline-none"
+            className="w-full rounded border border-blue-400 px-2 py-1 text-sm focus:outline-none"
           />
         ) : (
           <div className="flex items-center gap-1.5">
             {p.node ? (
               <Link
                 href={`/c/${campaignSlug}/catalog/${p.node.id}`}
-                className="truncate text-sm font-medium text-blue-700 hover:underline"
+                className="truncate font-medium text-blue-700 hover:underline"
               >
                 {p.display_name}
               </Link>
             ) : (
-              <span className={`truncate text-sm font-medium ${isDown ? 'text-red-700 line-through' : 'text-gray-900'}`}>
+              <span className={`truncate font-medium ${isDown ? 'text-red-700 line-through' : 'text-gray-900'}`}>
                 {p.display_name}
               </span>
             )}
@@ -122,7 +128,7 @@ export function ParticipantRow({
       </div>
 
       {/* Conditions */}
-      <div className="w-44">
+      <div className="w-44 shrink-0">
         <ConditionPicker
           value={p.conditions || []}
           onChange={(conds) => onConditionsChange(p.id, conds)}
@@ -130,8 +136,18 @@ export function ParticipantRow({
         />
       </div>
 
+      {/* Effects */}
+      <div className="w-44 shrink-0">
+        <EffectPicker
+          value={p.effects || []}
+          campaignId={campaignId}
+          onChange={(effs) => onEffectsChange(p.id, effs)}
+          disabled={isCompleted}
+        />
+      </div>
+
       {/* HP */}
-      <div className="w-36">
+      <div className="w-36 shrink-0">
         <HpControl
           currentHp={p.current_hp}
           maxHp={p.max_hp}
@@ -153,23 +169,23 @@ export function ParticipantRow({
         <div className="relative shrink-0">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            className="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700"
           >
             ⋮
           </button>
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-8 z-20 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 top-9 z-20 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                 <button
                   onClick={() => { setEditingName(true); setShowMenu(false) }}
-                  className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
                   Переименовать
                 </button>
                 <button
                   onClick={() => { onToggleActive(p.id, !p.is_active); setShowMenu(false) }}
-                  className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
                   {p.is_active ? 'Убрать из боя' : 'Вернуть в бой'}
                 </button>
@@ -179,7 +195,7 @@ export function ParticipantRow({
                     if (confirm(`Удалить ${p.display_name}?`)) onDelete(p.id)
                     setShowMenu(false)
                   }}
-                  className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+                  className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                 >
                   Удалить
                 </button>
@@ -188,7 +204,7 @@ export function ParticipantRow({
           )}
         </div>
       ) : (
-        <div className="w-7" />
+        <div className="w-8" />
       )}
     </div>
   )

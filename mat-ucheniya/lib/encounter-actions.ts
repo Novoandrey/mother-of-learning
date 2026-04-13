@@ -161,3 +161,12 @@ export async function updateTempHp(participantId: string, tempHp: number) {
     .eq('id', participantId)
   if (error) throw error
 }
+
+export async function updateEffects(participantId: string, effects: string[]) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('encounter_participants')
+    .update({ effects })
+    .eq('id', participantId)
+  if (error) throw error
+}

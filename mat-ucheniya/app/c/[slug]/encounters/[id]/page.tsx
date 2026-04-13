@@ -77,6 +77,7 @@ export default async function EncounterPage({
           title: encounter.title,
           status: encounter.status,
           current_round: encounter.current_round,
+          details: encounter.details || {},
         }}
         initialParticipants={(participants as any[]) || []}
         catalogNodes={filteredCatalog as any[]}

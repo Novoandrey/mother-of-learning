@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ParticipantRow } from './participant-row'
 import { InlineAddRow } from './inline-add-row'
 import { CatalogPanel } from './catalog-panel'
+import { EncounterDetailsCard } from './encounter-details-card'
 import {
   updateRound,
   updateInitiative,
@@ -12,6 +13,7 @@ import {
   updateMaxHp,
   updateParticipantName,
   updateConditions,
+  updateEffects,
   updateRole,
   updateTempHp,
   toggleParticipantActive,
@@ -26,6 +28,7 @@ type Encounter = {
   title: string
   status: 'active' | 'completed'
   current_round: number
+  details: Record<string, string>
 }
 
 type Participant = {
@@ -40,6 +43,7 @@ type Participant = {
   is_active: boolean
   node_id: string | null
   conditions: string[]
+  effects: string[]
   node?: { id: string; title: string; type?: { slug: string } } | null
 }
 
@@ -71,7 +75,6 @@ export function CombatTracker({
 
   const isCompleted = encounter.status === 'completed'
 
-  // Sort: initiative desc (nulls last), then sort_order
   const sorted = useMemo(() => {
     return [...participants].sort((a, b) => {
       if (a.initiative != null && b.initiative != null) {
@@ -84,15 +87,13 @@ export function CombatTracker({
     })
   }, [participants])
 
-  // ── Round ───────────────────────────────────────────────
+  // ── Handlers ────────────────────────────────────────────
 
   const handleRoundChange = useCallback(async (delta: number) => {
     const newRound = Math.max(0, encounter.current_round + delta)
     setEncounter((prev) => ({ ...prev, current_round: newRound }))
     try { await updateRound(encounter.id, newRound) } catch { router.refresh() }
   }, [encounter, router])
-
-  // ── Participant handlers ────────────────────────────────
 
   const handleInitiativeChange = useCallback(async (id: string, value: number | null) => {
     setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, initiative: value } : p)))
@@ -112,6 +113,11 @@ export function CombatTracker({
   const handleConditionsChange = useCallback(async (id: string, conditions: string[]) => {
     setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, conditions } : p)))
     try { await updateConditions(id, conditions) } catch { router.refresh() }
+  }, [router])
+
+  const handleEffectsChange = useCallback(async (id: string, effects: string[]) => {
+    setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, effects } : p)))
+    try { await updateEffects(id, effects) } catch { router.refresh() }
   }, [router])
 
   const handleRoleChange = useCallback(async (id: string, role: string) => {
@@ -139,20 +145,16 @@ export function CombatTracker({
     try { await updateParticipantName(id, newName) } catch { router.refresh() }
   }, [router])
 
-  // ── End combat ────────────────────────────────────────────
-
   const handleEndCombat = useCallback(async () => {
     if (!confirm('Завершить бой?')) return
     setEncounter((prev) => ({ ...prev, status: 'completed' }))
     try { await updateEncounterStatus(encounter.id, 'completed') } catch { router.refresh() }
   }, [encounter.id, router])
 
-  // ── Add participants ──────────────────────────────────────
-
   const handleAddManual = useCallback(async (displayName: string, maxHp: number) => {
     try {
       const newRow = await addParticipantManual(encounter.id, displayName, maxHp)
-      setParticipants((prev) => [...prev, { ...newRow, node: null, conditions: newRow.conditions || [], temp_hp: newRow.temp_hp || 0, role: newRow.role || 'enemy' }])
+      setParticipants((prev) => [...prev, { ...newRow, node: null, conditions: [], effects: [], temp_hp: 0, role: 'enemy' }])
     } catch (e) { console.error(e) }
   }, [encounter.id])
 
@@ -161,7 +163,9 @@ export function CombatTracker({
   ) => {
     try {
       const newRows = await addParticipantFromCatalog(encounter.id, nodeId, displayName, maxHp, quantity)
-      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({ ...r, node: null, conditions: r.conditions || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy' }))])
+      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({
+        ...r, node: null, conditions: r.conditions || [], effects: r.effects || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy',
+      }))])
       router.refresh()
     } catch (e) { console.error(e) }
   }, [encounter.id, router])
@@ -169,35 +173,42 @@ export function CombatTracker({
   // ── Render ────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">{encounter.title}</h1>
         {isCompleted && (
-          <span className="rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+          <span className="rounded-full bg-gray-200 px-3 py-1 text-sm font-medium text-gray-600">
             Завершён
           </span>
         )}
       </div>
 
+      {/* Encounter details card */}
+      <EncounterDetailsCard
+        encounterId={encounter.id}
+        details={encounter.details || {}}
+        disabled={isCompleted}
+      />
+
       {/* Round counter + controls */}
       {!isCompleted && (
         <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600">Раунд</span>
+            <span className="font-medium text-gray-600">Раунд</span>
             <button
               onClick={() => handleRoundChange(-1)}
               disabled={encounter.current_round === 0}
-              className="flex h-7 w-7 items-center justify-center rounded border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-30"
+              className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-30"
             >
               −
             </button>
-            <span className="min-w-[2ch] text-center text-lg font-bold text-gray-900">
+            <span className="min-w-[2ch] text-center text-xl font-bold text-gray-900">
               {encounter.current_round}
             </span>
             <button
               onClick={() => handleRoundChange(1)}
-              className="flex h-7 w-7 items-center justify-center rounded border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 font-medium text-gray-700 hover:bg-gray-100"
             >
               +
             </button>
@@ -205,7 +216,7 @@ export function CombatTracker({
           <div className="flex-1" />
           <button
             onClick={handleEndCombat}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors"
           >
             Завершить бой
           </button>
@@ -215,14 +226,15 @@ export function CombatTracker({
       {/* Participant table */}
       <div className="rounded-lg border border-gray-200 bg-white">
         {/* Table header */}
-        <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">
           <div className="w-6" />
           <div className="w-14 text-center">Иниц.</div>
           <div className="min-w-0 flex-1">Имя</div>
-          <div className="w-44">Состояния</div>
-          <div className="w-36">HP</div>
-          <div className="w-12 text-center">Врем.</div>
-          <div className="w-7" />
+          <div className="w-44 shrink-0">Состояния</div>
+          <div className="w-44 shrink-0">Эффекты</div>
+          <div className="w-36 shrink-0">HP</div>
+          <div className="w-12 text-center shrink-0">Врем.</div>
+          <div className="w-8" />
         </div>
 
         {sorted.length > 0 ? (
@@ -232,6 +244,7 @@ export function CombatTracker({
                 key={p.id}
                 participant={p}
                 isCompleted={isCompleted}
+                campaignId={campaignId}
                 campaignSlug={campaignSlug}
                 onInitiativeChange={handleInitiativeChange}
                 onHpChange={handleHpChange}
@@ -239,6 +252,7 @@ export function CombatTracker({
                 onTempHpChange={handleTempHpChange}
                 onRoleChange={handleRoleChange}
                 onConditionsChange={handleConditionsChange}
+                onEffectsChange={handleEffectsChange}
                 onToggleActive={handleToggleActive}
                 onDelete={handleDelete}
                 onRename={handleRename}
@@ -246,12 +260,11 @@ export function CombatTracker({
             ))}
           </div>
         ) : (
-          <div className="py-10 text-center">
-            <p className="text-sm text-gray-400">Добавьте участников из каталога или вручную ↓</p>
+          <div className="py-12 text-center">
+            <p className="text-gray-400">Добавьте участников из каталога или вручную ↓</p>
           </div>
         )}
 
-        {/* Inline add */}
         {!isCompleted && (
           <div className="border-t border-gray-200 bg-gray-50">
             <InlineAddRow onAdd={handleAddManual} />

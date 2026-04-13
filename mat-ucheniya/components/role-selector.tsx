@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect } from 'react'
 
 export const ROLES = [
-  { slug: 'pc', label: 'PC', color: 'bg-blue-100 border-blue-300', dot: 'bg-blue-500', row: 'bg-blue-50/60' },
-  { slug: 'ally', label: 'Союзник', color: 'bg-green-100 border-green-300', dot: 'bg-green-500', row: 'bg-green-50/60' },
-  { slug: 'neutral', label: 'Нейтрал', color: 'bg-yellow-100 border-yellow-300', dot: 'bg-yellow-500', row: 'bg-yellow-50/50' },
-  { slug: 'enemy', label: 'Враг', color: 'bg-red-100 border-red-300', dot: 'bg-red-500', row: 'bg-red-50/50' },
-  { slug: 'object', label: 'Объект', color: 'bg-gray-100 border-gray-300', dot: 'bg-gray-400', row: 'bg-gray-50/60' },
+  { slug: 'pc', label: 'PC', color: 'bg-blue-200 border-blue-400', dot: 'bg-blue-500', row: 'bg-blue-100' },
+  { slug: 'ally', label: 'Союзник', color: 'bg-green-200 border-green-400', dot: 'bg-green-500', row: 'bg-green-100' },
+  { slug: 'neutral', label: 'Нейтрал', color: 'bg-yellow-200 border-yellow-400', dot: 'bg-yellow-500', row: 'bg-yellow-50' },
+  { slug: 'enemy', label: 'Враг', color: 'bg-red-200 border-red-400', dot: 'bg-red-500', row: 'bg-red-50' },
+  { slug: 'object', label: 'Объект', color: 'bg-gray-200 border-gray-400', dot: 'bg-gray-400', row: 'bg-gray-100' },
 ] as const
 
 const roleMap = new Map<string, typeof ROLES[number]>(ROLES.map((r) => [r.slug, r]))
