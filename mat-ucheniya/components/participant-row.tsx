@@ -59,7 +59,6 @@ export function ParticipantRow({
   onClone,
   onRename,
 }: Props) {
-  const [showMenu, setShowMenu] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState(p.display_name)
 
@@ -166,50 +165,41 @@ export function ParticipantRow({
         disabled={isCompleted}
       />
 
-      {/* Actions menu */}
+      {/* Actions */}
       {!isCompleted ? (
-        <div className="relative shrink-0">
+        <div className="flex shrink-0 items-center gap-0.5">
           <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+            onClick={() => setEditingName(true)}
+            className="flex h-7 w-7 items-center justify-center rounded text-gray-300 hover:bg-gray-100 hover:text-gray-600"
+            title="Переименовать"
           >
-            ⋮
+            ✎
           </button>
-          {showMenu && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-9 z-20 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                <button
-                  onClick={() => { setEditingName(true); setShowMenu(false) }}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Переименовать
-                </button>
-                <button
-                  onClick={() => { onToggleActive(p.id, !p.is_active); setShowMenu(false) }}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  {p.is_active ? 'Убрать из боя' : 'Вернуть в бой'}
-                </button>
-                <button
-                  onClick={() => { onClone(p.id); setShowMenu(false) }}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  📋 Клонировать
-                </button>
-                <hr className="my-1 border-gray-100" />
-                <button
-                  onClick={() => {
-                    if (confirm(`Удалить ${p.display_name}?`)) onDelete(p.id)
-                    setShowMenu(false)
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                >
-                  Удалить
-                </button>
-              </div>
-            </>
-          )}
+          <button
+            onClick={() => onClone(p.id)}
+            className="flex h-7 w-7 items-center justify-center rounded text-gray-300 hover:bg-gray-100 hover:text-gray-600 text-xs"
+            title="Клонировать"
+          >
+            ⧉
+          </button>
+          <button
+            onClick={() => onToggleActive(p.id, !p.is_active)}
+            className={`flex h-7 w-7 items-center justify-center rounded text-xs ${
+              p.is_active
+                ? 'text-gray-300 hover:bg-gray-100 hover:text-gray-600'
+                : 'text-amber-400 hover:bg-amber-50 hover:text-amber-600'
+            }`}
+            title={p.is_active ? 'Убрать из боя' : 'Вернуть в бой'}
+          >
+            {p.is_active ? '◎' : '○'}
+          </button>
+          <button
+            onClick={() => { if (confirm(`Удалить ${p.display_name}?`)) onDelete(p.id) }}
+            className="flex h-7 w-7 items-center justify-center rounded text-gray-300 hover:bg-red-50 hover:text-red-500"
+            title="Удалить"
+          >
+            ✕
+          </button>
         </div>
       ) : (
         <div className="w-8" />
