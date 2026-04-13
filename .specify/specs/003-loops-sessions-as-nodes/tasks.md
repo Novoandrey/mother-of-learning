@@ -27,7 +27,7 @@ UI-адаптация сгруппирована по страницам. Фич
   - UPDATE search_vector trigger: индексировать title + content + ALL text values from fields JSONB
   - Re-trigger search_vector на всех существующих нодах
   - DROP TABLE sessions, DROP TABLE loops
-- [ ] T002 Apply migration to Supabase (пользователь вручную)
+- [x] T002 Apply migration to Supabase (пользователь вручную)
 
 **Checkpoint**: Данные в nodes, старые таблицы удалены.
 
@@ -100,10 +100,10 @@ UI-адаптация сгруппирована по страницам. Фич
 
 **Purpose**: Убрать мёртвый код, адаптировать хроники
 
-- [ ] T018 Update `app/api/chronicles/route.ts`: запросы loop_number
+- [x] T018 Update `app/api/chronicles/route.ts`: запросы loop_number
   теперь через nodes.fields->>'number' вместо loops.number
-- [ ] T019 Update chronicles queries в `loops/page.tsx` (если ссылаются на loops table)
-- [ ] T020 [P] Remove unused imports, dead code из lib/loops.ts (старые типы)
+- [x] T019 Update chronicles queries в `loops/page.tsx` (если ссылаются на loops table)
+- [x] T020 [P] Remove unused imports, dead code из lib/loops.ts (старые типы)
 - [ ] T021 [P] Update NEXT.md и backlog.md
 - [ ] T022 Push to GitHub, verify Vercel deploy, run all scenarios on prod
 
