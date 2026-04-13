@@ -16,10 +16,13 @@ export async function generateMetadata({
 
 export default async function NewNodePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ type?: string }>
 }) {
   const { slug } = await params
+  const { type: typeParam } = await searchParams
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
@@ -32,7 +35,11 @@ export default async function NewNodePage({
         ← Каталог
       </Link>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">Новая сущность</h1>
-      <CreateNodeForm campaignId={campaign.id} campaignSlug={slug} />
+      <CreateNodeForm
+        campaignId={campaign.id}
+        campaignSlug={slug}
+        preselectedType={typeParam}
+      />
     </div>
   )
 }

@@ -1,11 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { getCampaignBySlug } from '@/lib/campaign'
-import { getSessionById, getLoops, getAllSessions, getSessionNodeTypeId } from '@/lib/loops'
-import { createClient } from '@/lib/supabase/server'
+import { getSessionById, getLoops, getAllSessions } from '@/lib/loops'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import SessionForm from '@/components/session-form'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({
@@ -26,61 +24,15 @@ export async function generateMetadata({
 
 export default async function SessionDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string; id: string }>
-  searchParams: Promise<{ edit?: string }>
 }) {
   const { slug, id } = await params
-  const { edit } = await searchParams
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
   const session = await getSessionById(id)
   if (!session) notFound()
-
-  const loops = await getLoops(campaign.id)
-
-  // Get edge type IDs for session form
-  const supabase = await createClient()
-  const sessionTypeId = await getSessionNodeTypeId(campaign.id)
-  const { data: containsEdgeType } = await supabase
-    .from('edge_types')
-    .select('id')
-    .eq('slug', 'contains')
-    .eq('is_base', true)
-    .single()
-
-  const loopOptions = loops.map((l) => ({
-    id: l.id,
-    number: l.number,
-    title: l.title,
-    status: l.status,
-  }))
-
-  if (edit === '1' && sessionTypeId && containsEdgeType) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/c/${slug}/sessions/${id}`}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            ← Назад
-          </Link>
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900">Редактировать сессию</h1>
-        <SessionForm
-          campaignId={campaign.id}
-          campaignSlug={slug}
-          sessionTypeId={sessionTypeId}
-          containsEdgeTypeId={containsEdgeType.id}
-          session={session}
-          loops={loopOptions}
-        />
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
@@ -128,7 +80,7 @@ export default async function SessionDetailPage({
           </div>
         </div>
         <Link
-          href={`/c/${slug}/sessions/${id}?edit=1`}
+          href={`/c/${slug}/catalog/${id}/edit`}
           className="flex-shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Редактировать

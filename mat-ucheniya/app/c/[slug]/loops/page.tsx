@@ -124,7 +124,7 @@ export default async function LoopsPage({
                     </div>
                   )}
                   <Link
-                    href={`/c/${slug}/loops/${currentLoop.id}/edit`}
+                    href={`/c/${slug}/catalog/${currentLoop.id}/edit`}
                     className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     Редактировать
