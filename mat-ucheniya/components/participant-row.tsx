@@ -46,7 +46,7 @@ export function ParticipantRow({
   const [nameDraft, setNameDraft] = useState(p.display_name)
 
   const isDown = p.current_hp === 0 && p.max_hp > 0
-  const dimmed = isDown || !p.is_active
+  const dimmed = !p.is_active
 
   function commitName() {
     setEditingName(false)
@@ -59,9 +59,9 @@ export function ParticipantRow({
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-50 ${
+      className={`flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-blue-50/40 ${
         dimmed ? 'opacity-40' : ''
-      } ${isDown ? 'line-through decoration-red-400' : ''}`}
+      } ${isDown ? 'bg-red-50/50' : ''}`}
     >
       {/* Initiative */}
       <InitiativeInput
@@ -83,50 +83,60 @@ export function ParticipantRow({
               if (e.key === 'Enter') commitName()
               if (e.key === 'Escape') { setNameDraft(p.display_name); setEditingName(false) }
             }}
-            className="w-full rounded border border-blue-400 px-1 py-0.5 text-sm focus:outline-none"
+            className="w-full rounded border border-blue-400 px-1.5 py-0.5 text-sm focus:outline-none"
           />
         ) : (
           <div className="flex items-center gap-1.5">
             {p.node ? (
               <Link
                 href={`/c/${campaignSlug}/catalog/${p.node.id}`}
-                className="truncate text-sm font-medium text-blue-600 hover:underline"
+                className="truncate text-sm font-medium text-blue-700 hover:underline"
               >
                 {p.display_name}
               </Link>
             ) : (
-              <span className="truncate text-sm font-medium text-gray-900">{p.display_name}</span>
+              <span className={`truncate text-sm font-medium ${isDown ? 'text-red-700 line-through' : 'text-gray-900'}`}>
+                {p.display_name}
+              </span>
             )}
             {p.node?.type && (
-              <span className="shrink-0 text-xs text-gray-400">{p.node.type.slug}</span>
+              <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                {p.node.type.slug}
+              </span>
             )}
           </div>
         )}
       </div>
 
       {/* Conditions */}
-      <ConditionPicker
-        value={p.conditions || []}
-        onChange={(conds) => onConditionsChange(p.id, conds)}
-        disabled={isCompleted}
-      />
-
-      {/* HP */}
-      {p.max_hp > 0 && (
-        <HpControl
-          currentHp={p.current_hp}
-          maxHp={p.max_hp}
-          onChange={(hp) => onHpChange(p.id, hp)}
+      <div className="w-40">
+        <ConditionPicker
+          value={p.conditions || []}
+          onChange={(conds) => onConditionsChange(p.id, conds)}
           disabled={isCompleted}
         />
-      )}
+      </div>
+
+      {/* HP */}
+      <div className="w-36">
+        {p.max_hp > 0 ? (
+          <HpControl
+            currentHp={p.current_hp}
+            maxHp={p.max_hp}
+            onChange={(hp) => onHpChange(p.id, hp)}
+            disabled={isCompleted}
+          />
+        ) : (
+          <span className="text-xs text-gray-300">—</span>
+        )}
+      </div>
 
       {/* Actions menu */}
-      {!isCompleted && (
+      {!isCompleted ? (
         <div className="relative shrink-0">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="flex h-7 w-7 items-center justify-center rounded text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
           >
             ⋮
           </button>
@@ -136,13 +146,13 @@ export function ParticipantRow({
               <div className="absolute right-0 top-8 z-20 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                 <button
                   onClick={() => { setEditingName(true); setShowMenu(false) }}
-                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                  className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
                   Переименовать
                 </button>
                 <button
                   onClick={() => { onToggleActive(p.id, !p.is_active); setShowMenu(false) }}
-                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                  className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
                   {p.is_active ? 'Убрать из боя' : 'Вернуть в бой'}
                 </button>
@@ -160,6 +170,8 @@ export function ParticipantRow({
             </>
           )}
         </div>
+      ) : (
+        <div className="w-7" />
       )}
     </div>
   )

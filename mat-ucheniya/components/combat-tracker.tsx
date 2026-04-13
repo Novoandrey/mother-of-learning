@@ -154,7 +154,7 @@ export function CombatTracker({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">{encounter.title}</h1>
         {isCompleted && (
-          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500">
+          <span className="rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-600">
             Завершён
           </span>
         )}
@@ -162,13 +162,13 @@ export function CombatTracker({
 
       {/* Round counter + controls */}
       {!isCompleted && (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-400">Раунд</span>
+            <span className="text-sm font-medium text-gray-600">Раунд</span>
             <button
               onClick={() => handleRoundChange(-1)}
               disabled={encounter.current_round === 0}
-              className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+              className="flex h-7 w-7 items-center justify-center rounded border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-30"
             >
               −
             </button>
@@ -177,7 +177,7 @@ export function CombatTracker({
             </span>
             <button
               onClick={() => handleRoundChange(1)}
-              className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+              className="flex h-7 w-7 items-center justify-center rounded border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
               +
             </button>
@@ -185,7 +185,7 @@ export function CombatTracker({
           <div className="flex-1" />
           <button
             onClick={handleEndCombat}
-            className="rounded-lg px-3 py-1.5 text-sm text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors"
           >
             Завершить бой
           </button>
@@ -193,9 +193,18 @@ export function CombatTracker({
       )}
 
       {/* Participant table */}
-      <div>
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        {/* Table header */}
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          <div className="w-14 text-center">Иниц.</div>
+          <div className="min-w-0 flex-1">Имя</div>
+          <div className="w-40">Состояния</div>
+          <div className="w-36">HP</div>
+          <div className="w-7" />
+        </div>
+
         {sorted.length > 0 ? (
-          <div className="space-y-1">
+          <div className="divide-y divide-gray-100">
             {sorted.map((p) => (
               <ParticipantRow
                 key={p.id}
@@ -212,14 +221,16 @@ export function CombatTracker({
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center">
-            <p className="text-gray-400">Добавьте участников из каталога или вручную ↓</p>
+          <div className="py-10 text-center">
+            <p className="text-sm text-gray-400">Добавьте участников из каталога или вручную ↓</p>
           </div>
         )}
 
         {/* Inline add */}
         {!isCompleted && (
-          <InlineAddRow onAdd={handleAddManual} />
+          <div className="border-t border-gray-200 bg-gray-50">
+            <InlineAddRow onAdd={handleAddManual} />
+          </div>
         )}
       </div>
 

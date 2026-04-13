@@ -48,7 +48,7 @@ export function InitiativeInput({ value, onChange, disabled }: Props) {
           if (e.key === 'Enter') commit()
           if (e.key === 'Escape') setEditing(false)
         }}
-        className="w-14 rounded border border-blue-400 px-1 py-0.5 text-center text-sm focus:outline-none"
+        className="w-14 rounded border border-blue-400 bg-white px-1 py-1 text-center text-sm font-medium focus:outline-none"
       />
     )
   }
@@ -57,10 +57,10 @@ export function InitiativeInput({ value, onChange, disabled }: Props) {
     <button
       onClick={startEdit}
       disabled={disabled}
-      className={`w-14 rounded px-1 py-0.5 text-center text-sm transition-colors ${
+      className={`w-14 rounded border px-1 py-1 text-center text-sm transition-colors ${
         value != null
-          ? 'font-bold text-gray-900 hover:bg-gray-100'
-          : 'italic text-gray-400 hover:bg-gray-100'
+          ? 'border-gray-200 bg-gray-50 font-bold text-gray-900 hover:border-blue-300 hover:bg-blue-50'
+          : 'border-dashed border-gray-300 text-gray-400 hover:border-blue-300 hover:bg-blue-50'
       } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
       title={value != null ? 'Изменить инициативу' : 'Задать инициативу'}
     >
