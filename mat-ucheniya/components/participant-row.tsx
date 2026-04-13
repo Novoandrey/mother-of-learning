@@ -18,7 +18,6 @@ type Participant = {
 
 type Props = {
   participant: Participant
-  isCurrentTurn: boolean
   isCompleted: boolean
   campaignSlug: string
   onInitiativeChange: (id: string, value: number | null) => void
@@ -30,7 +29,6 @@ type Props = {
 
 export function ParticipantRow({
   participant: p,
-  isCurrentTurn,
   isCompleted,
   campaignSlug,
   onInitiativeChange,
@@ -57,17 +55,10 @@ export function ParticipantRow({
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
-        isCurrentTurn
-          ? 'border border-blue-300 bg-blue-50 shadow-sm'
-          : 'hover:bg-gray-50'
-      } ${dimmed ? 'opacity-50' : ''} ${isDown ? 'line-through decoration-red-400' : ''}`}
+      className={`flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-50 ${
+        dimmed ? 'opacity-40' : ''
+      } ${isDown ? 'line-through decoration-red-400' : ''}`}
     >
-      {/* Turn dot */}
-      <div className="w-2 shrink-0">
-        {isCurrentTurn && <div className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />}
-      </div>
-
       {/* Initiative */}
       <InitiativeInput
         value={p.initiative}
@@ -119,7 +110,7 @@ export function ParticipantRow({
         />
       )}
 
-      {/* Actions */}
+      {/* Actions menu */}
       {!isCompleted && (
         <div className="relative shrink-0">
           <button

@@ -3,9 +3,10 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { ParticipantRow } from './participant-row'
-import { AddParticipantDialog } from './add-participant-dialog'
+import { InlineAddRow } from './inline-add-row'
+import { CatalogPanel } from './catalog-panel'
 import {
-  advanceTurn,
+  updateRound,
   updateInitiative,
   updateHp,
   updateParticipantName,
@@ -21,7 +22,6 @@ type Encounter = {
   title: string
   status: 'active' | 'completed'
   current_round: number
-  current_turn_id: string | null
 }
 
 type Participant = {
@@ -36,39 +36,56 @@ type Participant = {
   node?: { id: string; title: string; type?: { slug: string } } | null
 }
 
+export type CatalogNode = {
+  id: string
+  title: string
+  fields: Record<string, unknown>
+  type: { slug: string; label: string } | null
+}
+
 type Props = {
   encounter: Encounter
   initialParticipants: Participant[]
+  catalogNodes: CatalogNode[]
   campaignId: string
   campaignSlug: string
 }
 
-export function CombatTracker({ encounter: initial, initialParticipants, campaignId, campaignSlug }: Props) {
+export function CombatTracker({
+  encounter: initial,
+  initialParticipants,
+  catalogNodes,
+  campaignId,
+  campaignSlug,
+}: Props) {
   const router = useRouter()
   const [encounter, setEncounter] = useState(initial)
   const [participants, setParticipants] = useState(initialParticipants)
-  const [showAddDialog, setShowAddDialog] = useState(false)
 
   const isCompleted = encounter.status === 'completed'
 
-  // Split into combat (has initiative) and bench (no initiative)
-  const { combatants, bench } = useMemo(() => {
-    const combat: Participant[] = []
-    const benchList: Participant[] = []
-    for (const p of participants) {
-      if (p.initiative != null) combat.push(p)
-      else benchList.push(p)
-    }
-    combat.sort((a, b) => {
-      const diff = (b.initiative ?? 0) - (a.initiative ?? 0)
-      return diff !== 0 ? diff : a.sort_order - b.sort_order
+  // Sort: initiative desc (nulls last), then sort_order
+  const sorted = useMemo(() => {
+    return [...participants].sort((a, b) => {
+      if (a.initiative != null && b.initiative != null) {
+        const diff = b.initiative - a.initiative
+        return diff !== 0 ? diff : a.sort_order - b.sort_order
+      }
+      if (a.initiative != null) return -1
+      if (b.initiative != null) return 1
+      return a.sort_order - b.sort_order
     })
-    return { combatants: combat, bench: benchList }
   }, [participants])
 
-  const activeCombatants = combatants.filter((p) => p.is_active)
+  // ── Round ───────────────────────────────────────────────
 
-  // ── Optimistic handlers ───────────────────────────────────
+  const handleRoundChange = useCallback(async (delta: number) => {
+    const newRound = Math.max(0, encounter.current_round + delta)
+    setEncounter((prev) => ({ ...prev, current_round: newRound }))
+    try { await updateRound(encounter.id, newRound) } catch { router.refresh() }
+  }, [encounter, router])
+
+  // ── Participant handlers ────────────────────────────────
 
   const handleInitiativeChange = useCallback(async (id: string, value: number | null) => {
     setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, initiative: value } : p)))
@@ -95,28 +112,6 @@ export function CombatTracker({ encounter: initial, initialParticipants, campaig
     try { await updateParticipantName(id, newName) } catch { router.refresh() }
   }, [router])
 
-  // ── Turn advancement ──────────────────────────────────────
-
-  const handleNextTurn = useCallback(async () => {
-    const active = combatants.filter((p) => p.is_active)
-    if (active.length === 0) return
-
-    const currentIdx = active.findIndex((p) => p.id === encounter.current_turn_id)
-    let nextIdx: number
-    let newRound = encounter.current_round
-
-    if (currentIdx === -1 || currentIdx >= active.length - 1) {
-      nextIdx = 0
-      newRound = encounter.current_round + 1
-    } else {
-      nextIdx = currentIdx + 1
-    }
-
-    const nextId = active[nextIdx].id
-    setEncounter((prev) => ({ ...prev, current_turn_id: nextId, current_round: newRound }))
-    try { await advanceTurn(encounter.id, nextId, newRound) } catch { router.refresh() }
-  }, [combatants, encounter, router])
-
   // ── End combat ────────────────────────────────────────────
 
   const handleEndCombat = useCallback(async () => {
@@ -127,16 +122,6 @@ export function CombatTracker({ encounter: initial, initialParticipants, campaig
 
   // ── Add participants ──────────────────────────────────────
 
-  const handleAddFromCatalog = useCallback(async (
-    nodeId: string, displayName: string, maxHp: number, quantity: number
-  ) => {
-    try {
-      const newRows = await addParticipantFromCatalog(encounter.id, nodeId, displayName, maxHp, quantity)
-      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({ ...r, node: null }))])
-      router.refresh() // refresh to get joined node data
-    } catch (e) { console.error(e) }
-  }, [encounter.id, router])
-
   const handleAddManual = useCallback(async (displayName: string, maxHp: number) => {
     try {
       const newRow = await addParticipantManual(encounter.id, displayName, maxHp)
@@ -144,65 +129,70 @@ export function CombatTracker({ encounter: initial, initialParticipants, campaig
     } catch (e) { console.error(e) }
   }, [encounter.id])
 
-  // ── Render ────────────────────────────────────────────────
+  const handleAddFromCatalog = useCallback(async (
+    nodeId: string, displayName: string, maxHp: number, quantity: number
+  ) => {
+    try {
+      const newRows = await addParticipantFromCatalog(encounter.id, nodeId, displayName, maxHp, quantity)
+      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({ ...r, node: null }))])
+      router.refresh()
+    } catch (e) { console.error(e) }
+  }, [encounter.id, router])
 
-  const currentTurnName = activeCombatants.find((p) => p.id === encounter.current_turn_id)?.display_name
+  // ── Render ────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">{encounter.title}</h1>
         {isCompleted && (
-          <span className="mt-1 inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500">
+          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500">
             Завершён
           </span>
         )}
       </div>
 
-      {/* Combat controls */}
+      {/* Round counter + controls */}
       {!isCompleted && (
-        <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-3">
-          <div className="text-sm">
-            <span className="text-gray-400">Раунд</span>{' '}
-            <span className="text-lg font-bold text-gray-900">{encounter.current_round}</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">Раунд</span>
+            <button
+              onClick={() => handleRoundChange(-1)}
+              disabled={encounter.current_round === 0}
+              className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+            >
+              −
+            </button>
+            <span className="min-w-[2ch] text-center text-lg font-bold text-gray-900">
+              {encounter.current_round}
+            </span>
+            <button
+              onClick={() => handleRoundChange(1)}
+              className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              +
+            </button>
           </div>
-
-          {activeCombatants.length > 0 && (
-            <>
-              <div className="text-sm text-gray-500">
-                Ход: <span className="font-medium text-gray-900">{currentTurnName || '—'}</span>
-              </div>
-              <button
-                onClick={handleNextTurn}
-                className="ml-auto rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-              >
-                Следующий ход →
-              </button>
-            </>
-          )}
-
+          <div className="flex-1" />
           <button
             onClick={handleEndCombat}
-            className={`rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors ${activeCombatants.length === 0 ? 'ml-auto' : ''}`}
+            className="rounded-lg px-3 py-1.5 text-sm text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
           >
-            Завершить
+            Завершить бой
           </button>
         </div>
       )}
 
-      {/* Combat table */}
-      {combatants.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-            Бой ({combatants.length})
-          </h2>
+      {/* Participant table */}
+      <div>
+        {sorted.length > 0 ? (
           <div className="space-y-1">
-            {combatants.map((p) => (
+            {sorted.map((p) => (
               <ParticipantRow
                 key={p.id}
                 participant={p}
-                isCurrentTurn={p.id === encounter.current_turn_id}
                 isCompleted={isCompleted}
                 campaignSlug={campaignSlug}
                 onInitiativeChange={handleInitiativeChange}
@@ -213,59 +203,23 @@ export function CombatTracker({ encounter: initial, initialParticipants, campaig
               />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Bench */}
-      {bench.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-            Скамейка ({bench.length})
-          </h2>
-          <div className="space-y-1 opacity-70">
-            {bench.map((p) => (
-              <ParticipantRow
-                key={p.id}
-                participant={p}
-                isCurrentTurn={false}
-                isCompleted={isCompleted}
-                campaignSlug={campaignSlug}
-                onInitiativeChange={handleInitiativeChange}
-                onHpChange={handleHpChange}
-                onToggleActive={handleToggleActive}
-                onDelete={handleDelete}
-                onRename={handleRename}
-              />
-            ))}
+        ) : (
+          <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center">
+            <p className="text-gray-400">Добавьте участников из каталога или вручную ↓</p>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Empty state */}
-      {participants.length === 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white py-12 text-center">
-          <p className="text-gray-500">Добавьте участников</p>
-          <p className="mt-1 text-sm text-gray-400">Из каталога или вручную — они появятся на скамейке</p>
-        </div>
-      )}
+        {/* Inline add */}
+        {!isCompleted && (
+          <InlineAddRow onAdd={handleAddManual} />
+        )}
+      </div>
 
-      {/* Add button */}
+      {/* Catalog panel */}
       {!isCompleted && (
-        <button
-          onClick={() => setShowAddDialog(true)}
-          className="w-full rounded-lg border-2 border-dashed border-gray-200 py-3 text-sm text-gray-500 transition-colors hover:border-blue-400 hover:text-blue-600"
-        >
-          + Добавить участника
-        </button>
-      )}
-
-      {/* Dialog */}
-      {showAddDialog && (
-        <AddParticipantDialog
-          campaignId={campaignId}
-          onAddFromCatalog={handleAddFromCatalog}
-          onAddManual={handleAddManual}
-          onClose={() => setShowAddDialog(false)}
+        <CatalogPanel
+          nodes={catalogNodes}
+          onAdd={handleAddFromCatalog}
         />
       )}
     </div>

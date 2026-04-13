@@ -27,15 +27,11 @@ export async function updateEncounterStatus(
   if (error) throw error
 }
 
-export async function advanceTurn(
-  encounterId: string,
-  nextParticipantId: string,
-  newRound: number
-) {
+export async function updateRound(encounterId: string, round: number) {
   const supabase = createClient()
   const { error } = await supabase
     .from('encounters')
-    .update({ current_turn_id: nextParticipantId, current_round: newRound })
+    .update({ current_round: Math.max(0, round) })
     .eq('id', encounterId)
   if (error) throw error
 }

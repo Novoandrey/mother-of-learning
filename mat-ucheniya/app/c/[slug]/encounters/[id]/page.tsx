@@ -39,9 +39,10 @@ export default async function EncounterPage({
     .from('encounters')
     .select('*')
     .eq('id', id)
+    .eq('campaign_id', campaign.id)
     .single()
 
-  if (!encounter || encounter.campaign_id !== campaign.id) notFound()
+  if (!encounter) notFound()
 
   const { data: participants } = await supabase
     .from('encounter_participants')
@@ -49,6 +50,18 @@ export default async function EncounterPage({
     .eq('encounter_id', id)
     .order('initiative', { ascending: false, nullsFirst: false })
     .order('sort_order', { ascending: true })
+
+  // Fetch catalog nodes for the bottom panel (PCs, NPCs, creatures)
+  const { data: catalogNodes } = await supabase
+    .from('nodes')
+    .select('id, title, fields, type:node_types(slug, label)')
+    .eq('campaign_id', campaign.id)
+    .order('title')
+
+  // Filter to only character/npc/creature types
+  const filteredCatalog = (catalogNodes || []).filter((n: any) =>
+    n.type && ['character', 'npc', 'creature'].includes(n.type.slug)
+  )
 
   return (
     <div>
@@ -59,8 +72,14 @@ export default async function EncounterPage({
         ← Энкаунтеры
       </Link>
       <CombatTracker
-        encounter={encounter as any}
+        encounter={{
+          id: encounter.id,
+          title: encounter.title,
+          status: encounter.status,
+          current_round: encounter.current_round,
+        }}
         initialParticipants={(participants as any[]) || []}
+        catalogNodes={filteredCatalog as any[]}
         campaignId={campaign.id}
         campaignSlug={slug}
       />

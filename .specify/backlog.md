@@ -47,7 +47,15 @@ Updated: 2026-04-13
 - "Original → fork → new original" pattern for constitution
 - Track why principles changed, not just what changed
 
-### IDEA-003 Per-file .md documentation with cross-references
+### IDEA-003 Каталог-дерево в сайдбаре (Chronicler-style)
+- **Feature**: 003-catalog-tree
+- Левый сайдбар: верхний уровень = типы сущностей, внутри = ноды, вложенность через `contains`
+- Master-detail layout: клик по ноде → детали справа без перехода на отдельную страницу
+- Поиск сверху сайдбара
+- Референс: Chronicler (worldanvil), Obsidian
+- Это переделка каталога из spec-001
+
+### IDEA-004 Per-file .md documentation with cross-references
 - **Feature**: dx
 - Short .md file next to each .ts/.tsx describing purpose and dependencies
 - Concern: maintenance overhead for solo dev with ADHD
