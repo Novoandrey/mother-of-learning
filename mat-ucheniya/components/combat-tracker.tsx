@@ -12,6 +12,8 @@ import {
   updateMaxHp,
   updateParticipantName,
   updateConditions,
+  updateRole,
+  updateTempHp,
   toggleParticipantActive,
   deleteParticipant,
   updateEncounterStatus,
@@ -32,6 +34,8 @@ type Participant = {
   initiative: number | null
   max_hp: number
   current_hp: number
+  temp_hp: number
+  role: string
   sort_order: number
   is_active: boolean
   node_id: string | null
@@ -110,6 +114,16 @@ export function CombatTracker({
     try { await updateConditions(id, conditions) } catch { router.refresh() }
   }, [router])
 
+  const handleRoleChange = useCallback(async (id: string, role: string) => {
+    setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, role } : p)))
+    try { await updateRole(id, role) } catch { router.refresh() }
+  }, [router])
+
+  const handleTempHpChange = useCallback(async (id: string, tempHp: number) => {
+    setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, temp_hp: tempHp } : p)))
+    try { await updateTempHp(id, tempHp) } catch { router.refresh() }
+  }, [router])
+
   const handleToggleActive = useCallback(async (id: string, isActive: boolean) => {
     setParticipants((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: isActive } : p)))
     try { await toggleParticipantActive(id, isActive) } catch { router.refresh() }
@@ -138,7 +152,7 @@ export function CombatTracker({
   const handleAddManual = useCallback(async (displayName: string, maxHp: number) => {
     try {
       const newRow = await addParticipantManual(encounter.id, displayName, maxHp)
-      setParticipants((prev) => [...prev, { ...newRow, node: null, conditions: newRow.conditions || [] }])
+      setParticipants((prev) => [...prev, { ...newRow, node: null, conditions: newRow.conditions || [], temp_hp: newRow.temp_hp || 0, role: newRow.role || 'enemy' }])
     } catch (e) { console.error(e) }
   }, [encounter.id])
 
@@ -147,7 +161,7 @@ export function CombatTracker({
   ) => {
     try {
       const newRows = await addParticipantFromCatalog(encounter.id, nodeId, displayName, maxHp, quantity)
-      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({ ...r, node: null, conditions: r.conditions || [] }))])
+      setParticipants((prev) => [...prev, ...newRows.map((r: any) => ({ ...r, node: null, conditions: r.conditions || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy' }))])
       router.refresh()
     } catch (e) { console.error(e) }
   }, [encounter.id, router])
@@ -202,10 +216,12 @@ export function CombatTracker({
       <div className="rounded-lg border border-gray-200 bg-white">
         {/* Table header */}
         <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          <div className="w-6" />
           <div className="w-14 text-center">Иниц.</div>
           <div className="min-w-0 flex-1">Имя</div>
-          <div className="w-40">Состояния</div>
+          <div className="w-44">Состояния</div>
           <div className="w-36">HP</div>
+          <div className="w-12 text-center">Врем.</div>
           <div className="w-7" />
         </div>
 
@@ -220,6 +236,8 @@ export function CombatTracker({
                 onInitiativeChange={handleInitiativeChange}
                 onHpChange={handleHpChange}
                 onMaxHpChange={handleMaxHpChange}
+                onTempHpChange={handleTempHpChange}
+                onRoleChange={handleRoleChange}
                 onConditionsChange={handleConditionsChange}
                 onToggleActive={handleToggleActive}
                 onDelete={handleDelete}

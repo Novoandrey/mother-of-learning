@@ -143,3 +143,21 @@ export async function updateConditions(participantId: string, conditions: string
     .eq('id', participantId)
   if (error) throw error
 }
+
+export async function updateRole(participantId: string, role: string) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('encounter_participants')
+    .update({ role })
+    .eq('id', participantId)
+  if (error) throw error
+}
+
+export async function updateTempHp(participantId: string, tempHp: number) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('encounter_participants')
+    .update({ temp_hp: tempHp })
+    .eq('id', participantId)
+  if (error) throw error
+}

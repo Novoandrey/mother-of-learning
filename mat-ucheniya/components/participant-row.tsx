@@ -4,7 +4,9 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { InitiativeInput } from './initiative-input'
 import { HpControl } from './hp-control'
+import { TempHpInput } from './temp-hp-input'
 import { ConditionPicker } from './condition-picker'
+import { RoleSelector, getRoleStyle } from './role-selector'
 
 type Participant = {
   id: string
@@ -12,6 +14,8 @@ type Participant = {
   initiative: number | null
   max_hp: number
   current_hp: number
+  temp_hp: number
+  role: string
   is_active: boolean
   node_id: string | null
   conditions: string[]
@@ -25,6 +29,8 @@ type Props = {
   onInitiativeChange: (id: string, value: number | null) => void
   onHpChange: (id: string, newHp: number) => void
   onMaxHpChange: (id: string, maxHp: number, currentHp: number) => void
+  onTempHpChange: (id: string, tempHp: number) => void
+  onRoleChange: (id: string, role: string) => void
   onConditionsChange: (id: string, conditions: string[]) => void
   onToggleActive: (id: string, isActive: boolean) => void
   onDelete: (id: string) => void
@@ -38,6 +44,8 @@ export function ParticipantRow({
   onInitiativeChange,
   onHpChange,
   onMaxHpChange,
+  onTempHpChange,
+  onRoleChange,
   onConditionsChange,
   onToggleActive,
   onDelete,
@@ -49,6 +57,7 @@ export function ParticipantRow({
 
   const isDown = p.current_hp === 0 && p.max_hp > 0
   const dimmed = !p.is_active
+  const roleStyle = getRoleStyle(p.role || 'enemy')
 
   function commitName() {
     setEditingName(false)
@@ -61,10 +70,17 @@ export function ParticipantRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-blue-50/40 ${
+      className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${roleStyle.row} ${
         dimmed ? 'opacity-40' : ''
-      } ${isDown ? 'bg-red-50/50' : ''}`}
+      } ${isDown ? '!bg-red-100/70' : ''}`}
     >
+      {/* Role */}
+      <RoleSelector
+        value={p.role || 'enemy'}
+        onChange={(role) => onRoleChange(p.id, role)}
+        disabled={isCompleted}
+      />
+
       {/* Initiative */}
       <InitiativeInput
         value={p.initiative}
@@ -101,17 +117,12 @@ export function ParticipantRow({
                 {p.display_name}
               </span>
             )}
-            {p.node?.type && (
-              <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                {p.node.type.slug}
-              </span>
-            )}
           </div>
         )}
       </div>
 
       {/* Conditions */}
-      <div className="w-40">
+      <div className="w-44">
         <ConditionPicker
           value={p.conditions || []}
           onChange={(conds) => onConditionsChange(p.id, conds)}
@@ -129,6 +140,13 @@ export function ParticipantRow({
           disabled={isCompleted}
         />
       </div>
+
+      {/* Temp HP */}
+      <TempHpInput
+        value={p.temp_hp || 0}
+        onChange={(v) => onTempHpChange(p.id, v)}
+        disabled={isCompleted}
+      />
 
       {/* Actions menu */}
       {!isCompleted ? (
