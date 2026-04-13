@@ -213,9 +213,9 @@ export function CatalogSidebar({
         />
       </div>
 
-      {/* Tree */}
+      {/* Tree — hide types that have dedicated nav pages */}
       <div className="flex-1 overflow-y-auto space-y-1 pb-4">
-        {nodeTypes.map((type) => {
+        {nodeTypes.filter((t) => !['loop', 'session'].includes(t.slug)).map((type) => {
           const items = byType[type.slug] || []
           if (items.length === 0) return null
           const isCollapsed = collapsedTypes.has(type.slug)
