@@ -70,7 +70,10 @@ export default async function LoopsPage({
     <div className="flex gap-6">
       {/* Loop list */}
       <div className="w-44 flex-shrink-0">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Петли</p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Петли</p>
+        <Link href={`/c/${slug}/loops/new`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">+</Link>
+      </div>
         {!loops?.length && <p className="text-sm text-gray-400 italic">Нет петель</p>}
         <div className="space-y-1">
           {loops?.map((loop) => (
@@ -117,12 +120,20 @@ export default async function LoopsPage({
                   </div>
                   {currentLoop.title && <p className="text-lg text-gray-600">{currentLoop.title}</p>}
                 </div>
-                {sessions && sessions.length > 0 && (
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-2xl font-bold text-gray-900">{sessions.length}</p>
-                    <p className="text-xs text-gray-400">сессий</p>
-                  </div>
-                )}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {sessions && sessions.length > 0 && (
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">{sessions.length}</p>
+                      <p className="text-xs text-gray-400">сессий</p>
+                    </div>
+                  )}
+                  <Link
+                    href={`/c/${slug}/loops/${currentLoop.id}/edit`}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Редактировать
+                  </Link>
+                </div>
               </div>
               {currentLoop.notes && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
