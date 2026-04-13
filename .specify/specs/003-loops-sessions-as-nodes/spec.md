@@ -150,7 +150,10 @@ markdown → сохранить → отображается с форматир
 
 ## Clarifications
 
-*(Будет заполнено на этапе /speckit.clarify)*
+### Session 2026-04-13
+
+- Q: search_vector строится из title + fields.description. У сессий ключевой текст — recap, не description. Как индексировать?
+  → A: Вариант C — индексировать ВСЕ текстовые значения из JSONB fields целиком. Это универсально: любой тип ноды с любыми полями автоматически попадает в поиск. Триггер собирает title + content + все string-значения из fields.
 
 ## Success Criteria
 
