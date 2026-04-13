@@ -42,7 +42,7 @@ Done: direction toggle in `create-edge-form.tsx`, flips source/target on save.
 - **Feature**: dx
 - "Original → fork → new original" pattern for constitution
 
-### IDEA-003 Каталог-дерево в сайдбаре (Chronicler-style) 🔜 NEXT
+### ~~IDEA-003~~ ✅ DONE Каталог-дерево в сайдбаре (Chronicler-style)
 - **Feature**: 004-catalog-tree
 - Левый сайдбар: верхний уровень = типы сущностей, внутри = ноды, вложенность через `contains`
 - Master-detail layout: клик по ноде → детали справа
@@ -57,7 +57,7 @@ Done: direction toggle in `create-edge-form.tsx`, flips source/target on save.
 - 375px viewport support for encounter tracker (horizontal scroll on table)
 - Mobile-friendly catalog navigation
 
-### IDEA-006 Карточка персонажа с Markdown-контентом
+### IDEA-006 Карточка персонажа с Markdown-контентом 🔜 NEXT
 - **Feature**: 005-character-card
 - Поле `content` (markdown) на карточке ноды: полноценный редактор + рендеринг
 - Поддержка статов, таблиц, изображений по ссылке
