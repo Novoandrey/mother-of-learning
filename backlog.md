@@ -79,3 +79,11 @@ UI consistency: unified design tokens across all non-encounter components.
 - Варианты: полный граф / вокруг одной ноды / по типу рёбер
 - Исследовать: react-flow, cytoscape.js, d3-force, sigma.js
 - Не делать раньше времени — сначала наполнить данными
+
+### IDEA-009 Realtime-синхронизация энкаунтера (мультиплеер)
+- **Feature**: encounter
+- Несколько юзеров на странице энкаунтера → все видят изменения HP, инициативы, хода в реальном времени
+- Supabase Realtime: подписка на `encounters` и `encounter_participants` через `.on('postgres_changes', ...)`
+- Ключевые сценарии: ДМ меняет HP → игроки видят мгновенно; ДМ жмёт "Следующий ход" → у всех обновляется
+- Конфликты: optimistic UI + realtime = нужна стратегия (last-write-wins достаточно для MVP)
+- Конституция VI: мульти-ДМ и мультиплеер — первый шаг к realtime
