@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { getCampaignBySlug } from '@/lib/campaign'
+import { getLoops, getSessionsByLoop } from '@/lib/loops'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -28,27 +29,18 @@ export default async function LoopsPage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
-  const supabase = await createClient()
-
-  const { data: loops } = await supabase
-    .from('loops')
-    .select('*')
-    .eq('campaign_id', campaign.id)
-    .order('number', { ascending: true })
+  const loops = await getLoops(campaign.id)
 
   const currentLoop = sp.loop
-    ? (loops?.find((l) => l.number === parseInt(sp.loop!)) ?? loops?.find((l) => l.status === 'current') ?? loops?.[0])
-    : (loops?.find((l) => l.status === 'current') ?? loops?.[0])
+    ? (loops.find((l) => l.number === parseInt(sp.loop!)) ?? loops.find((l) => l.status === 'current') ?? loops[0])
+    : (loops.find((l) => l.status === 'current') ?? loops[0])
 
-  const { data: sessions } = currentLoop
-    ? await supabase
-        .from('sessions')
-        .select('id, session_number, title, played_at')
-        .eq('campaign_id', campaign.id)
-        .eq('loop_number', currentLoop.number)
-        .order('session_number', { ascending: true })
-    : { data: [] }
+  const sessions = currentLoop
+    ? await getSessionsByLoop(campaign.id, currentLoop.number)
+    : []
 
+  // Chronicles for this loop
+  const supabase = await createClient()
   const { data: chronicles } = currentLoop
     ? await supabase
         .from('chronicles')
@@ -74,9 +66,9 @@ export default async function LoopsPage({
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Петли</p>
         <Link href={`/c/${slug}/loops/new`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">+</Link>
       </div>
-        {!loops?.length && <p className="text-sm text-gray-400 italic">Нет петель</p>}
+        {!loops.length && <p className="text-sm text-gray-400 italic">Нет петель</p>}
         <div className="space-y-1">
-          {loops?.map((loop) => (
+          {loops.map((loop) => (
             <Link
               key={loop.id}
               href={`/c/${slug}/loops?loop=${loop.number}`}
@@ -87,7 +79,7 @@ export default async function LoopsPage({
               }`}
             >
               <span className="text-gray-400 text-xs">#{loop.number}</span>
-              <span className="truncate">{loop.title ?? `Петля ${loop.number}`}</span>
+              <span className="truncate">{loop.title}</span>
             </Link>
           ))}
         </div>
@@ -104,7 +96,9 @@ export default async function LoopsPage({
           <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
             <div className="text-4xl mb-3">🔄</div>
             <p className="text-lg font-medium text-gray-500">Петли не созданы</p>
-            <p className="mt-1 text-sm text-gray-400">Запустите seed_loops_sessions.sql в Supabase SQL Editor</p>
+            <Link href={`/c/${slug}/loops/new`} className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800">
+              Создать первую →
+            </Link>
           </div>
         ) : (
           <div className="space-y-6">
@@ -118,10 +112,12 @@ export default async function LoopsPage({
                       {statusLabel[currentLoop.status] ?? currentLoop.status}
                     </span>
                   </div>
-                  {currentLoop.title && <p className="text-lg text-gray-600">{currentLoop.title}</p>}
+                  {currentLoop.title !== `Петля ${currentLoop.number}` && (
+                    <p className="text-lg text-gray-600">{currentLoop.title}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  {sessions && sessions.length > 0 && (
+                  {sessions.length > 0 && (
                     <div className="text-right">
                       <p className="text-2xl font-bold text-gray-900">{sessions.length}</p>
                       <p className="text-xs text-gray-400">сессий</p>
@@ -150,7 +146,7 @@ export default async function LoopsPage({
                   + Добавить
                 </Link>
               </div>
-              {!sessions?.length ? (
+              {!sessions.length ? (
                 <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
                   <p className="text-sm text-gray-400">Нет сессий для этой петли</p>
                 </div>
@@ -163,7 +159,7 @@ export default async function LoopsPage({
                       className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 transition-colors"
                     >
                       <span className="text-sm font-mono text-gray-400 w-8">#{s.session_number}</span>
-                      <span className="flex-1 text-sm text-gray-900 font-medium truncate">{s.title ?? `Сессия ${s.session_number}`}</span>
+                      <span className="flex-1 text-sm text-gray-900 font-medium truncate">{s.title}</span>
                       {s.played_at && (
                         <span className="text-xs text-gray-400 flex-shrink-0">
                           {new Date(s.played_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}

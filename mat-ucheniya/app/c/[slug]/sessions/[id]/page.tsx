@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { getCampaignBySlug } from '@/lib/campaign'
+import { getSessionById, getLoops, getAllSessions, getSessionNodeTypeId } from '@/lib/loops'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -15,13 +16,12 @@ export async function generateMetadata({
   const { slug, id } = await params
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) return { title: 'Сессия' }
-  const supabase = await createClient()
-  const { data: s } = await supabase
-    .from('sessions')
-    .select('session_number, title')
-    .eq('id', id)
-    .single()
-  return { title: s ? `#${s.session_number} ${s.title ?? ''} — ${campaign.name}` : 'Сессия' }
+  const session = await getSessionById(id)
+  return {
+    title: session
+      ? `#${session.session_number} ${session.title} — ${campaign.name}`
+      : 'Сессия',
+  }
 }
 
 export default async function SessionDetailPage({
@@ -36,24 +36,29 @@ export default async function SessionDetailPage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
-  const supabase = await createClient()
-
-  const { data: session } = await supabase
-    .from('sessions')
-    .select('*')
-    .eq('id', id)
-    .eq('campaign_id', campaign.id)
-    .single()
-
+  const session = await getSessionById(id)
   if (!session) notFound()
 
-  const { data: loops } = await supabase
-    .from('loops')
-    .select('number, title, status')
-    .eq('campaign_id', campaign.id)
-    .order('number', { ascending: true })
+  const loops = await getLoops(campaign.id)
 
-  if (edit === '1') {
+  // Get edge type IDs for session form
+  const supabase = await createClient()
+  const sessionTypeId = await getSessionNodeTypeId(campaign.id)
+  const { data: containsEdgeType } = await supabase
+    .from('edge_types')
+    .select('id')
+    .eq('slug', 'contains')
+    .eq('is_base', true)
+    .single()
+
+  const loopOptions = loops.map((l) => ({
+    id: l.id,
+    number: l.number,
+    title: l.title,
+    status: l.status,
+  }))
+
+  if (edit === '1' && sessionTypeId && containsEdgeType) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-2">
@@ -68,8 +73,10 @@ export default async function SessionDetailPage({
         <SessionForm
           campaignId={campaign.id}
           campaignSlug={slug}
+          sessionTypeId={sessionTypeId}
+          containsEdgeTypeId={containsEdgeType.id}
           session={session}
-          loops={loops ?? []}
+          loops={loopOptions}
         />
       </div>
     )
@@ -103,17 +110,22 @@ export default async function SessionDetailPage({
             <span className="text-gray-400 font-mono text-lg mr-2">
               #{session.session_number}
             </span>
-            {session.title ?? `Сессия ${session.session_number}`}
+            {session.title}
           </h1>
-          {session.played_at && (
-            <p className="mt-1 text-sm text-gray-400">
-              {new Date(session.played_at).toLocaleDateString('ru-RU', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
-          )}
+          <div className="flex items-center gap-3 mt-1">
+            {session.played_at && (
+              <p className="text-sm text-gray-400">
+                {new Date(session.played_at).toLocaleDateString('ru-RU', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </p>
+            )}
+            {session.game_date && (
+              <p className="text-sm text-gray-400">· {session.game_date}</p>
+            )}
+          </div>
         </div>
         <Link
           href={`/c/${slug}/sessions/${id}?edit=1`}
@@ -124,7 +136,7 @@ export default async function SessionDetailPage({
       </div>
 
       {/* Navigation: prev / next */}
-      <PrevNextNav slug={slug} session={session} campaignId={campaign.id} />
+      <PrevNextNav slug={slug} sessionNumber={session.session_number} campaignId={campaign.id} />
 
       {/* Recap */}
       <div className="rounded-lg border border-gray-200 bg-white p-5">
@@ -158,33 +170,18 @@ export default async function SessionDetailPage({
 // Server component for prev/next navigation
 async function PrevNextNav({
   slug,
-  session,
+  sessionNumber,
   campaignId,
 }: {
   slug: string
-  session: { session_number: number; campaign_id: string }
+  sessionNumber: number
   campaignId: string
 }) {
-  const supabase = await createClient()
+  const allSessions = await getAllSessions(campaignId)
 
-  const [{ data: prev }, { data: next }] = await Promise.all([
-    supabase
-      .from('sessions')
-      .select('id, session_number, title')
-      .eq('campaign_id', campaignId)
-      .lt('session_number', session.session_number)
-      .order('session_number', { ascending: false })
-      .limit(1)
-      .single(),
-    supabase
-      .from('sessions')
-      .select('id, session_number, title')
-      .eq('campaign_id', campaignId)
-      .gt('session_number', session.session_number)
-      .order('session_number', { ascending: true })
-      .limit(1)
-      .single(),
-  ])
+  const currentIdx = allSessions.findIndex((s) => s.session_number === sessionNumber)
+  const prev = currentIdx > 0 ? allSessions[currentIdx - 1] : null
+  const next = currentIdx < allSessions.length - 1 ? allSessions[currentIdx + 1] : null
 
   if (!prev && !next) return null
 
@@ -197,7 +194,7 @@ async function PrevNextNav({
         >
           ←{' '}
           <span className="font-mono text-xs text-gray-400">#{prev.session_number}</span>{' '}
-          {prev.title ?? `Сессия ${prev.session_number}`}
+          {prev.title}
         </Link>
       ) : (
         <div />
@@ -207,7 +204,7 @@ async function PrevNextNav({
           href={`/c/${slug}/sessions/${next.id}`}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 transition-colors"
         >
-          {next.title ?? `Сессия ${next.session_number}`}{' '}
+          {next.title}{' '}
           <span className="font-mono text-xs text-gray-400">#{next.session_number}</span> →
         </Link>
       )}

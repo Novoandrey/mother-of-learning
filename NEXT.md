@@ -40,16 +40,24 @@
 - Конституция v2.1.0: принцип XI (единообразие UI), STYLE.md с токенами
 - Spec-003: полный цикл specify → plan → tasks для миграции петель/сессий в граф
 
+### Spec-003: Петли и сессии как ноды графа — В ПРОЦЕССЕ
+- ✅ Миграция 012: SQL написан, node_types loop/session, данные мигрируются,
+  search_vector обновлён на ALL text values from JSONB fields, старые таблицы DROP
+- ✅ Код: lib/loops.ts, loop-form.tsx, session-form.tsx, все страницы loops/sessions
+  обновлены на чтение/запись из nodes вместо loops/sessions таблиц
+- ✅ Build проходит без ошибок
+- ⏳ T002: Миграция ещё НЕ ПРИМЕНЕНА в Supabase (пользователь вручную)
+
 ## Следующая задача
 
-**Spec-003: Петли и сессии как ноды графа** (ГОТОВО: specify + plan + tasks)
+**Spec-003: Применить миграцию и протестировать**
 
-Полный цикл спецификации в `.specify/specs/003-loops-sessions-as-nodes/`:
-- `spec.md` — 4 user stories, 10 FR, clarifications done
-- `plan.md` — data model, search_vector trigger, source structure
-- `tasks.md` — 22 задачи, 5 фаз, начинать с T001 (SQL migration)
-
-⚠️ Ключевое: миграция + код деплоятся ОДНИМ коммитом (иначе сайт ломается).
+1. ⚠️ Применить миграцию 012 в Supabase SQL Editor (файл уже отдан)
+2. Запушить код в GitHub (деплой на Vercel автоматически)
+3. ⚠️ ВАЖНО: миграция и код MUST деплоиться ОДНОВРЕМЕННО
+4. Протестировать: T007 (loops), T012 (sessions), T013-T017 (каталог)
+5. T018-T019: проверить хроники
+6. T020-T022: cleanup + финальный деплой
 
 ### Также в бэклоге (другой чат)
 - FEAT-005: НПС/Монстры — max_hp + statblock_url → авто-HP в энкаунтере

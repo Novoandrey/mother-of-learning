@@ -19,7 +19,7 @@ UI-адаптация сгруппирована по страницам. Фич
 
 **⚠️ CRITICAL**: Весь код ломается после этой миграции — Phase 2 MUST deploy вместе
 
-- [ ] T001 Write SQL migration `012_loops_sessions_as_nodes.sql`:
+- [x] T001 Write SQL migration `012_loops_sessions_as_nodes.sql`:
   - INSERT node_types `loop` и `session` с default_fields
   - INSERT INTO nodes SELECT FROM loops (title, fields JSONB, content=notes)
   - INSERT INTO nodes SELECT FROM sessions (title, fields JSONB)
@@ -38,15 +38,15 @@ UI-адаптация сгруппирована по страницам. Фич
 **Goal**: /loops показывает те же данные, что раньше, но из nodes
 **Independent Test**: Открыть /loops → увидеть 4 петли с сессиями, создать новую
 
-- [ ] T003 Update `lib/loops.ts`: все запросы из nodes вместо loops/sessions.
+- [x] T003 Update `lib/loops.ts`: все запросы из nodes вместо loops/sessions.
   - getLoops(): nodes WHERE type=loop, ORDER BY fields->>'number'
   - getSessionsForLoop(loopNumber): nodes WHERE type=session AND fields->>'loop_number' = N
   - Helper: getLoopNodeTypeId(), getSessionNodeTypeId()
-- [ ] T004 Update `app/c/[slug]/loops/page.tsx`: использовать новые запросы,
+- [x] T004 Update `app/c/[slug]/loops/page.tsx`: использовать новые запросы,
   маппинг fields → отображение (number, status, title, sessions count)
-- [ ] T005 Update `components/loop-form.tsx`: INSERT/UPDATE в nodes с type_id=loop,
+- [x] T005 Update `components/loop-form.tsx`: INSERT/UPDATE в nodes с type_id=loop,
   fields={number, status}, content=notes. Title = "Петля {N}" или custom.
-- [ ] T006 Update `app/c/[slug]/loops/new/page.tsx` и `loops/[id]/edit/page.tsx`:
+- [x] T006 Update `app/c/[slug]/loops/new/page.tsx` и `loops/[id]/edit/page.tsx`:
   запросы из nodes, передача в LoopForm
 - [ ] T007 Manual test: /loops показывает петли, создание/редактирование работает
 
@@ -59,17 +59,17 @@ UI-адаптация сгруппирована по страницам. Фич
 **Goal**: /sessions и /sessions/[id] показывают данные из nodes
 **Independent Test**: Список сессий, фильтр по петле, детальная страница с рекапом
 
-- [ ] T008 Update `app/c/[slug]/sessions/page.tsx`: запрос nodes WHERE type=session,
+- [x] T008 Update `app/c/[slug]/sessions/page.tsx`: запрос nodes WHERE type=session,
   фильтр по fields->>'loop_number', поиск по title и fields->>'recap'
-- [ ] T009 Update `app/c/[slug]/sessions/[id]/page.tsx`:
+- [x] T009 Update `app/c/[slug]/sessions/[id]/page.tsx`:
   - Запрос ноды + рёбра (для связей с НПС)
   - Показать NodeDetail ИЛИ специализированный layout с рекапом
   - prev/next навигация через fields->>'session_number'
   - Кнопка "Редактировать" → форма
-- [ ] T010 Update `components/session-form.tsx`: INSERT/UPDATE в nodes
+- [x] T010 Update `components/session-form.tsx`: INSERT/UPDATE в nodes
   с type_id=session, fields={session_number, loop_number, recap, dm_notes, played_at, game_date}.
   При сохранении: создать/обновить ребро contains от петли (если loop_number задан)
-- [ ] T011 Update `app/c/[slug]/sessions/new/page.tsx`: запросы из nodes
+- [x] T011 Update `app/c/[slug]/sessions/new/page.tsx`: запросы из nodes
 - [ ] T012 Manual test: список сессий, фильтр по петле, создание, редактирование,
   prev/next навигация, рекап отображается
 

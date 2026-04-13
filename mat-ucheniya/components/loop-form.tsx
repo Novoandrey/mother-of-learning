@@ -15,11 +15,12 @@ type Loop = {
 type Props = {
   campaignId: string
   campaignSlug: string
-  loop?: Loop         // if editing existing
-  nextNumber?: number // if creating new
+  loopTypeId: string     // node_type id for 'loop'
+  loop?: Loop            // if editing existing
+  nextNumber?: number    // if creating new
 }
 
-export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }: Props) {
+export default function LoopForm({ campaignId, campaignSlug, loopTypeId, loop, nextNumber }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -37,20 +38,26 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
     setError(null)
     setSaving(true)
 
+    const num = parseInt(number)
+    const nodeTitle = title.trim() || `Петля ${num}`
+
     const payload = {
       campaign_id: campaignId,
-      number: parseInt(number),
-      title: title.trim() || null,
-      status,
-      notes: notes.trim() || null,
+      type_id: loopTypeId,
+      title: nodeTitle,
+      fields: {
+        number: num,
+        status,
+      },
+      content: notes.trim() || '',
     }
 
     let err
     if (isEdit && loop?.id) {
-      const { error: e } = await supabase.from('loops').update(payload).eq('id', loop.id)
+      const { error: e } = await supabase.from('nodes').update(payload).eq('id', loop.id)
       err = e
     } else {
-      const { error: e } = await supabase.from('loops').insert(payload)
+      const { error: e } = await supabase.from('nodes').insert(payload)
       err = e
     }
 
@@ -65,8 +72,8 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
   }
 
   async function handleDelete() {
-    if (!loop?.id || !confirm('Удалить эту петлю? Сессии не удалятся.')) return
-    await supabase.from('loops').delete().eq('id', loop.id)
+    if (!loop?.id || !confirm('Удалить эту петлю? Сессии не удалятся, но потеряют связь.')) return
+    await supabase.from('nodes').delete().eq('id', loop.id)
     router.push(`/c/${campaignSlug}/loops`)
     router.refresh()
   }
@@ -111,7 +118,6 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         />
       </div>
-
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Заметки ДМа</label>

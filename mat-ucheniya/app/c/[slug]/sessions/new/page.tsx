@@ -1,4 +1,5 @@
 import { getCampaignBySlug } from '@/lib/campaign'
+import { getLoops, getAllSessions, getSessionNodeTypeId } from '@/lib/loops'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import SessionForm from '@/components/session-form'
@@ -20,23 +21,32 @@ export default async function NewSessionPage({
 
   const supabase = await createClient()
 
-  const [{ data: loops }, { data: lastSession }] = await Promise.all([
+  const [loops, allSessions, sessionTypeId, containsEdgeType] = await Promise.all([
+    getLoops(campaign.id),
+    getAllSessions(campaign.id),
+    getSessionNodeTypeId(campaign.id),
     supabase
-      .from('loops')
-      .select('number, title, status')
-      .eq('campaign_id', campaign.id)
-      .order('number', { ascending: true }),
-    supabase
-      .from('sessions')
-      .select('session_number')
-      .eq('campaign_id', campaign.id)
-      .order('session_number', { ascending: false })
-      .limit(1)
+      .from('edge_types')
+      .select('id')
+      .eq('slug', 'contains')
+      .eq('is_base', true)
       .single(),
   ])
 
-  const nextSessionNumber = (lastSession?.session_number ?? 0) + 1
+  if (!sessionTypeId || !containsEdgeType.data) notFound()
+
+  const nextSessionNumber = allSessions.length > 0
+    ? Math.max(...allSessions.map((s) => s.session_number)) + 1
+    : 1
+
   const defaultLoopNumber = loopParam ? parseInt(loopParam) : undefined
+
+  const loopOptions = loops.map((l) => ({
+    id: l.id,
+    number: l.number,
+    title: l.title,
+    status: l.status,
+  }))
 
   return (
     <div className="space-y-6">
@@ -44,7 +54,9 @@ export default async function NewSessionPage({
       <SessionForm
         campaignId={campaign.id}
         campaignSlug={slug}
-        loops={loops ?? []}
+        sessionTypeId={sessionTypeId}
+        containsEdgeTypeId={containsEdgeType.data.id}
+        loops={loopOptions}
         nextSessionNumber={nextSessionNumber}
         defaultLoopNumber={defaultLoopNumber}
       />

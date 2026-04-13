@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { getCampaignBySlug } from '@/lib/campaign'
-import { createClient } from '@/lib/supabase/server'
+import { getLoops, getAllSessions } from '@/lib/loops'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -28,33 +28,25 @@ export default async function SessionsPage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
-  const supabase = await createClient()
+  const [loops, allSessions] = await Promise.all([
+    getLoops(campaign.id),
+    getAllSessions(campaign.id),
+  ])
 
-  // All loops for filter tabs
-  const { data: loops } = await supabase
-    .from('loops')
-    .select('id, number, title, status')
-    .eq('campaign_id', campaign.id)
-    .order('number', { ascending: true })
+  // Filter by loop
+  let sessions = loopParam
+    ? allSessions.filter((s) => s.loop_number === parseInt(loopParam))
+    : allSessions
 
-  // Sessions query
-  let query = supabase
-    .from('sessions')
-    .select('id, session_number, title, played_at, loop_number, recap')
-    .eq('campaign_id', campaign.id)
-    .order('session_number', { ascending: false })
+  // Reverse: newest first
+  sessions = [...sessions].reverse()
 
-  if (loopParam) {
-    query = query.eq('loop_number', parseInt(loopParam))
-  }
-
-  const { data: sessions } = await query
-
-  const filteredSessions = sessions?.filter((s) => {
+  // Text search filter
+  const filteredSessions = sessions.filter((s) => {
     if (!q) return true
     const text = `${s.title ?? ''} ${s.recap ?? ''}`.toLowerCase()
     return text.includes(q.toLowerCase())
-  }) ?? []
+  })
 
   return (
     <div className="space-y-5">
@@ -70,7 +62,7 @@ export default async function SessionsPage({
       </div>
 
       {/* Loop filter tabs */}
-      {loops && loops.length > 0 && (
+      {loops.length > 0 && (
         <div className="flex items-center gap-1 flex-wrap">
           <Link
             href={`/c/${slug}/sessions`}
@@ -93,7 +85,7 @@ export default async function SessionsPage({
               }`}
             >
               {l.status === 'current' ? '🔄 ' : ''}Петля {l.number}
-              {l.title ? ` — ${l.title}` : ''}
+              {l.title !== `Петля ${l.number}` ? ` — ${l.title}` : ''}
             </Link>
           ))}
         </div>
@@ -127,9 +119,7 @@ export default async function SessionsPage({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">
-                  {s.title ?? `Сессия ${s.session_number}`}
-                </p>
+                <p className="text-sm font-semibold text-gray-900">{s.title}</p>
                 {s.recap && (
                   <p className="mt-1 text-sm text-gray-500 line-clamp-2">{s.recap}</p>
                 )}

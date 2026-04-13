@@ -1,5 +1,5 @@
 import { getCampaignBySlug } from '@/lib/campaign'
-import { createClient } from '@/lib/supabase/server'
+import { getLoops, getLoopNodeTypeId } from '@/lib/loops'
 import { notFound } from 'next/navigation'
 import LoopForm from '@/components/loop-form'
 
@@ -12,20 +12,26 @@ export default async function NewLoopPage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
-  const supabase = await createClient()
-  const { data: loops } = await supabase
-    .from('loops')
-    .select('number')
-    .eq('campaign_id', campaign.id)
-    .order('number', { ascending: false })
-    .limit(1)
+  const [loops, loopTypeId] = await Promise.all([
+    getLoops(campaign.id),
+    getLoopNodeTypeId(campaign.id),
+  ])
 
-  const nextNumber = (loops?.[0]?.number ?? 0) + 1
+  if (!loopTypeId) notFound()
+
+  const nextNumber = loops.length > 0
+    ? Math.max(...loops.map((l) => l.number)) + 1
+    : 1
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Новая петля</h1>
-      <LoopForm campaignId={campaign.id} campaignSlug={slug} nextNumber={nextNumber} />
+      <LoopForm
+        campaignId={campaign.id}
+        campaignSlug={slug}
+        loopTypeId={loopTypeId}
+        nextNumber={nextNumber}
+      />
     </div>
   )
 }
