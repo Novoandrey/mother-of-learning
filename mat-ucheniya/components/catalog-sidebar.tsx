@@ -128,6 +128,7 @@ export function CatalogSidebar({
   campaignSlug,
 }: Props) {
   const pathname = usePathname()
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set())
 
@@ -172,6 +173,7 @@ export function CatalogSidebar({
   const byType = isSearching ? flatByType : treeByType
 
   const navItems = [
+    { href: `/c/${campaignSlug}/catalog`, label: 'Каталог', icon: '📚' },
     { href: `/c/${campaignSlug}/loops`, label: 'Петли', icon: '🔄' },
     { href: `/c/${campaignSlug}/sessions`, label: 'Сессии', icon: '📋' },
     { href: `/c/${campaignSlug}/encounters`, label: 'Энкаунтеры', icon: '⚔️' },
@@ -202,13 +204,19 @@ export function CatalogSidebar({
 
       <div className="mx-2 border-t border-gray-100 my-1" />
 
-      {/* Search */}
+      {/* Search — filters tree locally, Enter goes to full catalog search */}
       <div className="px-2 pb-2">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Поиск..."
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && query.trim()) {
+              router.push(`/c/${campaignSlug}/catalog?q=${encodeURIComponent(query.trim())}`)
+              setQuery('')
+            }
+          }}
+          placeholder="Поиск… (Enter для полного)"
           className="w-full rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         />
       </div>
