@@ -15,30 +15,35 @@
 
 ### Петли и Сессии ✅
 - Миграции 008 (loops + chronicles), 009 (sessions), 010 (game_date)
-- `/loops` — главная страница: дашборд текущей петли, список петель, сессии в петле
-- `/sessions` — список всех сессий с фильтрами по петлям и поиском
-- `/sessions/[id]` — детальная страница с рекапом, заметками ДМа, prev/next навигацией
-- `/sessions/new`, `/loops/new`, `/loops/[id]/edit` — формы создания/редактирования
-- Seed: петли 0–5 (петля 0 = нулевая особая, петля 5 = текущая), примеры сессий
-- Навигация: Петли → Сессии → Энкаунтеры
+- `/loops` — дашборд текущей петли, список петель, сессии в петле
+- `/sessions` — список с фильтрами по петлям и поиском
+- `/sessions/[id]` — детальная страница с рекапом, prev/next навигацией
+- Формы создания/редактирования петель и сессий
 - Корневой редирект: / → /loops
+
+### Markdown wiki + Летопись ✅
+- Миграция 011: колонка `content` (text) в nodes + обновлён search_vector
+- MarkdownContent: редактор/просмотр markdown на карточке ноды (IDEA-006)
+- Chronicles: CRUD записей летописи с привязкой к петле и дате (IDEA-007)
+- API: PUT /api/nodes/[id]/content, CRUD /api/chronicles
+- @tailwindcss/typography + react-markdown + remark-gfm
 
 ### Hotfixes ✅
 - BUG-001: router.refresh() после создания ноды
 - FEAT-002: переключатель направления в форме создания связи
-- Убраны поля дат из формы редактирования петли (всегда День 1–31)
+- Убраны поля дат из формы редактирования петли
 
 ## Следующая задача
 
-Обсудить с пользователем что делать дальше — направление не определено.
-Кандидаты из backlog:
-- IDEA-001: подключить UI шаблонов энкаунтеров (инфраструктура есть)
-- IDEA-006: исследовать граф-визуализацию (react-flow / cytoscape.js)
+Обсудить с пользователем. Кандидаты:
 - Заполнение реальными данными кампании (60 сессий, 150 НПС)
+- Граф-визуализация (IDEA-006 из backlog — react-flow / cytoscape.js)
+- Responsive mobile layout (IDEA-005)
+- Что-то другое
 
 ## Стек и окружение
 
-- Next.js 14 (App Router) + Supabase + Tailwind
+- Next.js 14 (App Router) + Supabase + Tailwind v4
 - Vercel: https://mother-of-learning.vercel.app/
 - GitHub: https://github.com/Novoandrey/mother-of-learning
 - Кампания: slug `mat-ucheniya`

@@ -34,17 +34,14 @@ Done: direction toggle in `create-edge-form.tsx`, flips source/target on save.
 
 ## Ideas
 
-### IDEA-001 ~~Encounter templates~~ ✅ INFRASTRUCTURE EXISTS
-- Infrastructure: migration 007, template-actions.ts, save-as-template-button.tsx
-- UI не подключён — отложено
+### ~~IDEA-001~~ ✅ DONE Encounter templates (save → clone → modify)
+- SaveAsTemplateButton в combat-tracker, список шаблонов на странице энкаунтеров.
 
 ### IDEA-002 Git-style constitution versioning
 - **Feature**: dx
 
-### IDEA-003 Каталог-дерево в сайдбаре (Chronicler-style)
-- **Feature**: 003-catalog-tree
-- Левый сайдбар: верхний уровень = типы сущностей, внутри = ноды, вложенность через `contains`
-- Master-detail layout: клик по ноде → детали справа
+### ~~IDEA-003~~ ✅ DONE Каталог-дерево в сайдбаре (Chronicler-style)
+- Левый сайдбар: типы → ноды → вложенность через `contains`
 
 ### IDEA-004 Per-file .md documentation with cross-references
 - **Feature**: dx
@@ -55,12 +52,18 @@ Done: direction toggle in `create-edge-form.tsx`, flips source/target on save.
 - 375px viewport support for encounter tracker (horizontal scroll on table)
 - Mobile-friendly catalog navigation
 
-### IDEA-006 Граф-визуализация / майндмапа сущностей
-- **Feature**: 006-graph-view
-- Проблема: сущности живут в разных списках одновременно (НПС → группа → локация → петля), текущий сайдбар не отражает эту многомерность
-- Нужна интерактивная визуализация графа нод и рёбер с разными режимами отображения: по типу связи, по петле, по локации, по группе
-- Опасения: легко усложнить до непригодности — нужно изучить готовые решения перед реализацией
-- **Исследовать**: Obsidian graph view, react-flow, cytoscape.js, d3-force, sigma.js — что уже есть и насколько встраиваемо
-- **Варианты отображения**: полный граф кампании / граф одной петли / граф вокруг одной ноды (1–2 степени связи) / только определённый тип рёбер
-- **Фильтры**: по типу ноды, по типу ребра, по тегу, по петле
-- **Не делать раньше времени** — сначала убедиться что данных достаточно и структура графа устоялась
+### ~~IDEA-006~~ ✅ DONE Карточка персонажа с Markdown-контентом
+- Миграция 011: колонка `content` в nodes
+- MarkdownContent компонент: view/edit с превью
+- react-markdown + remark-gfm + @tailwindcss/typography
+
+### ~~IDEA-007~~ ✅ DONE Летопись персонажа
+- Chronicles компонент: CRUD записей с привязкой к петле и дате
+- API routes: POST/PUT/DELETE /api/chronicles
+
+### IDEA-008 Граф-визуализация / майндмапа сущностей
+- **Feature**: 008-graph-view
+- Интерактивная визуализация графа нод и рёбер
+- Варианты: полный граф / вокруг одной ноды / по типу рёбер
+- Исследовать: react-flow, cytoscape.js, d3-force, sigma.js
+- Не делать раньше времени — сначала наполнить данными
