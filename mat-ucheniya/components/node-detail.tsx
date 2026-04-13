@@ -97,7 +97,7 @@ export function NodeDetail({ node, edges, chronicles, campaignSlug, campaignId }
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Связи</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Связи</h2>
           <button
             onClick={() => setShowEdgeForm(!showEdgeForm)}
             className="text-sm text-blue-600 hover:underline"

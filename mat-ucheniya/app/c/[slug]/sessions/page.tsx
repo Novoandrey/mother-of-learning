@@ -63,7 +63,7 @@ export default async function SessionsPage({
         <h1 className="text-2xl font-bold text-gray-900">Сессии</h1>
         <Link
           href={`/c/${slug}/sessions/new${loopParam ? `?loop=${loopParam}` : ''}`}
-          className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
         >
           + Сессия
         </Link>
@@ -107,7 +107,7 @@ export default async function SessionsPage({
           name="q"
           defaultValue={q ?? ''}
           placeholder="Поиск по названию и рекапу…"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         />
       </form>
 
@@ -118,7 +118,7 @@ export default async function SessionsPage({
             <Link
               key={s.id}
               href={`/c/${slug}/sessions/${s.id}`}
-              className="flex items-start gap-4 rounded-xl border border-gray-100 bg-white px-5 py-4 hover:border-gray-200 hover:bg-gray-50 transition-colors"
+              className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 transition-colors"
             >
               <div className="flex flex-col items-center pt-0.5 shrink-0">
                 <span className="text-xs font-mono text-gray-400">#{s.session_number}</span>
@@ -145,7 +145,7 @@ export default async function SessionsPage({
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border-2 border-dashed border-gray-200 py-14 text-center">
+        <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
           <p className="text-gray-500">
             {q ? 'Ничего не найдено' : 'Нет сессий'}
           </p>

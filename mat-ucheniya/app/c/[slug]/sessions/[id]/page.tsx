@@ -59,7 +59,7 @@ export default async function SessionDetailPage({
         <div className="flex items-center gap-2">
           <Link
             href={`/c/${slug}/sessions/${id}`}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
             ← Назад
           </Link>
@@ -127,7 +127,7 @@ export default async function SessionDetailPage({
       <PrevNextNav slug={slug} session={session} campaignId={campaign.id} />
 
       {/* Recap */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">
           Рекап
         </h2>
@@ -142,7 +142,7 @@ export default async function SessionDetailPage({
 
       {/* DM Notes */}
       {session.dm_notes && (
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-6">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-amber-600 mb-4">
             Заметки ДМа
           </h2>

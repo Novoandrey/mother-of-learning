@@ -84,7 +84,7 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
             required
             value={number}
             onChange={(e) => setNumber(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           />
         </div>
         <div>
@@ -92,7 +92,7 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           >
             <option value="past">Прошедшая</option>
             <option value="current">Текущая</option>
@@ -108,7 +108,7 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
           placeholder='Например: "Петля пожара"'
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         />
       </div>
 
@@ -120,7 +120,7 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
           placeholder="Что важного произошло в этой петле? Что узнали путешественники?"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none resize-y"
         />
       </div>
 
@@ -132,14 +132,14 @@ export default function LoopForm({ campaignId, campaignSlug, loop, nextNumber }:
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
           {saving ? 'Сохраняю…' : isEdit ? 'Сохранить' : 'Создать петлю'}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Отмена
         </button>

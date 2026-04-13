@@ -50,18 +50,18 @@ export function MarkdownContent({ nodeId, initialContent, campaignSlug }: Props)
     return (
       <div className="rounded-lg border border-blue-200 bg-white">
         <div className="flex items-center justify-between border-b border-blue-100 px-4 py-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Контент</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Контент</h2>
           <div className="flex gap-2">
             <button
               onClick={handleCancel}
-              className="rounded px-3 py-1 text-sm text-gray-500 hover:bg-gray-100"
+              className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
             >
               Отмена
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Сохраняю...' : 'Сохранить'}
             </button>
@@ -89,7 +89,7 @@ export function MarkdownContent({ nodeId, initialContent, campaignSlug }: Props)
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Контент</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Контент</h2>
         <button
           onClick={handleEdit}
           className="text-sm text-blue-600 hover:underline"

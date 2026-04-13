@@ -85,7 +85,7 @@ export function CreateEdgeForm({
       {/* Direction toggle */}
       <div>
         <label className="mb-1 block text-xs font-medium text-gray-500">Направление</label>
-        <div className="flex rounded border border-gray-300 overflow-hidden text-sm">
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
           <button
             onClick={() => setDirection('outgoing')}
             className={`flex-1 px-3 py-1.5 transition-colors ${direction === 'outgoing' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
@@ -106,7 +106,7 @@ export function CreateEdgeForm({
         <select
           value={selectedTypeId}
           onChange={(e) => setSelectedTypeId(e.target.value)}
-          className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         >
           {edgeTypes.map((t) => (
             <option key={t.id} value={t.id}>{t.label}</option>
@@ -132,10 +132,10 @@ export function CreateEdgeForm({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск сущности..."
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
             />
             {results.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded border border-gray-200 bg-white shadow-sm">
+              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-sm">
                 {results.map((r) => (
                   <button
                     key={r.id}
@@ -158,14 +158,14 @@ export function CreateEdgeForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="подруга, создатель, староста..."
-          className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         />
       </div>
 
       <button
         onClick={handleSubmit}
         disabled={saving || !targetId || !selectedTypeId}
-        className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
       >
         {saving ? 'Сохраняю...' : 'Добавить'}
       </button>

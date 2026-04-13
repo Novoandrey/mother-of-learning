@@ -89,7 +89,7 @@ export default async function NodePage({
     <div>
       <Link
         href={`/c/${slug}/catalog`}
-        className="mb-4 inline-block text-sm text-gray-400 hover:text-gray-600"
+        className="mb-4 inline-block text-sm text-gray-400 hover:text-gray-600 transition-colors"
       >
         ← Каталог
       </Link>

@@ -30,7 +30,7 @@ export function Chronicles({ nodeId, campaignId, campaignSlug, initialChronicles
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
           Летопись {chronicles.length > 0 && <span className="text-gray-400">({chronicles.length})</span>}
         </h2>
         <button
@@ -244,7 +244,7 @@ function ChronicleForm({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Заголовок записи"
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         autoFocus
       />
       <div className="flex gap-2">
@@ -253,33 +253,33 @@ function ChronicleForm({
           value={loopNumber}
           onChange={(e) => setLoopNumber(e.target.value)}
           placeholder="Петля №"
-          className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+          className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />
         <input
           type="text"
           value={gameDate}
           onChange={(e) => setGameDate(e.target.value)}
           placeholder="Дата (напр. День 15)"
-          className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+          className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />
       </div>
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Текст записи (Markdown)..."
-        className="min-h-[150px] w-full resize-y rounded-lg border border-gray-200 p-3 font-mono text-sm focus:border-blue-400 focus:outline-none"
+        className="min-h-[150px] w-full resize-y rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
       />
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
           disabled={saving || !title.trim()}
-          className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
           {saving ? 'Сохраняю...' : isEdit ? 'Обновить' : 'Добавить'}
         </button>
         <button
           onClick={onCancel}
-          className="rounded px-4 py-1.5 text-sm text-gray-500 hover:bg-gray-100"
+          className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Отмена
         </button>

@@ -108,7 +108,7 @@ export default function SessionForm({
             required
             value={sessionNumber}
             onChange={(e) => setSessionNumber(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           />
         </div>
         <div>
@@ -116,7 +116,7 @@ export default function SessionForm({
           <select
             value={loopNumber}
             onChange={(e) => setLoopNumber(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           >
             <option value="">— без петли —</option>
             {loops?.map((l) => (
@@ -133,7 +133,7 @@ export default function SessionForm({
             type="date"
             value={playedAt}
             onChange={(e) => setPlayedAt(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           />
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function SessionForm({
           placeholder='Например: "Бой в Гадком Койоте"'
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         />
       </div>
 
@@ -159,7 +159,7 @@ export default function SessionForm({
           placeholder="Что произошло на этой сессии? Кратко или подробно — как удобно."
           value={recap}
           onChange={(e) => setRecap(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none resize-y font-mono"
         />
       </div>
 
@@ -173,7 +173,7 @@ export default function SessionForm({
           placeholder="Что важно помнить? Крючки на следующую сессию, скрытые мотивы НПС…"
           value={dmNotes}
           onChange={(e) => setDmNotes(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none resize-y"
         />
       </div>
 
@@ -185,14 +185,14 @@ export default function SessionForm({
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
           {saving ? 'Сохраняю…' : isEdit ? 'Сохранить' : 'Создать сессию'}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Отмена
         </button>

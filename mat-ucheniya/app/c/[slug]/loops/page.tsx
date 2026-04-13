@@ -101,7 +101,7 @@ export default async function LoopsPage({
       {/* Selected loop detail */}
       <div className="flex-1 min-w-0">
         {!currentLoop ? (
-          <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white py-16 text-center">
+          <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
             <div className="text-4xl mb-3">🔄</div>
             <p className="text-lg font-medium text-gray-500">Петли не созданы</p>
             <p className="mt-1 text-sm text-gray-400">Запустите seed_loops_sessions.sql в Supabase SQL Editor</p>
@@ -109,7 +109,7 @@ export default async function LoopsPage({
         ) : (
           <div className="space-y-6">
             {/* Header */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3 mb-1">
@@ -145,13 +145,13 @@ export default async function LoopsPage({
             {/* Sessions */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Сессии в петле</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Сессии в петле</h2>
                 <Link href={`/c/${slug}/sessions/new?loop=${currentLoop.number}`} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
                   + Добавить
                 </Link>
               </div>
               {!sessions?.length ? (
-                <div className="rounded-lg bg-gray-50 border border-dashed border-gray-200 px-4 py-6 text-center">
+                <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
                   <p className="text-sm text-gray-400">Нет сессий для этой петли</p>
                 </div>
               ) : (
@@ -160,7 +160,7 @@ export default async function LoopsPage({
                     <Link
                       key={s.id}
                       href={`/c/${slug}/sessions/${s.id}`}
-                      className="flex items-center gap-3 rounded-lg bg-white border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+                      className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 transition-colors"
                     >
                       <span className="text-sm font-mono text-gray-400 w-8">#{s.session_number}</span>
                       <span className="flex-1 text-sm text-gray-900 font-medium truncate">{s.title ?? `Сессия ${s.session_number}`}</span>
@@ -178,10 +178,10 @@ export default async function LoopsPage({
             {/* Chronicles */}
             {chronicles && chronicles.length > 0 && (
               <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">Хроники</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Хроники</h2>
                 <div className="space-y-1.5">
                   {(chronicles as any[]).map((ch) => (
-                    <div key={ch.id} className="flex items-center gap-3 rounded-lg bg-white border border-gray-200 px-4 py-3">
+                    <div key={ch.id} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
                       {ch.game_date && <span className="text-xs text-gray-400 flex-shrink-0 w-16">{ch.game_date}</span>}
                       <span className="flex-1 text-sm text-gray-900 font-medium truncate">{ch.title}</span>
                       {ch.node && (

@@ -14,7 +14,7 @@ export function NodeCard({ id, title, description, player, typeLabel, typeIcon, 
   return (
     <Link
       href={`/c/${campaignSlug}/catalog/${id}`}
-      className="block rounded-lg border border-gray-200 bg-white p-4 transition-all hover:border-gray-300 hover:shadow-sm"
+      className="block rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-gray-300"
     >
       <div className="mb-1 flex items-center gap-2">
         {typeIcon && <span className="text-sm">{typeIcon}</span>}

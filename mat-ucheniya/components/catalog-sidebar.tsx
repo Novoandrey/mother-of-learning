@@ -195,7 +195,7 @@ export function CatalogSidebar({
             <div key={type.slug}>
               <button
                 onClick={() => toggleType(type.slug)}
-                className="flex w-full items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600 transition-colors"
+                className="flex w-full items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <span className="text-[10px] leading-none">
                   {isCollapsed ? '▸' : '▾'}

@@ -95,7 +95,7 @@ export function CreateNodeForm({ campaignId, campaignSlug }: { campaignId: strin
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Имя персонажа, название локации..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
               autoFocus
             />
           </div>
@@ -108,25 +108,25 @@ export function CreateNodeForm({ campaignId, campaignSlug }: { campaignId: strin
                   value={value}
                   onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
                   rows={4}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               ) : (
                 <input
                   type="text"
                   value={value}
                   onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               )}
             </div>
           ))}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
           <button
             onClick={handleSubmit}
             disabled={saving || !title.trim()}
-            className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Сохраняю...' : 'Создать'}
           </button>
