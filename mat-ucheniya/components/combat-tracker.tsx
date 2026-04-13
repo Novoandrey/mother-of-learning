@@ -90,7 +90,7 @@ export function CombatTracker({
   // ── Handlers ────────────────────────────────────────────
 
   const handleRoundChange = useCallback(async (delta: number) => {
-    const newRound = Math.max(0, encounter.current_round + delta)
+    const newRound = Math.max(1, encounter.current_round + delta)
     setEncounter((prev) => ({ ...prev, current_round: newRound }))
     try { await updateRound(encounter.id, newRound) } catch { router.refresh() }
   }, [encounter, router])
@@ -198,7 +198,7 @@ export function CombatTracker({
             <span className="font-medium text-gray-600">Раунд</span>
             <button
               onClick={() => handleRoundChange(-1)}
-              disabled={encounter.current_round === 0}
+              disabled={encounter.current_round <= 1}
               className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-30"
             >
               −

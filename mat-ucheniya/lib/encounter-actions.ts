@@ -31,7 +31,7 @@ export async function updateRound(encounterId: string, round: number) {
   const supabase = createClient()
   const { error } = await supabase
     .from('encounters')
-    .update({ current_round: Math.max(0, round) })
+    .update({ current_round: Math.max(1, round) })
     .eq('id', encounterId)
   if (error) throw error
 }
