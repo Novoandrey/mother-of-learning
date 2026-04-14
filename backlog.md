@@ -3,7 +3,7 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-14
+Updated: 2026-04-15
 
 ---
 
@@ -12,6 +12,17 @@ Updated: 2026-04-14
 ### ~~BUG-001~~ ✅ FIXED
 New entity didn't appear in catalog without page reload.
 Fixed: `router.refresh()` after `router.push()` in `create-node-form.tsx`.
+
+### BUG-002 [P1] HP нельзя редактировать напрямую
+- **Feature**: 002-encounter-tracker
+- Текущее поведение: HP меняется только через дельты (+/−)
+- Ожидаемое: можно кликнуть на число и вписать точное значение
+- Найдено: ручное тестирование 2026-04-15
+
+### BUG-003 [P1] Клонирование участников — сбой нумерации
+- **Feature**: 002-encounter-tracker
+- При копировании НПС нумерация сбивается: вместо "Чемпион-1, Чемпион-2, Чемпион-3" показывает дубли или пропуски
+- Найдено: ручное тестирование 2026-04-15
 
 ---
 
@@ -84,3 +95,10 @@ Statblock icon in participant-row and catalog-panel.
 - Ключевые сценарии: ДМ меняет HP → игроки видят мгновенно; ДМ жмёт "Следующий ход" → у всех обновляется
 - Конфликты: optimistic UI + realtime = нужна стратегия (last-write-wins достаточно для MVP)
 - Конституция VI: мульти-ДМ и мультиплеер — первый шаг к realtime
+
+### IDEA-010 [P1] Энкаунтер-трекер: Excel-first редизайн
+- **Feature**: 002-encounter-tracker
+- Текущий UI слишком сложный, кастомные контролы вместо простого ввода
+- Подход: сделать editable table (как Excel) — каждая ячейка = инпут, Tab между полями
+- Правило: "если есть система (таблица), сначала перенеси её как есть, потом улучшай точечно"
+- Это может решить BUG-002 и упростить весь UX трекера
