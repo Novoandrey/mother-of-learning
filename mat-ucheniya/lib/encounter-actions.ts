@@ -171,7 +171,7 @@ export async function updateEffects(participantId: string, effects: string[]) {
   if (error) throw error
 }
 
-// Clone participant: original gets " 1" suffix, clone gets " 2" with full HP, no conditions/effects
+// Clone participant: finds next available number, gives clone full HP, no conditions/effects
 export async function cloneParticipant(participantId: string) {
   const supabase = createClient()
 
@@ -183,24 +183,51 @@ export async function cloneParticipant(participantId: string) {
 
   if (fetchError) throw fetchError
 
-  // Strip any existing " 1" / " 2" suffix from name before re-applying
+  // Strip any existing " N" suffix from name to get base name
   const baseName = original.display_name.replace(/ \d+$/, '')
 
-  // Rename original to " 1"
-  const { error: renameError } = await supabase
+  // Find all participants in this encounter with the same base name
+  const { data: siblings, error: siblingsError } = await supabase
     .from('encounter_participants')
-    .update({ display_name: `${baseName} 1` })
-    .eq('id', participantId)
+    .select('display_name')
+    .eq('encounter_id', original.encounter_id)
 
-  if (renameError) throw renameError
+  if (siblingsError) throw siblingsError
 
-  // Insert clone with " 2", full HP, no conditions/effects
+  // Collect all existing numbers for this base name
+  const existingNumbers = new Set<number>()
+  for (const s of siblings || []) {
+    const sBase = s.display_name.replace(/ \d+$/, '')
+    if (sBase === baseName) {
+      const match = s.display_name.match(/ (\d+)$/)
+      if (match) existingNumbers.add(parseInt(match[1]))
+    }
+  }
+
+  // If original doesn't have a number yet, rename it to " 1"
+  const originalHasNumber = / \d+$/.test(original.display_name)
+  let updatedOriginalName = original.display_name
+  if (!originalHasNumber) {
+    updatedOriginalName = `${baseName} 1`
+    existingNumbers.add(1)
+    const { error: renameError } = await supabase
+      .from('encounter_participants')
+      .update({ display_name: updatedOriginalName })
+      .eq('id', participantId)
+    if (renameError) throw renameError
+  }
+
+  // Find next available number
+  let nextNum = 1
+  while (existingNumbers.has(nextNum)) nextNum++
+
+  // Insert clone with next number, full HP, no conditions/effects
   const { data: clone, error: insertError } = await supabase
     .from('encounter_participants')
     .insert({
       encounter_id: original.encounter_id,
       node_id: original.node_id,
-      display_name: `${baseName} 2`,
+      display_name: `${baseName} ${nextNum}`,
       initiative: null,
       max_hp: original.max_hp,
       current_hp: original.max_hp,
@@ -217,7 +244,7 @@ export async function cloneParticipant(participantId: string) {
   if (insertError) throw insertError
 
   return {
-    updatedOriginalName: `${baseName} 1`,
+    updatedOriginalName,
     clone,
   }
 }

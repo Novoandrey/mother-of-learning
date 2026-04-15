@@ -14,6 +14,8 @@ export function HpControl({ currentHp, maxHp, onChange, onMaxHpChange, disabled 
   const [amount, setAmount] = useState('')
   const [editingMax, setEditingMax] = useState(false)
   const [maxDraft, setMaxDraft] = useState('')
+  const [editingCurrent, setEditingCurrent] = useState(false)
+  const [currentDraft, setCurrentDraft] = useState('')
 
   function applyDamage() {
     const n = parseInt(amount)
@@ -33,6 +35,20 @@ export function HpControl({ currentHp, maxHp, onChange, onMaxHpChange, disabled 
     if (disabled) return
     setMaxDraft(maxHp > 0 ? String(maxHp) : '')
     setEditingMax(true)
+  }
+
+  function startEditCurrent() {
+    if (disabled) return
+    setCurrentDraft(String(currentHp))
+    setEditingCurrent(true)
+  }
+
+  function commitCurrent() {
+    setEditingCurrent(false)
+    const n = parseInt(currentDraft)
+    if (!isNaN(n) && n >= 0 && n !== currentHp) {
+      onChange(Math.min(n, maxHp))
+    }
   }
 
   function commitMax() {
@@ -85,9 +101,30 @@ export function HpControl({ currentHp, maxHp, onChange, onMaxHpChange, disabled 
       {/* HP numbers + bar */}
       <div className="w-24">
         <div className="flex items-baseline justify-between">
-          <span className={`text-sm font-mono font-bold ${currentHp === 0 ? 'text-red-500' : 'text-gray-900'}`}>
-            {currentHp}
-          </span>
+          {editingCurrent ? (
+            <input
+              autoFocus
+              type="text"
+              inputMode="numeric"
+              value={currentDraft}
+              onChange={(e) => setCurrentDraft(e.target.value.replace(/[^0-9]/g, ''))}
+              onBlur={commitCurrent}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitCurrent()
+                if (e.key === 'Escape') setEditingCurrent(false)
+              }}
+              className="w-12 rounded border border-blue-400 px-1 py-0 text-sm font-mono font-bold text-center focus:outline-none"
+            />
+          ) : (
+            <button
+              onClick={startEditCurrent}
+              disabled={disabled}
+              className={`text-sm font-mono font-bold hover:underline cursor-text ${currentHp === 0 ? 'text-red-500' : 'text-gray-900'}`}
+              title="Кликни для прямого ввода HP"
+            >
+              {currentHp}
+            </button>
+          )}
           <button
             onClick={startEditMax}
             disabled={disabled}
