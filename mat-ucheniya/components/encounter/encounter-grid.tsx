@@ -70,6 +70,7 @@ type Props = {
   campaignSlug: string
   conditionNames: string[]
   effectNames: string[]
+  onAutoLog?: (message: string) => void
 }
 
 // ── Role config ─────────────────────────────────────
@@ -100,6 +101,7 @@ export function EncounterGrid({
   campaignSlug,
   conditionNames,
   effectNames,
+  onAutoLog,
 }: Props) {
   const router = useRouter()
   const [encounter, setEncounter] = useState(initial)
@@ -264,19 +266,29 @@ export function EncounterGrid({
   }, [router, selectedIds, sorted])
 
   const onHp = useCallback(async (id: string, hp: number) => {
+    const p = participants.find((x) => x.id === id)
+    if (p && onAutoLog && p.current_hp !== hp) {
+      const delta = hp - p.current_hp
+      const name = p.display_name
+      if (delta < 0) {
+        onAutoLog(`${name} потерял(а) ${Math.abs(delta)} хп → ${hp}/${p.max_hp}`)
+      } else if (delta > 0) {
+        onAutoLog(`${name} восстановил(а) ${delta} хп → ${hp}/${p.max_hp}`)
+      }
+    }
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, current_hp: hp } : p))
     try { await updateHp(id, hp) } catch { router.refresh() }
-  }, [router])
+  }, [router, participants, onAutoLog])
 
   // Apply raw HP input to all OTHER selected rows (triggering row is handled by onHp/onMaxHp)
   const onHpRaw = useCallback(async (id: string, raw: string) => {
     if (!isSelected(id) || selCount <= 1) return
     const others = sorted.filter((p) => selectedIds.has(p.id) && p.id !== id)
-    const updates: { id: string; hp: number; max?: number }[] = []
+    const updates: { id: string; hp: number; max?: number; name: string; oldHp: number; maxHp: number }[] = []
     for (const p of others) {
       const result = parseHpInput(raw, p.current_hp, p.max_hp)
       if (!result) continue
-      updates.push({ id: p.id, hp: result.current, max: result.max !== p.max_hp ? result.max : undefined })
+      updates.push({ id: p.id, hp: result.current, max: result.max !== p.max_hp ? result.max : undefined, name: p.display_name, oldHp: p.current_hp, maxHp: result.max })
     }
     if (!updates.length) return
     setParticipants((ps) => ps.map((p) => {
@@ -284,13 +296,24 @@ export function EncounterGrid({
       if (!u) return p
       return { ...p, current_hp: u.hp, ...(u.max != null ? { max_hp: u.max } : {}) }
     }))
+    // Auto-log for mass HP changes
+    if (onAutoLog) {
+      for (const u of updates) {
+        const delta = u.hp - u.oldHp
+        if (delta < 0) {
+          onAutoLog(`${u.name} потерял(а) ${Math.abs(delta)} хп → ${u.hp}/${u.maxHp}`)
+        } else if (delta > 0) {
+          onAutoLog(`${u.name} восстановил(а) ${delta} хп → ${u.hp}/${u.maxHp}`)
+        }
+      }
+    }
     for (const u of updates) {
       try {
         if (u.max != null) await updateMaxHp(u.id, u.max, u.hp)
         else await updateHp(u.id, u.hp)
       } catch { /* best-effort */ }
     }
-  }, [selectedIds, selCount, sorted])
+  }, [selectedIds, selCount, sorted, onAutoLog])
 
   const onMaxHp = useCallback(async (id: string, max: number, cur: number) => {
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, max_hp: max, current_hp: cur } : p))
@@ -585,10 +608,12 @@ export function EncounterGrid({
                       )}
                       {statUrl && (
                         <a href={statUrl} target="_blank" rel="noopener noreferrer"
-                          className="flex-shrink-0 text-gray-300 hover:text-blue-500 transition-colors" title="Статблок">
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          className="flex-shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-blue-500 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                          title="Открыть статблок">
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                           </svg>
+                          стат
                         </a>
                       )}
                     </div>

@@ -3,8 +3,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { notFound } from 'next/navigation'
-import { EncounterGrid } from '@/components/encounter/encounter-grid'
-import { EncounterLog } from '@/components/encounter/encounter-log'
+import { EncounterPageClient } from '@/components/encounter/encounter-page-client'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -89,7 +88,7 @@ export default async function EncounterPage({
         ← Энкаунтеры
       </Link>
 
-      <EncounterGrid
+      <EncounterPageClient
         encounter={{
           id: encounter.id,
           title: encounter.title,
@@ -104,12 +103,7 @@ export default async function EncounterPage({
         campaignSlug={slug}
         conditionNames={conditionNames}
         effectNames={effectNames}
-      />
-
-      <EncounterLog
-        encounterId={encounter.id}
-        initialEntries={(logEntries as any[]) || []}
-        disabled={encounter.status === 'completed'}
+        initialLogEntries={(logEntries as any[]) || []}
       />
     </div>
   )

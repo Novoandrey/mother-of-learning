@@ -5,7 +5,8 @@ import { addLogEntry, deleteLogEntry, updateLogEntry, type LogEntry } from '@/li
 
 type Props = {
   encounterId: string
-  initialEntries: LogEntry[]
+  entries: LogEntry[]
+  onEntriesChange: (entries: LogEntry[]) => void
   disabled?: boolean
 }
 
@@ -14,18 +15,21 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function EncounterLog({ encounterId, initialEntries, disabled = false }: Props) {
-  const [entries, setEntries] = useState(initialEntries)
+export function EncounterLog({ encounterId, entries, onEntriesChange, disabled = false }: Props) {
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const prevLenRef = useRef(entries.length)
 
   // Auto-scroll to bottom on new entries
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (entries.length > prevLenRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevLenRef.current = entries.length
   }, [entries.length])
 
   async function handleSend() {
@@ -34,7 +38,7 @@ export function EncounterLog({ encounterId, initialEntries, disabled = false }: 
     setSending(true)
     try {
       const entry = await addLogEntry(encounterId, text)
-      setEntries((prev) => [...prev, entry])
+      onEntriesChange([...entries, entry])
       setDraft('')
       inputRef.current?.focus()
     } catch (e) {
@@ -45,7 +49,7 @@ export function EncounterLog({ encounterId, initialEntries, disabled = false }: 
   }
 
   async function handleDelete(id: string) {
-    setEntries((prev) => prev.filter((e) => e.id !== id))
+    onEntriesChange(entries.filter((e) => e.id !== id))
     try { await deleteLogEntry(id) } catch (e) { console.error(e) }
   }
 
@@ -58,7 +62,7 @@ export function EncounterLog({ encounterId, initialEntries, disabled = false }: 
     const text = editDraft.trim()
     setEditingId(null)
     if (!text) return
-    setEntries((prev) => prev.map((e) => e.id === id ? { ...e, content: text } : e))
+    onEntriesChange(entries.map((e) => e.id === id ? { ...e, content: text } : e))
     try { await updateLogEntry(id, text) } catch (e) { console.error(e) }
   }
 
@@ -94,15 +98,17 @@ export function EncounterLog({ encounterId, initialEntries, disabled = false }: 
             Пусто. Записывайте ход боя.
           </p>
         )}
-        {entries.map((entry) => (
-          <div key={entry.id} className="group flex items-start gap-2 py-0.5 hover:bg-gray-50/50 -mx-1 px-1 rounded">
+        {entries.map((entry) => {
+          const isAuto = entry.author_name === '⚙'
+          return (
+          <div key={entry.id} className={`group flex items-start gap-2 py-0.5 hover:bg-gray-50/50 -mx-1 px-1 rounded ${isAuto ? 'opacity-70' : ''}`}>
             {/* Timestamp */}
             <span className="flex-shrink-0 pt-0.5 font-mono text-[10px] text-gray-300 select-none">
               {formatTime(entry.created_at)}
             </span>
 
             {/* Author */}
-            <span className="flex-shrink-0 pt-0.5 text-[10px] font-semibold text-gray-400 min-w-[24px]">
+            <span className={`flex-shrink-0 pt-0.5 text-[10px] font-semibold min-w-[24px] ${isAuto ? 'text-gray-300' : 'text-gray-400'}`}>
               {entry.author_name}
             </span>
 
@@ -118,7 +124,7 @@ export function EncounterLog({ encounterId, initialEntries, disabled = false }: 
                 className="flex-1 rounded border border-blue-400 px-1.5 py-0.5 text-sm focus:outline-none resize-none"
               />
             ) : (
-              <span className="flex-1 text-sm text-gray-800 whitespace-pre-wrap break-words">
+              <span className={`flex-1 text-sm whitespace-pre-wrap break-words ${isAuto ? 'text-gray-500 italic' : 'text-gray-800'}`}>
                 {entry.content}
               </span>
             )}
@@ -135,7 +141,8 @@ export function EncounterLog({ encounterId, initialEntries, disabled = false }: 
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
         <div ref={bottomRef} />
       </div>
 
