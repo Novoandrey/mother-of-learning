@@ -3,7 +3,7 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-15
+Updated: 2026-04-15 (chat 3)
 
 ---
 
@@ -59,8 +59,11 @@ Statblock icon in participant-row and catalog-panel.
 ### IDEA-002 Git-style constitution versioning
 - **Feature**: dx
 
-### ~~IDEA-003~~ ✅ DONE Каталог-дерево в сайдбаре (Chronicler-style)
-- Левый сайдбар: типы → ноды → вложенность через `contains`
+### ~~IDEA-003~~ ✅ DONE → ПЕРЕОСМЫСЛЕНО
+- Было: дерево в сайдбаре (Chronicler-style вложенность)
+- Стало: плоский список + конфигурируемая группировка (принцип III-b)
+- Вложенность через `contains` остаётся как связь, но НЕ как навигация
+- Сайдбар = универсальный компонент с пропсами visibleTypes + columns + groupBy
 
 ### IDEA-004 Per-file .md documentation with cross-references
 - **Feature**: dx
@@ -200,3 +203,23 @@ Statblock icon in participant-row and catalog-panel.
 - **Триггер**: когда типов ячеек будет 8+ и паттерн копипасты начнёт бесить
 - **Не делать раньше**: нужен опыт из лога действий, листа персонажа, character builder
 - Связь: IDEA-019 (горячие клавиши), IDEA-020 (full-width layout)
+
+### IDEA-022 [P3] Генеалогическое древо персонажей (app-визуализация)
+- **Feature**: graph-apps
+- Визуализация семейных и родственных связей между персонажами
+- По сути — один из "аппов" поверх графа: фильтр по рёбрам типа `parent_of`, `sibling`, `married_to` → визуальное дерево
+- Идея от игрока (Катя?): хочет строить родословные персонажей
+- Реализация: плоские ноды + рёбра родства → рендер как дерево (d3-hierarchy / react-flow)
+- Не требует вложенности в данных — структура дерева = результат запроса по рёбрам
+- Хороший тест принципа III-b: плоские данные → визуализация как иерархия
+- Новые edge_types: `parent_of`, `sibling`, `married_to`, `adopted_by`
+- Связь: IDEA-008 (граф-визуализация), принцип III-b (плоская навигация)
+
+### IDEA-023 [P2] Сайдбар-таблица для энкаунтера (encounter catalog panel)
+- **Feature**: 005-encounter-tracker-v2 (расширение)
+- Тот же универсальный сайдбар каталога, но с контекстом энкаунтера
+- Конфигурация: visibleTypes = [npc, character, creature], columns = [stat_block, max_hp]
+- Группировка по типу, плоский список внутри
+- Клик → добавить в энкаунтер (быстрее чем текущий диалог)
+- Один компонент для каталога и энкаунтера с разными пропсами
+- Связь: принцип III-b (плоская навигация), IDEA-020 (full-width layout)
