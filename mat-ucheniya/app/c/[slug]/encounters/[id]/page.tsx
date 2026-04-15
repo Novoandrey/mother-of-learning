@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { notFound } from 'next/navigation'
-import { CombatTracker } from '@/components/combat-tracker'
+import { EncounterGrid } from '@/components/encounter/encounter-grid'
 import { PartyBar } from '@/components/party-bar'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -54,17 +54,36 @@ export default async function EncounterPage({
     .order('initiative', { ascending: false, nullsFirst: false })
     .order('sort_order', { ascending: true })
 
-  // Fetch catalog nodes for the bottom panel (PCs, NPCs, creatures)
+  // Fetch catalog nodes for add panel (PCs, NPCs, creatures)
   const { data: catalogNodes } = await supabase
     .from('nodes')
     .select('id, title, fields, type:node_types(slug, label)')
     .eq('campaign_id', campaign.id)
     .order('title')
 
-  // Filter to only character/npc/creature types
   const filteredCatalog = (catalogNodes || []).filter((n: any) =>
     n.type && ['character', 'npc', 'creature'].includes(n.type.slug)
   )
+
+  // Fetch condition names (node_type slug = 'condition')
+  const { data: conditionNodes } = await supabase
+    .from('nodes')
+    .select('title, type:node_types!inner(slug)')
+    .eq('campaign_id', campaign.id)
+    .eq('type.slug', 'condition')
+    .order('title')
+
+  const conditionNames = (conditionNodes || []).map((n: any) => n.title)
+
+  // Fetch effect names (node_type slug = 'effect')
+  const { data: effectNodes } = await supabase
+    .from('nodes')
+    .select('title, type:node_types!inner(slug)')
+    .eq('campaign_id', campaign.id)
+    .eq('type.slug', 'effect')
+    .order('title')
+
+  const effectNames = (effectNodes || []).map((n: any) => n.title)
 
   return (
     <div className="space-y-4">
@@ -81,18 +100,21 @@ export default async function EncounterPage({
         catalogNodes={filteredCatalog.map((n: any) => ({ id: n.id, title: n.title, fields: n.fields }))}
         isEncounterCompleted={encounter.status === 'completed'}
       />
-      <CombatTracker
+      <EncounterGrid
         encounter={{
           id: encounter.id,
           title: encounter.title,
           status: encounter.status,
           current_round: encounter.current_round,
+          current_turn_id: encounter.current_turn_id,
           details: encounter.details || {},
         }}
         initialParticipants={(participants as any[]) || []}
         catalogNodes={filteredCatalog as any[]}
         campaignId={campaign.id}
         campaignSlug={slug}
+        conditionNames={conditionNames}
+        effectNames={effectNames}
       />
     </div>
   )
