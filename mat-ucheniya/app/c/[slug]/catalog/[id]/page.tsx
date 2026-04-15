@@ -122,7 +122,7 @@ export default async function NodePage({
     .order('created_at', { ascending: false })
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       {parent ? (
         <Link
           href={`/c/${slug}/catalog/${parent.id}`}

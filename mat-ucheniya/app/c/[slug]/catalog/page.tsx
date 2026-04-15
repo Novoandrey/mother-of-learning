@@ -84,7 +84,7 @@ export default async function CatalogPage({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       {/* Hero search */}
       <div className={isSearching ? '' : 'pt-8 pb-4'}>
         <form action={`/c/${slug}/catalog`} method="get">

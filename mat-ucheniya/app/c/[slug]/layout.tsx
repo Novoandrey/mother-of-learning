@@ -82,10 +82,8 @@ export default async function CampaignLayout({
         </aside>
 
         {/* Main */}
-        <main className="flex-1 overflow-y-auto min-w-0">
-          <div className="mx-auto max-w-5xl px-6 py-4">
-            {children}
-          </div>
+        <main className="flex-1 overflow-y-auto min-w-0 px-4 py-4">
+          {children}
         </main>
       </div>
     </div>

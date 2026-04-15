@@ -57,10 +57,12 @@ export default async function EncountersPage({
   }))
 
   return (
-    <EncounterListPage
-      encounters={items}
-      campaignId={campaign.id}
-      campaignSlug={slug}
-    />
+    <div className="mx-auto max-w-5xl">
+      <EncounterListPage
+        encounters={items}
+        campaignId={campaign.id}
+        campaignSlug={slug}
+      />
+    </div>
   )
 }

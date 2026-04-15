@@ -49,7 +49,7 @@ export default async function SessionsPage({
   })
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Сессии</h1>

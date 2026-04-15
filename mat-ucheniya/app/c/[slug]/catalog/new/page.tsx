@@ -27,7 +27,7 @@ export default async function NewNodePage({
   if (!campaign) notFound()
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       <Link
         href={`/c/${slug}/catalog`}
         className="mb-4 inline-block text-sm text-gray-400 hover:text-gray-600 transition-colors"

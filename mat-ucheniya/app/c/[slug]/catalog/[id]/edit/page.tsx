@@ -42,7 +42,7 @@ export default async function EditNodePage({
   if (!node) notFound()
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       <Link
         href={`/c/${slug}/catalog/${id}`}
         className="mb-4 inline-block text-sm text-gray-400 hover:text-gray-600 transition-colors"
