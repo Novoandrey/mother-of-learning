@@ -104,14 +104,14 @@ export default async function EncounterPage({
           current_turn_id: encounter.current_turn_id,
           details: encounter.details || {},
         }}
-        initialParticipants={(participants as any[]) || []}
-        catalogNodes={filteredCatalog as any[]}
+        initialParticipants={(participants ?? []) as unknown as import('@/components/encounter/encounter-grid').Participant[]}
+        catalogNodes={(filteredCatalog ?? []) as unknown as import('@/components/encounter/encounter-grid').CatalogNode[]}
         campaignId={campaign.id}
         campaignSlug={slug}
         conditionNames={conditionNames}
         effectNames={effectNames}
-        initialLogEntries={(logEntries as any[]) || []}
-        initialEvents={(eventEntries as any[]) || []}
+        initialLogEntries={(logEntries ?? []) as unknown as import('@/lib/log-actions').LogEntry[]}
+        initialEvents={(eventEntries ?? []) as unknown as import('@/lib/event-actions').EncounterEvent[]}
       />
     </div>
   )

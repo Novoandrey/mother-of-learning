@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
-import { EncounterGrid, type CatalogNode, type EncounterGridHandle } from './encounter-grid'
+import { EncounterGrid, type CatalogNode, type EncounterGridHandle, type Participant } from './encounter-grid'
 import { EncounterLog } from './encounter-log'
 import { EncounterCatalogPanel } from './encounter-catalog-panel'
 import { type LogEntry } from '@/lib/log-actions'
@@ -23,7 +23,7 @@ type Props = {
     current_turn_id?: string | null
     details: Record<string, string>
   }
-  initialParticipants: any[]
+  initialParticipants: Participant[]
   catalogNodes: CatalogNode[]
   campaignId: string
   campaignSlug: string

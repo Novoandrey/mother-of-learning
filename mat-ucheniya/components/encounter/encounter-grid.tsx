@@ -40,7 +40,7 @@ type Encounter = {
   details: Record<string, string>
 }
 
-type Participant = {
+export type Participant = {
   id: string
   display_name: string
   initiative: number | null
