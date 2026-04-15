@@ -14,10 +14,10 @@
 **Purpose**: Создать базовые компоненты editable grid, не трогая существующий UI.
 Старый трекер работает параллельно, пока новый не готов.
 
-- [ ] T001 [P] Create `components/encounter/editable-cell.tsx` — display mode (text) → click → input → Enter/Tab/blur → commit. Props: value, onCommit, type (text|number), placeholder, disabled, className
-- [ ] T002 [P] Create `components/encounter/hp-cell.tsx` — display "current / max" + mini bar. Click on current → input with delta parsing ("-14", "+7", "45"). Click on "/max" → edit max. Reuse updateHp, updateMaxHp from encounter-actions
-- [ ] T003 [P] Create `components/encounter/tag-cell.tsx` — display badges, click → input with autocomplete dropdown, Enter → add tag, Backspace → remove last, click badge → remove. Props: tags[], suggestions[], onChange, placeholder
-- [ ] T004 [P] Create `components/encounter/encounter-header.tsx` — title, round counter (+/−), "Следующий ход", "Сохранить шаблон", "Завершить бой". Extract from combat-tracker state management
+- [x] T001 [P] Create `components/encounter/editable-cell.tsx` — display mode (text) → click → input → Enter/Tab/blur → commit. Props: value, onCommit, type (text|number), placeholder, disabled, className
+- [x] T002 [P] Create `components/encounter/hp-cell.tsx` — display "current / max" + mini bar. Click on current → input with delta parsing ("-14", "+7", "45"). Click on "/max" → edit max. Reuse updateHp, updateMaxHp from encounter-actions
+- [x] T003 [P] Create `components/encounter/tag-cell.tsx` — display badges, click → input with autocomplete dropdown, Enter → add tag, Backspace → remove last, click badge → remove. Props: tags[], suggestions[], onChange, placeholder
+- [x] T004 [P] Create `components/encounter/encounter-header.tsx` — title, round counter (+/−), "Следующий ход", "Сохранить шаблон", "Завершить бой". Extract from combat-tracker state management
 
 **Checkpoint**: 4 new primitives, testable in isolation.
 
@@ -28,9 +28,9 @@
 **Goal**: Собрать grid layout и добавить участников из каталога / вручную
 **Independent Test**: Создать энкаунтер → вписать "Тролль" → автокомплит → ×3 → видны в таблице
 
-- [ ] T005 Create `components/encounter/add-participant-row.tsx` — input with catalog autocomplete (search nodes where type in character/npc/creature). Quantity selector for clones. Enter without selection → manual add. Reuse addParticipantFromCatalog, addParticipantManual
-- [ ] T006 Create `components/encounter/encounter-grid.tsx` — main component. State: encounter + participants (optimistic). HTML table layout: thead (column headers) + tbody (sorted participants) + tfoot (add row). Import all cell components. Wire all handlers from encounter-actions
-- [ ] T007 Update `app/c/[slug]/encounters/[id]/page.tsx` — replace CombatTracker import with EncounterGrid. Keep same data fetching, same props shape
+- [x] T005 Create `components/encounter/add-participant-row.tsx` — input with catalog autocomplete (search nodes where type in character/npc/creature). Quantity selector for clones. Enter without selection → manual add. Reuse addParticipantFromCatalog, addParticipantManual
+- [x] T006 Create `components/encounter/encounter-grid.tsx` — main component. State: encounter + participants (optimistic). HTML table layout: thead (column headers) + tbody (sorted participants) + tfoot (add row). Import all cell components. Wire all handlers from encounter-actions
+- [x] T007 Update `app/c/[slug]/encounters/[id]/page.tsx` — replace CombatTracker import with EncounterGrid. Keep same data fetching, same props shape
 - [ ] T008 Manual test: open existing encounter → data renders → add from catalog ×3 → add manual → all visible in grid
 
 **Checkpoint**: Новый grid рендерит данные и позволяет добавлять. Deploy v0.1.
