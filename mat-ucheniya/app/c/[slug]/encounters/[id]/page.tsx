@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { notFound } from 'next/navigation'
 import { EncounterGrid } from '@/components/encounter/encounter-grid'
-import { PartyBar } from '@/components/party-bar'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -54,7 +53,7 @@ export default async function EncounterPage({
     .order('initiative', { ascending: false, nullsFirst: false })
     .order('sort_order', { ascending: true })
 
-  // Fetch catalog nodes for add panel (PCs, NPCs, creatures)
+  // Catalog nodes for adding participants
   const { data: catalogNodes } = await supabase
     .from('nodes')
     .select('id, title, fields, type:node_types(slug, label)')
@@ -65,7 +64,6 @@ export default async function EncounterPage({
     n.type && ['character', 'npc', 'creature'].includes(n.type.slug)
   )
 
-  // Extract condition and effect names from already-fetched catalog
   const conditionNames = (catalogNodes || [])
     .filter((n: any) => n.type?.slug === 'condition')
     .map((n: any) => n.title)
@@ -75,20 +73,14 @@ export default async function EncounterPage({
     .map((n: any) => n.title)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <Link
         href={`/c/${slug}/encounters`}
-        className="inline-block text-sm text-gray-400 hover:text-gray-600"
+        className="inline-block text-sm text-gray-400 hover:text-gray-600 transition-colors"
       >
         ← Энкаунтеры
       </Link>
-      <PartyBar
-        campaignId={campaign.id}
-        campaignSlug={slug}
-        encounterId={encounter.id}
-        catalogNodes={filteredCatalog.map((n: any) => ({ id: n.id, title: n.title, fields: n.fields }))}
-        isEncounterCompleted={encounter.status === 'completed'}
-      />
+
       <EncounterGrid
         encounter={{
           id: encounter.id,
