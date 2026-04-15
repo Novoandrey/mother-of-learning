@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import { EncounterHeader } from './encounter-header'
 import { EditableCell } from './editable-cell'
 import { HpCell } from './hp-cell'
@@ -140,7 +141,6 @@ export function EncounterGrid({
     setCurrentTurnId(nextId)
     // Persist to DB (best-effort)
     try {
-      const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       await supabase.from('encounters').update({ current_turn_id: nextId }).eq('id', encounter.id)
     } catch { /* non-critical */ }

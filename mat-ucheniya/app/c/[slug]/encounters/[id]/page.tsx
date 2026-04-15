@@ -65,25 +65,14 @@ export default async function EncounterPage({
     n.type && ['character', 'npc', 'creature'].includes(n.type.slug)
   )
 
-  // Fetch condition names (node_type slug = 'condition')
-  const { data: conditionNodes } = await supabase
-    .from('nodes')
-    .select('title, type:node_types!inner(slug)')
-    .eq('campaign_id', campaign.id)
-    .eq('type.slug', 'condition')
-    .order('title')
+  // Extract condition and effect names from already-fetched catalog
+  const conditionNames = (catalogNodes || [])
+    .filter((n: any) => n.type?.slug === 'condition')
+    .map((n: any) => n.title)
 
-  const conditionNames = (conditionNodes || []).map((n: any) => n.title)
-
-  // Fetch effect names (node_type slug = 'effect')
-  const { data: effectNodes } = await supabase
-    .from('nodes')
-    .select('title, type:node_types!inner(slug)')
-    .eq('campaign_id', campaign.id)
-    .eq('type.slug', 'effect')
-    .order('title')
-
-  const effectNames = (effectNodes || []).map((n: any) => n.title)
+  const effectNames = (catalogNodes || [])
+    .filter((n: any) => n.type?.slug === 'effect')
+    .map((n: any) => n.title)
 
   return (
     <div className="space-y-4">
