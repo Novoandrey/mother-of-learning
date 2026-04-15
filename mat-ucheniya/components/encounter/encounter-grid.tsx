@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -92,9 +92,15 @@ function nextRole(current: string): string {
   return ROLES[(idx + 1) % ROLES.length]
 }
 
+// ── Imperative handle for external callers ─────────
+
+export type EncounterGridHandle = {
+  addFromCatalogExternal: (nodeId: string, displayName: string, maxHp: number, qty: number) => void
+}
+
 // ── Component ───────────────────────────────────────
 
-export function EncounterGrid({
+export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function EncounterGrid({
   encounter: initial,
   initialParticipants,
   catalogNodes,
@@ -103,7 +109,7 @@ export function EncounterGrid({
   conditionNames,
   effectNames,
   onAutoEvent,
-}: Props) {
+}, ref) {
   const router = useRouter()
   const [encounter, setEncounter] = useState(initial)
   const [participants, setParticipants] = useState(initialParticipants)
@@ -447,6 +453,11 @@ export function EncounterGrid({
     } catch (e) { console.error(e) }
   }, [encounter.id, router, catalogNodes])
 
+  // ── Imperative handle ────────────────────────────
+  useImperativeHandle(ref, () => ({
+    addFromCatalogExternal: addFromCatalog,
+  }), [addFromCatalog])
+
   // ── Render ────────────────────────────────────────
 
   return (
@@ -731,4 +742,4 @@ export function EncounterGrid({
       </div>
     </div>
   )
-}
+})
