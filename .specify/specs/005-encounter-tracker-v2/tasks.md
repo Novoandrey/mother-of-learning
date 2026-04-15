@@ -87,8 +87,8 @@
 
 - [ ] T025 [P] Delete old v1 components: combat-tracker.tsx, participant-row.tsx, hp-control.tsx, initiative-input.tsx, condition-picker.tsx, effect-picker.tsx, role-selector.tsx, temp-hp-input.tsx, inline-add-row.tsx, catalog-panel.tsx
 - [x] T026 [P] Update STYLE.md: remove "Encounter tracker has its own style" note, document grid tokens
-- [ ] T027 [P] Responsive: 375px → horizontal scroll with sticky name column
-- [ ] T028 [P] Page title and meta
+- [x] T027 [P] Responsive: 375px → horizontal scroll with sticky name column
+- [x] T028 [P] Page title and meta
 - [ ] T029 Push to GitHub, Vercel auto-deploys
 - [ ] T030 Run all quickstart scenarios on prod
 
