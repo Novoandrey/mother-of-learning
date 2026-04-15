@@ -210,14 +210,12 @@ Statblock icon in participant-row and catalog-panel.
 - Новые edge_types: `parent_of`, `sibling`, `married_to`, `adopted_by`
 - Связь: IDEA-008 (граф-визуализация), принцип III-b (плоская навигация)
 
-### IDEA-023 [P2] Сайдбар-таблица для энкаунтера (encounter catalog panel)
+### ~~IDEA-023~~ ✅ DONE Сайдбар-каталог для энкаунтера
 - **Feature**: 005-encounter-tracker-v2 (расширение)
-- Тот же универсальный сайдбар каталога, но с контекстом энкаунтера
-- Конфигурация: visibleTypes = [npc, character, creature], columns = [stat_block, max_hp]
-- Группировка по типу, плоский список внутри
-- Клик → добавить в энкаунтер (быстрее чем текущий диалог)
-- Один компонент для каталога и энкаунтера с разными пропсами
-- Связь: принцип III-b (плоская навигация), IDEA-020 (full-width layout)
+- EncounterCatalogPanel: группировка по типу, поиск, max_hp, статблок
+- Один клик → добавить в энкаунтер
+- Grid: forwardRef + useImperativeHandle для внешних вызовов
+- Flex-layout: grid+log | catalog panel
 
 ### IDEA-024 [P2] Сеттинг как пакет: канон + кампейн-оверрайды
 - **Feature**: campaign-settings / distributable-worlds
