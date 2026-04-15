@@ -3,7 +3,7 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-15 (chat 4)
+Updated: 2026-04-15 (chat 7)
 
 ---
 
@@ -253,10 +253,9 @@ Statblock icon in participant-row and catalog-panel.
 2. ✅ **Временная привязка событий** — условия/эффекты записываются с координатой `{round}`.
    Миграция 016: text[] → jsonb. TagCell показывает номер раунда. Автолог при добавлении/снятии.
 
-3. 🔜 **Структурированные события** — вместо свободного текста, запись в логе = JSON:
-   `{actor, action, target, result, round, turn}`. Рендерится красиво.
-   Это основа для авто-рекапов (IDEA-016). Таблица: `encounter_events`.
-   Текстовый лог остаётся как fallback для импровизации.
+3. ✅ **Структурированные события** — таблица `encounter_events` с jsonb result.
+   Типы: hp_damage/heal, condition/effect add/remove, round/turn_start, custom.
+   Merged timeline рендерит события + текст ДМа вместе. Миграция 017.
 
 4. **Лог вне боя** — те же события, но без раунда: социалка, исследование,
    торговля. Энкаунтер = любая сцена, не обязательно бой.
