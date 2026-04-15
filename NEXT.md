@@ -53,23 +53,21 @@ MarkdownContent, Chronicles.
 - IDEA-017: Конструктор персонажа слоями (progression builder)
 - IDEA-018: Гайд по кампейну (onboarding pack)
 
-### Spec-005: Трекер энкаунтера v2 — IN PROGRESS (2026-04-15)
-Excel-first редизайн: editable grid вместо набора виджетов.
-Spec, plan, tasks написаны.
+### Spec-005: Трекер энкаунтера v2 ✅ → v3 rebuild (2026-04-15)
+Excel-first редизайн. Полная пересборка с нуля.
 
-**Выполнено (T001–T019, T021–T023, T026):**
-- Phase 1: EditableCell, HpCell (delta notation), TagCell, EncounterHeader
-- Phase 2: AddParticipantRow (autocomplete из каталога), EncounterGrid
-- Phase 3: Все wiring задачи (инициатива, HP, ход, визуальные состояния, действия)
-- Phase 4: Условия и эффекты через TagCell с autocomplete
-- Phase 5: Список и шаблоны работают (не зависят от старого кода)
-- STYLE.md обновлён
+**v3 rebuild:**
+- Encounter-grid переписан с нуля: border-collapse таблица, плотные строки, inline тулбар
+- Убраны PartyBar и EncounterDetailsCard со страницы энкаунтера
+- Удалены 13 мёртвых v1 компонентов (+285 −2361 строк)
+- Удалён orphaned party-actions.ts
+- Cell-примитивы сохранены: EditableCell, HpCell, TagCell, AddParticipantRow
+- Data layer (encounter-actions.ts) не менялся
 
 **Осталось:**
-- T008, T017, T020, T024: Ручное тестирование (ПОЛЬЗОВАТЕЛЬ)
-- T025: Удалить старые v1 компоненты (после тестирования)
-- T027: Responsive 375px
-- T028–T030: Meta, deploy, share
+- Ручное тестирование на проде (ПОЛЬЗОВАТЕЛЬ)
+- Responsive 375px (если нужно)
+- Meta titles
 
 ## ⚠️ Действия для пользователя
 
@@ -78,16 +76,17 @@ Spec, plan, tasks написаны.
    Когда готов → сказать в следующем чате "утверждаю конституцию v3"
    → заменим `.specify/memory/constitution.md`
 3. **Скинуть таблицу "Персонажи"** — нужна для спека листа персонажа
+4. **Протестировать новый трекер** на https://mother-of-learning.vercel.app/
 
 ## Следующая задача
 
-**Spec-005: Трекер v2** — тестирование на проде
+**Тестирование трекера v3 на проде** — пользователь проверяет:
+- Добавление участников (из каталога + вручную)
+- Инициатива, HP (дельта-нотация: -14, +7), условия, эффекты
+- Следующий ход, раунды, клонирование, удаление
+- Завершение боя
 
-Пользователь тестирует:
-- T008, T017, T020, T024: 4 ручных теста
-- Если ок → T025 (удалить старые компоненты) → T030 (финальный тест)
-
-После spec-005:
+После тестирования:
 - Утвердить конституцию v3
 - IDEA-020: Full-width DM layout
 - IDEA-019: Excel горячие клавиши
