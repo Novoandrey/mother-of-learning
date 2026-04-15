@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { NavTabs } from '@/components/nav-tabs'
-import { CatalogSidebar } from '@/components/catalog-sidebar'
+import { CatalogSidebarWrapper } from '@/components/catalog-sidebar-wrapper'
 
 export default async function CampaignLayout({
   children,
@@ -37,15 +37,6 @@ export default async function CampaignLayout({
     type_slug: n.type?.slug ?? '',
   }))
 
-  const { data: containsEdgeRows } = await supabase
-    .from('edges')
-    .select('source_id, target_id, edge_type:edge_types(slug)')
-    .eq('campaign_id', campaign.id)
-
-  const containsEdges = (containsEdgeRows || [])
-    .filter((e: any) => e.edge_type?.slug === 'contains')
-    .map((e: any) => ({ source_id: e.source_id, target_id: e.target_id }))
-
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Top bar: campaign name + create */}
@@ -73,10 +64,9 @@ export default async function CampaignLayout({
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
         <aside className="w-56 flex-shrink-0 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
-          <CatalogSidebar
+          <CatalogSidebarWrapper
             nodeTypes={nodeTypes || []}
             nodes={nodes}
-            containsEdges={containsEdges}
             campaignSlug={slug}
           />
         </aside>
