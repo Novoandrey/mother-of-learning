@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { notFound } from 'next/navigation'
 import { EncounterGrid } from '@/components/encounter/encounter-grid'
+import { EncounterLog } from '@/components/encounter/encounter-log'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -72,6 +73,13 @@ export default async function EncounterPage({
     .filter((n: any) => n.type?.slug === 'effect')
     .map((n: any) => n.title)
 
+  // Action log entries
+  const { data: logEntries } = await supabase
+    .from('encounter_log')
+    .select('*')
+    .eq('encounter_id', id)
+    .order('created_at', { ascending: true })
+
   return (
     <div className="space-y-3">
       <Link
@@ -96,6 +104,12 @@ export default async function EncounterPage({
         campaignSlug={slug}
         conditionNames={conditionNames}
         effectNames={effectNames}
+      />
+
+      <EncounterLog
+        encounterId={encounter.id}
+        initialEntries={(logEntries as any[]) || []}
+        disabled={encounter.status === 'completed'}
       />
     </div>
   )
