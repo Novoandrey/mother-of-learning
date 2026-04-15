@@ -104,8 +104,19 @@ export function EncounterGrid({
   const [encounter, setEncounter] = useState(initial)
   const [participants, setParticipants] = useState(initialParticipants)
   const [turnId, setTurnId] = useState<string | null>(initial.current_turn_id || null)
+  const [details, setDetails] = useState<Record<string, string>>(initial.details || {})
 
   const done = encounter.status === 'completed'
+
+  // Save a detail field (loop, day, etc.) to encounter.details jsonb
+  const saveDetail = useCallback(async (key: string, value: string) => {
+    const updated = { ...details, [key]: value }
+    setDetails(updated)
+    try {
+      const s = createClient()
+      await s.from('encounters').update({ details: updated }).eq('id', encounter.id)
+    } catch { /* best-effort */ }
+  }, [details, encounter.id])
 
   // Sort: initiative DESC nulls last, then sort_order
   const sorted = useMemo(() => {
@@ -249,51 +260,84 @@ export function EncounterGrid({
   // ── Render ────────────────────────────────────────
 
   return (
-    <div className="space-y-3">
-      {/* ── Toolbar ─── */}
-      <div className="flex items-center gap-3 text-sm">
-        <h1 className="text-lg font-bold text-gray-900 truncate">{encounter.title}</h1>
-
-        {done ? (
-          <span className="ml-auto rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-500">Завершён</span>
-        ) : (
-          <>
-            {/* Round */}
-            <div className="flex items-center gap-1 ml-4">
-              <span className="text-xs text-gray-400 mr-1">Раунд</span>
-              <button onClick={() => setRound(-1)} disabled={encounter.current_round <= 1}
-                className="h-6 w-6 rounded border border-gray-200 text-xs text-gray-500 hover:bg-gray-50 disabled:opacity-30">−</button>
-              <span className="min-w-[2ch] text-center font-bold text-gray-900">{encounter.current_round}</span>
-              <button onClick={() => setRound(1)}
-                className="h-6 w-6 rounded border border-gray-200 text-xs text-gray-500 hover:bg-gray-50">+</button>
-            </div>
-
-            {/* Next turn */}
-            <button onClick={advanceTurn}
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
-              След. ход →
-            </button>
-
-            <div className="flex-1" />
-
-            <SaveAsTemplateButton campaignId={campaignId}
-              participants={participants.map((p) => ({
-                id: p.id, display_name: p.display_name, max_hp: p.max_hp,
-                role: p.role, sort_order: p.sort_order, node_id: p.node_id,
-              }))}
-            />
-            <button onClick={endCombat}
-              className="rounded border border-gray-200 px-2.5 py-1 text-xs text-gray-400 hover:border-red-300 hover:text-red-500 transition-colors">
-              Завершить
-            </button>
-          </>
-        )}
-      </div>
-
+    <div>
       {/* ── Spreadsheet ─── */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm" style={{ minWidth: 960 }}>
           <thead>
+            {/* Info bar row — Excel style */}
+            <tr className="bg-white">
+              <th colSpan={3} className="border border-gray-200 px-2 py-1.5 text-left">
+                <span className="text-base font-bold text-gray-900">{encounter.title}</span>
+                {done && (
+                  <span className="ml-2 rounded bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 align-middle">
+                    Завершён
+                  </span>
+                )}
+              </th>
+              <td className="border border-gray-200 px-2 py-1.5 text-center w-[180px]">
+                <div className="flex items-center gap-1 justify-center">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">Петля</span>
+                  <EditableCell
+                    value={details.loop || null}
+                    onCommit={(v) => saveDetail('loop', v)}
+                    type="number"
+                    placeholder="—"
+                    disabled={done}
+                    className="text-center font-mono font-bold w-10"
+                  />
+                </div>
+              </td>
+              <td className="border border-gray-200 px-2 py-1.5 text-center w-[180px]">
+                <div className="flex items-center gap-1 justify-center">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">День</span>
+                  <EditableCell
+                    value={details.day || null}
+                    onCommit={(v) => saveDetail('day', v)}
+                    type="number"
+                    placeholder="—"
+                    disabled={done}
+                    className="text-center font-mono font-bold w-10"
+                  />
+                </div>
+              </td>
+              <td className="border border-gray-200 px-2 py-1.5 text-center w-32">
+                <div className="flex items-center gap-1 justify-center">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">Раунд</span>
+                  {!done && (
+                    <button onClick={() => setRound(-1)} disabled={encounter.current_round <= 1}
+                      className="h-5 w-5 rounded text-xs text-gray-400 hover:bg-gray-100 disabled:opacity-30">−</button>
+                  )}
+                  <span className="font-mono font-bold text-gray-900 min-w-[2ch] text-center">{encounter.current_round}</span>
+                  {!done && (
+                    <button onClick={() => setRound(1)}
+                      className="h-5 w-5 rounded text-xs text-gray-400 hover:bg-gray-100">+</button>
+                  )}
+                </div>
+              </td>
+              <td colSpan={2} className="border border-gray-200 px-2 py-1.5 text-center">
+                {!done && (
+                  <div className="flex items-center justify-center gap-2">
+                    <button onClick={advanceTurn}
+                      className="rounded bg-blue-600 px-2.5 py-0.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
+                      Ход →
+                    </button>
+                    <SaveAsTemplateButton campaignId={campaignId}
+                      participants={participants.map((p) => ({
+                        id: p.id, display_name: p.display_name, max_hp: p.max_hp,
+                        role: p.role, sort_order: p.sort_order, node_id: p.node_id,
+                      }))}
+                    />
+                    <button onClick={endCombat}
+                      className="rounded border border-gray-200 px-2 py-0.5 text-[11px] text-gray-400 hover:border-red-300 hover:text-red-500 transition-colors">
+                      Стоп
+                    </button>
+                  </div>
+                )}
+              </td>
+            </tr>
+
+            {/* Column headers */}
             <tr className="bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <th className="border border-gray-200 w-8 px-1 py-1.5 text-center">{/* role */}</th>
               <th className="border border-gray-200 w-16 px-1 py-1.5 text-center">Ин.</th>

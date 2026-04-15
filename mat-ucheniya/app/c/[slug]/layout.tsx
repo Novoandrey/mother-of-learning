@@ -2,6 +2,7 @@ import { getCampaignBySlug } from '@/lib/campaign'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { NavTabs } from '@/components/nav-tabs'
 import { CatalogSidebar } from '@/components/catalog-sidebar'
 
 export default async function CampaignLayout({
@@ -47,30 +48,31 @@ export default async function CampaignLayout({
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* Top nav */}
+      {/* Top bar: campaign name + create */}
       <header className="flex-shrink-0 border-b border-gray-200 bg-white">
-        <div className="px-4 py-2.5 flex items-center justify-between">
+        <div className="px-4 py-2 flex items-center justify-between">
           <Link
-            href={`/c/${slug}/loops`}
+            href={`/c/${slug}/catalog`}
             className="font-semibold text-base hover:text-blue-600 transition-colors"
           >
             {campaign.name}
           </Link>
-          <nav className="flex items-center gap-3">
-            <Link
-              href={`/c/${slug}/catalog/new`}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              <span className="text-lg leading-none">+</span> Создать
-            </Link>
-          </nav>
+          <Link
+            href={`/c/${slug}/catalog/new`}
+            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          >
+            <span className="text-lg leading-none">+</span> Создать
+          </Link>
         </div>
       </header>
+
+      {/* Tabs */}
+      <NavTabs campaignSlug={slug} />
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
-        <aside className="w-60 flex-shrink-0 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
+        <aside className="w-56 flex-shrink-0 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
           <CatalogSidebar
             nodeTypes={nodeTypes || []}
             nodes={nodes}
@@ -81,7 +83,7 @@ export default async function CampaignLayout({
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto min-w-0">
-          <div className="mx-auto max-w-5xl px-6 py-6">
+          <div className="mx-auto max-w-5xl px-6 py-4">
             {children}
           </div>
         </main>

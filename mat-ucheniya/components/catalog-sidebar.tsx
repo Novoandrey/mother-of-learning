@@ -172,40 +172,10 @@ export function CatalogSidebar({
   const isSearching = !!query.trim()
   const byType = isSearching ? flatByType : treeByType
 
-  const navItems = [
-    { href: `/c/${campaignSlug}/catalog`, label: 'Каталог', icon: '📚' },
-    { href: `/c/${campaignSlug}/loops`, label: 'Петли', icon: '🔄' },
-    { href: `/c/${campaignSlug}/sessions`, label: 'Сессии', icon: '📋' },
-    { href: `/c/${campaignSlug}/encounters`, label: 'Энкаунтеры', icon: '⚔️' },
-  ]
-
   return (
     <div className="flex flex-col h-full">
-      {/* Section nav */}
-      <div className="px-2 pt-2 pb-1 space-y-0.5">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
-                isActive
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <span className="text-xs">{item.icon}</span>
-              {item.label}
-            </Link>
-          )
-        })}
-      </div>
-
-      <div className="mx-2 border-t border-gray-100 my-1" />
-
       {/* Search — filters tree locally, Enter goes to full catalog search */}
-      <div className="px-2 pb-2">
+      <div className="px-2 pt-2 pb-2">
         <input
           type="text"
           value={query}
