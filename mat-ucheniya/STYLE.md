@@ -124,4 +124,4 @@ Inactive item: `text-gray-700 hover:bg-gray-100`.
 
 1. **New component?** Copy tokens from here, not from another component's className.
 2. **Need something not listed?** Ask first. If approved, add it here.
-3. **Encounter tracker** has its own style; these tokens apply to everything else.
+3. **Encounter grid cells** use minimal styling: `px-1.5 py-0.5 text-sm` for inputs, standard tokens for everything else.

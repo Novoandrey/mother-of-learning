@@ -42,14 +42,14 @@
 **Goal**: Инициатива, HP (delta), ход, раунды — всё через Tab
 **Independent Test**: Tab через инициативу 6 участников → урон через "-14" → следующий ход → новый раунд
 
-- [ ] T009 Wire editable-cell for initiative column: onCommit → updateInitiative → re-sort. Tab → next cell
-- [ ] T010 Wire hp-cell for HP column: delta parsing, clamp, optimistic update
-- [ ] T011 Wire editable-cell for temp HP column: type=number, onCommit → updateTempHp
-- [ ] T012 Wire encounter-header: round +/−, "Следующий ход" (advance current_turn_id, wrap → new round), "Завершить бой"
-- [ ] T013 Visual states: current turn row highlight (bg-yellow-50 border-l-4 border-yellow-400), HP=0 (bg-red-50 opacity-60 line-through name), is_active=false (opacity-30)
-- [ ] T014 Row actions: clone, toggle active, delete — icon buttons in last column, same handlers from encounter-actions
-- [ ] T015 Name column: link to catalog node (if node_id), inline rename on double-click, statblock icon
-- [ ] T016 Role column: color indicator dot + click to cycle (enemy → pc → ally → neutral → enemy). Row background tint by role
+- [x] T009 Wire editable-cell for initiative column: onCommit → updateInitiative → re-sort. Tab → next cell
+- [x] T010 Wire hp-cell for HP column: delta parsing, clamp, optimistic update
+- [x] T011 Wire editable-cell for temp HP column: type=number, onCommit → updateTempHp
+- [x] T012 Wire encounter-header: round +/−, "Следующий ход" (advance current_turn_id, wrap → new round), "Завершить бой"
+- [x] T013 Visual states: current turn row highlight (bg-yellow-50 border-l-4 border-yellow-400), HP=0 (bg-red-50 opacity-60 line-through name), is_active=false (opacity-30)
+- [x] T014 Row actions: clone, toggle active, delete — icon buttons in last column, same handlers from encounter-actions
+- [x] T015 Name column: link to catalog node (if node_id), inline rename on double-click, statblock icon
+- [x] T016 Role column: color indicator dot + click to cycle (enemy → pc → ally → neutral → enemy). Row background tint by role
 - [ ] T017 Manual test: quickstart scenario 1 — full 3-round combat
 
 **Checkpoint**: Полноценный бой. Deploy v0.2. **Показать друзьям.**
@@ -61,8 +61,8 @@
 **Goal**: Теги условий и эффектов через автокомплит
 **Independent Test**: Кликнуть ячейку условий → "осл" → "Ослеплённый" → бейджик
 
-- [ ] T018 Wire tag-cell for conditions: suggestions = DnD conditions from catalog (fetch condition nodes). onChange → updateConditions
-- [ ] T019 Wire tag-cell for effects: suggestions = effect nodes from catalog + freetext. onChange → updateEffects
+- [x] T018 Wire tag-cell for conditions: suggestions = DnD conditions from catalog (fetch condition nodes). onChange → updateConditions
+- [x] T019 Wire tag-cell for effects: suggestions = effect nodes from catalog + freetext. onChange → updateEffects
 - [ ] T020 Manual test: quickstart scenario 2 — add/remove conditions and effects
 
 **Checkpoint**: Условия и эффекты работают. Deploy v0.3.
@@ -74,9 +74,9 @@
 **Goal**: Список энкаунтеров, создание, шаблоны
 **Independent Test**: Список → создать → создать из шаблона → всё работает
 
-- [ ] T021 [P] Update encounter-list-page.tsx — минимальные стилевые правки для единообразия с STYLE.md
-- [ ] T022 [P] Verify encounter-details-card works in new layout
-- [ ] T023 [P] Verify save-as-template-button works in encounter-header
+- [x] T021 [P] Update encounter-list-page.tsx — минимальные стилевые правки для единообразия с STYLE.md
+- [x] T022 [P] Verify encounter-details-card works in new layout
+- [x] T023 [P] Verify save-as-template-button works in encounter-header
 - [ ] T024 Manual test: quickstart scenario 3 — backward compatibility
 
 **Checkpoint**: Навигация + совместимость. Deploy v0.4.
@@ -86,7 +86,7 @@
 ## Phase 6: Cleanup & Polish
 
 - [ ] T025 [P] Delete old v1 components: combat-tracker.tsx, participant-row.tsx, hp-control.tsx, initiative-input.tsx, condition-picker.tsx, effect-picker.tsx, role-selector.tsx, temp-hp-input.tsx, inline-add-row.tsx, catalog-panel.tsx
-- [ ] T026 [P] Update STYLE.md: remove "Encounter tracker has its own style" note, document grid tokens
+- [x] T026 [P] Update STYLE.md: remove "Encounter tracker has its own style" note, document grid tokens
 - [ ] T027 [P] Responsive: 375px → horizontal scroll with sticky name column
 - [ ] T028 [P] Page title and meta
 - [ ] T029 Push to GitHub, Vercel auto-deploys

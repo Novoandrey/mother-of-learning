@@ -55,11 +55,21 @@ MarkdownContent, Chronicles.
 
 ### Spec-005: Трекер энкаунтера v2 — IN PROGRESS (2026-04-15)
 Excel-first редизайн: editable grid вместо набора виджетов.
-Spec, plan, tasks написаны. T001–T007 выполнены (Phase 1 + Phase 2).
-Новые компоненты: EditableCell, HpCell (delta notation), TagCell,
-EncounterHeader, AddParticipantRow, EncounterGrid.
-Страница переключена на EncounterGrid.
-Старые компоненты ещё на месте — удалить после тестирования.
+Spec, plan, tasks написаны.
+
+**Выполнено (T001–T019, T021–T023, T026):**
+- Phase 1: EditableCell, HpCell (delta notation), TagCell, EncounterHeader
+- Phase 2: AddParticipantRow (autocomplete из каталога), EncounterGrid
+- Phase 3: Все wiring задачи (инициатива, HP, ход, визуальные состояния, действия)
+- Phase 4: Условия и эффекты через TagCell с autocomplete
+- Phase 5: Список и шаблоны работают (не зависят от старого кода)
+- STYLE.md обновлён
+
+**Осталось:**
+- T008, T017, T020, T024: Ручное тестирование (ПОЛЬЗОВАТЕЛЬ)
+- T025: Удалить старые v1 компоненты (после тестирования)
+- T027: Responsive 375px
+- T028–T030: Meta, deploy, share
 
 ## ⚠️ Действия для пользователя
 
