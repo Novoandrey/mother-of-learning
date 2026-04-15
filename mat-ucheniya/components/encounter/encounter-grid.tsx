@@ -211,6 +211,48 @@ export function EncounterGrid({
     } catch { /* best-effort */ }
   }, [turnId, inCombat, encounter.id, setRound])
 
+  const prevTurn = useCallback(async () => {
+    if (!inCombat.length) return
+    const idx = turnId ? inCombat.findIndex((p) => p.id === turnId) : 0
+    let prev = idx - 1
+    if (prev < 0) {
+      prev = inCombat.length - 1
+      if (encounter.current_round > 1) setRound(-1)
+    }
+    const id = inCombat[prev].id
+    setTurnId(id)
+    try {
+      const s = createClient()
+      await s.from('encounters').update({ current_turn_id: id }).eq('id', encounter.id)
+    } catch { /* best-effort */ }
+  }, [turnId, inCombat, encounter.id, encounter.current_round, setRound])
+
+  const currentTurnName = useMemo(() => {
+    if (!turnId) return null
+    return participants.find((p) => p.id === turnId)?.display_name || null
+  }, [turnId, participants])
+
+  // Keyboard shortcuts: Space/→ = next turn, Shift+Space/← = prev turn
+  useEffect(() => {
+    if (done) return
+    const handler = (e: KeyboardEvent) => {
+      // Don't fire when typing in inputs
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if (e.key === ' ' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (e.shiftKey) prevTurn()
+        else advanceTurn()
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        prevTurn()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [done, advanceTurn, prevTurn])
+
   const onInit = useCallback(async (id: string, v: string) => {
     const n = v === '' ? null : parseFloat(v)
     if (v !== '' && isNaN(n!)) return
@@ -412,11 +454,25 @@ export function EncounterGrid({
               </td>
               <td colSpan={2} className="border border-gray-200 px-2 py-1.5 text-center">
                 {!done && (
-                  <div className="flex items-center justify-center gap-2">
-                    <button onClick={advanceTurn}
-                      className="rounded bg-blue-600 px-2.5 py-0.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
-                      Ход →
+                  <div className="flex items-center justify-center gap-1">
+                    <button onClick={prevTurn} disabled={!inCombat.length}
+                      title="Предыдущий ход (← или Shift+Space)"
+                      className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors">
+                      ←
                     </button>
+                    <div className="min-w-[100px] px-2">
+                      {currentTurnName ? (
+                        <span className="text-sm font-semibold text-yellow-700">{currentTurnName}</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Начать →</span>
+                      )}
+                    </div>
+                    <button onClick={advanceTurn} disabled={!inCombat.length}
+                      title="Следующий ход (→ или Space)"
+                      className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-30 transition-colors">
+                      →
+                    </button>
+                    <span className="mx-1 text-gray-200">|</span>
                     <SaveAsTemplateButton campaignId={campaignId}
                       participants={participants.map((p) => ({
                         id: p.id, display_name: p.display_name, max_hp: p.max_hp,
