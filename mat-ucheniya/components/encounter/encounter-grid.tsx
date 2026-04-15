@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { EditableCell } from './editable-cell'
 import { HpCell } from './hp-cell'
+import { parseHpInput } from './hp-cell'
 import { TagCell } from './tag-cell'
 import { AddParticipantRow } from './add-participant-row'
 import { SaveAsTemplateButton } from '@/components/save-as-template-button'
@@ -136,6 +137,59 @@ export function EncounterGrid({
     [sorted]
   )
 
+  // ── Selection ───────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const lastClickedRef = useRef<string | null>(null)
+
+  const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
+    if (done) return
+    // Ignore clicks on interactive elements (inputs, buttons, links)
+    const target = e.target as HTMLElement
+    if (target.closest('input, button, a, [role="button"]')) return
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (e.shiftKey && lastClickedRef.current) {
+        // Range select
+        const ids = sorted.map((p) => p.id)
+        const a = ids.indexOf(lastClickedRef.current)
+        const b = ids.indexOf(id)
+        if (a !== -1 && b !== -1) {
+          const [start, end] = a < b ? [a, b] : [b, a]
+          for (let i = start; i <= end; i++) next.add(ids[i])
+        }
+      } else if (e.ctrlKey || e.metaKey) {
+        // Toggle single
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+      } else {
+        // Single click — if only this is selected, deselect; otherwise select only this
+        if (next.size === 1 && next.has(id)) {
+          next.clear()
+        } else {
+          next.clear()
+          next.add(id)
+        }
+      }
+      lastClickedRef.current = id
+      return next
+    })
+  }, [done, sorted])
+
+  const isSelected = (id: string) => selectedIds.size > 0 && selectedIds.has(id)
+  const selCount = selectedIds.size
+
+  // Escape to clear selection
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedIds.size > 0) {
+        setSelectedIds(new Set())
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [selectedIds.size])
+
   // ── Handlers ──────────────────────────────────────
 
   const setRound = useCallback(async (delta: number) => {
@@ -160,14 +214,41 @@ export function EncounterGrid({
   const onInit = useCallback(async (id: string, v: string) => {
     const n = v === '' ? null : parseFloat(v)
     if (v !== '' && isNaN(n!)) return
-    setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, initiative: n } : p))
-    try { await updateInitiative(id, n) } catch { router.refresh() }
-  }, [router])
+    const targets = isSelected(id) ? sorted.filter((p) => selectedIds.has(p.id)).map((p) => p.id) : [id]
+    setParticipants((ps) => ps.map((p) => targets.includes(p.id) ? { ...p, initiative: n } : p))
+    for (const t of targets) {
+      try { await updateInitiative(t, n) } catch { /* best-effort */ }
+    }
+  }, [router, selectedIds, sorted])
 
   const onHp = useCallback(async (id: string, hp: number) => {
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, current_hp: hp } : p))
     try { await updateHp(id, hp) } catch { router.refresh() }
   }, [router])
+
+  // Apply raw HP input to all OTHER selected rows (triggering row is handled by onHp/onMaxHp)
+  const onHpRaw = useCallback(async (id: string, raw: string) => {
+    if (!isSelected(id) || selCount <= 1) return
+    const others = sorted.filter((p) => selectedIds.has(p.id) && p.id !== id)
+    const updates: { id: string; hp: number; max?: number }[] = []
+    for (const p of others) {
+      const result = parseHpInput(raw, p.current_hp, p.max_hp)
+      if (!result) continue
+      updates.push({ id: p.id, hp: result.current, max: result.max !== p.max_hp ? result.max : undefined })
+    }
+    if (!updates.length) return
+    setParticipants((ps) => ps.map((p) => {
+      const u = updates.find((u) => u.id === p.id)
+      if (!u) return p
+      return { ...p, current_hp: u.hp, ...(u.max != null ? { max_hp: u.max } : {}) }
+    }))
+    for (const u of updates) {
+      try {
+        if (u.max != null) await updateMaxHp(u.id, u.max, u.hp)
+        else await updateHp(u.id, u.hp)
+      } catch { /* best-effort */ }
+    }
+  }, [selectedIds, selCount, sorted])
 
   const onMaxHp = useCallback(async (id: string, max: number, cur: number) => {
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, max_hp: max, current_hp: cur } : p))
@@ -176,9 +257,12 @@ export function EncounterGrid({
 
   const onTempHp = useCallback(async (id: string, v: string) => {
     const n = Math.max(0, parseInt(v) || 0)
-    setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, temp_hp: n } : p))
-    try { await updateTempHp(id, n) } catch { router.refresh() }
-  }, [router])
+    const targets = isSelected(id) ? sorted.filter((p) => selectedIds.has(p.id)).map((p) => p.id) : [id]
+    setParticipants((ps) => ps.map((p) => targets.includes(p.id) ? { ...p, temp_hp: n } : p))
+    for (const t of targets) {
+      try { await updateTempHp(t, n) } catch { /* best-effort */ }
+    }
+  }, [router, selectedIds, sorted])
 
   const onName = useCallback(async (id: string, name: string) => {
     if (!name.trim()) return
@@ -190,9 +274,12 @@ export function EncounterGrid({
     const p = participants.find((p) => p.id === id)
     if (!p) return
     const r = nextRole(p.role || 'enemy')
-    setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, role: r } : p))
-    try { await updateRole(id, r) } catch { router.refresh() }
-  }, [participants, router])
+    const targets = isSelected(id) ? sorted.filter((p) => selectedIds.has(p.id)).map((p) => p.id) : [id]
+    setParticipants((ps) => ps.map((p) => targets.includes(p.id) ? { ...p, role: r } : p))
+    for (const t of targets) {
+      try { await updateRole(t, r) } catch { /* best-effort */ }
+    }
+  }, [participants, router, selectedIds, sorted])
 
   const onConds = useCallback(async (id: string, c: string[]) => {
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, conditions: c } : p))
@@ -208,15 +295,23 @@ export function EncounterGrid({
     const p = participants.find((x) => x.id === id)
     if (!p) return
     const v = !p.is_active
-    setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, is_active: v } : p))
-    try { await toggleParticipantActive(id, v) } catch { router.refresh() }
-  }, [participants, router])
+    const targets = isSelected(id) ? sorted.filter((p) => selectedIds.has(p.id)).map((p) => p.id) : [id]
+    setParticipants((ps) => ps.map((p) => targets.includes(p.id) ? { ...p, is_active: v } : p))
+    for (const t of targets) {
+      try { await toggleParticipantActive(t, v) } catch { /* best-effort */ }
+    }
+  }, [participants, router, selectedIds, sorted])
 
   const onDelete = useCallback(async (id: string) => {
-    if (!confirm('Удалить участника?')) return
-    setParticipants((ps) => ps.filter((p) => p.id !== id))
-    try { await deleteParticipant(id) } catch { router.refresh() }
-  }, [router])
+    const targets = isSelected(id) ? sorted.filter((p) => selectedIds.has(p.id)).map((p) => p.id) : [id]
+    const msg = targets.length > 1 ? `Удалить ${targets.length} участников?` : 'Удалить участника?'
+    if (!confirm(msg)) return
+    setParticipants((ps) => ps.filter((p) => !targets.includes(p.id)))
+    setSelectedIds(new Set())
+    for (const t of targets) {
+      try { await deleteParticipant(t) } catch { /* best-effort */ }
+    }
+  }, [router, selectedIds, sorted])
 
   const onClone = useCallback(async (id: string) => {
     try {
@@ -337,6 +432,23 @@ export function EncounterGrid({
               </td>
             </tr>
 
+            {/* Selection indicator */}
+            {selCount > 0 && (
+              <tr className="bg-blue-50">
+                <td colSpan={8} className="border border-gray-200 px-2 py-1">
+                  <div className="flex items-center gap-2 text-xs text-blue-700">
+                    <span className="font-medium">Выделено: {selCount}</span>
+                    <span className="text-blue-400">·</span>
+                    <span className="text-blue-500">Изменение в одной строке → все выделенные</span>
+                    <button onClick={() => setSelectedIds(new Set())}
+                      className="ml-auto rounded px-1.5 py-0.5 text-blue-500 hover:bg-blue-100 transition-colors">
+                      Снять ✕
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )}
+
             {/* Column headers */}
             <tr className="bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <th className="border border-gray-200 w-8 px-1 py-1.5 text-center">{/* role */}</th>
@@ -370,7 +482,8 @@ export function EncounterGrid({
 
               return (
                 <tr key={p.id}
-                  className={`${rowBg} ${!p.is_active ? 'opacity-25' : ''} ${isTurn ? 'ring-1 ring-inset ring-yellow-400' : ''}`}
+                  onClick={(e) => toggleSelect(p.id, e)}
+                  className={`${rowBg} ${!p.is_active ? 'opacity-25' : ''} ${isTurn ? 'ring-1 ring-inset ring-yellow-400' : ''} ${isSelected(p.id) ? 'outline outline-2 -outline-offset-2 outline-blue-400 bg-blue-50/40' : ''} cursor-default select-none`}
                 >
                   {/* Role dot */}
                   <td className="border border-gray-200 px-1 py-1 text-center">
@@ -454,6 +567,7 @@ export function EncounterGrid({
                       maxHp={p.max_hp}
                       onHpChange={(hp) => onHp(p.id, hp)}
                       onMaxHpChange={(max, cur) => onMaxHp(p.id, max, cur)}
+                      onRawInput={(raw) => onHpRaw(p.id, raw)}
                       disabled={done}
                     />
                   </td>

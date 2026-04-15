@@ -7,6 +7,7 @@ type Props = {
   maxHp: number
   onHpChange: (newHp: number) => void
   onMaxHpChange: (maxHp: number, currentHp: number) => void
+  onRawInput?: (raw: string) => void
   disabled?: boolean
 }
 
@@ -18,7 +19,7 @@ type Props = {
  *   "45/60" → set current to 45, max to 60
  *   "/60"   → set max to 60, adjust current if needed
  */
-function parseHpInput(
+export function parseHpInput(
   input: string,
   currentHp: number,
   maxHp: number
@@ -54,7 +55,7 @@ function parseHpInput(
   return { current: Math.min(val, maxHp || val), max: maxHp || val }
 }
 
-export function HpCell({ currentHp, maxHp, onHpChange, onMaxHpChange, disabled = false }: Props) {
+export function HpCell({ currentHp, maxHp, onHpChange, onMaxHpChange, onRawInput, disabled = false }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -77,6 +78,9 @@ export function HpCell({ currentHp, maxHp, onHpChange, onMaxHpChange, disabled =
     setEditing(false)
     const result = parseHpInput(draft, currentHp, maxHp)
     if (!result) return
+
+    // Notify parent of raw input (for mass selection)
+    onRawInput?.(draft)
 
     if (result.max !== maxHp) {
       onMaxHpChange(result.max, result.current)
