@@ -292,17 +292,17 @@ export function EncounterGrid({
 
       {/* ── Spreadsheet ─── */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm" style={{ minWidth: 820 }}>
+        <table className="w-full border-collapse text-sm" style={{ minWidth: 960 }}>
           <thead>
             <tr className="bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-              <th className="border border-gray-200 w-7 px-1 py-1.5 text-center">{/* role */}</th>
-              <th className="border border-gray-200 w-14 px-1 py-1.5 text-center">Ин.</th>
+              <th className="border border-gray-200 w-8 px-1 py-1.5 text-center">{/* role */}</th>
+              <th className="border border-gray-200 w-16 px-1 py-1.5 text-center">Ин.</th>
               <th className="border border-gray-200 px-2 py-1.5 text-left">Имя</th>
-              <th className="border border-gray-200 w-[160px] px-1 py-1.5 text-left">Условия</th>
-              <th className="border border-gray-200 w-[160px] px-1 py-1.5 text-left">Эффекты</th>
-              <th className="border border-gray-200 w-24 px-1 py-1.5 text-center">HP</th>
-              <th className="border border-gray-200 w-12 px-1 py-1.5 text-center">Вр.</th>
-              <th className="border border-gray-200 w-[72px] px-1 py-1.5 text-center">⚙</th>
+              <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Условия</th>
+              <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Эффекты</th>
+              <th className="border border-gray-200 w-32 px-2 py-1.5 text-center">HP</th>
+              <th className="border border-gray-200 w-14 px-1 py-1.5 text-center">Вр.</th>
+              <th className="border border-gray-200 w-20 px-1 py-1.5 text-center">⚙</th>
             </tr>
           </thead>
           <tbody>
