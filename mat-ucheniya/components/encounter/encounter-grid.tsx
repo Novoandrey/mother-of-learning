@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { EditableCell } from './editable-cell'
 import { HpCell } from './hp-cell'
 import { parseHpInput } from './hp-cell'
-import { TagCell } from './tag-cell'
+import { TagCell, type TagEntry } from './tag-cell'
 import { AddParticipantRow } from './add-participant-row'
 import { SaveAsTemplateButton } from '@/components/save-as-template-button'
 import {
@@ -50,8 +50,8 @@ type Participant = {
   sort_order: number
   is_active: boolean
   node_id: string | null
-  conditions: string[]
-  effects: string[]
+  conditions: TagEntry[]
+  effects: TagEntry[]
   node?: { id: string; title: string; fields?: Record<string, unknown>; type?: { slug: string } } | null
 }
 
@@ -346,15 +346,41 @@ export function EncounterGrid({
     }
   }, [participants, router, selectedIds, sorted])
 
-  const onConds = useCallback(async (id: string, c: string[]) => {
+  const onConds = useCallback(async (id: string, c: TagEntry[]) => {
+    const p = participants.find((x) => x.id === id)
+    if (!p) return
+    const oldNames = new Set((p.conditions || []).map((t) => t.name))
+    const newNames = new Set(c.map((t) => t.name))
+    const added = c.filter((t) => !oldNames.has(t.name)).map((t) => t.name)
+    const removed = (p.conditions || []).filter((t) => !newNames.has(t.name)).map((t) => t.name)
+
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, conditions: c } : p))
     try { await updateConditions(id, c) } catch { router.refresh() }
-  }, [router])
 
-  const onEffects = useCallback(async (id: string, e: string[]) => {
+    if (onAutoLog) {
+      const r = encounter.current_round
+      for (const name of added) onAutoLog(`Р${r}: ${p.display_name} → ${name}`)
+      for (const name of removed) onAutoLog(`Р${r}: ${p.display_name} ✕ ${name}`)
+    }
+  }, [participants, router, encounter.current_round, onAutoLog])
+
+  const onEffects = useCallback(async (id: string, e: TagEntry[]) => {
+    const p = participants.find((x) => x.id === id)
+    if (!p) return
+    const oldNames = new Set((p.effects || []).map((t) => t.name))
+    const newNames = new Set(e.map((t) => t.name))
+    const added = e.filter((t) => !oldNames.has(t.name)).map((t) => t.name)
+    const removed = (p.effects || []).filter((t) => !newNames.has(t.name)).map((t) => t.name)
+
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, effects: e } : p))
     try { await updateEffects(id, e) } catch { router.refresh() }
-  }, [router])
+
+    if (onAutoLog) {
+      const r = encounter.current_round
+      for (const name of added) onAutoLog(`Р${r}: ${p.display_name} → ${name}`)
+      for (const name of removed) onAutoLog(`Р${r}: ${p.display_name} ✕ ${name}`)
+    }
+  }, [participants, router, encounter.current_round, onAutoLog])
 
   const onToggle = useCallback(async (id: string) => {
     const p = participants.find((x) => x.id === id)
@@ -625,6 +651,7 @@ export function EncounterGrid({
                       tags={p.conditions || []}
                       suggestions={conditionNames}
                       onChange={(c) => onConds(p.id, c)}
+                      currentRound={encounter.current_round}
                       placeholder="+"
                       disabled={done}
                     />
@@ -636,6 +663,7 @@ export function EncounterGrid({
                       tags={p.effects || []}
                       suggestions={effectNames}
                       onChange={(e) => onEffects(p.id, e)}
+                      currentRound={encounter.current_round}
                       placeholder="+"
                       disabled={done}
                     />

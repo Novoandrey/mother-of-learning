@@ -2,24 +2,35 @@
 
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 
+export type TagEntry = { name: string; round: number }
+
 type Props = {
-  tags: string[]
+  tags: TagEntry[]
   suggestions: string[]
-  onChange: (tags: string[]) => void
+  onChange: (tags: TagEntry[]) => void
+  currentRound?: number
   placeholder?: string
   disabled?: boolean
 }
 
-export function TagCell({ tags, suggestions, onChange, placeholder = '+', disabled = false }: Props) {
+export function TagCell({
+  tags,
+  suggestions,
+  onChange,
+  currentRound = 0,
+  placeholder = '+',
+  disabled = false,
+}: Props) {
   const [editing, setEditing] = useState(false)
   const [query, setQuery] = useState('')
   const [highlightIdx, setHighlightIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  const tagNames = tags.map((t) => t.name)
   const filtered = query
     ? suggestions.filter(
-        (s) => s.toLowerCase().includes(query.toLowerCase()) && !tags.includes(s)
+        (s) => s.toLowerCase().includes(query.toLowerCase()) && !tagNames.includes(s)
       )
     : []
 
@@ -46,17 +57,17 @@ export function TagCell({ tags, suggestions, onChange, placeholder = '+', disabl
     return () => document.removeEventListener('mousedown', handleClick)
   }, [editing])
 
-  function addTag(tag: string) {
-    const trimmed = tag.trim()
-    if (trimmed && !tags.includes(trimmed)) {
-      onChange([...tags, trimmed])
+  function addTag(name: string) {
+    const trimmed = name.trim()
+    if (trimmed && !tagNames.includes(trimmed)) {
+      onChange([...tags, { name: trimmed, round: currentRound }])
     }
     setQuery('')
     inputRef.current?.focus()
   }
 
-  function removeTag(tag: string) {
-    onChange(tags.filter((t) => t !== tag))
+  function removeTag(name: string) {
+    onChange(tags.filter((t) => t.name !== name))
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -86,8 +97,11 @@ export function TagCell({ tags, suggestions, onChange, placeholder = '+', disabl
     if (e.key === 'Tab') {
       setEditing(false)
       setQuery('')
-      // Let Tab propagate naturally
     }
+  }
+
+  function roundLabel(round: number): string {
+    return round > 0 ? `с раунда ${round}` : 'до боя'
   }
 
   return (
@@ -101,17 +115,20 @@ export function TagCell({ tags, suggestions, onChange, placeholder = '+', disabl
       >
         {tags.map((tag) => (
           <span
-            key={tag}
+            key={tag.name}
             className={`inline-flex items-center gap-0.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 ${
               disabled ? '' : 'hover:bg-red-100 hover:text-red-600 cursor-pointer'
             } transition-colors`}
             onClick={(e) => {
               e.stopPropagation()
-              if (!disabled) removeTag(tag)
+              if (!disabled) removeTag(tag.name)
             }}
-            title={disabled ? tag : `Удалить: ${tag}`}
+            title={disabled ? `${tag.name} (${roundLabel(tag.round)})` : `Удалить: ${tag.name} (${roundLabel(tag.round)})`}
           >
-            {tag}
+            {tag.name}
+            {tag.round > 0 && (
+              <span className="ml-0.5 text-[9px] font-mono text-gray-400">{tag.round}</span>
+            )}
             {!disabled && <span className="text-[10px] opacity-50">×</span>}
           </span>
         ))}

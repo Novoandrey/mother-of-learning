@@ -135,7 +135,9 @@ export async function deleteParticipant(participantId: string) {
   if (error) throw error
 }
 
-export async function updateConditions(participantId: string, conditions: string[]) {
+export type TagEntry = { name: string; round: number }
+
+export async function updateConditions(participantId: string, conditions: TagEntry[]) {
   const supabase = createClient()
   const { error } = await supabase
     .from('encounter_participants')
@@ -162,7 +164,7 @@ export async function updateTempHp(participantId: string, tempHp: number) {
   if (error) throw error
 }
 
-export async function updateEffects(participantId: string, effects: string[]) {
+export async function updateEffects(participantId: string, effects: TagEntry[]) {
   const supabase = createClient()
   const { error } = await supabase
     .from('encounter_participants')
