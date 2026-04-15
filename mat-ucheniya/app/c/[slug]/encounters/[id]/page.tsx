@@ -79,6 +79,13 @@ export default async function EncounterPage({
     .eq('encounter_id', id)
     .order('created_at', { ascending: true })
 
+  // Structured events
+  const { data: eventEntries } = await supabase
+    .from('encounter_events')
+    .select('*')
+    .eq('encounter_id', id)
+    .order('created_at', { ascending: true })
+
   return (
     <div className="space-y-3">
       <Link
@@ -104,6 +111,7 @@ export default async function EncounterPage({
         conditionNames={conditionNames}
         effectNames={effectNames}
         initialLogEntries={(logEntries as any[]) || []}
+        initialEvents={(eventEntries as any[]) || []}
       />
     </div>
   )

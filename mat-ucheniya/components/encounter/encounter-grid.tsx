@@ -10,6 +10,7 @@ import { parseHpInput } from './hp-cell'
 import { TagCell, type TagEntry } from './tag-cell'
 import { AddParticipantRow } from './add-participant-row'
 import { SaveAsTemplateButton } from '@/components/save-as-template-button'
+import type { EventAction, EventResult } from '@/lib/event-actions'
 import {
   updateRound,
   updateInitiative,
@@ -70,7 +71,7 @@ type Props = {
   campaignSlug: string
   conditionNames: string[]
   effectNames: string[]
-  onAutoLog?: (message: string) => void
+  onAutoEvent?: (evt: { actor?: string; action: EventAction; target?: string; result?: EventResult; round?: number; turn?: string }) => void
 }
 
 // ── Role config ─────────────────────────────────────
@@ -101,7 +102,7 @@ export function EncounterGrid({
   campaignSlug,
   conditionNames,
   effectNames,
-  onAutoLog,
+  onAutoEvent,
 }: Props) {
   const router = useRouter()
   const [encounter, setEncounter] = useState(initial)
@@ -267,18 +268,18 @@ export function EncounterGrid({
 
   const onHp = useCallback(async (id: string, hp: number) => {
     const p = participants.find((x) => x.id === id)
-    if (p && onAutoLog && p.current_hp !== hp) {
+    if (p && onAutoEvent && p.current_hp !== hp) {
       const delta = hp - p.current_hp
-      const name = p.display_name
-      if (delta < 0) {
-        onAutoLog(`${name} потерял(а) ${Math.abs(delta)} хп → ${hp}/${p.max_hp}`)
-      } else if (delta > 0) {
-        onAutoLog(`${name} восстановил(а) ${delta} хп → ${hp}/${p.max_hp}`)
-      }
+      onAutoEvent({
+        action: delta < 0 ? 'hp_damage' : 'hp_heal',
+        target: p.display_name,
+        result: { delta: Math.abs(delta), from: p.current_hp, to: hp, max: p.max_hp },
+        round: encounter.current_round,
+      })
     }
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, current_hp: hp } : p))
     try { await updateHp(id, hp) } catch { router.refresh() }
-  }, [router, participants, onAutoLog])
+  }, [router, participants, onAutoEvent, encounter.current_round])
 
   // Apply raw HP input to all OTHER selected rows (triggering row is handled by onHp/onMaxHp)
   const onHpRaw = useCallback(async (id: string, raw: string) => {
@@ -296,14 +297,17 @@ export function EncounterGrid({
       if (!u) return p
       return { ...p, current_hp: u.hp, ...(u.max != null ? { max_hp: u.max } : {}) }
     }))
-    // Auto-log for mass HP changes
-    if (onAutoLog) {
+    // Auto-event for mass HP changes
+    if (onAutoEvent) {
       for (const u of updates) {
         const delta = u.hp - u.oldHp
-        if (delta < 0) {
-          onAutoLog(`${u.name} потерял(а) ${Math.abs(delta)} хп → ${u.hp}/${u.maxHp}`)
-        } else if (delta > 0) {
-          onAutoLog(`${u.name} восстановил(а) ${delta} хп → ${u.hp}/${u.maxHp}`)
+        if (delta !== 0) {
+          onAutoEvent({
+            action: delta < 0 ? 'hp_damage' : 'hp_heal',
+            target: u.name,
+            result: { delta: Math.abs(delta), from: u.oldHp, to: u.hp, max: u.maxHp },
+            round: encounter.current_round,
+          })
         }
       }
     }
@@ -313,7 +317,7 @@ export function EncounterGrid({
         else await updateHp(u.id, u.hp)
       } catch { /* best-effort */ }
     }
-  }, [selectedIds, selCount, sorted, onAutoLog])
+  }, [selectedIds, selCount, sorted, onAutoEvent, encounter.current_round])
 
   const onMaxHp = useCallback(async (id: string, max: number, cur: number) => {
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, max_hp: max, current_hp: cur } : p))
@@ -357,12 +361,12 @@ export function EncounterGrid({
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, conditions: c } : p))
     try { await updateConditions(id, c) } catch { router.refresh() }
 
-    if (onAutoLog) {
+    if (onAutoEvent) {
       const r = encounter.current_round
-      for (const name of added) onAutoLog(`Р${r}: ${p.display_name} → ${name}`)
-      for (const name of removed) onAutoLog(`Р${r}: ${p.display_name} ✕ ${name}`)
+      for (const name of added) onAutoEvent({ action: 'condition_add', target: p.display_name, result: { name }, round: r })
+      for (const name of removed) onAutoEvent({ action: 'condition_remove', target: p.display_name, result: { name }, round: r })
     }
-  }, [participants, router, encounter.current_round, onAutoLog])
+  }, [participants, router, encounter.current_round, onAutoEvent])
 
   const onEffects = useCallback(async (id: string, e: TagEntry[]) => {
     const p = participants.find((x) => x.id === id)
@@ -375,12 +379,12 @@ export function EncounterGrid({
     setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, effects: e } : p))
     try { await updateEffects(id, e) } catch { router.refresh() }
 
-    if (onAutoLog) {
+    if (onAutoEvent) {
       const r = encounter.current_round
-      for (const name of added) onAutoLog(`Р${r}: ${p.display_name} → ${name}`)
-      for (const name of removed) onAutoLog(`Р${r}: ${p.display_name} ✕ ${name}`)
+      for (const name of added) onAutoEvent({ action: 'effect_add', target: p.display_name, result: { name }, round: r })
+      for (const name of removed) onAutoEvent({ action: 'effect_remove', target: p.display_name, result: { name }, round: r })
     }
-  }, [participants, router, encounter.current_round, onAutoLog])
+  }, [participants, router, encounter.current_round, onAutoEvent])
 
   const onToggle = useCallback(async (id: string) => {
     const p = participants.find((x) => x.id === id)
