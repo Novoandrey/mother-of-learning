@@ -3,7 +3,7 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-15 (chat 3)
+Updated: 2026-04-15 (chat 4)
 
 ---
 
@@ -101,22 +101,17 @@ Statblock icon in participant-row and catalog-panel.
 ### ~~IDEA-010~~ ✅ DONE Энкаунтер-трекер: Excel-first редизайн
 - v2: spec-005. v3: полная пересборка с нуля, −2361 строк мёртвого кода.
 
-### IDEA-019 Excel-горячие клавиши для трекера (Shift, Ctrl, массовое выделение)
-- **Feature**: 005-encounter-tracker-v2 (расширение)
-- Shift+Click: выделить диапазон строк
-- Ctrl+Click: выделить несколько строк
-- Массовое действие: урон всем выделенным, удалить выделенных, сменить роль
-- Ctrl+Z: undo последнего действия (требует history stack)
-- Ctrl+C / Ctrl+V: копировать/вставить участника
-- Приоритет: после базового тестирования трекера v2
+### ~~IDEA-019~~ ✅ DONE Массовое выделение строк в трекере
+- **Feature**: 005-encounter-tracker-v2
+- Click/Ctrl+Click/Shift+Click для выделения строк
+- Редактирование HP/инициативы/роли/tempHP → применяется ко всем выделенным
+- HP парсит raw input (−10 = дельта к каждому)
+- Массовое удаление, toggle active
+- Escape = снять выделение
 
-### IDEA-020 Широкий интерфейс ДМа (full-width layout)
-- **Feature**: ui
-- Трекер энкаунтера и рабочий стол ДМа должны занимать весь экран
-- Убрать ограничение max-width для ДМ-режима
-- Сайдбар слева (каталог), основная область — таблица во всю ширину
-- Mobile: стандартный одноколоночный layout
-- Связь: конституция v3 — "два режима" (ДМ = desktop-first, рабочий стол)
+### ~~IDEA-020~~ ✅ DONE Широкий интерфейс ДМа (full-width layout)
+- max-w-5xl убран из layout, перенесён в отдельные страницы
+- Энкаунтер занимает всю ширину экрана
 
 ### IDEA-011 [P1] Temporal State Viewer — персонажи во времени и пространстве
 - **Feature**: 005-temporal-viewer (новый спек)
