@@ -91,6 +91,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   effectNames,
   onAutoEvent,
   onActiveChange,
+  onParticipantsChange,
 }, ref) {
   // ── State owned by this component ─────────────────
   const [participants, setParticipants] = useState(initialParticipants)
@@ -143,6 +144,12 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   useEffect(() => {
     onActiveChange?.(turns.turnId)
   }, [turns.turnId, onActiveChange])
+
+  // Report participant list upward whenever any row changes
+  // (HP, conditions, effects, initiative, roster).
+  useEffect(() => {
+    onParticipantsChange?.(participants)
+  }, [participants, onParticipantsChange])
 
   const actions = useParticipantActions({
     encounterId: initial.id,

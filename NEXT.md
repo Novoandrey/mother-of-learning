@@ -1,7 +1,7 @@
 # NEXT — контекст для следующего чата
 
 > Этот файл обновляется в конце каждого чата. Всегда актуален.
-> Last updated: 2026-04-19 (chat 10 — дизайн-хэндофф spec-007 этап 2)
+> Last updated: 2026-04-19 (chat 11 — hotfix encounter-grid + QA)
 
 ## Что сделано (накопительно)
 
@@ -51,42 +51,35 @@
 - **IDEA-031**: Фиты для НПС/монстров (feats: []) — отдельная секция в statblock
 - **IDEA-032**: Схлопывание группы одинаковых существ (20 кобольдов) — агрегатное HP, счётчик живых, урон суммой
 
-## ⚠️ НЕ ДОПИСАНО в этом чате
+## Что сделано в этом чате (chat 11, 2026-04-19)
 
-1. **В `encounter-grid.tsx`** prop `onParticipantsChange` добавлен в тип, но НЕ задестрактурен в сигнатуре и НЕ подключён к useEffect. Без этого панель будет показывать **stale HP/conditions** — надо обновлять страницу руками. Исправить в первую очередь:
-   ```ts
-   // В destructuring props:
-   onAutoEvent,
-   onActiveChange,
-   onParticipantsChange,
-   }, ref) {
+### Hotfix + QA перед deploy ✅
 
-   // После `setParticipants` definition, рядом с useEffect для turnId:
-   useEffect(() => {
-     onParticipantsChange?.(participants)
-   }, [participants, onParticipantsChange])
-   ```
-2. **`npm run build` не запускался** — могут быть TS-ошибки.
-3. **Миграции 018, 019, 020 — применить в Supabase** через SQL Editor. Все идемпотентны.
+- **`encounter-grid.tsx`** — закрыта недоделка chat 10:
+  - `onParticipantsChange` задестрактурен в сигнатуре forwardRef.
+  - Добавлен `useEffect(() => { onParticipantsChange?.(participants) }, [participants, onParticipantsChange])` рядом с useEffect для turnId.
+  - Родитель (`encounter-page-client.tsx`) уже был подключён как `onParticipantsChange={setParticipantsSnap}` — теперь правая панель видит живые HP/conditions без F5.
+- **`npm run build`** — прошёл чисто. TypeScript 0 ошибок, Turbopack 25.1s.
+- **Миграция 020** отдана пользователю через `present_files`. Применить в Supabase SQL Editor.
 
 ## ⚠️ Действия для пользователя
 
-1. **Применить миграцию 020** в Supabase SQL Editor (счётчики реакций/легендарок).
-2. Убедиться, что 018 и 019 уже применены (если нет — применить).
-3. Открыть `/c/mat-ucheniya/encounters/[id]` с активным SRD-монстром — проверить правую панель.
+1. **Применить миграцию 020** в Supabase SQL Editor (счётчики реакций/легендарок) — файл на руках.
+2. Убедиться, что 018 и 019 уже применены.
+3. **QA на проде** после deploy:
+   - `/c/mat-ucheniya/encounters/[id]` с активным SRD-монстром.
+   - Правый сайдбар: табы "Статблок" / "Каталог".
+   - Клик "→" (следующий ход) → панель показывает активного участника, статблок из `node.fields`, HP живой (меняется от урона без reload), counter реакций сбрасывается.
+   - Hover по кнопке действия → тёмный тултип слева с подсветкой формул (+N to hit жёлтый, NdN+N красный, DC N Stat синий).
+   - Клик по area action (Fire Breath у дракона) → TargetPicker с чекбоксами, KO-цели выбираемы, dead задизаблены.
+   - Apply → запись в лог.
 
 ## Следующая задача
 
-### Priority 1: закрыть недоделку + build + deploy
-1. Исправить `encounter-grid.tsx` (см. блок "НЕ ДОПИСАНО").
-2. `npm run build` — починить типы.
-3. Ручной QA: панель показывает активного участника, HP-бар живой, Tooltip работает, TargetPicker открывается на area actions, клик по action пишет запись в лог, counter сбрасывается при смене хода.
-4. Deploy на Vercel, показать друзьям.
-
-### Priority 2: spec-007 этап 3 (общая панель реакций/легендарок)
+### Priority 1: spec-007 этап 3 (общая панель реакций/легендарок)
 Агрегат по всем живым не-активным участникам: "кто может среагировать". Секция над правой панелью или внизу грида.
 
-### Priority 3: spec-007 этап 4 (Excel-like grid polish — редизайн грида)
+### Priority 2: spec-007 этап 4 (Excel-like grid polish — редизайн грида)
 По дизайну Claude Design — 9 колонок (# | Ин. | Имя | HP | Врем | AC | Состояния | Эффекты | Спасы), `#` = bulk-select, inline-редактирование всех ячеек, PillEditor ClickUp-style для conditions/effects, SaveCounter для death saves. **Требует миграцию** для `ac` и `saves` в `encounter_participants` (или взять `ac` из `node.fields`), и big refactor `encounter-grid.tsx`.
 
 ## Приоритеты
@@ -97,15 +90,14 @@
 4. ~~UniversalSidebar~~ ✅
 5. ~~Рефакторинг монстров-файлов~~ ✅
 6. ~~Spec-007 этап 1: фундамент статблоков~~ ✅
-7. ~~Spec-007 этап 2: правая панель~~ ✅ (с недоделкой — см. выше)
-8. **→ Закрыть недоделку + QA + deploy**
-9. Spec-007 этап 3: общая панель реакций/легендарок
-10. Spec-007 этап 4: Excel-like grid polish (редизайн грида по дизайну Claude Design)
-11. Логины + RLS (spec-006-auth)
-12. Spec-007 этап 5: мобилка игрока (IDEA-017)
-13. IDEA-029 Spells + slots (ждёт логины, большая фича)
-14. Импорт из Google Sheets (таблицы персонажей)
-15. Лог вне боя (IDEA-026 инкремент 4)
+7. ~~Spec-007 этап 2: правая панель~~ ✅
+8. **→ Spec-007 этап 3: общая панель реакций/легендарок**
+9. Spec-007 этап 4: Excel-like grid polish (редизайн грида по дизайну Claude Design)
+10. Логины + RLS (spec-006-auth)
+11. Spec-007 этап 5: мобилка игрока (IDEA-017)
+12. IDEA-029 Spells + slots (ждёт логины, большая фича)
+13. Импорт из Google Sheets (таблицы персонажей)
+14. Лог вне боя (IDEA-026 инкремент 4)
 
 ## Файлы памяти
 

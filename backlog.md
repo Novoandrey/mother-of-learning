@@ -3,7 +3,7 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-19 (chat 9)
+Updated: 2026-04-19 (chat 11)
 
 ---
 
