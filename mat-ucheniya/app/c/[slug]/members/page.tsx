@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth, type Role } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { MembersClient, type MemberRow, type UnboundPc } from './members-client'
+import { MembersClient, type MemberRow, type AvailablePc } from './members-client'
 
 export default async function MembersPage({
   params,
@@ -77,9 +77,10 @@ export default async function MembersPage({
       return a.created_at.localeCompare(b.created_at)
     })
 
-  // Load unbound character-nodes only if the viewer can manage — we use them
-  // to offer an optional bind-at-create for players.
-  let unboundPcs: UnboundPc[] = []
+  // Load character-nodes for the optional "bind at create" dropdown. In the
+  // many-to-many model any PC can get another co-owner, so we don't filter
+  // by current ownership — we just show all PCs of the campaign.
+  let availablePcs: AvailablePc[] = []
   if (canManage) {
     // Resolve the 'character' node_type id for this campaign.
     const { data: charType } = await admin
@@ -95,9 +96,8 @@ export default async function MembersPage({
         .select('id, title')
         .eq('campaign_id', campaign.id)
         .eq('type_id', charType.id)
-        .is('owner_user_id', null)
         .order('title')
-      unboundPcs = (pcRows ?? []).map((n) => ({ id: n.id, title: n.title }))
+      availablePcs = (pcRows ?? []).map((n) => ({ id: n.id, title: n.title }))
     }
   }
 
@@ -114,7 +114,7 @@ export default async function MembersPage({
         slug={slug}
         members={members}
         canManage={canManage}
-        unboundPcs={unboundPcs}
+        availablePcs={availablePcs}
       />
     </div>
   )

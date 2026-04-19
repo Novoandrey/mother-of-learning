@@ -45,10 +45,10 @@ export default async function NodePage({
 
   const supabase = await createClient()
 
-  // Fetch node (owner_user_id included for the character-owner section).
+  // Fetch node (type resolved for the owner-section branch below).
   const { data: node } = await supabase
     .from('nodes')
-    .select('id, title, fields, content, owner_user_id, type:node_types(slug, label, icon)')
+    .select('id, title, fields, content, type:node_types(slug, label, icon)')
     .eq('id', id)
     .single()
 
@@ -139,20 +139,15 @@ export default async function NodePage({
   if (typeSlug === 'character') {
     const admin = createAdminClient()
 
-    // Load the current owner's login, if any.
-    let ownerLogin: string | null = null
-    const ownerUserId = (node as any).owner_user_id as string | null
-    if (ownerUserId) {
-      const { data: ownerProfile } = await admin
-        .from('user_profiles')
-        .select('login')
-        .eq('user_id', ownerUserId)
-        .maybeSingle()
-      ownerLogin = ownerProfile?.login ?? null
-    }
+    // Load all current owners of this PC (many-to-many).
+    const { data: ownerRows } = await admin
+      .from('node_pc_owners')
+      .select('user_id')
+      .eq('node_id', id)
 
-    // Load candidate players (campaign members with role='player') + their
-    // profiles.
+    const ownerIds = (ownerRows ?? []).map((r) => r.user_id)
+
+    // Load candidate players (campaign members with role='player').
     const { data: playerRows } = await admin
       .from('campaign_members')
       .select('user_id')
@@ -161,26 +156,50 @@ export default async function NodePage({
 
     const playerIds = (playerRows ?? []).map((r) => r.user_id)
 
-    let players: { user_id: string; login: string; display_name: string | null }[] = []
-    if (playerIds.length > 0) {
+    // One profile lookup for the union of owner + player ids.
+    const profileIds = Array.from(new Set([...ownerIds, ...playerIds]))
+
+    let profileMap = new Map<
+      string,
+      { user_id: string; login: string; display_name: string | null }
+    >()
+    if (profileIds.length > 0) {
       const { data: profiles } = await admin
         .from('user_profiles')
         .select('user_id, login, display_name')
-        .in('user_id', playerIds)
-      players = (profiles ?? [])
-        .map((p) => ({
-          user_id: p.user_id,
-          login: p.login,
-          display_name: p.display_name,
-        }))
-        .sort((a, b) => a.login.localeCompare(b.login))
+        .in('user_id', profileIds)
+      profileMap = new Map(
+        (profiles ?? []).map((p) => [
+          p.user_id,
+          {
+            user_id: p.user_id,
+            login: p.login,
+            display_name: p.display_name,
+          },
+        ]),
+      )
     }
+
+    const owners = ownerIds
+      .map((uid) => profileMap.get(uid))
+      .filter(
+        (x): x is { user_id: string; login: string; display_name: string | null } =>
+          !!x,
+      )
+      .sort((a, b) => a.login.localeCompare(b.login))
+
+    const players = playerIds
+      .map((uid) => profileMap.get(uid))
+      .filter(
+        (x): x is { user_id: string; login: string; display_name: string | null } =>
+          !!x,
+      )
+      .sort((a, b) => a.login.localeCompare(b.login))
 
     ownerContext = {
       viewerRole: membership.role,
       viewerUserId: user.id,
-      ownerUserId,
-      ownerLogin,
+      owners,
       players,
     }
   }

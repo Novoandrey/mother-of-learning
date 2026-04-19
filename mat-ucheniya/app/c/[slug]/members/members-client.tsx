@@ -19,7 +19,7 @@ export type MemberRow = {
   is_self: boolean
 }
 
-export type UnboundPc = { id: string; title: string }
+export type AvailablePc = { id: string; title: string }
 
 type ActionState = { error: string | null; success: string | null }
 
@@ -41,16 +41,16 @@ export function MembersClient({
   slug,
   members,
   canManage,
-  unboundPcs,
+  availablePcs,
 }: {
   slug: string
   members: MemberRow[]
   canManage: boolean
-  unboundPcs: UnboundPc[]
+  availablePcs: AvailablePc[]
 }) {
   return (
     <div className="flex flex-col gap-6">
-      {canManage && <CreateMemberBlock slug={slug} unboundPcs={unboundPcs} />}
+      {canManage && <CreateMemberBlock slug={slug} availablePcs={availablePcs} />}
       <MembersTable slug={slug} members={members} canManage={canManage} />
     </div>
   )
@@ -60,10 +60,10 @@ export function MembersClient({
 
 function CreateMemberBlock({
   slug,
-  unboundPcs,
+  availablePcs,
 }: {
   slug: string
-  unboundPcs: UnboundPc[]
+  availablePcs: AvailablePc[]
 }) {
   const boundAction = createMemberAction.bind(null, slug)
   const [state, formAction, pending] = useActionState(boundAction, initialState)
@@ -158,15 +158,15 @@ function CreateMemberBlock({
               style={{ borderColor: 'var(--gray-300)' }}
             >
               <option value="__none__">— не привязывать —</option>
-              {unboundPcs.map((pc) => (
+              {availablePcs.map((pc) => (
                 <option key={pc.id} value={pc.id}>
                   {pc.title}
                 </option>
               ))}
             </select>
-            {unboundPcs.length === 0 && (
+            {availablePcs.length === 0 && (
               <span className="text-[10px]" style={{ color: 'var(--gray-500)' }}>
-                Нет свободных PC-нод. Создай персонажа в каталоге или сними владельца на существующем.
+                В кампании ещё нет PC-нод. Создай персонажа в каталоге.
               </span>
             )}
           </label>

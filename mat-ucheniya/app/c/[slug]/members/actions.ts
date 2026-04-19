@@ -31,10 +31,9 @@ async function requireManager(slug: string) {
  * user_profiles with must_change_password=true, inserts campaign_members.
  *
  * For role='player' an optional `bind_pc_id` may be passed — if provided,
- * after the membership is inserted we claim ownership of that character-node
- * by setting nodes.owner_user_id = new user. The bind is best-effort: if it
- * fails, we surface a partial-success message (user created, bind failed)
- * rather than rolling back the whole operation.
+ * after the membership is inserted we add the new user as an OWNER of that
+ * PC via node_pc_owners (many-to-many). The bind is best-effort: if it
+ * fails we surface a partial-success message rather than rolling back.
  *
  * The 'owner' role cannot be assigned through the UI (exactly one owner per
  * campaign, enforced by a unique DB index).
@@ -156,12 +155,12 @@ export async function createMemberAction(
   // the bind fails, we just warn in the success message.
   let bindWarning: string | null = null
   if (role === 'player' && bindPcId) {
-    // Validate: node exists, type=character, belongs to this campaign,
-    // currently unowned. Service-role client bypasses RLS — we check the
-    // invariants explicitly here.
+    // Validate: node exists, type=character, belongs to this campaign.
+    // Multiple owners are allowed (many-to-many), so we don't check
+    // "already owned" — we just ensure the target is a PC in this campaign.
     const { data: targetNode } = await admin
       .from('nodes')
-      .select('id, campaign_id, owner_user_id, type:node_types(slug)')
+      .select('id, campaign_id, type:node_types(slug)')
       .eq('id', bindPcId)
       .maybeSingle()
 
@@ -173,13 +172,14 @@ export async function createMemberAction(
       bindWarning = 'PC-нода не найдена в этой кампании'
     } else if (typeSlug !== 'character') {
       bindWarning = 'Выбранная нода не является персонажем'
-    } else if (targetNode.owner_user_id && targetNode.owner_user_id !== userId) {
-      bindWarning = 'У PC уже есть владелец'
     } else {
+      // Idempotent insert — if the user already co-owns this PC, do nothing.
       const { error: bindErr } = await admin
-        .from('nodes')
-        .update({ owner_user_id: userId })
-        .eq('id', bindPcId)
+        .from('node_pc_owners')
+        .upsert(
+          { node_id: bindPcId, user_id: userId },
+          { onConflict: 'node_id,user_id', ignoreDuplicates: true },
+        )
       if (bindErr) {
         bindWarning = 'Не удалось привязать PC: ' + bindErr.message
       }
@@ -367,30 +367,28 @@ export async function updateMemberRoleAction(
 }
 
 /**
- * Bind or unbind the owner of a character-node (PC).
+ * Add a user as an owner (co-owner) of a PC-node. Many-to-many — a PC may
+ * have any number of owners.
  *
  * Form fields:
  *   - node_id:  the character-node id
- *   - user_id:  the new owner's user_id, OR '__none__' / '' to unbind
+ *   - user_id:  the user to add as owner
  *
  * Gate: requireManager (owner or dm) — players cannot reassign ownership.
  * Validations:
  *   - node exists, belongs to this campaign, type = 'character'
- *   - if binding (user_id != none): target user must be a member of this
- *     campaign (any role — the spec only restricts at UI level, but the
- *     action just requires membership)
+ *   - target user is a member of this campaign
  */
-export async function bindPcOwnerAction(
+export async function addPcOwnerAction(
   slug: string,
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const nodeId = String(formData.get('node_id') ?? '').trim()
-  const rawUserId = String(formData.get('user_id') ?? '').trim()
-  const unbind = rawUserId === '' || rawUserId === '__none__'
-  const targetUserId = unbind ? null : rawUserId
+  const targetUserId = String(formData.get('user_id') ?? '').trim()
 
   if (!nodeId) return { error: 'Нет node_id', success: null }
+  if (!targetUserId) return { error: 'Не выбран пользователь', success: null }
 
   let campaignId: string
   try {
@@ -419,30 +417,82 @@ export async function bindPcOwnerAction(
     return { error: 'Это не PC-нода', success: null }
   }
 
-  // If binding: verify the target is a member of this campaign.
-  if (targetUserId) {
-    const { data: targetMember } = await admin
-      .from('campaign_members')
-      .select('user_id, role')
-      .eq('campaign_id', campaignId)
-      .eq('user_id', targetUserId)
-      .maybeSingle()
-    if (!targetMember) {
-      return { error: 'Пользователь не является членом кампании', success: null }
-    }
+  // Verify the target is a member of this campaign.
+  const { data: targetMember } = await admin
+    .from('campaign_members')
+    .select('user_id, role')
+    .eq('campaign_id', campaignId)
+    .eq('user_id', targetUserId)
+    .maybeSingle()
+  if (!targetMember) {
+    return { error: 'Пользователь не является членом кампании', success: null }
   }
 
-  const { error: updErr } = await admin
-    .from('nodes')
-    .update({ owner_user_id: targetUserId })
-    .eq('id', nodeId)
-  if (updErr) {
-    return { error: 'Не удалось обновить владельца: ' + updErr.message, success: null }
+  // Idempotent upsert — if already an owner, no-op.
+  const { error: insertErr } = await admin
+    .from('node_pc_owners')
+    .upsert(
+      { node_id: nodeId, user_id: targetUserId },
+      { onConflict: 'node_id,user_id', ignoreDuplicates: true },
+    )
+  if (insertErr) {
+    return { error: 'Не удалось добавить владельца: ' + insertErr.message, success: null }
   }
 
   revalidatePath(`/c/${slug}/catalog/${nodeId}`)
-  return {
-    error: null,
-    success: unbind ? 'Владелец снят' : 'Владелец назначен',
+  return { error: null, success: 'Владелец добавлен' }
+}
+
+/**
+ * Remove a user from the owners list of a PC-node. Many-to-many: removing
+ * one owner doesn't affect the others.
+ *
+ * Form fields:
+ *   - node_id:  the character-node id
+ *   - user_id:  the user to remove
+ *
+ * Gate: requireManager (owner or dm).
+ */
+export async function removePcOwnerAction(
+  slug: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const nodeId = String(formData.get('node_id') ?? '').trim()
+  const targetUserId = String(formData.get('user_id') ?? '').trim()
+
+  if (!nodeId) return { error: 'Нет node_id', success: null }
+  if (!targetUserId) return { error: 'Нет user_id', success: null }
+
+  let campaignId: string
+  try {
+    const { campaign } = await requireManager(slug)
+    campaignId = campaign.id
+  } catch {
+    return { error: 'Нет прав', success: null }
   }
+
+  const admin = createAdminClient()
+
+  // Validate node belongs to this campaign (defence in depth).
+  const { data: node } = await admin
+    .from('nodes')
+    .select('id, campaign_id')
+    .eq('id', nodeId)
+    .maybeSingle()
+  if (!node || node.campaign_id !== campaignId) {
+    return { error: 'PC-нода не найдена в этой кампании', success: null }
+  }
+
+  const { error: delErr } = await admin
+    .from('node_pc_owners')
+    .delete()
+    .eq('node_id', nodeId)
+    .eq('user_id', targetUserId)
+  if (delErr) {
+    return { error: 'Не удалось снять владельца: ' + delErr.message, success: null }
+  }
+
+  revalidatePath(`/c/${slug}/catalog/${nodeId}`)
+  return { error: null, success: 'Владелец снят' }
 }
