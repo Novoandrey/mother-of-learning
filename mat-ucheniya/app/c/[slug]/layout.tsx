@@ -68,7 +68,7 @@ export default async function CampaignLayout({
       </header>
 
       {/* Tabs */}
-      <NavTabs campaignSlug={slug} />
+      <NavTabs campaignSlug={slug} isOwner={membership.role === 'owner'} />
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">

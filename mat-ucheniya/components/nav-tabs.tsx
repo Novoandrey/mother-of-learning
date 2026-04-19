@@ -3,20 +3,29 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const TABS = [
+type Tab = { key: string; href: string; label: string; icon: string; ownerOnly?: boolean }
+
+const TABS: Tab[] = [
   { key: 'catalog', href: 'catalog', label: 'Каталог', icon: '📚' },
   { key: 'loops', href: 'loops', label: 'Петли', icon: '🔄' },
   { key: 'sessions', href: 'sessions', label: 'Сессии', icon: '📋' },
   { key: 'encounters', href: 'encounters', label: 'Энкаунтеры', icon: '⚔️' },
-  { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️' },
+  { key: 'members', href: 'members', label: 'Участники', icon: '👥', ownerOnly: true },
+  { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️', ownerOnly: true },
 ]
 
-export function NavTabs({ campaignSlug }: { campaignSlug: string }) {
+export function NavTabs({
+  campaignSlug,
+  isOwner = false,
+}: {
+  campaignSlug: string
+  isOwner?: boolean
+}) {
   const pathname = usePathname()
 
   return (
     <div className="flex items-center gap-0 border-b border-gray-200 bg-white px-2">
-      {TABS.map((tab) => {
+      {TABS.filter((t) => !t.ownerOnly || isOwner).map((tab) => {
         const href = `/c/${campaignSlug}/${tab.href}`
         const isActive = pathname.startsWith(href)
 
