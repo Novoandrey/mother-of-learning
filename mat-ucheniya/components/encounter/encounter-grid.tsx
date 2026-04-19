@@ -264,12 +264,13 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
             <button
               onClick={turns.prevTurn}
               disabled={!inCombat.length}
-              title="Предыдущий ход (← или Shift+Space)"
-              className="h-9 w-9 rounded-lg bg-gray-100 text-base font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors"
+              title="← или Shift+Space"
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-gray-100 px-3.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-30 transition-colors"
             >
-              ←
+              <span className="text-base leading-none">←</span>
+              <span>Предыдущий</span>
             </button>
-            <div className="min-w-[120px] px-2 text-center">
+            <div className="min-w-[140px] px-2 text-center">
               {turns.currentTurnName ? (
                 <span className="text-sm font-semibold text-yellow-700">
                   {turns.currentTurnName}
@@ -281,10 +282,11 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
             <button
               onClick={turns.advanceTurn}
               disabled={!inCombat.length}
-              title="Следующий ход (→ или Space)"
-              className="h-9 w-9 rounded-lg bg-blue-600 text-base font-bold text-white hover:bg-blue-700 disabled:opacity-30 transition-colors"
+              title="→ или Space"
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-30 transition-colors"
             >
-              →
+              <span>Следующий</span>
+              <span className="text-base leading-none">→</span>
             </button>
             <span className="mx-1 h-6 w-px bg-gray-200" />
             <SaveAsTemplateButton

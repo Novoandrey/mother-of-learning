@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 
 export type TagEntry = { name: string; round: number }
 
@@ -24,12 +25,14 @@ export function TagCell({
   const [editing, setEditing] = useState(false)
   const [query, setQuery] = useState('')
   const [highlightIdx, setHighlightIdx] = useState(0)
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(
+    null,
+  )
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const tagNames = tags.map((t) => t.name)
-  // When the cell is open with an empty query, show all suggestions that
-  // aren't already applied. As the user types, narrow by substring match.
+  // Empty query → show all available (not-yet-applied) suggestions.
   const available = suggestions.filter((s) => !tagNames.includes(s))
   const filtered = query
     ? available.filter((s) => s.toLowerCase().includes(query.toLowerCase()))
@@ -45,11 +48,36 @@ export function TagCell({
     setHighlightIdx(0)
   }, [query])
 
-  // Close on outside click
+  // Position the portal-rendered dropdown relative to the cell. Recomputed
+  // on open, scroll, and resize so it stays pinned even when the user
+  // scrolls the page or the grid's horizontal overflow container.
+  useLayoutEffect(() => {
+    if (!editing) {
+      setDropdownPos(null)
+      return
+    }
+    const update = () => {
+      const el = containerRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      setDropdownPos({ left: r.left, top: r.bottom + 4, width: Math.max(r.width, 224) })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [editing])
+
+  // Close on outside click (allow clicks inside the portal-rendered dropdown).
   useEffect(() => {
     if (!editing) return
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const t = e.target as HTMLElement
+      if (t.closest?.('[data-tag-dropdown]')) return
+      if (containerRef.current && !containerRef.current.contains(t)) {
         setEditing(false)
         setQuery('')
       }
@@ -128,12 +156,9 @@ export function TagCell({
               e.stopPropagation()
               if (!disabled) removeTag(tag.name)
             }}
-            title={disabled ? `${tag.name} (${roundLabel(tag.round)})` : `Удалить: ${tag.name} (${roundLabel(tag.round)})`}
+            title={`${tag.name} — ${roundLabel(tag.round)}${disabled ? '' : ' (клик — убрать)'}`}
           >
             {tag.name}
-            {tag.round > 0 && (
-              <span className="ml-0.5 text-[9px] font-mono text-gray-400">{tag.round}</span>
-            )}
             {!disabled && <span className="text-[10px] opacity-50">×</span>}
           </span>
         ))}
@@ -153,9 +178,21 @@ export function TagCell({
         )}
       </div>
 
-      {/* Autocomplete dropdown — shown while editing (even without query) */}
-      {editing && filtered.length > 0 && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-56 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+      {/* Autocomplete dropdown — portaled to body to escape overflow
+          containers (the table's overflow-x-auto clips any locally-
+          positioned dropdown). */}
+      {editing && filtered.length > 0 && dropdownPos && typeof document !== 'undefined' && createPortal(
+        <div
+          data-tag-dropdown
+          className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+          style={{
+            position: 'fixed',
+            left: dropdownPos.left,
+            top: dropdownPos.top,
+            width: dropdownPos.width,
+            zIndex: 9999,
+          }}
+        >
           {filtered.slice(0, 30).map((s, i) => (
             <button
               key={s}
@@ -168,7 +205,8 @@ export function TagCell({
               {s}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
