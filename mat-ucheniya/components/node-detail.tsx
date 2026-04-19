@@ -4,6 +4,7 @@ import { EdgeList } from './edge-list'
 import { CreateEdgeForm } from './create-edge-form'
 import { MarkdownContent } from './markdown-content'
 import { Chronicles } from './chronicles'
+import { NodeOwnerSection, type OwnerContext } from './node-owner-section'
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -47,6 +48,18 @@ type Props = {
   chronicles: Chronicle[]
   campaignSlug: string
   campaignId: string
+  /**
+   * Only present for character-nodes. Drives the "Owner" section visibility
+   * (manage / self-read / hidden).
+   */
+  ownerContext?: OwnerContext
+  /**
+   * Spec-006 increment 3: infrastructure only. When false, write-capable UI
+   * is suppressed (edit/delete buttons, tag editor, create-edge form).
+   * Call-sites currently always pass `true` — the switch will be flipped
+   * for players in increment 4 together with RLS.
+   */
+  canEdit?: boolean
 }
 
 const HIDDEN_FIELDS = ['tags']
@@ -112,7 +125,16 @@ function prettifyUrl(url: string): string {
   }
 }
 
-export function NodeDetail({ node, edges, childNodes, chronicles, campaignSlug, campaignId }: Props) {
+export function NodeDetail({
+  node,
+  edges,
+  childNodes,
+  chronicles,
+  campaignSlug,
+  campaignId,
+  ownerContext,
+  canEdit = true,
+}: Props) {
   const router = useRouter()
   const [showEdgeForm, setShowEdgeForm] = useState(false)
   const [tags, setTags] = useState<string[]>((node.fields?.tags as string[]) || [])
@@ -179,23 +201,25 @@ export function NodeDetail({ node, edges, childNodes, chronicles, campaignSlug, 
         </div>
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-bold text-gray-900">{node.title}</h1>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Link
-              href={`/c/${campaignSlug}/catalog/${node.id}/edit`}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              Редактировать
-            </Link>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-            >
-              {deleting ? '…' : 'Удалить'}
-            </button>
-          </div>
+          {canEdit && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Link
+                href={`/c/${campaignSlug}/catalog/${node.id}/edit`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Редактировать
+              </Link>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {deleting ? '…' : 'Удалить'}
+              </button>
+            </div>
+          )}
         </div>
-        {/* Tags — editable */}
+        {/* Tags — editable when canEdit; read-only pills otherwise */}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {tags.map((tag) => (
             <span
@@ -203,25 +227,29 @@ export function NodeDetail({ node, edges, childNodes, chronicles, campaignSlug, 
               className="group inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"
             >
               {tag}
-              <button
-                onClick={() => handleRemoveTag(tag)}
-                className="hidden group-hover:inline text-gray-400 hover:text-red-500"
-                title="Удалить тег"
-              >
-                ×
-              </button>
+              {canEdit && (
+                <button
+                  onClick={() => handleRemoveTag(tag)}
+                  className="hidden group-hover:inline text-gray-400 hover:text-red-500"
+                  title="Удалить тег"
+                >
+                  ×
+                </button>
+              )}
             </span>
           ))}
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagKeyDown}
-            onBlur={() => { if (tagInput.trim()) handleAddTag() }}
-            placeholder="+ тег"
-            className="w-20 border-none bg-transparent px-1 py-0.5 text-xs text-gray-500 placeholder:text-gray-300 focus:outline-none focus:w-28 transition-all"
-            disabled={savingTags}
-          />
+          {canEdit && (
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              onBlur={() => { if (tagInput.trim()) handleAddTag() }}
+              placeholder="+ тег"
+              className="w-20 border-none bg-transparent px-1 py-0.5 text-xs text-gray-500 placeholder:text-gray-300 focus:outline-none focus:w-28 transition-all"
+              disabled={savingTags}
+            />
+          )}
         </div>
       </div>
 
@@ -302,6 +330,14 @@ export function NodeDetail({ node, edges, childNodes, chronicles, campaignSlug, 
         </div>
       )}
 
+      {node.type.slug === 'character' && ownerContext && (
+        <NodeOwnerSection
+          nodeId={node.id}
+          campaignSlug={campaignSlug}
+          ctx={ownerContext}
+        />
+      )}
+
       <MarkdownContent
         nodeId={node.id}
         initialContent={node.content || ''}
@@ -318,14 +354,16 @@ export function NodeDetail({ node, edges, childNodes, chronicles, campaignSlug, 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Связи</h2>
-          <button
-            onClick={() => setShowEdgeForm(!showEdgeForm)}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            {showEdgeForm ? 'Отмена' : '+ Добавить связь'}
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setShowEdgeForm(!showEdgeForm)}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              {showEdgeForm ? 'Отмена' : '+ Добавить связь'}
+            </button>
+          )}
         </div>
-        {showEdgeForm && (
+        {canEdit && showEdgeForm && (
           <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
             <CreateEdgeForm
               sourceId={node.id}

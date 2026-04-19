@@ -1,8 +1,8 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth, type Role } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { MembersClient, type MemberRow } from './members-client'
+import { MembersClient, type MemberRow, type UnboundPc } from './members-client'
 
 export default async function MembersPage({
   params,
@@ -13,13 +13,16 @@ export default async function MembersPage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
-  // Gate: owner OR dm (DMs have full management rights in this project).
-  // Players can't see /members.
+  // Spec-006 increment 3: /members is open to all campaign members.
+  // Players see the table read-only. Write-capable UI is behind `canManage`.
   const { user } = await requireAuth()
   const membership = await getMembership(campaign.id)
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'dm')) {
-    redirect(`/c/${slug}/catalog`)
+  if (!membership) {
+    // Layout would already have redirected non-members; this is defensive.
+    notFound()
   }
+
+  const canManage = membership.role === 'owner' || membership.role === 'dm'
 
   // Service role — bypass RLS so we see every member's profile.
   const admin = createAdminClient()
@@ -74,15 +77,45 @@ export default async function MembersPage({
       return a.created_at.localeCompare(b.created_at)
     })
 
+  // Load unbound character-nodes only if the viewer can manage — we use them
+  // to offer an optional bind-at-create for players.
+  let unboundPcs: UnboundPc[] = []
+  if (canManage) {
+    // Resolve the 'character' node_type id for this campaign.
+    const { data: charType } = await admin
+      .from('node_types')
+      .select('id')
+      .eq('campaign_id', campaign.id)
+      .eq('slug', 'character')
+      .maybeSingle()
+
+    if (charType?.id) {
+      const { data: pcRows } = await admin
+        .from('nodes')
+        .select('id, title')
+        .eq('campaign_id', campaign.id)
+        .eq('type_id', charType.id)
+        .is('owner_user_id', null)
+        .order('title')
+      unboundPcs = (pcRows ?? []).map((n) => ({ id: n.id, title: n.title }))
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-6" style={{ color: 'var(--fg-1)' }}>
       <h1 className="mb-1 text-[20px] font-semibold">Участники кампании</h1>
       <p className="mb-6 text-[12px]" style={{ color: 'var(--gray-500)' }}>
-        Создание ДМов, сброс паролей, удаление. Пароль при создании станет
-        одноразовым — пользователь сменит его при первом входе.
+        {canManage
+          ? 'Создание ДМов и игроков, сброс паролей, удаление. Пароль при создании станет одноразовым — пользователь сменит его при первом входе.'
+          : 'Список участников кампании. Управлением занимаются владелец и ДМы.'}
       </p>
 
-      <MembersClient slug={slug} members={members} />
+      <MembersClient
+        slug={slug}
+        members={members}
+        canManage={canManage}
+        unboundPcs={unboundPcs}
+      />
     </div>
   )
 }

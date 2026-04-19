@@ -1,9 +1,12 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCampaignBySlug } from '@/lib/campaign'
-import { notFound } from 'next/navigation'
+import { getMembership, requireAuth } from '@/lib/auth'
+import { notFound, redirect } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
+import type { OwnerContext } from '@/components/node-owner-section'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -35,12 +38,17 @@ export default async function NodePage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
+  // Auth gate: authenticated + member of this campaign.
+  const { user } = await requireAuth()
+  const membership = await getMembership(campaign.id)
+  if (!membership) redirect('/')
+
   const supabase = await createClient()
 
-  // Fetch node
+  // Fetch node (owner_user_id included for the character-owner section).
   const { data: node } = await supabase
     .from('nodes')
-    .select('id, title, fields, content, type:node_types(slug, label, icon)')
+    .select('id, title, fields, content, owner_user_id, type:node_types(slug, label, icon)')
     .eq('id', id)
     .single()
 
@@ -121,6 +129,62 @@ export default async function NodePage({
     .order('loop_number', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
 
+  // Owner context for character-nodes. Admin client is used so we can read
+  // profiles / player list even for viewers whose RLS might tighten in the
+  // next increment — keeps the section resilient.
+  const typeRaw = (node as any).type
+  const typeSlug = Array.isArray(typeRaw) ? typeRaw[0]?.slug : typeRaw?.slug
+  let ownerContext: OwnerContext | undefined
+
+  if (typeSlug === 'character') {
+    const admin = createAdminClient()
+
+    // Load the current owner's login, if any.
+    let ownerLogin: string | null = null
+    const ownerUserId = (node as any).owner_user_id as string | null
+    if (ownerUserId) {
+      const { data: ownerProfile } = await admin
+        .from('user_profiles')
+        .select('login')
+        .eq('user_id', ownerUserId)
+        .maybeSingle()
+      ownerLogin = ownerProfile?.login ?? null
+    }
+
+    // Load candidate players (campaign members with role='player') + their
+    // profiles.
+    const { data: playerRows } = await admin
+      .from('campaign_members')
+      .select('user_id')
+      .eq('campaign_id', campaign.id)
+      .eq('role', 'player')
+
+    const playerIds = (playerRows ?? []).map((r) => r.user_id)
+
+    let players: { user_id: string; login: string; display_name: string | null }[] = []
+    if (playerIds.length > 0) {
+      const { data: profiles } = await admin
+        .from('user_profiles')
+        .select('user_id, login, display_name')
+        .in('user_id', playerIds)
+      players = (profiles ?? [])
+        .map((p) => ({
+          user_id: p.user_id,
+          login: p.login,
+          display_name: p.display_name,
+        }))
+        .sort((a, b) => a.login.localeCompare(b.login))
+    }
+
+    ownerContext = {
+      viewerRole: membership.role,
+      viewerUserId: user.id,
+      ownerUserId,
+      ownerLogin,
+      players,
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
       {parent ? (
@@ -146,6 +210,8 @@ export default async function NodePage({
         chronicles={chronicles || []}
         campaignSlug={slug}
         campaignId={campaign.id}
+        ownerContext={ownerContext}
+        canEdit={true}
       />
     </div>
   )
