@@ -3,7 +3,35 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-19 (chat 20)
+Updated: 2026-04-19 (chat 22)
+
+---
+
+## Новое (chat 22)
+
+### Инкремент 2 spec-006 готов: /members для owner
+- **Feature**: 006-auth-and-roles
+- Страница `/c/[slug]/members` доступна только owner'у.
+- Create/reset-password/remove через Server Actions за `requireOwner` гейтом.
+- Создание ДМа ставит `must_change_password=true` → юзер сменит пароль при
+  первом входе (работает единая онбординг-воронка из инкремента 1).
+- `updateMemberRoleAction` написан, но UI не подключён — ждёт инкремента 3
+  (превращение dm↔player).
+
+### IDEA-035 [P3] Owner transfer
+- **Feature**: 006-auth-and-roles
+- Сейчас unique-индекс в БД гарантирует exactly-one-owner. Чтобы передать
+  владение, нужна атомарная операция: старый owner → dm, новый dm → owner.
+- Делать **не** через updateMemberRoleAction (она запрещает `role='owner'`
+  осознанно), а через отдельную `transferOwnershipAction` с транзакцией.
+- Когда: после инкремента 4. Реальная потребность — когда у пользователя
+  появится вторая кампания, где он не владелец.
+
+---
+
+## Старое (chat 20 и ранее)
+
+Updated-before: 2026-04-19 (chat 20)
 
 ---
 
