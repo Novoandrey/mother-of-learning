@@ -16,6 +16,8 @@ import {
   updateEffects,
   updateRole,
   updateTempHp,
+  updateAc,
+  updateDeathSaves,
   toggleParticipantActive,
   deleteParticipant,
   cloneParticipant,
@@ -99,8 +101,18 @@ export function useParticipantActions({
         round: getCurrentRound(),
       })
     }
-    setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, current_hp: hp } : p))
+    // Auto-clear death saves when healed back above 0.
+    const shouldResetSaves = p && hp > 0 && p.current_hp === 0 &&
+      ((p.death_saves?.successes ?? 0) > 0 || (p.death_saves?.failures ?? 0) > 0)
+    setParticipants((ps) => ps.map((row) => {
+      if (row.id !== id) return row
+      if (shouldResetSaves) return { ...row, current_hp: hp, death_saves: { successes: 0, failures: 0 } }
+      return { ...row, current_hp: hp }
+    }))
     try { await updateHp(id, hp) } catch { router.refresh() }
+    if (shouldResetSaves) {
+      try { await updateDeathSaves(id, { successes: 0, failures: 0 }) } catch { /* best-effort */ }
+    }
   }, [participants, onAutoEvent, getCurrentRound, router, setParticipants])
 
   const onHpRaw = useCallback(async (id: string, raw: string) => {
@@ -163,6 +175,44 @@ export function useParticipantActions({
       try { await updateTempHp(t, n) } catch { /* best-effort */ }
     }
   }, [getTargets, setParticipants])
+
+  const onAc = useCallback(async (id: string, v: string) => {
+    const trimmed = v.trim()
+    const n = trimmed === '' ? null : parseInt(trimmed)
+    if (trimmed !== '' && isNaN(n!)) return
+    const targets = getTargets(id)
+    setParticipants((ps) => ps.map((p) => targets.includes(p.id) ? { ...p, ac: n } : p))
+    for (const t of targets) {
+      try { await updateAc(t, n) } catch { /* best-effort */ }
+    }
+  }, [getTargets, setParticipants])
+
+  // Death saves: click advances per kind (success/failure), capped at 3.
+  // Reaching 3 failures = dead (we don't auto-apply, just let DM read the grid).
+  // Reaching 3 successes = stabilised.
+  // Right-click (handled in grid) resets all to 0.
+  const onDeathSaveTick = useCallback(async (id: string, kind: 'successes' | 'failures') => {
+    const p = participants.find((x) => x.id === id)
+    if (!p) return
+    const cur = p.death_saves || { successes: 0, failures: 0 }
+    const next = { ...cur, [kind]: Math.min(3, (cur[kind] || 0) + 1) }
+    setParticipants((ps) => ps.map((row) => row.id === id ? { ...row, death_saves: next } : row))
+    try { await updateDeathSaves(id, next) } catch { router.refresh() }
+    if (onAutoEvent) {
+      onAutoEvent({
+        action: 'custom',
+        target: p.display_name,
+        result: { note: kind === 'successes' ? `Спасбросок от смерти: успех (${next.successes}/3)` : `Спасбросок от смерти: провал (${next.failures}/3)` },
+        round: getCurrentRound(),
+      })
+    }
+  }, [participants, router, onAutoEvent, getCurrentRound, setParticipants])
+
+  const onDeathSavesReset = useCallback(async (id: string) => {
+    const cleared = { successes: 0, failures: 0 }
+    setParticipants((ps) => ps.map((row) => row.id === id ? { ...row, death_saves: cleared } : row))
+    try { await updateDeathSaves(id, cleared) } catch { router.refresh() }
+  }, [router, setParticipants])
 
   const onName = useCallback(async (id: string, name: string) => {
     if (!name.trim()) return
@@ -314,7 +364,7 @@ export function useParticipantActions({
   const addManual = useCallback(async (name: string, hp: number) => {
     try {
       const row = await addParticipantManual(encounterId, name, hp)
-      setParticipants((ps) => [...ps, { ...row, node: null, conditions: [], effects: [], temp_hp: 0, role: 'enemy' }])
+      setParticipants((ps) => [...ps, { ...row, node: null, conditions: [], effects: [], temp_hp: 0, role: 'enemy', ac: null, death_saves: { successes: 0, failures: 0 } }])
     } catch (e) { console.error(e) }
   }, [encounterId, setParticipants])
 
@@ -331,16 +381,22 @@ export function useParticipantActions({
         const v = cat ? computeMonsterHp(cat.fields, hpMethod) : 0
         hps.push(v > 0 ? v : hp)
       }
-      const rows = await addParticipantFromCatalog(encounterId, nodeId, name, hps)
+      // Seed AC from catalog node fields (falls back to null if absent / not a number).
+      const rawAc = cat?.fields?.ac
+      const acSeed = typeof rawAc === 'number' ? rawAc
+        : (typeof rawAc === 'string' && !isNaN(parseInt(rawAc)) ? parseInt(rawAc) : null)
+      const rows = await addParticipantFromCatalog(encounterId, nodeId, name, hps, acSeed)
       setParticipants((ps) => [...ps, ...rows.map((r: any) => ({
         ...r, node: nd, conditions: r.conditions || [], effects: r.effects || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy',
+        death_saves: r.death_saves || { successes: 0, failures: 0 },
       }))])
       router.refresh()
     } catch (e) { console.error(e) }
   }, [encounterId, router, catalogNodes, setParticipants, hpMethod])
 
   return {
-    onInit, onHp, onHpRaw, onMaxHp, onTempHp, onName, onRole,
+    onInit, onHp, onHpRaw, onMaxHp, onTempHp, onAc, onName, onRole,
+    onDeathSaveTick, onDeathSavesReset,
     onConds, onEffects, onToggle, onDelete, onClone,
     endCombat, addManual, addFromCatalog,
   }

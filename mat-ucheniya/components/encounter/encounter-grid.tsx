@@ -8,6 +8,7 @@ import { HpCell } from './hp-cell'
 import { TagCell } from './tag-cell'
 import { AddParticipantRow } from './add-participant-row'
 import { NameCell } from './name-cell'
+import { DeathSavesCell } from './death-saves-cell'
 import { SaveAsTemplateButton } from '@/components/save-as-template-button'
 import type { EventAction, EventResult } from '@/lib/event-actions'
 import { useSelection } from '@/hooks/use-selection'
@@ -33,6 +34,8 @@ export type Participant = {
   max_hp: number
   current_hp: number
   temp_hp: number
+  ac: number | null
+  death_saves: { successes: number; failures: number }
   role: string
   sort_order: number
   is_active: boolean
@@ -306,7 +309,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
       >
         <table
           className="w-full border-collapse text-[13px]"
-          style={{ minWidth: 960 }}
+          style={{ minWidth: 1120 }}
         >
           <thead>
             <tr
@@ -317,20 +320,22 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                 borderBottom: '1px solid var(--gray-300)',
               }}
             >
-              <th className={`w-10 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE} />
+              <th className={`w-10 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE} title="Номер строки · клик = выделить">#</th>
               <th className={`w-14 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE}>Ин.</th>
+              <th className={`w-12 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE} title="Класс доспеха (КД)">AC</th>
               <th className={`px-3 py-2 text-left ${CELL}`} style={CELL_STYLE}>Имя</th>
               <th className={`w-[180px] px-2 py-2 text-left ${CELL}`} style={CELL_STYLE}>Состояния</th>
               <th className={`w-[180px] px-2 py-2 text-left ${CELL}`} style={CELL_STYLE}>Эффекты</th>
               <th className={`w-28 px-2 py-2 text-center ${CELL}`} style={CELL_STYLE}>HP</th>
               <th className={`w-12 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE} title="Временные хиты">Вр.</th>
+              <th className={`w-[120px] px-1 py-2 text-center ${CELL}`} style={CELL_STYLE} title="Спасброски от смерти (только для PC на 0 HP)">Смерть</th>
               <th className="w-[140px] px-1 py-2 text-center">Действия</th>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-10 text-center text-[13px]" style={{ color: 'var(--fg-mute)' }}>
+                <td colSpan={10} className="py-10 text-center text-[13px]" style={{ color: 'var(--fg-mute)' }}>
                   Добавьте участников ↓
                 </td>
               </tr>
@@ -384,7 +389,10 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = rowBg }}
                 >
-                  {/* Role dot + turn marker */}
+                  {/* # column — row index + bulk-select indicator.
+                      Turn marker ▶ lives here too; row state bg+stripe from row-level style.
+                      Clicking the row already toggles selection (tr onClick), so this cell
+                      just visualises that with the index number + selected pill. */}
                   <td
                     className={`px-1 py-1 text-center align-middle ${CELL}`}
                     style={{
@@ -403,18 +411,15 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                           ▶
                         </span>
                       )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          actions.onRole(p.id)
+                      <span
+                        className="font-mono tabular text-[11px]"
+                        style={{
+                          color: selected ? 'var(--blue-700)' : 'var(--fg-mute)',
+                          fontWeight: selected ? 700 : 500,
                         }}
-                        disabled={done}
-                        className={`inline-block h-2.5 w-2.5 rounded-full transition-all ${
-                          done ? '' : 'cursor-pointer hover:ring-2 hover:ring-offset-1'
-                        }`}
-                        style={{ background: ROLE_DOT_COLOR[p.role] || ROLE_DOT_COLOR.enemy }}
-                        title={`${ROLE_LABEL[p.role] || p.role} — клик для смены`}
-                      />
+                      >
+                        {idx + 1}
+                      </span>
                     </div>
                   </td>
 
@@ -433,12 +438,40 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                     />
                   </td>
 
-                  {/* Name + statblock link */}
+                  {/* AC */}
+                  <td
+                    className={`px-1 py-1 text-center align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
+                    <EditableCell
+                      value={p.ac}
+                      onCommit={(v) => actions.onAc(p.id, v)}
+                      type="number"
+                      placeholder="—"
+                      disabled={done}
+                      className="text-center font-mono tabular"
+                    />
+                  </td>
+
+                  {/* Name + role dot + statblock link */}
                   <td
                     className={`px-3 py-1 align-middle ${CELL}`}
                     style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
                   >
                     <div className="flex items-center gap-1.5">
+                      {/* Role dot — click to cycle enemy→pc→ally→neutral. Tooltip shows label. */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          actions.onRole(p.id)
+                        }}
+                        disabled={done}
+                        className={`flex-shrink-0 inline-block h-2.5 w-2.5 rounded-full transition-all ${
+                          done ? '' : 'cursor-pointer hover:ring-2 hover:ring-offset-1'
+                        }`}
+                        style={{ background: ROLE_DOT_COLOR[p.role] || ROLE_DOT_COLOR.enemy }}
+                        title={`${ROLE_LABEL[p.role] || p.role} — клик для смены`}
+                      />
                       {done ? (
                         p.node ? (
                           <Link
@@ -554,6 +587,22 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                       placeholder="—"
                       disabled={done}
                       className="text-center font-mono tabular"
+                    />
+                  </td>
+
+                  {/* Death saves — only for PCs at 0 HP; blank otherwise.
+                      Keeps alignment stable; non-PC rows show an em-dash. */}
+                  <td
+                    className={`px-1 py-1 align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
+                    <DeathSavesCell
+                      successes={p.death_saves?.successes ?? 0}
+                      failures={p.death_saves?.failures ?? 0}
+                      visible={p.node?.type?.slug === 'character' && p.current_hp === 0 && p.max_hp > 0}
+                      onTick={(kind) => actions.onDeathSaveTick(p.id, kind)}
+                      onReset={() => actions.onDeathSavesReset(p.id)}
+                      disabled={done}
                     />
                   </td>
 

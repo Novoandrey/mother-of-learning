@@ -3,7 +3,18 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-19 (chat 13)
+Updated: 2026-04-19 (chat 19)
+
+---
+
+## Новое (chat 19)
+
+### Stage 2 готов: AC + death saves + # column + role dot возле имени
+- **Feature**: 002-encounter-tracker / spec-007 stage 2
+- Миграция 023 добавила `encounter_participants.ac int` + `death_saves jsonb`.
+- Новые колонки в гриде; role dot переехал к имени; `#` теперь номер строки
+  с индикатором bulk-select.
+- Осталось в этапе 4: PillEditor (stage 3) и трекер трат action/bonus/movement (stage 4).
 
 ---
 

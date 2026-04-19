@@ -42,7 +42,8 @@ export async function addParticipantFromCatalog(
   encounterId: string,
   nodeId: string,
   displayName: string,
-  hps: number[]
+  hps: number[],
+  ac: number | null = null,
 ) {
   const supabase = createClient()
   const rows = hps.map((hp, i) => ({
@@ -51,6 +52,7 @@ export async function addParticipantFromCatalog(
     display_name: hps.length === 1 ? displayName : `${displayName} ${i + 1}`,
     max_hp: hp,
     current_hp: hp,
+    ac,
   }))
   const { data, error } = await supabase
     .from('encounter_participants')
@@ -168,6 +170,26 @@ export async function updateEffects(participantId: string, effects: TagEntry[]) 
   const { error } = await supabase
     .from('encounter_participants')
     .update({ effects })
+    .eq('id', participantId)
+  if (error) throw error
+}
+
+export async function updateAc(participantId: string, ac: number | null) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('encounter_participants')
+    .update({ ac })
+    .eq('id', participantId)
+  if (error) throw error
+}
+
+export type DeathSaves = { successes: number; failures: number }
+
+export async function updateDeathSaves(participantId: string, saves: DeathSaves) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('encounter_participants')
+    .update({ death_saves: saves })
     .eq('id', participantId)
   if (error) throw error
 }
