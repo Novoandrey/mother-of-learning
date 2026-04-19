@@ -371,13 +371,13 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
             })}
           </tbody>
         </table>
-
-        {!done && (
-          <div className="border border-t-0 border-gray-200 bg-gray-50/50">
-            <AddParticipantRow catalogNodes={catalogNodes} onAddFromCatalog={actions.addFromCatalog} onAddManual={actions.addManual} />
-          </div>
-        )}
       </div>
+
+      {!done && (
+        <div className="border border-t-0 border-gray-200 bg-gray-50/50">
+          <AddParticipantRow catalogNodes={catalogNodes} onAddFromCatalog={actions.addFromCatalog} onAddManual={actions.addManual} />
+        </div>
+      )}
     </div>
   )
 })

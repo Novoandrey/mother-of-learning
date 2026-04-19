@@ -1,7 +1,7 @@
 # NEXT — контекст для следующего чата
 
 > Этот файл обновляется в конце каждого чата. Всегда актуален.
-> Last updated: 2026-04-19 (chat 11 — hotfix encounter-grid + QA)
+> Last updated: 2026-04-19 (chat 12 — 5 UX фиксов на странице энкаунтера)
 
 ## Что сделано (накопительно)
 
@@ -62,14 +62,32 @@
 - **`npm run build`** — прошёл чисто. TypeScript 0 ошибок, Turbopack 25.1s.
 - **Миграция 020** отдана пользователю через `present_files`. Применить в Supabase SQL Editor.
 
+## Что сделано в этом чате (chat 12, 2026-04-19)
+
+### 5 UX-фиксов на странице энкаунтера ✅
+
+1. **Reactions reset at START of own turn** — уже работало. Оставил существующий `useEffect` на `activeId` в `encounter-page-client.tsx`. Проверено.
+2. **Legendary reset at END of own turn** — добавлен `prevActiveIdRef` + второй `useEffect`. При смене `activeId` c `prev` на новый, если у `prev` был `legendary_used > 0` — сбрасывается в 0 и пишется в Supabase. Ловит именно конец хода, а не начало.
+3. **Hide UniversalSidebar on encounter detail page** — новый клиентский компонент `components/campaign-sidebar-aside.tsx`. Проверяет `usePathname()` против регэкспа `/c/:slug/encounters/:uuid$`, возвращает `null` если совпало. Сам `<aside>` тоже живёт внутри — пропадает вместе с содержимым. В `app/c/[slug]/layout.tsx` заменил прямой `<aside>` на `<CampaignSidebarAside />`. На каталоге и остальных страницах всё как было.
+4. **AddParticipantRow dropdown clipped** — вынесен из `overflow-x-auto` обёртки в `encounter-grid.tsx`. Теперь row сидит сразу под таблицей на том же уровне, что outer `<div>`, и dropdown свободно выпадает вниз без клипа. Пришлось почистить лишний `</div>` после перестановки.
+5. **EncounterLog — newest at top + no auto-scroll** — `timeline.slice().reverse().map(...)` для отрисовки. Удалён `useEffect` с `scrollIntoView`, `bottomRef`, `prevLenRef` и якорь `<div ref={bottomRef} />`. Импорт `useEffect` убран из `encounter-log.tsx`.
+
+### Build + commit
+
+- `npm run build` — чисто. Turbopack 18.5s, TypeScript 0 ошибок.
+- Коммит `b12-5-ux-fixes` в main, push.
+
 ## ⚠️ Действия для пользователя
 
-1. **Применить миграцию 020** в Supabase SQL Editor (счётчики реакций/легендарок) — файл на руках.
+1. **Применить миграцию 020** (счётчики реакций/легендарок) если ещё не применена — файл в `mat-ucheniya/supabase/migrations/020_*.sql`.
 2. Убедиться, что 018 и 019 уже применены.
 3. **QA на проде** после deploy:
-   - `/c/mat-ucheniya/encounters/[id]` с активным SRD-монстром.
+   - `/c/mat-ucheniya/encounters/[id]` — левый сайдбар скрыт (только на этой странице, каталог остаётся со сайдбаром).
+   - Начать бой → счётчик реакций сбрасывается при **входе** в свой ход, счётчик легендарок сбрасывается при **выходе** из своего хода.
+   - Добавить участника → поле поиска → dropdown не обрезается краем таблицы.
+   - Лог: новые записи появляются **сверху**, страница не прыгает вниз при добавлении события.
    - Правый сайдбар: табы "Статблок" / "Каталог".
-   - Клик "→" (следующий ход) → панель показывает активного участника, статблок из `node.fields`, HP живой (меняется от урона без reload), counter реакций сбрасывается.
+   - Клик "→" (следующий ход) → панель показывает активного участника, статблок из `node.fields`, HP живой (меняется от урона без reload).
    - Hover по кнопке действия → тёмный тултип слева с подсветкой формул (+N to hit жёлтый, NdN+N красный, DC N Stat синий).
    - Клик по area action (Fire Breath у дракона) → TargetPicker с чекбоксами, KO-цели выбираемы, dead задизаблены.
    - Apply → запись в лог.

@@ -161,11 +161,23 @@ export function EncounterPageClient({
 
   const activeCounters = active ? (counters[active.id] ?? { used_reactions: 0, legendary_used: 0 }) : null
 
-  // Reset reactions to 0 when turn passes to a new participant.
+  // Reset reactions to 0 at START of own turn (when activeId becomes this.id).
   useEffect(() => {
     if (!activeId) return
     const current = counters[activeId]?.used_reactions ?? 0
     if (current > 0) setReactions(activeId, 0)
+     
+  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset legendary actions at END of own turn (when activeId moves AWAY from prev).
+  const prevActiveIdRef = useRef<string | null>(activeId)
+  useEffect(() => {
+    const prev = prevActiveIdRef.current
+    if (prev && prev !== activeId) {
+      const used = counters[prev]?.legendary_used ?? 0
+      if (used > 0) setLegendary(prev, 0)
+    }
+    prevActiveIdRef.current = activeId
      
   }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
 

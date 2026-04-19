@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { useState, useRef, type KeyboardEvent } from 'react'
 import { addLogEntry, deleteLogEntry, updateLogEntry, type LogEntry } from '@/lib/log-actions'
 import {
   deleteEvent,
@@ -57,17 +57,7 @@ export function EncounterLog({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const prevLenRef = useRef(timeline.length)
-
-  // Auto-scroll to bottom on new entries
-  useEffect(() => {
-    if (timeline.length > prevLenRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-    prevLenRef.current = timeline.length
-  }, [timeline.length])
 
   // ── Manual log handlers ─────────────────────────
 
@@ -207,15 +197,14 @@ export function EncounterLog({
         </span>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline — newest entries at the top */}
       <div className="max-h-[400px] min-h-[120px] overflow-y-auto px-3 py-2 space-y-1">
         {timeline.length === 0 && (
           <p className="py-4 text-center text-xs text-gray-300">
             Пусто. Записывайте ход боя.
           </p>
         )}
-        {timeline.map(renderTimelineItem)}
-        <div ref={bottomRef} />
+        {timeline.slice().reverse().map(renderTimelineItem)}
       </div>
 
       {/* Input (manual DM text) */}

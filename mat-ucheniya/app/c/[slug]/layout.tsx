@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { NavTabs } from '@/components/nav-tabs'
-import { CatalogSidebarWrapper } from '@/components/catalog-sidebar-wrapper'
+import { CampaignSidebarAside } from '@/components/campaign-sidebar-aside'
 
 export default async function CampaignLayout({
   children,
@@ -62,14 +62,12 @@ export default async function CampaignLayout({
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">
-        {/* Sidebar */}
-        <aside className="w-56 flex-shrink-0 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
-          <CatalogSidebarWrapper
-            nodeTypes={nodeTypes || []}
-            nodes={nodes}
-            campaignSlug={slug}
-          />
-        </aside>
+        {/* Sidebar (hidden on encounter detail page) */}
+        <CampaignSidebarAside
+          nodeTypes={nodeTypes || []}
+          nodes={nodes}
+          campaignSlug={slug}
+        />
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto min-w-0 px-4 py-4">
