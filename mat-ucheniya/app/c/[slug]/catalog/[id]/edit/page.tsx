@@ -1,6 +1,7 @@
 import { getCampaignBySlug } from '@/lib/campaign'
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { canEditNode, getMembership, requireAuth } from '@/lib/auth'
+import { notFound, redirect } from 'next/navigation'
 import { CreateNodeForm } from '@/components/create-node-form'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -30,6 +31,15 @@ export default async function EditNodePage({
   const { slug, id } = await params
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
+
+  // Auth: must be a signed-in campaign member. Then must have write rights
+  // for this specific node — else bounce to the read-only detail view.
+  const { user } = await requireAuth()
+  const membership = await getMembership(campaign.id)
+  if (!membership) redirect('/')
+
+  const canEdit = await canEditNode(id, campaign.id, user.id, membership.role)
+  if (!canEdit) redirect(`/c/${slug}/catalog/${id}`)
 
   const supabase = await createClient()
   const { data: node } = await supabase

@@ -3,7 +3,33 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-19 (chat 22)
+Updated: 2026-04-19 (chat 24)
+
+---
+
+## Новое (chat 24)
+
+### IDEA-034 [P2] Visibility='dm_only' для секретных нод
+- **Feature**: 006-auth-and-roles (расширение после закрытия spec-006)
+- Колонка `nodes.visibility enum('public','dm_only') DEFAULT 'public'`.
+- RLS: `nodes_select` добавляет условие `visibility='public' OR
+  is_dm_or_owner(campaign_id)`.
+- UI: на карточке ноды чекбокс «Скрыть от игроков» (только для ДМа).
+- Когда: когда появятся сюрпризные статблоки, закрытые NPC, планы
+  следующей петли — т.е. появится что скрывать.
+
+### IDEA-036 [P3] Единый canEdit для loops/sessions edit-страниц
+- **Feature**: dx
+- Сейчас `/loops/[id]/edit` и аналоги не обёрнуты в `canEdit`-паттерн.
+  Игрок получит ошибку от RLS при попытке сохранить, но UI это не
+  прячет. Привести к тому же паттерну что и `catalog/[id]/edit`.
+- Низкий приоритет: loops/sessions редко правятся, а RLS защищает.
+
+---
+
+## Старое (chat 22 и ранее)
+
+Updated-before: 2026-04-19 (chat 22)
 
 ---
 

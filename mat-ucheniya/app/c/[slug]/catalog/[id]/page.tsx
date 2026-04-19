@@ -204,6 +204,18 @@ export default async function NodePage({
     }
   }
 
+  // Spec-006 increment 4: canEdit decides which write-UI renders in the
+  // detail view (edit/delete buttons, tag editor, add-edge form).
+  // - owner/dm → always true
+  // - player  → true only on their own PC (character + viewer in owners)
+  // RLS on the server-side is the hard boundary; this just mirrors it
+  // so the UI doesn't show buttons that would 403.
+  const isManager = membership.role === 'owner' || membership.role === 'dm'
+  let canEdit = isManager
+  if (!isManager && membership.role === 'player' && typeSlug === 'character' && ownerContext) {
+    canEdit = ownerContext.owners.some((o) => o.user_id === user.id)
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
       {parent ? (
@@ -230,7 +242,7 @@ export default async function NodePage({
         campaignSlug={slug}
         campaignId={campaign.id}
         ownerContext={ownerContext}
-        canEdit={true}
+        canEdit={canEdit}
       />
     </div>
   )

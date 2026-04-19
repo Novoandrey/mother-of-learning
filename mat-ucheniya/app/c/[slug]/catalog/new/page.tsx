@@ -1,5 +1,6 @@
 import { getCampaignBySlug } from '@/lib/campaign'
-import { notFound } from 'next/navigation'
+import { getMembership, requireAuth } from '@/lib/auth'
+import { notFound, redirect } from 'next/navigation'
 import { CreateNodeForm } from '@/components/create-node-form'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -25,6 +26,15 @@ export default async function NewNodePage({
   const { type: typeParam } = await searchParams
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
+
+  // Spec-006 increment 4: creating new nodes is reserved for owner/dm.
+  // Players bounce back to the catalog.
+  await requireAuth()
+  const membership = await getMembership(campaign.id)
+  if (!membership) redirect('/')
+  if (membership.role !== 'owner' && membership.role !== 'dm') {
+    redirect(`/c/${slug}/catalog`)
+  }
 
   return (
     <div className="mx-auto max-w-5xl">

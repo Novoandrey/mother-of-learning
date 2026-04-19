@@ -23,6 +23,8 @@ export default async function CampaignLayout({
   const membership = await getMembership(campaign.id)
   if (!membership) redirect('/')
 
+  const isManager = membership.role === 'owner' || membership.role === 'dm'
+
   const supabase = await createClient()
 
   const { data: nodeTypes } = await supabase
@@ -56,12 +58,14 @@ export default async function CampaignLayout({
             {campaign.name}
           </Link>
           <div className="flex items-center gap-4">
-            <Link
-              href={`/c/${slug}/catalog/new`}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              <span className="text-lg leading-none">+</span> Создать
-            </Link>
+            {isManager && (
+              <Link
+                href={`/c/${slug}/catalog/new`}
+                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              >
+                <span className="text-lg leading-none">+</span> Создать
+              </Link>
+            )}
             <UserMenu />
           </div>
         </div>
