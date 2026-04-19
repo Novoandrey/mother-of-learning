@@ -88,14 +88,34 @@ export function EncounterPageClient({
   // Snapshot of live participants (updated by EncounterGrid via callback).
   const [participantsSnap, setParticipantsSnap] = useState(initialParticipants)
 
-  // Active participant: whose statblock is shown. Defaults to turn-holder.
-  const [activeId, setActiveId] = useState<string | null>(encounter.current_turn_id ?? null)
+  // Turn holder (updated by EncounterGrid when turn advances).
+  const [turnId, setTurnId] = useState<string | null>(encounter.current_turn_id ?? null)
+  // User override — shows someone else's statblock without changing turn.
+  // null = follow turn holder.
+  const [inspectedId, setInspectedId] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<RightTab>('statblock')
 
-  const handleActiveChange = useCallback((id: string | null) => {
-    setActiveId(id)
+  // When the grid reports a new turn holder, update tracking and clear any
+  // manual inspection — the new active turn gets focus automatically.
+  const handleTurnChange = useCallback((id: string | null) => {
+    setTurnId(id)
+    setInspectedId(null)
     if (id) setRightTab('statblock')
   }, [])
+
+  // User clicked a name cell → show that one's statblock, don't touch turn.
+  const handleInspect = useCallback((id: string) => {
+    setInspectedId(id)
+    setRightTab('statblock')
+  }, [])
+
+  // Return to turn holder.
+  const handleFollowTurn = useCallback(() => {
+    setInspectedId(null)
+  }, [])
+
+  // Effective active participant = inspected override, else turn holder.
+  const activeId = inspectedId ?? turnId
 
   const timeline: TimelineItem[] = mergeTimeline(events, logEntries)
 
@@ -184,25 +204,26 @@ export function EncounterPageClient({
     ? (counters[active.id] ?? { used_reactions: 0, legendary_used: 0, legendary_resistance_used: 0 })
     : null
 
-  // Reset reactions to 0 at START of own turn (when activeId becomes this.id).
+  // Reset reactions to 0 at START of own turn (when turnId becomes this.id).
+  // Tied to turnId — inspecting someone else never triggers a reset.
   useEffect(() => {
-    if (!activeId) return
-    const current = counters[activeId]?.used_reactions ?? 0
-    if (current > 0) setReactions(activeId, 0)
+    if (!turnId) return
+    const current = counters[turnId]?.used_reactions ?? 0
+    if (current > 0) setReactions(turnId, 0)
      
-  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turnId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset legendary actions at END of own turn (when activeId moves AWAY from prev).
-  const prevActiveIdRef = useRef<string | null>(activeId)
+  // Reset legendary actions at END of own turn (when turnId moves AWAY from prev).
+  const prevTurnIdRef = useRef<string | null>(turnId)
   useEffect(() => {
-    const prev = prevActiveIdRef.current
-    if (prev && prev !== activeId) {
+    const prev = prevTurnIdRef.current
+    if (prev && prev !== turnId) {
       const used = counters[prev]?.legendary_used ?? 0
       if (used > 0) setLegendary(prev, 0)
     }
-    prevActiveIdRef.current = activeId
+    prevTurnIdRef.current = turnId
      
-  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turnId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Target picker candidates ────────────────────────────────────────
   const pickerTargets: PickerParticipant[] = useMemo(() => {
@@ -332,7 +353,8 @@ export function EncounterPageClient({
           conditionNames={conditionNames}
           effectNames={effectNames}
           onAutoEvent={done ? undefined : handleAutoEvent}
-          onActiveChange={done ? undefined : handleActiveChange}
+          onActiveChange={done ? undefined : handleTurnChange}
+          onInspect={done ? undefined : handleInspect}
           onParticipantsChange={setParticipantsSnap}
         />
 
@@ -348,7 +370,7 @@ export function EncounterPageClient({
       </div>
 
       {/* Right rail */}
-      <div className="flex-shrink-0" style={{ width: 440 }}>
+      <div className="flex-shrink-0" style={{ width: 440, minWidth: 440 }}>
         <div
           className="mb-2 flex gap-1 rounded-md border p-1"
           style={{ borderColor: 'var(--gray-200)', background: 'var(--gray-50)' }}
@@ -386,6 +408,20 @@ export function EncounterPageClient({
           </button>
         </div>
 
+        {/* Inspecting-other banner — shown only when the DM is looking at
+            someone other than the turn holder. Click to snap back. */}
+        {rightTab === 'statblock' && inspectedId && inspectedId !== turnId && active && (
+          <button
+            type="button"
+            onClick={handleFollowTurn}
+            className="mb-2 flex w-full items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-left text-[11px] text-amber-800 transition-colors hover:bg-amber-100"
+            title="Вернуться к тому, чей ход"
+          >
+            <span>👁 Смотришь: <b>{active.display_name}</b>, ход сейчас не его</span>
+            <span className="ml-auto text-amber-600">← К ходящему</span>
+          </button>
+        )}
+
         {rightTab === 'statblock' ? (
           active && activeCounters ? (
             <StatblockPanel
@@ -410,7 +446,7 @@ export function EncounterPageClient({
             />
           ) : (
             <div
-              className="rounded-lg border bg-white p-4 text-center"
+              className="w-full rounded-lg border bg-white p-4 text-center"
               style={{ borderColor: 'var(--gray-200)' }}
             >
               <div className="text-[12px]" style={{ color: 'var(--fg-3)' }}>

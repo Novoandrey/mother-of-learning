@@ -113,16 +113,20 @@ export function StatblockPanel({
   if (!statblock) {
     return (
       <div
-        className="rounded-lg border bg-white p-4 text-center"
-        style={{ borderColor: 'var(--gray-200)' }}
+        className="sticky top-4 flex w-full max-h-[calc(100vh-32px)] flex-col overflow-hidden rounded-lg border bg-white"
+        style={{ borderColor: 'var(--gray-200)', boxShadow: 'var(--shadow-sm)' }}
       >
-        <div className="text-[13px] font-medium" style={{ color: 'var(--gray-900)' }}>
-          {participant.display_name}
+        <div className="border-b p-3.5" style={{ borderColor: 'var(--gray-200)' }}>
+          <div className="text-[15px] font-semibold" style={{ color: 'var(--gray-900)' }}>
+            {participant.display_name}
+          </div>
         </div>
-        <div className="mt-1 text-[11px]" style={{ color: 'var(--fg-3)' }}>
-          У этой ноды нет статблока.
-          <br />
-          Открой карточку в каталоге и заполни поля (ac, hp, actions…).
+        <div className="flex flex-1 items-center justify-center p-6 text-center">
+          <div className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+            У этой ноды нет статблока.
+            <br />
+            Открой карточку в каталоге и заполни поля (ac, hp, actions…).
+          </div>
         </div>
       </div>
     )
@@ -149,7 +153,7 @@ export function StatblockPanel({
   return (
     <>
       <div
-        className="sticky top-4 flex max-h-[calc(100vh-32px)] flex-col overflow-hidden rounded-lg border bg-white"
+        className="sticky top-4 flex w-full max-h-[calc(100vh-32px)] flex-col overflow-hidden rounded-lg border bg-white"
         style={{ borderColor: 'var(--gray-200)', boxShadow: 'var(--shadow-sm)' }}
       >
         {/* ── Header ────────────────────────────────────────────── */}
@@ -265,8 +269,8 @@ export function StatblockPanel({
               max={1}
               icon="zap"
               disabled={disabled}
-              onDec={() => onChangeReactions(Math.max(0, participant.used_reactions - 1))}
-              onInc={() => onChangeReactions(Math.min(1, participant.used_reactions + 1))}
+              onSpend={() => onChangeReactions(Math.min(1, participant.used_reactions + 1))}
+              onRestore={() => onChangeReactions(Math.max(0, participant.used_reactions - 1))}
             />
             {legBudget > 0 && (
               <CounterChip
@@ -275,8 +279,8 @@ export function StatblockPanel({
                 max={legBudget}
                 icon="crown"
                 disabled={disabled}
-                onDec={() => onChangeLegendary(Math.max(0, participant.legendary_used - 1))}
-                onInc={() => onChangeLegendary(Math.min(legBudget, participant.legendary_used + 1))}
+                onSpend={() => onChangeLegendary(Math.min(legBudget, participant.legendary_used + 1))}
+                onRestore={() => onChangeLegendary(Math.max(0, participant.legendary_used - 1))}
               />
             )}
             {lrBudget > 0 && (
@@ -286,12 +290,14 @@ export function StatblockPanel({
                 max={lrBudget}
                 icon="sparkles"
                 disabled={disabled}
-                onDec={() =>
-                  onChangeLegendaryResistance(Math.max(0, participant.legendary_resistance_used - 1))
-                }
-                onInc={() =>
+                onSpend={() =>
                   onChangeLegendaryResistance(
                     Math.min(lrBudget, participant.legendary_resistance_used + 1),
+                  )
+                }
+                onRestore={() =>
+                  onChangeLegendaryResistance(
+                    Math.max(0, participant.legendary_resistance_used - 1),
                   )
                 }
               />

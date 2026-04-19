@@ -8,6 +8,7 @@ import { HpCell } from './hp-cell'
 import { TagCell } from './tag-cell'
 import { AddParticipantRow } from './add-participant-row'
 import { RowActionsMenu } from './row-actions-menu'
+import { NameCell } from './name-cell'
 import { SaveAsTemplateButton } from '@/components/save-as-template-button'
 import type { EventAction, EventResult } from '@/lib/event-actions'
 import { useSelection } from '@/hooks/use-selection'
@@ -61,6 +62,8 @@ type Props = {
   onAutoEvent?: (evt: { actor?: string | null; action: EventAction; target?: string | null; result?: EventResult; round?: number | null; turn?: string | null }) => void
   /** Fires when the turn-holder changes OR user clicks a row to inspect it. */
   onActiveChange?: (participantId: string | null) => void
+  /** Fires when user explicitly clicks "inspect statblock" on a row — doesn't change turn order. */
+  onInspect?: (participantId: string) => void
   /** Fires whenever the participant list or any row changes. */
   onParticipantsChange?: (participants: Participant[]) => void
 }
@@ -94,6 +97,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   effectNames,
   onAutoEvent,
   onActiveChange,
+  onInspect,
   onParticipantsChange,
 }, ref) {
   // ── State owned by this component ─────────────────
@@ -268,7 +272,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
               <th className="border border-gray-200 w-8 px-1 py-1.5 text-center" />
               <th className="border border-gray-200 w-16 px-1 py-1.5 text-center">Ин.</th>
               <th className="border border-gray-200 px-2 py-1.5 text-left">Имя</th>
-              <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Условия</th>
+              <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Состояния</th>
               <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Эффекты</th>
               <th className="border border-gray-200 w-32 px-2 py-1.5 text-center">HP</th>
               <th className="border border-gray-200 w-14 px-1 py-1.5 text-center">Вр.</th>
@@ -313,11 +317,17 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                           <span className={`font-medium truncate text-sm ${isDown ? 'text-red-700 line-through' : ''}`}>{p.display_name}</span>
                         )
                       ) : (
-                        <EditableCell value={p.display_name} onCommit={(v) => actions.onName(p.id, v)} disabled={done}
-                          displayClassName={`font-medium truncate ${p.node ? 'text-blue-700' : isDown ? 'text-red-700 line-through' : ''}`} />
+                        <NameCell
+                          value={p.display_name}
+                          onCommit={(v) => actions.onName(p.id, v)}
+                          onInspect={onInspect ? () => onInspect(p.id) : undefined}
+                          disabled={done}
+                          className={`font-medium ${p.node ? 'text-blue-700' : isDown ? 'text-red-700 line-through' : ''}`}
+                        />
                       )}
                       {statUrl && (
                         <a href={statUrl} target="_blank" rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="flex-shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-blue-500 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 transition-colors"
                           title="Открыть статблок">
                           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
