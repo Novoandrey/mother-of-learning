@@ -91,6 +91,10 @@ function formatFieldValue(key: string, value: unknown): string {
 
 const URL_FIELDS = ['statblock_url', 'link', 'url']
 
+function isComplex(value: unknown): boolean {
+  return value !== null && typeof value === 'object'
+}
+
 function isUrl(key: string, value: unknown): boolean {
   if (value == null || value === '') return false
   const str = String(value)
@@ -284,6 +288,10 @@ export function NodeDetail({ node, edges, childNodes, chronicles, campaignSlug, 
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                       </svg>
                     </a>
+                  ) : isComplex(value) ? (
+                    <pre className="mt-1 max-h-96 overflow-auto rounded border border-gray-100 bg-gray-50 p-2 text-xs font-mono text-gray-600">
+                      {JSON.stringify(value, null, 2)}
+                    </pre>
                   ) : (
                     formatFieldValue(key, value)
                   )}
