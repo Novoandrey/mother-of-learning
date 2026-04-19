@@ -1,7 +1,7 @@
 # NEXT — контекст для следующего чата
 
 > Этот файл обновляется в конце каждого чата. Всегда актуален.
-> Last updated: 2026-04-19 (chat 17 — dropdown portal + turn buttons + exhaustion levels)
+> Last updated: 2026-04-19 (chat 18 — encounter grid restyle stage 1: design tokens)
 
 ## Что сделано (накопительно)
 
@@ -306,13 +306,71 @@
    - Атака моба: клик по "Bite" → picker цели → после выбора **resolve dialog** с полями урона/заметки → Apply → запись в логе + HP у цели уменьшилось без reload.
    - Self-action (Spellcasting и т.п.) → сразу resolve без picker.
 
+## Что сделано в этом чате (chat 18, 2026-04-19)
+
+### Spec-007 этап 4 — stage 1: рестайл таблицы энкаунтера на design tokens ✅
+
+Чисто визуальная переделка — без миграций, без новых колонок, без изменений логики. Цель была: привести грид к единому стилю с правой панелью статблока (которая уже на токенах), до того как добавлять AC/saves/SaveCounter и общую панель реакций.
+
+**Затронутые файлы:**
+- `components/encounter/encounter-grid.tsx` — таблица + header bar
+- `components/encounter/editable-cell.tsx`
+- `components/encounter/hp-cell.tsx`
+- `components/encounter/tag-cell.tsx`
+
+**Ключевые визуальные изменения:**
+- Все цвета/тени/радиусы/focus-кольца через `var(--…)` токены из `globals.css`, Tailwind-arbitrary-values на токенах.
+- **Turn row**: убрал `bg-yellow-50` → теперь `var(--blue-50)` + левый stripe 3px `var(--blue-500)` (через `box-shadow: inset 3px 0 0`). Жёлтый теперь зарезервирован под warning-семантику.
+- **Selected row**: та же конструкция с `var(--blue-400)` stripe.
+- **Down row**: `var(--red-50)` bg + line-through + red-700 name.
+- **Inactive**: opacity 0.35.
+- **Hover**: `var(--gray-50)` для обычных строк, не затирает turn/selected/down.
+- **Density**: строки `py-1`, шрифт body `13px`, header `10px uppercase tracking-wider`. Числа — `font-mono` + `tabular-nums` (`.tabular` класс из globals).
+- **HP bar**: высота уменьшена с 4px до 3px, цвета semantic (`--green-500` / `--amber-400` / `--red-500` / `--gray-300`), HP-числа `font-mono tabular`, slash мельче и мутнее.
+- **Tag pills**: уменьшены до `11px`, `py-[1px]`, `var(--gray-100)` bg, red hover на удаление.
+- **Tag dropdown**: токены + `var(--shadow-lg)`.
+- **Editable-cell focus**: `1px var(--blue-500)` border + `var(--shadow-focus)` halo (blue-100 3px glow).
+- **Table card**: всё обёрнуто в `rounded-[var(--radius-lg)]` border вокруг, внутренние borders — только `border-bottom` между строк через `var(--gray-100)`. Ячейки без собственных границ.
+- **Header bar**: primary синий `var(--blue-600)` на «Следующий →», secondary серый `var(--gray-100)` на «← Предыдущий». Кнопка «Стоп» — border с красным hover.
+
+**Что осталось работать без изменений** (проверено QA-чеклистом):
+- Inline-редактирование имени / инициативы / HP (smart parse -10/+7/30/60) / temp HP
+- Click по имени = inspect, double-click = rename (NameCell)
+- Ctrl+Click / Shift+Click = bulk selection, изменения пропагируются
+- TagCell portal-dropdown (не клипается overflow-контейнером)
+- Кнопки «Клон / Удал.» в последнем столбце
+- Floating «Выделено: N» pill
+- Header bar с Сессия/Петля/День/Раунд/контролами хода
+
+### Build + commit
+- `npm run build` — 22.4s, TS 0 ошибок.
+- Коммит `b18-restyle-encounter-grid-stage-1` в main, push.
+
+## ⚠️ Действия для пользователя (chat 18)
+
+1. **Деплой авто** через Vercel. Миграции не нужны.
+2. **QA на проде** (`/c/mat-ucheniya/encounters/{id}` с живыми участниками):
+   - Поехай между ходами стрелками → подсветка turn row теперь blue-50 + синий левый stripe (был жёлтый).
+   - Ctrl+Click по нескольким строкам → все выделенные имеют blue-400 stripe слева, плюс floating pill внизу.
+   - Нанеси урон через HP-клетку (`-10`) → бар стал тоньше (3px), цифры моно+tabular.
+   - Добавь состояние → пилюля меньше, при hover становится красной.
+   - Убей кого-нибудь (HP=0) → red-50 bg, имя перечёркнуто красным.
+   - Статблок-панель справа и таблица визуально **в одной системе** (раньше панель была Clean-стайл, таблица — старый gray-200 + yellow).
+3. Если что-то выглядит криво или функционал сломался — бекапы в `/tmp/backup-*.tsx` (в этой сессии), но файлы также в git до коммита `c553078`.
+
 ## Следующая задача
 
-### Priority 1: spec-007 этап 3 (общая панель реакций/легендарок)
-Агрегат по всем живым не-активным участникам: "кто может среагировать". Секция над правой панелью или внизу грида.
+### Priority 1: spec-007 этап 4 stage 2 — новые колонки + PillEditor + SaveCounter
+Когда stage 1 приживётся:
+- Миграция 023: `ac int DEFAULT 0`, `saves jsonb DEFAULT '{}'` в `encounter_participants` (или читать `ac` из `node.fields` — решить по ходу).
+- Новая колонка AC (inline number input).
+- Новая колонка «Спасы» (SaveCounter для death saves у PC).
+- PillEditor ClickUp-style — сейчас теги редактируются обычным inline dropdown, нужно более явное контекстное меню.
+- Колонка `#` для bulk-select (сейчас это нулевая колонка с role dot — перенести role dot в кружок рядом с именем или в tooltip).
 
-### Priority 2: spec-007 этап 4 (Excel-like grid polish — редизайн грида)
-По дизайну Claude Design — 9 колонок (# | Ин. | Имя | HP | Врем | AC | Состояния | Эффекты | Спасы), `#` = bulk-select, inline-редактирование всех ячеек, PillEditor ClickUp-style для conditions/effects, SaveCounter для death saves. **Требует миграцию** для `ac` и `saves` в `encounter_participants` (или взять `ac` из `node.fields`), и big refactor `encounter-grid.tsx`.
+### Priority 2: spec-007 этап 3 — общая панель реакций/легендарок
+Агрегат по всем живым не-активным участникам: «кто может среагировать».
+Делать после stage 2, потому что интеграция пойдёт через новые колонки (saves/AC влияют на «кто среагирует и с какой модификацией»).
 
 ## Приоритеты
 
