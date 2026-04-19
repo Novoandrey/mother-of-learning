@@ -1,9 +1,13 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { EncounterGrid, type CatalogNode, type EncounterGridHandle, type Participant } from './encounter-grid'
 import { EncounterLog } from './encounter-log'
 import { EncounterCatalogPanel } from './encounter-catalog-panel'
+import { StatblockPanel } from './statblock/statblock-panel'
+import { type PickerParticipant } from './statblock/target-picker-dialog'
+import { parseStatblock, hasDeadCondition, type StatblockAction } from '@/lib/statblock'
+import { createClient } from '@/lib/supabase/client'
 import { type LogEntry } from '@/lib/log-actions'
 import {
   addEvent,
@@ -13,6 +17,7 @@ import {
   type EventResult,
   type TimelineItem,
 } from '@/lib/event-actions'
+import { Swords, BookOpen } from 'lucide-react'
 
 type Props = {
   encounter: {
@@ -33,6 +38,8 @@ type Props = {
   initialEvents: EncounterEvent[]
 }
 
+type RightTab = 'statblock' | 'catalog'
+
 export function EncounterPageClient({
   encounter,
   initialParticipants,
@@ -49,7 +56,32 @@ export function EncounterPageClient({
   const done = encounter.status === 'completed'
   const gridRef = useRef<EncounterGridHandle>(null)
 
-  // Merged timeline for rendering
+  // Per-participant counters (reactions/legendary), seeded from DB.
+  const [counters, setCounters] = useState<Record<string, { used_reactions: number; legendary_used: number }>>(
+    () => {
+      const out: Record<string, { used_reactions: number; legendary_used: number }> = {}
+      for (const p of initialParticipants) {
+        out[p.id] = {
+          used_reactions: (p as unknown as { used_reactions?: number }).used_reactions ?? 0,
+          legendary_used: (p as unknown as { legendary_used?: number }).legendary_used ?? 0,
+        }
+      }
+      return out
+    },
+  )
+
+  // Snapshot of live participants (updated by EncounterGrid via callback).
+  const [participantsSnap, setParticipantsSnap] = useState(initialParticipants)
+
+  // Active participant: whose statblock is shown. Defaults to turn-holder.
+  const [activeId, setActiveId] = useState<string | null>(encounter.current_turn_id ?? null)
+  const [rightTab, setRightTab] = useState<RightTab>('statblock')
+
+  const handleActiveChange = useCallback((id: string | null) => {
+    setActiveId(id)
+    if (id) setRightTab('statblock')
+  }, [])
+
   const timeline: TimelineItem[] = mergeTimeline(events, logEntries)
 
   const handleAutoEvent = useCallback(async (evt: {
@@ -68,10 +100,100 @@ export function EncounterPageClient({
     }
   }, [encounter.id])
 
-  // Panel → Grid: add participant from catalog sidebar
   const handlePanelAdd = useCallback((nodeId: string, displayName: string, maxHp: number, qty: number) => {
     gridRef.current?.addFromCatalogExternal(nodeId, displayName, maxHp, qty)
   }, [])
+
+  // ── Counter persistence ─────────────────────────────────────────────
+  const persistCounter = useCallback(
+    async (participantId: string, field: 'used_reactions' | 'legendary_used', value: number) => {
+      try {
+        const s = createClient()
+        await s.from('encounter_participants').update({ [field]: value }).eq('id', participantId)
+      } catch (e) {
+        console.error(`Failed to persist ${field}:`, e)
+      }
+    },
+    [],
+  )
+
+  const setReactions = useCallback(
+    (pid: string, v: number) => {
+      setCounters((prev) => ({
+        ...prev,
+        [pid]: { ...(prev[pid] ?? { used_reactions: 0, legendary_used: 0 }), used_reactions: v },
+      }))
+      persistCounter(pid, 'used_reactions', v)
+    },
+    [persistCounter],
+  )
+  const setLegendary = useCallback(
+    (pid: string, v: number) => {
+      setCounters((prev) => ({
+        ...prev,
+        [pid]: { ...(prev[pid] ?? { used_reactions: 0, legendary_used: 0 }), legendary_used: v },
+      }))
+      persistCounter(pid, 'legendary_used', v)
+    },
+    [persistCounter],
+  )
+
+  // ── Active participant → statblock ──────────────────────────────────
+  const active = useMemo(
+    () => participantsSnap.find((p) => p.id === activeId) ?? null,
+    [participantsSnap, activeId],
+  )
+
+  const activeStatblock = useMemo(() => {
+    if (!active || !active.node) return null
+    return parseStatblock(active.display_name, active.node.fields ?? null)
+  }, [active])
+
+  const activeCounters = active ? (counters[active.id] ?? { used_reactions: 0, legendary_used: 0 }) : null
+
+  // Reset reactions to 0 when turn passes to a new participant.
+  useEffect(() => {
+    if (!activeId) return
+    const current = counters[activeId]?.used_reactions ?? 0
+    if (current > 0) setReactions(activeId, 0)
+     
+  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Target picker candidates ────────────────────────────────────────
+  const pickerTargets: PickerParticipant[] = useMemo(() => {
+    return participantsSnap
+      .filter((p) => p.is_active)
+      .map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+        current_hp: p.current_hp,
+        max_hp: p.max_hp,
+        temp_hp: p.temp_hp ?? 0,
+        role: p.role,
+        is_dead: hasDeadCondition(p.conditions ?? []),
+      }))
+  }, [participantsSnap])
+
+  // ── Action fired → write to event log ───────────────────────────────
+  const handleActionUsed = useCallback(
+    (action: StatblockAction, targetIds: string[]) => {
+      if (!active) return
+      const targetNames = targetIds
+        .map((id) => participantsSnap.find((p) => p.id === id)?.display_name)
+        .filter(Boolean)
+        .join(', ')
+      const text = targetNames ? `${action.name} → ${targetNames}` : action.name
+      handleAutoEvent({
+        actor: active.display_name,
+        action: 'custom',
+        target: targetNames || null,
+        result: { text },
+        round: encounter.current_round,
+        turn: active.id,
+      })
+    },
+    [active, participantsSnap, handleAutoEvent, encounter.current_round],
+  )
 
   return (
     <div className="flex gap-3 items-start">
@@ -87,6 +209,8 @@ export function EncounterPageClient({
           conditionNames={conditionNames}
           effectNames={effectNames}
           onAutoEvent={done ? undefined : handleAutoEvent}
+          onActiveChange={done ? undefined : handleActiveChange}
+          onParticipantsChange={setParticipantsSnap}
         />
 
         <EncounterLog
@@ -100,12 +224,83 @@ export function EncounterPageClient({
         />
       </div>
 
-      {/* Sidebar: catalog panel */}
-      <EncounterCatalogPanel
-        nodes={catalogNodes}
-        onAdd={handlePanelAdd}
-        disabled={done}
-      />
+      {/* Right rail */}
+      <div className="flex-shrink-0" style={{ width: 440 }}>
+        <div
+          className="mb-2 flex gap-1 rounded-md border p-1"
+          style={{ borderColor: 'var(--gray-200)', background: 'var(--gray-50)' }}
+          role="tablist"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={rightTab === 'statblock'}
+            onClick={() => setRightTab('statblock')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded py-1.5 text-[12px] font-medium transition-colors"
+            style={{
+              background: rightTab === 'statblock' ? '#fff' : 'transparent',
+              color: rightTab === 'statblock' ? 'var(--gray-900)' : 'var(--fg-3)',
+              boxShadow: rightTab === 'statblock' ? 'var(--shadow-sm)' : 'none',
+            }}
+          >
+            <Swords size={13} strokeWidth={1.5} />
+            Статблок
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={rightTab === 'catalog'}
+            onClick={() => setRightTab('catalog')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded py-1.5 text-[12px] font-medium transition-colors"
+            style={{
+              background: rightTab === 'catalog' ? '#fff' : 'transparent',
+              color: rightTab === 'catalog' ? 'var(--gray-900)' : 'var(--fg-3)',
+              boxShadow: rightTab === 'catalog' ? 'var(--shadow-sm)' : 'none',
+            }}
+          >
+            <BookOpen size={13} strokeWidth={1.5} />
+            Каталог
+          </button>
+        </div>
+
+        {rightTab === 'statblock' ? (
+          active && activeCounters ? (
+            <StatblockPanel
+              participant={{
+                id: active.id,
+                display_name: active.display_name,
+                current_hp: active.current_hp,
+                max_hp: active.max_hp,
+                temp_hp: active.temp_hp ?? 0,
+                used_reactions: activeCounters.used_reactions,
+                legendary_used: activeCounters.legendary_used,
+                conditions: (active.conditions ?? []).map((c) => c.name),
+              }}
+              statblock={activeStatblock}
+              otherParticipants={pickerTargets.filter((p) => p.id !== active.id)}
+              disabled={done}
+              onChangeReactions={(v) => setReactions(active.id, v)}
+              onChangeLegendary={(v) => setLegendary(active.id, v)}
+              onActionUsed={handleActionUsed}
+            />
+          ) : (
+            <div
+              className="rounded-lg border bg-white p-4 text-center"
+              style={{ borderColor: 'var(--gray-200)' }}
+            >
+              <div className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+                Нет активного участника. Начни бой — нажми{' '}
+                <kbd className="rounded border px-1 font-mono text-[10px]" style={{ borderColor: 'var(--gray-200)' }}>
+                  →
+                </kbd>{' '}
+                или пробел.
+              </div>
+            </div>
+          )
+        ) : (
+          <EncounterCatalogPanel nodes={catalogNodes} onAdd={handlePanelAdd} disabled={done} />
+        )}
+      </div>
     </div>
   )
 }

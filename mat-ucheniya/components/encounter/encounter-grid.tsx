@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useRef, useImperativeHandle, forwardRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useImperativeHandle, useEffect, forwardRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { EditableCell } from './editable-cell'
@@ -57,6 +57,10 @@ type Props = {
   conditionNames: string[]
   effectNames: string[]
   onAutoEvent?: (evt: { actor?: string | null; action: EventAction; target?: string | null; result?: EventResult; round?: number | null; turn?: string | null }) => void
+  /** Fires when the turn-holder changes OR user clicks a row to inspect it. */
+  onActiveChange?: (participantId: string | null) => void
+  /** Fires whenever the participant list or any row changes. */
+  onParticipantsChange?: (participants: Participant[]) => void
 }
 
 // ── Role config ─────────────────────────────────────
@@ -86,6 +90,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   conditionNames,
   effectNames,
   onAutoEvent,
+  onActiveChange,
 }, ref) {
   // ── State owned by this component ─────────────────
   const [participants, setParticipants] = useState(initialParticipants)
@@ -132,6 +137,12 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
 
   // Keep roundRef in sync
   roundRef.current = turns.round
+
+  // Report active participant upward (turn-holder changes).
+  // User-initiated inspection is fired from row click below.
+  useEffect(() => {
+    onActiveChange?.(turns.turnId)
+  }, [turns.turnId, onActiveChange])
 
   const actions = useParticipantActions({
     encounterId: initial.id,
