@@ -15,11 +15,19 @@ WHERE n.type_id = nt.id
   AND c.slug = 'mat-ucheniya'
   AND n.title = 'Истощённый';
 
--- 2. Drop the stale name from any existing conditions arrays
---    (conditions is text[] of names — see migration 003).
+-- 2. Drop the stale name from any existing conditions arrays.
+--    Migration 016 changed conditions from text[] to jsonb array of
+--    {name, round} objects, so we filter the jsonb array.
 UPDATE encounter_participants
-SET conditions = array_remove(conditions, 'Истощённый')
-WHERE 'Истощённый' = ANY(conditions);
+SET conditions = COALESCE(
+  (
+    SELECT jsonb_agg(elem)
+    FROM jsonb_array_elements(conditions) AS elem
+    WHERE elem->>'name' <> 'Истощённый'
+  ),
+  '[]'::jsonb
+)
+WHERE conditions @> '[{"name": "Истощённый"}]'::jsonb;
 
 -- 3. Insert six level-specific nodes.
 WITH campaign AS (SELECT id FROM campaigns WHERE slug = 'mat-ucheniya'),
