@@ -64,9 +64,35 @@ export default async function EncounterPage({
     n.type && ['character', 'npc', 'creature'].includes(n.type.slug)
   )
 
-  const conditionNames = (catalogNodes || [])
+  const rawConditions = (catalogNodes || [])
     .filter((n: any) => n.type?.slug === 'condition')
-    .map((n: any) => n.title)
+    .map((n: any) => n.title as string)
+
+  // Rank conditions by real usage across the whole campaign.
+  // encounter_participants.conditions is jsonb array of {name, round}.
+  // We unroll it into (name, count) and sort suggestions accordingly.
+  // Rationale: a DM typing in the "Состояния" cell sees the most-often-used
+  // conditions first. Exhaustion 1..6 is pushed into a separate bottom bucket
+  // because it's both noisy (6 entries) and situational.
+  const { data: usageRows } = await supabase
+    .rpc('condition_usage_counts', { p_campaign_id: campaign.id })
+    .returns<Array<{ name: string; count: number }>>()
+
+  const usageMap = new Map<string, number>()
+  if (Array.isArray(usageRows)) {
+    for (const r of usageRows) usageMap.set(r.name, Number(r.count) || 0)
+  }
+
+  const EXHAUSTION_RE = /^истощени[ея]\s*\d/i
+  const conditionNames = rawConditions.slice().sort((a, b) => {
+    const aExh = EXHAUSTION_RE.test(a) ? 1 : 0
+    const bExh = EXHAUSTION_RE.test(b) ? 1 : 0
+    if (aExh !== bExh) return aExh - bExh // non-exhaustion first
+    const aUse = usageMap.get(a) ?? 0
+    const bUse = usageMap.get(b) ?? 0
+    if (aUse !== bUse) return bUse - aUse // more-used first
+    return a.localeCompare(b, 'ru')
+  })
 
   const effectNames = (catalogNodes || [])
     .filter((n: any) => n.type?.slug === 'effect')

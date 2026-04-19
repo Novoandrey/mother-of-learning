@@ -302,11 +302,15 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
         )}
       </div>
 
-      {/* Table — Excel-style: outer border, full gridlines, crisp separators */}
+      {/* Table — Excel-style: outer border, full gridlines, crisp separators.
+          NOTE: overflow-x-auto wraps ONLY the <table> so that AddParticipantRow
+          below can live at full width and its dropdown is free to escape the
+          overflow container vertically. */}
       <div
-        className="overflow-x-auto rounded-[var(--radius-lg)] border"
+        className="rounded-[var(--radius-lg)] border"
         style={{ borderColor: 'var(--gray-300)', background: 'var(--gray-0)' }}
       >
+        <div className="overflow-x-auto">
         <table
           className="w-full border-collapse text-[13px]"
           style={{ minWidth: 1120 }}
@@ -659,6 +663,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
             })}
           </tbody>
         </table>
+        </div>
 
         {!done && (
           <div style={{ borderTop: '1px solid var(--gray-300)', background: 'var(--gray-50)' }}>
