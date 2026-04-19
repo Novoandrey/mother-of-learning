@@ -64,13 +64,9 @@ type Props = {
   onParticipantsChange?: (participants: Participant[]) => void
 }
 
-// ── Role config ─────────────────────────────────────
-
 const ROLE_LABEL: Record<string, string> = {
   pc: 'PC', ally: 'Союз', enemy: 'Враг', neutral: '—',
 }
-
-// Role dot colors (sourced from design tokens).
 const ROLE_DOT_COLOR: Record<string, string> = {
   pc: 'var(--blue-500)',
   ally: 'var(--green-500)',
@@ -81,6 +77,12 @@ const ROLE_DOT_COLOR: Record<string, string> = {
 export type EncounterGridHandle = {
   addFromCatalogExternal: (nodeId: string, displayName: string, maxHp: number, qty: number) => void
 }
+
+// Shared cell class — excel-like gridlines between cells.
+// Every <td> and <th> gets this except the last column which drops
+// the right border (handled by not applying it on last cell).
+const CELL = 'border-r'
+const CELL_STYLE: React.CSSProperties = { borderRightColor: 'var(--gray-200)' }
 
 // ── Component ───────────────────────────────────────
 
@@ -121,7 +123,6 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   )
 
   const sortedIds = useMemo(() => sorted.map((p) => p.id), [sorted])
-
   const selection = useSelection(sortedIds, done)
 
   const roundRef = useRef(initial.current_round)
@@ -136,16 +137,10 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
     done,
     onRoundChange: (r) => { roundRef.current = r },
   })
-
   roundRef.current = turns.round
 
-  useEffect(() => {
-    onActiveChange?.(turns.turnId)
-  }, [turns.turnId, onActiveChange])
-
-  useEffect(() => {
-    onParticipantsChange?.(participants)
-  }, [participants, onParticipantsChange])
+  useEffect(() => { onActiveChange?.(turns.turnId) }, [turns.turnId, onActiveChange])
+  useEffect(() => { onParticipantsChange?.(participants) }, [participants, onParticipantsChange])
 
   const actions = useParticipantActions({
     encounterId: initial.id,
@@ -180,19 +175,15 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
     addFromCatalogExternal: actions.addFromCatalog,
   }), [actions.addFromCatalog])
 
-  // ── Render ────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────
 
   return (
     <div>
-      {/* ── Header bar ─────────────────────────────────── */}
+      {/* Header bar */}
       <div
         className="mb-3 flex flex-wrap items-center gap-4 rounded-[var(--radius-lg)] border px-4 py-3"
-        style={{
-          borderColor: 'var(--gray-200)',
-          background: 'var(--gray-0)',
-        }}
+        style={{ borderColor: 'var(--gray-200)', background: 'var(--gray-0)' }}
       >
-        {/* Title */}
         <div className="flex items-center gap-2">
           <span className="text-[17px] font-bold" style={{ color: 'var(--fg-1)' }}>
             {initial.title}
@@ -207,33 +198,12 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
           )}
         </div>
 
-        {/* Session / Loop / Day / Round */}
         <div className="flex items-center gap-3">
-          <DetailField
-            label="Сессия"
-            value={details.session || null}
-            onCommit={(v) => saveDetail('session', v)}
-            disabled={done}
-          />
-          <DetailField
-            label="Петля"
-            value={details.loop || null}
-            onCommit={(v) => saveDetail('loop', v)}
-            disabled={done}
-          />
-          <DetailField
-            label="День"
-            value={details.day || null}
-            onCommit={(v) => saveDetail('day', v)}
-            disabled={done}
-          />
+          <DetailField label="Сессия" value={details.session || null} onCommit={(v) => saveDetail('session', v)} disabled={done} />
+          <DetailField label="Петля" value={details.loop || null} onCommit={(v) => saveDetail('loop', v)} disabled={done} />
+          <DetailField label="День" value={details.day || null} onCommit={(v) => saveDetail('day', v)} disabled={done} />
           <div className="flex items-center gap-1.5">
-            <span
-              className="text-[10px] uppercase tracking-wider"
-              style={{ color: 'var(--fg-mute)' }}
-            >
-              Раунд
-            </span>
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--fg-mute)' }}>Раунд</span>
             {!done && (
               <button
                 onClick={() => turns.setRound(-1)}
@@ -245,10 +215,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                 −
               </button>
             )}
-            <span
-              className="min-w-[2ch] text-center font-mono text-[16px] font-bold tabular"
-              style={{ color: 'var(--fg-1)' }}
-            >
+            <span className="min-w-[2ch] text-center font-mono text-[16px] font-bold tabular" style={{ color: 'var(--fg-1)' }}>
               {turns.round}
             </span>
             {!done && (
@@ -264,7 +231,6 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
           </div>
         </div>
 
-        {/* Turn controls */}
         {!done && (
           <div className="ml-auto flex items-center gap-2">
             <button
@@ -283,9 +249,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   {turns.currentTurnName}
                 </span>
               ) : (
-                <span className="text-[11px]" style={{ color: 'var(--fg-mute)' }}>
-                  Начать →
-                </span>
+                <span className="text-[11px]" style={{ color: 'var(--fg-mute)' }}>Начать →</span>
               )}
             </div>
             <button
@@ -297,9 +261,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
               onMouseEnter={(e) => {
                 if (!e.currentTarget.disabled) e.currentTarget.style.background = 'var(--blue-700)'
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--blue-600)'
-              }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--blue-600)' }}
             >
               <span>Следующий</span>
               <span className="text-base leading-none">→</span>
@@ -318,18 +280,17 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
             />
             <button
               onClick={handleEndCombat}
-              className="rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[11px] transition-colors hover:bg-[var(--red-50)]"
-              style={{
-                borderColor: 'var(--gray-200)',
-                color: 'var(--fg-3)',
-              }}
+              className="rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[11px] transition-colors"
+              style={{ borderColor: 'var(--gray-200)', color: 'var(--fg-3)' }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--red-500)'
                 e.currentTarget.style.color = 'var(--red-600)'
+                e.currentTarget.style.background = 'var(--red-50)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = 'var(--gray-200)'
                 e.currentTarget.style.color = 'var(--fg-3)'
+                e.currentTarget.style.background = 'transparent'
               }}
             >
               Стоп
@@ -338,59 +299,73 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
         )}
       </div>
 
-      {/* ── Table ──────────────────────────────────────── */}
+      {/* Table — Excel-style: outer border, full gridlines, crisp separators */}
       <div
         className="overflow-x-auto rounded-[var(--radius-lg)] border"
-        style={{ borderColor: 'var(--gray-200)', background: 'var(--gray-0)' }}
+        style={{ borderColor: 'var(--gray-300)', background: 'var(--gray-0)' }}
       >
-        <table className="w-full border-collapse text-[13px]" style={{ minWidth: 960 }}>
+        <table
+          className="w-full border-collapse text-[13px]"
+          style={{ minWidth: 960 }}
+        >
           <thead>
             <tr
               className="text-[10px] font-semibold uppercase tracking-wider"
               style={{
-                background: 'var(--gray-50)',
+                background: 'var(--gray-100)',
                 color: 'var(--fg-3)',
-                borderBottom: '1px solid var(--gray-200)',
+                borderBottom: '1px solid var(--gray-300)',
               }}
             >
-              <th className="w-8 px-1 py-2 text-center" />
-              <th className="w-14 px-1 py-2 text-center">Ин.</th>
-              <th className="px-3 py-2 text-left">Имя</th>
-              <th className="w-[180px] px-2 py-2 text-left">Состояния</th>
-              <th className="w-[180px] px-2 py-2 text-left">Эффекты</th>
-              <th className="w-28 px-2 py-2 text-center">HP</th>
-              <th className="w-10 px-1 py-2 text-center" title="Временные хиты">Вр.</th>
+              <th className={`w-10 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE} />
+              <th className={`w-14 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE}>Ин.</th>
+              <th className={`px-3 py-2 text-left ${CELL}`} style={CELL_STYLE}>Имя</th>
+              <th className={`w-[180px] px-2 py-2 text-left ${CELL}`} style={CELL_STYLE}>Состояния</th>
+              <th className={`w-[180px] px-2 py-2 text-left ${CELL}`} style={CELL_STYLE}>Эффекты</th>
+              <th className={`w-28 px-2 py-2 text-center ${CELL}`} style={CELL_STYLE}>HP</th>
+              <th className={`w-12 px-1 py-2 text-center ${CELL}`} style={CELL_STYLE} title="Временные хиты">Вр.</th>
               <th className="w-[140px] px-1 py-2 text-center">Действия</th>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td
-                  colSpan={8}
-                  className="py-10 text-center text-[13px]"
-                  style={{ color: 'var(--fg-mute)' }}
-                >
+                <td colSpan={8} className="py-10 text-center text-[13px]" style={{ color: 'var(--fg-mute)' }}>
                   Добавьте участников ↓
                 </td>
               </tr>
             )}
-            {sorted.map((p) => {
+            {sorted.map((p, idx) => {
               const isTurn = p.id === turns.turnId
               const isDown = p.current_hp === 0 && p.max_hp > 0
               const selected = selection.isSelected(p.id)
               const statUrl = p.node?.fields?.statblock_url as string | undefined
 
-              // Row background priority: turn > selected > down > inactive > default.
+              // ── Row state combinations ────────────────────
+              // Turn:        amber stripe + amber-50 tint + bold ring + ► marker
+              // Selected:    blue stripe + blue-50 tint
+              // Turn+Sel:    blue-50 tint + amber stripe + amber ring (both visible)
+              // Down:        red-50 tint
+              // Inactive:    opacity 0.4
               let rowBg: string = 'transparent'
-              if (!p.is_active) rowBg = 'transparent'
-              else if (isTurn) rowBg = 'var(--blue-50)'
+              if (isTurn && selected) rowBg = 'var(--blue-50)'
+              else if (isTurn) rowBg = 'var(--yellow-50)'
               else if (selected) rowBg = 'var(--blue-50)'
               else if (isDown) rowBg = 'var(--red-50)'
+              else if (idx % 2 === 1) rowBg = 'var(--gray-50)' // zebra
 
-              // Left accent stripe (3px) indicates turn or selection.
-              const leftAccent =
-                isTurn ? 'var(--blue-500)' : selected ? 'var(--blue-400)' : 'transparent'
+              const stripe = isTurn
+                ? 'var(--amber-400)'
+                : selected
+                  ? 'var(--blue-500)'
+                  : 'transparent'
+
+              // Turn ring — outlines the whole row with amber inside.
+              const boxShadow = isTurn
+                ? `inset 4px 0 0 0 ${stripe}, inset 0 0 0 1px var(--amber-400)`
+                : selected
+                  ? `inset 4px 0 0 0 ${stripe}`
+                  : 'none'
 
               return (
                 <tr
@@ -399,37 +374,55 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   className="cursor-default select-none transition-colors"
                   style={{
                     background: rowBg,
-                    borderBottom: '1px solid var(--gray-100)',
-                    opacity: p.is_active ? 1 : 0.35,
-                    boxShadow: leftAccent !== 'transparent' ? `inset 3px 0 0 0 ${leftAccent}` : 'none',
+                    opacity: p.is_active ? 1 : 0.4,
+                    boxShadow,
                   }}
                   onMouseEnter={(e) => {
                     if (!isTurn && !selected && !isDown && p.is_active) {
-                      e.currentTarget.style.background = 'var(--gray-50)'
+                      e.currentTarget.style.background = 'var(--blue-50)'
                     }
                   }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = rowBg
-                  }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = rowBg }}
                 >
-                  {/* Role dot */}
-                  <td className="px-1 py-1 text-center align-middle">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        actions.onRole(p.id)
-                      }}
-                      disabled={done}
-                      className={`inline-block h-2.5 w-2.5 rounded-full transition-all ${
-                        done ? '' : 'cursor-pointer hover:ring-2 hover:ring-offset-1'
-                      }`}
-                      style={{ background: ROLE_DOT_COLOR[p.role] || ROLE_DOT_COLOR.enemy }}
-                      title={`${ROLE_LABEL[p.role] || p.role} — клик для смены`}
-                    />
+                  {/* Role dot + turn marker */}
+                  <td
+                    className={`px-1 py-1 text-center align-middle ${CELL}`}
+                    style={{
+                      ...CELL_STYLE,
+                      borderBottom: '1px solid var(--gray-200)',
+                      height: 34,
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      {isTurn && (
+                        <span
+                          className="font-bold leading-none"
+                          style={{ color: 'var(--amber-400)', fontSize: 14 }}
+                          title="Текущий ход"
+                        >
+                          ▶
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          actions.onRole(p.id)
+                        }}
+                        disabled={done}
+                        className={`inline-block h-2.5 w-2.5 rounded-full transition-all ${
+                          done ? '' : 'cursor-pointer hover:ring-2 hover:ring-offset-1'
+                        }`}
+                        style={{ background: ROLE_DOT_COLOR[p.role] || ROLE_DOT_COLOR.enemy }}
+                        title={`${ROLE_LABEL[p.role] || p.role} — клик для смены`}
+                      />
+                    </div>
                   </td>
 
                   {/* Initiative */}
-                  <td className="px-1 py-1 text-center align-middle">
+                  <td
+                    className={`px-1 py-1 text-center align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
                     <EditableCell
                       value={p.initiative}
                       onCommit={(v) => actions.onInit(p.id, v)}
@@ -441,7 +434,10 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   </td>
 
                   {/* Name + statblock link */}
-                  <td className="px-3 py-1 align-middle">
+                  <td
+                    className={`px-3 py-1 align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
                     <div className="flex items-center gap-1.5">
                       {done ? (
                         p.node ? (
@@ -469,7 +465,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                           onCommit={(v) => actions.onName(p.id, v)}
                           onInspect={onInspect ? () => onInspect(p.id) : undefined}
                           disabled={done}
-                          className={`font-medium ${p.node ? 'text-[var(--blue-700)]' : ''} ${
+                          className={`font-medium ${p.node ? 'text-[var(--blue-700)]' : ''} ${isTurn ? 'font-bold' : ''} ${
                             isDown ? 'line-through text-[var(--red-700)]' : ''
                           }`}
                         />
@@ -481,10 +477,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="flex-shrink-0 inline-flex items-center gap-0.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[10px] font-medium transition-colors"
-                          style={{
-                            background: 'var(--blue-50)',
-                            color: 'var(--blue-600)',
-                          }}
+                          style={{ background: 'var(--blue-50)', color: 'var(--blue-600)' }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'var(--blue-100)'
                             e.currentTarget.style.color = 'var(--blue-700)'
@@ -505,7 +498,10 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   </td>
 
                   {/* Conditions */}
-                  <td className="px-1 py-1 align-middle">
+                  <td
+                    className={`px-1 py-1 align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
                     <TagCell
                       tags={p.conditions || []}
                       suggestions={conditionNames}
@@ -517,7 +513,10 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   </td>
 
                   {/* Effects */}
-                  <td className="px-1 py-1 align-middle">
+                  <td
+                    className={`px-1 py-1 align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
                     <TagCell
                       tags={p.effects || []}
                       suggestions={effectNames}
@@ -529,7 +528,10 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   </td>
 
                   {/* HP */}
-                  <td className="px-1 py-1 align-middle">
+                  <td
+                    className={`px-1 py-1 align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
                     <HpCell
                       currentHp={p.current_hp}
                       maxHp={p.max_hp}
@@ -540,12 +542,15 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                     />
                   </td>
 
-                  {/* Temp HP */}
-                  <td className="px-1 py-1 text-center align-middle">
+                  {/* Temp HP — delta-aware cell (custom) */}
+                  <td
+                    className={`px-1 py-1 text-center align-middle ${CELL}`}
+                    style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
+                  >
                     <EditableCell
                       value={p.temp_hp || null}
-                      onCommit={(v) => actions.onTempHp(p.id, v)}
-                      type="number"
+                      onCommit={(v) => actions.onTempHp(p.id, v, p.temp_hp)}
+                      type="text"
                       placeholder="—"
                       disabled={done}
                       className="text-center font-mono tabular"
@@ -553,24 +558,24 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   </td>
 
                   {/* Row actions */}
-                  <td className="px-1 py-1 text-center align-middle">
+                  <td
+                    className="px-1 py-1 text-center align-middle"
+                    style={{ borderBottom: '1px solid var(--gray-200)' }}
+                  >
                     {!done && (
-                      <div
-                        className="flex items-center justify-center gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => actions.onClone(p.id)}
                           title="Клонировать"
                           className="inline-flex h-7 items-center gap-1 rounded-[var(--radius)] border px-2 text-[11px] transition-colors"
-                          style={{ borderColor: 'var(--gray-200)', color: 'var(--fg-3)' }}
+                          style={{ borderColor: 'var(--gray-200)', color: 'var(--fg-3)', background: 'var(--gray-0)' }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'var(--gray-100)'
                             e.currentTarget.style.color = 'var(--fg-1)'
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.background = 'var(--gray-0)'
                             e.currentTarget.style.color = 'var(--fg-3)'
                           }}
                         >
@@ -582,14 +587,14 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                           onClick={() => actions.onDelete(p.id)}
                           title="Удалить участника"
                           className="inline-flex h-7 items-center gap-1 rounded-[var(--radius)] border px-2 text-[11px] transition-colors"
-                          style={{ borderColor: 'var(--gray-200)', color: 'var(--fg-3)' }}
+                          style={{ borderColor: 'var(--gray-200)', color: 'var(--fg-3)', background: 'var(--gray-0)' }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'var(--red-50)'
                             e.currentTarget.style.borderColor = 'var(--red-500)'
                             e.currentTarget.style.color = 'var(--red-600)'
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.background = 'var(--gray-0)'
                             e.currentTarget.style.borderColor = 'var(--gray-200)'
                             e.currentTarget.style.color = 'var(--fg-3)'
                           }}
@@ -606,14 +611,8 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
           </tbody>
         </table>
 
-        {/* Add participant row — sits inside the rounded card, flush with table */}
         {!done && (
-          <div
-            style={{
-              borderTop: '1px solid var(--gray-200)',
-              background: 'var(--gray-50)',
-            }}
-          >
+          <div style={{ borderTop: '1px solid var(--gray-300)', background: 'var(--gray-50)' }}>
             <AddParticipantRow
               catalogNodes={catalogNodes}
               onAddFromCatalog={actions.addFromCatalog}
@@ -623,7 +622,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
         )}
       </div>
 
-      {/* ── Floating selection toast ──────────────── */}
+      {/* Floating selection toast */}
       {selection.selCount > 0 && (
         <div
           className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border px-4 py-2 text-[11px]"
@@ -637,9 +636,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
           <div className="flex items-center gap-3">
             <span className="font-semibold">Выделено: {selection.selCount}</span>
             <span style={{ color: 'var(--blue-200)' }}>·</span>
-            <span style={{ color: 'var(--blue-500)' }}>
-              Изменение в одной строке → все выделенные
-            </span>
+            <span style={{ color: 'var(--blue-500)' }}>Изменение в одной строке → все выделенные</span>
             <button
               onClick={selection.clearSelection}
               className="rounded-full px-2 py-0.5 transition-colors hover:bg-[var(--blue-50)]"
@@ -654,13 +651,8 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   )
 })
 
-// ── Small helper: labelled numeric detail in the header bar ─────────
-
 function DetailField({
-  label,
-  value,
-  onCommit,
-  disabled,
+  label, value, onCommit, disabled,
 }: {
   label: string
   value: string | null
@@ -669,12 +661,7 @@ function DetailField({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span
-        className="text-[10px] uppercase tracking-wider"
-        style={{ color: 'var(--fg-mute)' }}
-      >
-        {label}
-      </span>
+      <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--fg-mute)' }}>{label}</span>
       <EditableCell
         value={value}
         onCommit={onCommit}

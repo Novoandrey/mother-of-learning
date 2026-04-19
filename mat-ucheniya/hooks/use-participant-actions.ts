@@ -144,8 +144,19 @@ export function useParticipantActions({
     try { await updateMaxHp(id, max, cur) } catch { router.refresh() }
   }, [router, setParticipants])
 
-  const onTempHp = useCallback(async (id: string, v: string) => {
-    const n = Math.max(0, parseInt(v) || 0)
+  const onTempHp = useCallback(async (id: string, v: string, currentTempHp?: number) => {
+    const trimmed = v.trim()
+    let n: number
+    // "+3" / "-3" → delta on current temp_hp; plain number → absolute.
+    if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
+      const delta = parseInt(trimmed)
+      if (isNaN(delta)) return
+      n = Math.max(0, (currentTempHp ?? 0) + delta)
+    } else if (trimmed === '') {
+      n = 0
+    } else {
+      n = Math.max(0, parseInt(trimmed) || 0)
+    }
     const targets = getTargets(id)
     setParticipants((ps) => ps.map((p) => targets.includes(p.id) ? { ...p, temp_hp: n } : p))
     for (const t of targets) {
@@ -285,10 +296,18 @@ export function useParticipantActions({
     try {
       const res = await cloneParticipant(id)
       setParticipants((ps) => {
-        const upd = ps.map((p) => p.id === id ? { ...p, display_name: res.updatedOriginalName } : p)
         const clone = res.clone as typeof ps[0]
-        const i = upd.findIndex((p) => p.id === id)
-        return [...upd.slice(0, i + 1), clone, ...upd.slice(i + 1)]
+        const original = ps.find((p) => p.id === id)
+        if (!original) return [...ps, clone]
+        const newSortOrder = original.sort_order + 1
+        // Mirror the server-side sort_order bump so useMemo sort stays in sync.
+        const bumped = ps.map((p) => {
+          if (p.id === id) return { ...p, display_name: res.updatedOriginalName }
+          if (p.id === clone.id) return p
+          if (p.sort_order >= newSortOrder) return { ...p, sort_order: p.sort_order + 1 }
+          return p
+        })
+        return [...bumped, clone]
       })
     } catch { router.refresh() }
   }, [router, setParticipants])

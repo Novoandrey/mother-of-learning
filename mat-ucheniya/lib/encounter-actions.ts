@@ -172,7 +172,10 @@ export async function updateEffects(participantId: string, effects: TagEntry[]) 
   if (error) throw error
 }
 
-// Clone participant: finds next available number, gives clone full HP, no conditions/effects
+// Clone participant: finds next available number, gives clone full HP, no conditions/effects.
+// Clone inherits: initiative, role, max_hp, node_id. Resets: current_hp (full), temp_hp (0),
+// conditions, effects, is_active (true). Sort: inserted immediately after original by
+// shifting all successors' sort_order up by 1.
 export async function cloneParticipant(participantId: string) {
   const supabase = createClient()
 
@@ -184,18 +187,17 @@ export async function cloneParticipant(participantId: string) {
 
   if (fetchError) throw fetchError
 
-  // Strip any existing " N" suffix from name to get base name
+  // Strip " N" suffix to get base name.
   const baseName = original.display_name.replace(/ \d+$/, '')
 
-  // Find all participants in this encounter with the same base name
   const { data: siblings, error: siblingsError } = await supabase
     .from('encounter_participants')
-    .select('display_name')
+    .select('id, display_name, sort_order')
     .eq('encounter_id', original.encounter_id)
 
   if (siblingsError) throw siblingsError
 
-  // Collect all existing numbers for this base name
+  // Collect existing numbers for this base name.
   const existingNumbers = new Set<number>()
   for (const s of siblings || []) {
     const sBase = s.display_name.replace(/ \d+$/, '')
@@ -205,7 +207,7 @@ export async function cloneParticipant(participantId: string) {
     }
   }
 
-  // If original doesn't have a number yet, rename it to " 1"
+  // If original has no number, rename to "N 1".
   const originalHasNumber = / \d+$/.test(original.display_name)
   let updatedOriginalName = original.display_name
   if (!originalHasNumber) {
@@ -218,23 +220,36 @@ export async function cloneParticipant(participantId: string) {
     if (renameError) throw renameError
   }
 
-  // Find next available number
   let nextNum = 1
   while (existingNumbers.has(nextNum)) nextNum++
 
-  // Insert clone with next number, full HP, no conditions/effects
+  // Shift sort_order of anything after the original so the clone can slot in right
+  // behind it. We do this per-row to avoid a migration; acceptable since encounters
+  // are small.
+  const newSortOrder = original.sort_order + 1
+  const successors = (siblings || []).filter(
+    (s) => s.sort_order >= newSortOrder && s.id !== participantId,
+  )
+  for (const succ of successors) {
+    await supabase
+      .from('encounter_participants')
+      .update({ sort_order: succ.sort_order + 1 })
+      .eq('id', succ.id)
+  }
+
+  // Clone inherits initiative and role; resets HP and status.
   const { data: clone, error: insertError } = await supabase
     .from('encounter_participants')
     .insert({
       encounter_id: original.encounter_id,
       node_id: original.node_id,
       display_name: `${baseName} ${nextNum}`,
-      initiative: null,
+      initiative: original.initiative, // inherit — clone joins combat at same init
       max_hp: original.max_hp,
-      current_hp: original.max_hp,
+      current_hp: original.max_hp,     // full HP on spawn
       temp_hp: 0,
       role: original.role,
-      sort_order: original.sort_order + 1,
+      sort_order: newSortOrder,
       is_active: true,
       conditions: [],
       effects: [],
