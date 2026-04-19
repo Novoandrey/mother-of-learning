@@ -297,17 +297,11 @@ export function useParticipantActions({
       const res = await cloneParticipant(id)
       setParticipants((ps) => {
         const clone = res.clone as typeof ps[0]
-        const original = ps.find((p) => p.id === id)
-        if (!original) return [...ps, clone]
-        const newSortOrder = original.sort_order + 1
-        // Mirror the server-side sort_order bump so useMemo sort stays in sync.
-        const bumped = ps.map((p) => {
-          if (p.id === id) return { ...p, display_name: res.updatedOriginalName }
-          if (p.id === clone.id) return p
-          if (p.sort_order >= newSortOrder) return { ...p, sort_order: p.sort_order + 1 }
-          return p
-        })
-        return [...bumped, clone]
+        // Rename original if server did (first clone triggers " 1" suffix).
+        const renamed = ps.map((p) =>
+          p.id === id ? { ...p, display_name: res.updatedOriginalName } : p,
+        )
+        return [...renamed, clone]
       })
     } catch { router.refresh() }
   }, [router, setParticipants])

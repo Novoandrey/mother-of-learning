@@ -223,19 +223,14 @@ export async function cloneParticipant(participantId: string) {
   let nextNum = 1
   while (existingNumbers.has(nextNum)) nextNum++
 
-  // Shift sort_order of anything after the original so the clone can slot in right
-  // behind it. We do this per-row to avoid a migration; acceptable since encounters
-  // are small.
-  const newSortOrder = original.sort_order + 1
-  const successors = (siblings || []).filter(
-    (s) => s.sort_order >= newSortOrder && s.id !== participantId,
+  // Clone sort_order = max(sort_order) + 1 — goes to the end of the list.
+  // Combined with same initiative (sort is initiative DESC, sort_order ASC tiebreaker),
+  // successive clones naturally stack below the original and each other.
+  const maxSortOrder = (siblings || []).reduce(
+    (max, s) => (s.sort_order > max ? s.sort_order : max),
+    original.sort_order,
   )
-  for (const succ of successors) {
-    await supabase
-      .from('encounter_participants')
-      .update({ sort_order: succ.sort_order + 1 })
-      .eq('id', succ.id)
-  }
+  const newSortOrder = maxSortOrder + 1
 
   // Clone inherits initiative and role; resets HP and status.
   const { data: clone, error: insertError } = await supabase
