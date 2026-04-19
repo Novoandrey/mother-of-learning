@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed-owner": "tsx scripts/seed-owner.ts"
+    "seed-owner": "tsx scripts/seed-owner.ts",
+    "seed-players": "tsx scripts/seed-players.ts",
+    "import-electives": "tsx scripts/import-electives.ts"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
