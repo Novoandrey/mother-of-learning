@@ -1,7 +1,7 @@
 # NEXT — контекст для следующего чата
 
 > Этот файл обновляется в конце каждого чата. Всегда актуален.
-> Last updated: 2026-04-19 (chat 13 — статблок-фиксы + настройки HP + LR tracker)
+> Last updated: 2026-04-19 (chat 14 — UX-правки + action resolve flow)
 
 ## Что сделано (накопительно)
 
@@ -131,6 +131,50 @@
    - SRD-монстр в энкаунтере: HP подтягивается сразу (баг 1 закрыт).
    - Панель статблока показывает: ⚙️ тип подчёркнут, hover → русское описание; CR бэйдж; HD рядом с HP; спасы/навыки строками; PB чип; senses с blindsight/truesight/tremorsense если есть; у лича/дракона — 3-й счётчик "Сопротивл." с +/−, после использования reminder внизу; в футере источник + ссылка.
    - Вкладка ⚙️ Настройки видна в навигации.
+
+## Что сделано в этом чате (chat 14, 2026-04-19)
+
+### 5 UX-правок + action resolve flow ✅
+
+1. **Settings feedback** — после сохранения `redirect(...?saved=1)`, на странице зелёный баннер `✓ Сохранено`.
+
+2. **"Выделено: N" не двигает таблицу** — selection bar вынесен из `<thead>` в floating pill снизу экрана (`position: fixed, bottom-4`). Больше не смещает layout при клике в первый столбец.
+
+3. **TagCell: полный список при открытии** — dropdown показывает все доступные варианты, как только ячейка в фокусе (раньше только после ввода). Размер увеличен: `w-56 max-h-56`, cap 30 элементов.
+
+4. **Кнопки последнего столбца** — заменены на dropdown `⋯` в новом компоненте `components/encounter/row-actions-menu.tsx`. Три пункта с подписями:
+   - **Клонировать** — копия участника с номером.
+   - **Убрать из боя / Вернуть в бой** — `is_active` toggle. Теперь понятно, что это "скамейка" (сущность остаётся в списке, но пропускается инициативой).
+   - **Удалить совсем** — красный, navigates `deleteParticipant`.
+   Колонка ⚙ сужена с `w-20` до `w-12`.
+
+5. **Action resolve flow** — новый `ActionResolveDialog`. Флоу теперь:
+   - `self` action → сразу resolve dialog.
+   - `single` / `area` action → TargetPicker → resolve dialog с выбранными целями.
+   - В resolve-диалоге: формула действия (с подсветкой `+N to hit`, `NdN+N`, `DC N Stat`), список целей, для каждой: toggle Попал/Промах, input урона, заметка (крит, спас, отравлен…), общий комментарий.
+   - Apply → `handleActionResolved` в `encounter-page-client.tsx` пишет один event на цель (`hp_damage` если урон > 0, иначе `custom`) + общий custom-event если есть комментарий. Урон применяется напрямую в `encounter_participants.current_hp` + оптимистично в `participantsSnap` (HP-бары обновляются сразу). Соответствует принципу пользователя: "игрок предлагает — ДМ пишет исход".
+
+### Новое / изменённое
+
+- **Новые файлы**: `components/encounter/row-actions-menu.tsx`, `components/encounter/statblock/action-resolve-dialog.tsx`.
+- **Изменения**: `app/c/[slug]/settings/page.tsx` (searchParams + баннер), `components/encounter/tag-cell.tsx` (показ всех suggestions), `components/encounter/encounter-grid.tsx` (floating toast + RowActionsMenu), `components/encounter/statblock/statblock-panel.tsx` (flow picker→resolve), `components/encounter/encounter-page-client.tsx` (handleActionUsed → handleActionResolved с урон-логикой).
+- **Контракт StatblockPanel**: prop `onActionUsed(action, targetIds)` заменён на `onActionResolved(action, targets, result)`. `result` содержит `perTarget: {id, hit, damage, note}[]` + `comment`.
+
+### Build + commit
+
+- `npm run build` — чисто. TypeScript 0 ошибок.
+- Миграция не нужна — только UI/logic.
+
+## ⚠️ Действия для пользователя
+
+1. **Деплой авто** через Vercel, миграции не нужно накатывать.
+2. **QA:**
+   - Настройки: сохранить → зелёная плашка `✓ Сохранено` видна.
+   - Кликнуть в первый столбец строки → таблица не едет вниз, внизу экрана pill "Выделено: N".
+   - Кликнуть в ячейку "Условия" → сразу выпадает список всех condition'ов кампании.
+   - Правый столбец → `⋯` → меню с тремя понятными пунктами.
+   - Атака моба: клик по "Bite" → picker цели → после выбора **resolve dialog** с полями урона/заметки → Apply → запись в логе + HP у цели уменьшилось без reload.
+   - Self-action (Spellcasting и т.п.) → сразу resolve без picker.
 
 ## Следующая задача
 

@@ -8,6 +8,7 @@ import { StatRow } from './stat-row'
 import { StatblockSection } from './statblock-section'
 import { ActionButton, ActionTooltip } from './action-button'
 import { TargetPickerDialog, type PickerParticipant } from './target-picker-dialog'
+import { ActionResolveDialog, type ResolveResult } from './action-resolve-dialog'
 import {
   creatureTypeInfo,
   effectiveProficiency,
@@ -36,7 +37,15 @@ type Props = {
   onChangeReactions: (used: number) => void
   onChangeLegendary: (used: number) => void
   onChangeLegendaryResistance: (used: number) => void
-  onActionUsed: (action: StatblockAction, targetIds: string[]) => void
+  /**
+   * Fires after the DM has decided what happened — writes event log and
+   * applies damage to targets.
+   */
+  onActionResolved: (
+    action: StatblockAction,
+    targets: PickerParticipant[],
+    result: ResolveResult,
+  ) => void
 }
 
 const ABILITY_KEYS: (keyof AbilityScores)[] = ['str', 'dex', 'con', 'int', 'wis', 'cha']
@@ -52,39 +61,53 @@ export function StatblockPanel({
   onChangeReactions,
   onChangeLegendary,
   onChangeLegendaryResistance,
-  onActionUsed,
+  onActionResolved,
 }: Props) {
   const [picker, setPicker] = useState<StatblockAction | null>(null)
+  // Resolve step holds the action and the chosen targets. `targets=[]` → self.
+  const [resolving, setResolving] = useState<
+    { action: StatblockAction; targets: PickerParticipant[] } | null
+  >(null)
   const [hover, setHover] = useState<{ action: StatblockAction; el: HTMLElement } | null>(null)
 
+  // Start action flow: pick targets first (single/area) or resolve directly (self).
   const handleAction = useCallback(
     (a: StatblockAction) => {
       if (disabled) return
-      if (a.targeting === 'area') {
-        setPicker(a)
+      if (a.targeting === 'self') {
+        setResolving({ action: a, targets: [] })
         return
       }
-      onActionUsed(a, [])
-      if (a.cost && a.cost > 0 && statblock) {
-        const budget = statblock.legendary_budget ?? 0
-        onChangeLegendary(Math.min(budget, participant.legendary_used + a.cost))
-      }
+      // single or area → target picker first
+      setPicker(a)
     },
-    [disabled, onActionUsed, onChangeLegendary, participant.legendary_used, statblock],
+    [disabled],
   )
 
+  // Picker confirmed → open resolve step with chosen targets.
   const handlePickerApply = useCallback(
     (ids: string[]) => {
-      if (picker) {
-        onActionUsed(picker, ids)
-        if (picker.cost && picker.cost > 0 && statblock) {
-          const budget = statblock.legendary_budget ?? 0
-          onChangeLegendary(Math.min(budget, participant.legendary_used + picker.cost))
-        }
-      }
+      if (!picker) return
+      const chosen = otherParticipants.filter((p) => ids.includes(p.id))
+      setResolving({ action: picker, targets: chosen })
       setPicker(null)
     },
-    [picker, onActionUsed, onChangeLegendary, participant.legendary_used, statblock],
+    [picker, otherParticipants],
+  )
+
+  // Resolve confirmed → bubble up, charge legendary cost, close.
+  const handleResolveApply = useCallback(
+    (result: ResolveResult) => {
+      if (!resolving) return
+      const { action, targets } = resolving
+      onActionResolved(action, targets, result)
+      if (action.cost && action.cost > 0 && statblock) {
+        const budget = statblock.legendary_budget ?? 0
+        onChangeLegendary(Math.min(budget, participant.legendary_used + action.cost))
+      }
+      setResolving(null)
+    },
+    [resolving, onActionResolved, onChangeLegendary, participant.legendary_used, statblock],
   )
 
   if (!statblock) {
@@ -508,6 +531,15 @@ export function StatblockPanel({
           participants={otherParticipants}
           onApply={handlePickerApply}
           onClose={() => setPicker(null)}
+        />
+      )}
+
+      {resolving && (
+        <ActionResolveDialog
+          action={resolving.action}
+          targets={resolving.targets}
+          onApply={handleResolveApply}
+          onClose={() => setResolving(null)}
         />
       )}
     </>

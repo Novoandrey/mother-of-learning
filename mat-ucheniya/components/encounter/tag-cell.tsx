@@ -28,11 +28,12 @@ export function TagCell({
   const containerRef = useRef<HTMLDivElement>(null)
 
   const tagNames = tags.map((t) => t.name)
+  // When the cell is open with an empty query, show all suggestions that
+  // aren't already applied. As the user types, narrow by substring match.
+  const available = suggestions.filter((s) => !tagNames.includes(s))
   const filtered = query
-    ? suggestions.filter(
-        (s) => s.toLowerCase().includes(query.toLowerCase()) && !tagNames.includes(s)
-      )
-    : []
+    ? available.filter((s) => s.toLowerCase().includes(query.toLowerCase()))
+    : available
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -148,10 +149,10 @@ export function TagCell({
         )}
       </div>
 
-      {/* Autocomplete dropdown */}
+      {/* Autocomplete dropdown — shown while editing (even without query) */}
       {editing && filtered.length > 0 && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-40 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-          {filtered.slice(0, 8).map((s, i) => (
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-56 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+          {filtered.slice(0, 30).map((s, i) => (
             <button
               key={s}
               type="button"

@@ -7,6 +7,7 @@ import { EditableCell } from './editable-cell'
 import { HpCell } from './hp-cell'
 import { TagCell } from './tag-cell'
 import { AddParticipantRow } from './add-participant-row'
+import { RowActionsMenu } from './row-actions-menu'
 import { SaveAsTemplateButton } from '@/components/save-as-template-button'
 import type { EventAction, EventResult } from '@/lib/event-actions'
 import { useSelection } from '@/hooks/use-selection'
@@ -262,21 +263,6 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
               </td>
             </tr>
 
-            {/* Selection indicator */}
-            {selection.selCount > 0 && (
-              <tr className="bg-blue-50">
-                <td colSpan={8} className="border border-gray-200 px-2 py-1">
-                  <div className="flex items-center gap-2 text-xs text-blue-700">
-                    <span className="font-medium">Выделено: {selection.selCount}</span>
-                    <span className="text-blue-400">·</span>
-                    <span className="text-blue-500">Изменение в одной строке → все выделенные</span>
-                    <button onClick={selection.clearSelection}
-                      className="ml-auto rounded px-1.5 py-0.5 text-blue-500 hover:bg-blue-100 transition-colors">Снять ✕</button>
-                  </div>
-                </td>
-              </tr>
-            )}
-
             {/* Column headers */}
             <tr className="bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <th className="border border-gray-200 w-8 px-1 py-1.5 text-center" />
@@ -286,7 +272,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
               <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Эффекты</th>
               <th className="border border-gray-200 w-32 px-2 py-1.5 text-center">HP</th>
               <th className="border border-gray-200 w-14 px-1 py-1.5 text-center">Вр.</th>
-              <th className="border border-gray-200 w-20 px-1 py-1.5 text-center">⚙</th>
+              <th className="border border-gray-200 w-12 px-1 py-1.5 text-center">⚙</th>
             </tr>
           </thead>
           <tbody>
@@ -360,13 +346,12 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   </td>
                   <td className="border border-gray-200 px-1 py-1 text-center">
                     {!done && (
-                      <div className="flex items-center justify-center gap-0.5">
-                        <button onClick={() => actions.onClone(p.id)} title="Клонировать" className="h-5 w-5 rounded text-[11px] text-gray-300 hover:bg-gray-100 hover:text-gray-600">⧉</button>
-                        <button onClick={() => actions.onToggle(p.id)} title={p.is_active ? 'Убрать' : 'Вернуть'}
-                          className={`h-5 w-5 rounded text-[11px] ${p.is_active ? 'text-gray-300 hover:bg-gray-100 hover:text-gray-600' : 'text-amber-400 hover:bg-amber-50'}`}
-                        >{p.is_active ? '◎' : '○'}</button>
-                        <button onClick={() => actions.onDelete(p.id)} title="Удалить" className="h-5 w-5 rounded text-[11px] text-gray-300 hover:bg-red-50 hover:text-red-500">✕</button>
-                      </div>
+                      <RowActionsMenu
+                        isActive={p.is_active}
+                        onClone={() => actions.onClone(p.id)}
+                        onToggle={() => actions.onToggle(p.id)}
+                        onDelete={() => actions.onDelete(p.id)}
+                      />
                     )}
                   </td>
                 </tr>
@@ -379,6 +364,25 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
       {!done && (
         <div className="border border-t-0 border-gray-200 bg-gray-50/50">
           <AddParticipantRow catalogNodes={catalogNodes} onAddFromCatalog={actions.addFromCatalog} onAddManual={actions.addManual} />
+        </div>
+      )}
+
+      {/* Floating selection toast — doesn't shift table layout */}
+      {selection.selCount > 0 && (
+        <div
+          className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs text-blue-700 shadow-lg"
+        >
+          <div className="flex items-center gap-3">
+            <span className="font-medium">Выделено: {selection.selCount}</span>
+            <span className="text-blue-300">·</span>
+            <span className="text-blue-500">Изменение в одной строке → все выделенные</span>
+            <button
+              onClick={selection.clearSelection}
+              className="rounded-full px-2 py-0.5 text-blue-500 hover:bg-blue-50 transition-colors"
+            >
+              Снять ✕
+            </button>
+          </div>
         </div>
       )}
     </div>

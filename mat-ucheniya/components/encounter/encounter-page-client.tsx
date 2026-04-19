@@ -6,6 +6,7 @@ import { EncounterLog } from './encounter-log'
 import { EncounterCatalogPanel } from './encounter-catalog-panel'
 import { StatblockPanel } from './statblock/statblock-panel'
 import { type PickerParticipant } from './statblock/target-picker-dialog'
+import { type ResolveResult } from './statblock/action-resolve-dialog'
 import { parseStatblock, hasDeadCondition, type StatblockAction } from '@/lib/statblock'
 import { createClient } from '@/lib/supabase/client'
 import { type LogEntry } from '@/lib/log-actions'
@@ -218,23 +219,100 @@ export function EncounterPageClient({
       }))
   }, [participantsSnap])
 
-  // ── Action fired → write to event log ───────────────────────────────
-  const handleActionUsed = useCallback(
-    (action: StatblockAction, targetIds: string[]) => {
+  // ── Action resolved → write events + apply damage ───────────────────
+  // One event per target (hp_damage if damage > 0, else custom with hit/miss
+  // note). Optional overall comment becomes an additional custom event.
+  // Damage is written to encounter_participants.current_hp directly; the
+  // grid picks up the change through participantsSnap / router.refresh.
+  const handleActionResolved = useCallback(
+    async (
+      action: StatblockAction,
+      targets: PickerParticipant[],
+      result: ResolveResult,
+    ) => {
       if (!active) return
-      const targetNames = targetIds
-        .map((id) => participantsSnap.find((p) => p.id === id)?.display_name)
-        .filter(Boolean)
-        .join(', ')
-      const text = targetNames ? `${action.name} → ${targetNames}` : action.name
-      handleAutoEvent({
-        actor: active.display_name,
-        action: 'custom',
-        target: targetNames || null,
-        result: { text },
-        round: encounter.current_round,
-        turn: active.id,
-      })
+
+      // Self action (no targets): fire one custom event with comment or action name.
+      if (targets.length === 0) {
+        const text = result.comment.trim() || action.name
+        await handleAutoEvent({
+          actor: active.display_name,
+          action: 'custom',
+          target: null,
+          result: { text: `${action.name}: ${text}` },
+          round: encounter.current_round,
+          turn: active.id,
+        })
+        return
+      }
+
+      const s = createClient()
+
+      // Process each target sequentially to keep event ordering readable.
+      for (const pt of result.perTarget) {
+        const target = targets.find((t) => t.id === pt.id)
+        if (!target) continue
+
+        // Apply damage to HP (clamped 0..max) if there was any.
+        if (pt.hit && pt.damage > 0) {
+          const fresh = participantsSnap.find((p) => p.id === pt.id)
+          const from = fresh?.current_hp ?? target.current_hp
+          const max = fresh?.max_hp ?? target.max_hp
+          const to = Math.max(0, from - pt.damage)
+
+          // Write HP in DB
+          try {
+            await s.from('encounter_participants').update({ current_hp: to }).eq('id', pt.id)
+          } catch (e) {
+            console.error('Failed to apply damage:', e)
+          }
+
+          // Log as hp_damage event so it renders with − hp/max formatting.
+          await handleAutoEvent({
+            actor: active.display_name,
+            action: 'hp_damage',
+            target: target.display_name,
+            result: { delta: pt.damage, from, to, max, note: pt.note || undefined, via: action.name },
+            round: encounter.current_round,
+            turn: active.id,
+          })
+        } else {
+          // Miss or no-damage outcome → custom event.
+          const outcome = pt.hit
+            ? (pt.note ? pt.note : 'эффект применён')
+            : 'промах'
+          const text = `${action.name}: ${target.display_name} — ${outcome}`
+          await handleAutoEvent({
+            actor: active.display_name,
+            action: 'custom',
+            target: target.display_name,
+            result: { text },
+            round: encounter.current_round,
+            turn: active.id,
+          })
+        }
+      }
+
+      // Overall comment, if any.
+      if (result.comment.trim()) {
+        await handleAutoEvent({
+          actor: active.display_name,
+          action: 'custom',
+          target: null,
+          result: { text: `${action.name}: ${result.comment.trim()}` },
+          round: encounter.current_round,
+          turn: active.id,
+        })
+      }
+
+      // Refresh snapshot so HP bars update everywhere without reload.
+      setParticipantsSnap((ps) =>
+        ps.map((p) => {
+          const hit = result.perTarget.find((r) => r.id === p.id)
+          if (!hit || !hit.hit || hit.damage <= 0) return p
+          return { ...p, current_hp: Math.max(0, p.current_hp - hit.damage) }
+        }),
+      )
     },
     [active, participantsSnap, handleAutoEvent, encounter.current_round],
   )
@@ -328,7 +406,7 @@ export function EncounterPageClient({
               onChangeReactions={(v) => setReactions(active.id, v)}
               onChangeLegendary={(v) => setLegendary(active.id, v)}
               onChangeLegendaryResistance={(v) => setLegendaryResistance(active.id, v)}
-              onActionUsed={handleActionUsed}
+              onActionResolved={handleActionResolved}
             />
           ) : (
             <div

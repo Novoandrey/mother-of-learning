@@ -42,10 +42,13 @@ const HP_METHOD_OPTIONS: { value: HpMethod; title: string; desc: string }[] = [
 
 export default async function CampaignSettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ saved?: string }>
 }) {
   const { slug } = await params
+  const { saved } = await searchParams
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
@@ -54,7 +57,7 @@ export default async function CampaignSettingsPage({
     const method = formData.get('hp_method')
     if (typeof method !== 'string') return
     await updateCampaignHpMethod(slug, method)
-    redirect(`/c/${slug}/settings`)
+    redirect(`/c/${slug}/settings?saved=1`)
   }
 
   const current = campaign.settings.hp_method
@@ -71,6 +74,12 @@ export default async function CampaignSettingsPage({
         <h1 className="mt-2 text-2xl font-bold">Настройки кампании</h1>
         <p className="mt-1 text-sm text-gray-500">{campaign.name}</p>
       </div>
+
+      {saved === '1' && (
+        <div className="rounded-md border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-800">
+          ✓ Сохранено
+        </div>
+      )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-base font-semibold text-gray-900">HP монстров</h2>
