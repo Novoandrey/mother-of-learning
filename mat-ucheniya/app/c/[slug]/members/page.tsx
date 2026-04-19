@@ -4,24 +4,6 @@ import { getMembership, requireAuth, type Role } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { MembersClient, type MemberRow } from './members-client'
 
-type MemberJoinRow = {
-  user_id: string
-  role: Role
-  created_at: string
-  user_profiles:
-    | {
-        login: string
-        display_name: string | null
-        must_change_password: boolean
-      }
-    | Array<{
-        login: string
-        display_name: string | null
-        must_change_password: boolean
-      }>
-    | null
-}
-
 export default async function MembersPage({
   params,
 }: {
@@ -31,39 +13,66 @@ export default async function MembersPage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
-  // Owner-only gate.
+  // Gate: owner OR dm (DMs have full management rights in this project).
+  // Players can't see /members.
   const { user } = await requireAuth()
   const membership = await getMembership(campaign.id)
-  if (!membership || membership.role !== 'owner') {
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'dm')) {
     redirect(`/c/${slug}/catalog`)
   }
 
-  // Need service role here because RLS may hide user_profiles of other users.
+  // Service role — bypass RLS so we see every member's profile.
   const admin = createAdminClient()
 
-  const { data: rows } = await admin
+  // Two separate queries joined in JS. Direct PostgREST embed doesn't work
+  // because campaign_members.user_id and user_profiles.user_id both reference
+  // auth.users(id), with no direct FK between each other.
+  const { data: memberRows } = await admin
     .from('campaign_members')
-    .select(
-      'user_id, role, created_at, user_profiles(login, display_name, must_change_password)',
-    )
+    .select('user_id, role, created_at')
     .eq('campaign_id', campaign.id)
-    .order('role', { ascending: true }) // 'dm' < 'owner' < 'player' alphabetically
-    .order('created_at', { ascending: true })
 
-  const members: MemberRow[] = ((rows ?? []) as MemberJoinRow[]).map((r) => {
-    const profile = Array.isArray(r.user_profiles)
-      ? r.user_profiles[0]
-      : r.user_profiles
-    return {
-      user_id: r.user_id,
-      role: r.role,
-      created_at: r.created_at,
-      login: profile?.login ?? '(нет профиля)',
-      display_name: profile?.display_name ?? null,
-      must_change_password: profile?.must_change_password ?? false,
-      is_self: r.user_id === user.id,
-    }
-  })
+  const userIds = (memberRows ?? []).map((r) => r.user_id)
+
+  type ProfileRow = {
+    user_id: string
+    login: string
+    display_name: string | null
+    must_change_password: boolean
+  }
+  let profileMap = new Map<string, ProfileRow>()
+  if (userIds.length > 0) {
+    const { data: profileRows } = await admin
+      .from('user_profiles')
+      .select('user_id, login, display_name, must_change_password')
+      .in('user_id', userIds)
+
+    profileMap = new Map(
+      ((profileRows ?? []) as ProfileRow[]).map((p) => [p.user_id, p]),
+    )
+  }
+
+  // Role ordering: owner → dm → player.
+  const ROLE_WEIGHT: Record<Role, number> = { owner: 0, dm: 1, player: 2 }
+
+  const members: MemberRow[] = (memberRows ?? [])
+    .map((r) => {
+      const profile = profileMap.get(r.user_id)
+      return {
+        user_id: r.user_id,
+        role: r.role as Role,
+        created_at: r.created_at,
+        login: profile?.login ?? '(нет профиля)',
+        display_name: profile?.display_name ?? null,
+        must_change_password: profile?.must_change_password ?? false,
+        is_self: r.user_id === user.id,
+      }
+    })
+    .sort((a, b) => {
+      const roleDiff = ROLE_WEIGHT[a.role] - ROLE_WEIGHT[b.role]
+      if (roleDiff !== 0) return roleDiff
+      return a.created_at.localeCompare(b.created_at)
+    })
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6" style={{ color: 'var(--fg-1)' }}>

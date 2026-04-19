@@ -10,15 +10,16 @@ type ActionState = { error: string | null; success: string | null }
 const LOGIN_REGEX = /^[a-z0-9_-]{3,32}$/
 
 /**
- * Gate: the action caller must be the owner of the campaign.
+ * Gate: the action caller must be an owner OR a dm of the campaign.
+ * DMs have full management rights in this project.
  * Throws on unauthorized access.
  */
-async function requireOwner(slug: string) {
+async function requireManager(slug: string) {
   const { user } = await requireAuth()
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) throw new Error('Campaign not found')
   const membership = await getMembership(campaign.id)
-  if (!membership || membership.role !== 'owner') {
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'dm')) {
     throw new Error('Forbidden')
   }
   return { user, campaign, membership }
@@ -57,7 +58,7 @@ export async function createMemberAction(
 
   let campaignId: string
   try {
-    const { campaign } = await requireOwner(slug)
+    const { campaign } = await requireManager(slug)
     campaignId = campaign.id
   } catch {
     return { error: 'Нет прав', success: null }
@@ -161,7 +162,7 @@ export async function resetPasswordAction(
   }
 
   try {
-    await requireOwner(slug)
+    await requireManager(slug)
   } catch {
     return { error: 'Нет прав', success: null }
   }
@@ -209,7 +210,7 @@ export async function removeMemberAction(
   let callerId: string
   let campaignId: string
   try {
-    const { user, campaign } = await requireOwner(slug)
+    const { user, campaign } = await requireManager(slug)
     callerId = user.id
     campaignId = campaign.id
   } catch {
@@ -280,7 +281,7 @@ export async function updateMemberRoleAction(
 
   let campaignId: string
   try {
-    const { campaign } = await requireOwner(slug)
+    const { campaign } = await requireManager(slug)
     campaignId = campaign.id
   } catch {
     return { error: 'Нет прав', success: null }
