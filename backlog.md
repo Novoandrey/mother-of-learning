@@ -3,7 +3,39 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-19 (chat 19)
+Updated: 2026-04-19 (chat 20)
+
+---
+
+## Новое (chat 20)
+
+### Stage 3 готов: PillEditor
+- **Feature**: 002-encounter-tracker / spec-007 stage 3
+- `components/encounter/pill-editor.tsx` — ClickUp-style контекст-попап.
+- Клик по пилюле больше не удаляет, а открывает меню с метой
+  («с раунда N») и кнопкой «Убрать».
+- API расширяемый: `actions: PillAction[]` — stage 5 может накинуть
+  «Переименовать», «Сменить цвет» без ломания контракта.
+- Осталось в этапе 4: stage 4 (трекер трат action/bonus/movement),
+  stage 5 (rename/color в PillEditor).
+
+### IDEA-034 [P3] Расширение PillEditor: rename, color, round override
+- **Feature**: 002-encounter-tracker / spec-007 stage 5
+- Фундамент в `pill-editor.tsx` готов — принимает массив actions
+  с полем tone. Нужна реализация конкретных действий:
+- **Rename**: инлайн-редактирование имени условия на одной пилюле.
+  Решить: переименовываем только локально на этом participant или
+  глобально в suggestions (тогда у всех)? Скорее всего — локально,
+  с опциональным чекбоксом «применить ко всем».
+- **Color**: требует `fields.color` на condition-нодах каталога.
+  Сейчас все пилюли серые. Добавить 6-8 цветов из палитры токенов
+  (amber/red/blue/green/purple…) как пресет.
+- **Round override**: ручная правка `round` (если ДМ накладывал
+  условие задним числом или забыл вовремя убрать).
+- **Когда делать**: после stage 4 (трекер трат) и перед общей
+  панелью реакций. Реальная потребность появится когда ДМ начнёт
+  ловить «мне нужно быстро вернуть это условие на раунд раньше»
+  или «у меня 3 разных Отравлен, хочу их визуально отличать».
 
 ---
 

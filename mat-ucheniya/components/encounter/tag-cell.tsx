@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { PillEditor } from './pill-editor'
 
 export type TagEntry = { name: string; round: number }
 
@@ -28,6 +29,9 @@ export function TagCell({
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(
     null,
   )
+  // Pill editor state: which pill is open + the DOM element anchoring the popover.
+  const [openPill, setOpenPill] = useState<{ name: string; el: HTMLElement } | null>(null)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -72,6 +76,7 @@ export function TagCell({
     function handleClick(e: MouseEvent) {
       const t = e.target as HTMLElement
       if (t.closest?.('[data-tag-dropdown]')) return
+      if (t.closest?.('[data-pill-editor]')) return
       if (containerRef.current && !containerRef.current.contains(t)) {
         setEditing(false)
         setQuery('')
@@ -124,9 +129,7 @@ export function TagCell({
     }
   }
 
-  function roundLabel(round: number): string {
-    return round > 0 ? `с раунда ${round}` : 'до боя'
-  }
+  const openPillTag = openPill ? tags.find((t) => t.name === openPill.name) : null
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -140,39 +143,56 @@ export function TagCell({
         }}
         onClick={(e) => {
           e.stopPropagation()
+          // Only enter edit mode if the click was on the cell itself, not a pill.
+          const t = e.target as HTMLElement
+          if (t.closest?.('[data-pill-anchor]')) return
           if (!disabled) setEditing(true)
         }}
       >
-        {tags.map((tag) => (
-          <span
-            key={tag.name}
-            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-[1px] text-[11px] font-medium transition-colors ${
-              disabled ? '' : 'cursor-pointer hover:text-[var(--red-600)]'
-            }`}
-            style={{
-              background: 'var(--gray-100)',
-              color: 'var(--gray-700)',
-            }}
-            onMouseEnter={(e) => {
-              if (!disabled) {
-                e.currentTarget.style.background = 'var(--red-50)'
-                e.currentTarget.style.color = 'var(--red-600)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--gray-100)'
-              e.currentTarget.style.color = 'var(--gray-700)'
-            }}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (!disabled) removeTag(tag.name)
-            }}
-            title={`${tag.name} — ${roundLabel(tag.round)}${disabled ? '' : ' (клик — убрать)'}`}
-          >
-            {tag.name}
-            {!disabled && <span className="text-[9px] opacity-50">×</span>}
-          </span>
-        ))}
+        {tags.map((tag) => {
+          const isOpen = openPill?.name === tag.name
+          return (
+            <span
+              key={tag.name}
+              data-pill-anchor
+              className="inline-flex items-center rounded-full px-2 py-[1px] text-[11px] font-medium transition-colors"
+              style={{
+                background: isOpen ? 'var(--blue-50)' : 'var(--gray-100)',
+                color: isOpen ? 'var(--blue-700)' : 'var(--gray-700)',
+                cursor: disabled ? 'default' : 'pointer',
+                boxShadow: isOpen ? '0 0 0 1px var(--blue-400)' : 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!disabled && !isOpen) {
+                  e.currentTarget.style.background = 'var(--gray-200)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isOpen) {
+                  e.currentTarget.style.background = 'var(--gray-100)'
+                }
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (disabled) return
+                // Toggle: clicking the open pill again closes the editor.
+                if (openPill?.name === tag.name) {
+                  setOpenPill(null)
+                  return
+                }
+                setOpenPill({ name: tag.name, el: e.currentTarget })
+                // Close any inline edit state so dropdown and popover don't overlap.
+                if (editing) {
+                  setEditing(false)
+                  setQuery('')
+                }
+              }}
+              title={tag.name}
+            >
+              {tag.name}
+            </span>
+          )
+        })}
         {editing && (
           <input
             ref={inputRef}
@@ -229,6 +249,23 @@ export function TagCell({
           ))}
         </div>,
         document.body,
+      )}
+
+      {/* Pill editor popover */}
+      {openPill && openPillTag && !disabled && (
+        <PillEditor
+          anchorEl={openPill.el}
+          tagName={openPillTag.name}
+          round={openPillTag.round}
+          actions={[
+            {
+              label: 'Убрать',
+              tone: 'danger',
+              onClick: () => removeTag(openPillTag.name),
+            },
+          ]}
+          onClose={() => setOpenPill(null)}
+        />
       )}
     </div>
   )
