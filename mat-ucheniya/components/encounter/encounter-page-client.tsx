@@ -139,10 +139,20 @@ export function EncounterPageClient({
   )
 
   // ── Active participant → statblock ──────────────────────────────────
-  const active = useMemo(
-    () => participantsSnap.find((p) => p.id === activeId) ?? null,
-    [participantsSnap, activeId],
-  )
+  // Priority:
+  //   1. Explicit active (turn-holder when combat is running, or user-selected).
+  //   2. Fallback: first participant whose node fields parse into a real
+  //      statblock. Lets the DM see a monster's actions before starting combat
+  //      and right after adding a new creature to an existing encounter.
+  const active = useMemo(() => {
+    const explicit = activeId ? participantsSnap.find((p) => p.id === activeId) : null
+    if (explicit) return explicit
+    for (const p of participantsSnap) {
+      if (!p.node?.fields) continue
+      if (parseStatblock(p.display_name, p.node.fields) != null) return p
+    }
+    return null
+  }, [participantsSnap, activeId])
 
   const activeStatblock = useMemo(() => {
     if (!active || !active.node) return null

@@ -52,7 +52,23 @@ export function useEncounterTurns({
 
   const prevTurn = useCallback(async () => {
     if (!inCombat.length) return
-    const idx = turnId ? inCombat.findIndex((p) => p.id === turnId) : 0
+
+    // If combat not started yet, nothing to undo.
+    if (turnId == null) return
+
+    const idx = inCombat.findIndex((p) => p.id === turnId)
+
+    // At first participant of round 1 → exit combat (symmetric to starting it
+    // with → from null). This gives the user a way to cancel "combat started".
+    if (idx === 0 && round === 1) {
+      setTurnId(null)
+      try {
+        const s = createClient()
+        await s.from('encounters').update({ current_turn_id: null }).eq('id', encounterId)
+      } catch { /* best-effort */ }
+      return
+    }
+
     let prev = idx - 1
     if (prev < 0) {
       prev = inCombat.length - 1
