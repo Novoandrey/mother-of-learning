@@ -32,6 +32,7 @@ type Props = {
   catalogNodes: CatalogNode[]
   campaignId: string
   campaignSlug: string
+  hpMethod: import('@/lib/statblock').HpMethod
   conditionNames: string[]
   effectNames: string[]
   initialLogEntries: LogEntry[]
@@ -46,6 +47,7 @@ export function EncounterPageClient({
   catalogNodes,
   campaignId,
   campaignSlug,
+  hpMethod,
   conditionNames,
   effectNames,
   initialLogEntries,
@@ -56,19 +58,31 @@ export function EncounterPageClient({
   const done = encounter.status === 'completed'
   const gridRef = useRef<EncounterGridHandle>(null)
 
-  // Per-participant counters (reactions/legendary), seeded from DB.
-  const [counters, setCounters] = useState<Record<string, { used_reactions: number; legendary_used: number }>>(
-    () => {
-      const out: Record<string, { used_reactions: number; legendary_used: number }> = {}
-      for (const p of initialParticipants) {
-        out[p.id] = {
-          used_reactions: (p as unknown as { used_reactions?: number }).used_reactions ?? 0,
-          legendary_used: (p as unknown as { legendary_used?: number }).legendary_used ?? 0,
-        }
+  // Per-participant counters (reactions/legendary/LR), seeded from DB.
+  const [counters, setCounters] = useState<
+    Record<
+      string,
+      { used_reactions: number; legendary_used: number; legendary_resistance_used: number }
+    >
+  >(() => {
+    const out: Record<
+      string,
+      { used_reactions: number; legendary_used: number; legendary_resistance_used: number }
+    > = {}
+    for (const p of initialParticipants) {
+      const raw = p as unknown as {
+        used_reactions?: number
+        legendary_used?: number
+        legendary_resistance_used?: number
       }
-      return out
-    },
-  )
+      out[p.id] = {
+        used_reactions: raw.used_reactions ?? 0,
+        legendary_used: raw.legendary_used ?? 0,
+        legendary_resistance_used: raw.legendary_resistance_used ?? 0,
+      }
+    }
+    return out
+  })
 
   // Snapshot of live participants (updated by EncounterGrid via callback).
   const [participantsSnap, setParticipantsSnap] = useState(initialParticipants)
@@ -106,7 +120,11 @@ export function EncounterPageClient({
 
   // ── Counter persistence ─────────────────────────────────────────────
   const persistCounter = useCallback(
-    async (participantId: string, field: 'used_reactions' | 'legendary_used', value: number) => {
+    async (
+      participantId: string,
+      field: 'used_reactions' | 'legendary_used' | 'legendary_resistance_used',
+      value: number,
+    ) => {
       try {
         const s = createClient()
         await s.from('encounter_participants').update({ [field]: value }).eq('id', participantId)
@@ -117,25 +135,27 @@ export function EncounterPageClient({
     [],
   )
 
-  const setReactions = useCallback(
-    (pid: string, v: number) => {
-      setCounters((prev) => ({
-        ...prev,
-        [pid]: { ...(prev[pid] ?? { used_reactions: 0, legendary_used: 0 }), used_reactions: v },
-      }))
-      persistCounter(pid, 'used_reactions', v)
-    },
+  const makeCounterSetter = useCallback(
+    (field: 'used_reactions' | 'legendary_used' | 'legendary_resistance_used') =>
+      (pid: string, v: number) => {
+        setCounters((prev) => {
+          const existing = prev[pid] ?? {
+            used_reactions: 0,
+            legendary_used: 0,
+            legendary_resistance_used: 0,
+          }
+          return { ...prev, [pid]: { ...existing, [field]: v } }
+        })
+        persistCounter(pid, field, v)
+      },
     [persistCounter],
   )
-  const setLegendary = useCallback(
-    (pid: string, v: number) => {
-      setCounters((prev) => ({
-        ...prev,
-        [pid]: { ...(prev[pid] ?? { used_reactions: 0, legendary_used: 0 }), legendary_used: v },
-      }))
-      persistCounter(pid, 'legendary_used', v)
-    },
-    [persistCounter],
+
+  const setReactions = useMemo(() => makeCounterSetter('used_reactions'), [makeCounterSetter])
+  const setLegendary = useMemo(() => makeCounterSetter('legendary_used'), [makeCounterSetter])
+  const setLegendaryResistance = useMemo(
+    () => makeCounterSetter('legendary_resistance_used'),
+    [makeCounterSetter],
   )
 
   // ── Active participant → statblock ──────────────────────────────────
@@ -159,7 +179,9 @@ export function EncounterPageClient({
     return parseStatblock(active.display_name, active.node.fields ?? null)
   }, [active])
 
-  const activeCounters = active ? (counters[active.id] ?? { used_reactions: 0, legendary_used: 0 }) : null
+  const activeCounters = active
+    ? (counters[active.id] ?? { used_reactions: 0, legendary_used: 0, legendary_resistance_used: 0 })
+    : null
 
   // Reset reactions to 0 at START of own turn (when activeId becomes this.id).
   useEffect(() => {
@@ -228,6 +250,7 @@ export function EncounterPageClient({
           catalogNodes={catalogNodes}
           campaignId={campaignId}
           campaignSlug={campaignSlug}
+          hpMethod={hpMethod}
           conditionNames={conditionNames}
           effectNames={effectNames}
           onAutoEvent={done ? undefined : handleAutoEvent}
@@ -296,6 +319,7 @@ export function EncounterPageClient({
                 temp_hp: active.temp_hp ?? 0,
                 used_reactions: activeCounters.used_reactions,
                 legendary_used: activeCounters.legendary_used,
+                legendary_resistance_used: activeCounters.legendary_resistance_used,
                 conditions: (active.conditions ?? []).map((c) => c.name),
               }}
               statblock={activeStatblock}
@@ -303,6 +327,7 @@ export function EncounterPageClient({
               disabled={done}
               onChangeReactions={(v) => setReactions(active.id, v)}
               onChangeLegendary={(v) => setLegendary(active.id, v)}
+              onChangeLegendaryResistance={(v) => setLegendaryResistance(active.id, v)}
               onActionUsed={handleActionUsed}
             />
           ) : (

@@ -108,6 +108,7 @@ export default async function EncounterPage({
         catalogNodes={(filteredCatalog ?? []) as unknown as import('@/components/encounter/encounter-grid').CatalogNode[]}
         campaignId={campaign.id}
         campaignSlug={slug}
+        hpMethod={campaign.settings.hp_method}
         conditionNames={conditionNames}
         effectNames={effectNames}
         initialLogEntries={(logEntries ?? []) as unknown as import('@/lib/log-actions').LogEntry[]}

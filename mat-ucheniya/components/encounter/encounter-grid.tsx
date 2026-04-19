@@ -54,6 +54,7 @@ type Props = {
   catalogNodes: CatalogNode[]
   campaignId: string
   campaignSlug: string
+  hpMethod: import('@/lib/statblock').HpMethod
   conditionNames: string[]
   effectNames: string[]
   onAutoEvent?: (evt: { actor?: string | null; action: EventAction; target?: string | null; result?: EventResult; round?: number | null; turn?: string | null }) => void
@@ -87,6 +88,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   catalogNodes,
   campaignId,
   campaignSlug,
+  hpMethod,
   conditionNames,
   effectNames,
   onAutoEvent,
@@ -163,6 +165,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
     clearSelection: selection.clearSelection,
     getCurrentRound,
     onAutoEvent,
+    hpMethod,
   })
 
   // ── Detail fields (loop, day) ─────────────────────

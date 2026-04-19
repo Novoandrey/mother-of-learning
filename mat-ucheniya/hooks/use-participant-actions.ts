@@ -6,6 +6,7 @@ import { parseHpInput } from '@/components/encounter/hp-cell'
 import type { TagEntry } from '@/components/encounter/tag-cell'
 import type { Participant, CatalogNode } from '@/components/encounter/encounter-grid'
 import type { EventAction, EventResult } from '@/lib/event-actions'
+import { computeMonsterHp, type HpMethod } from '@/lib/statblock'
 import {
   updateInitiative,
   updateHp,
@@ -48,6 +49,7 @@ type Options = {
     round?: number | null
     turn?: string | null
   }) => void
+  hpMethod: HpMethod
 }
 
 /**
@@ -66,6 +68,7 @@ export function useParticipantActions({
   clearSelection,
   getCurrentRound,
   onAutoEvent,
+  hpMethod,
 }: Options) {
   const router = useRouter()
 
@@ -255,13 +258,20 @@ export function useParticipantActions({
     try {
       const cat = catalogNodes.find((n) => n.id === nodeId)
       const nd = cat ? { id: cat.id, title: cat.title, fields: cat.fields, type: cat.type ? { slug: cat.type.slug } : undefined } : null
-      const rows = await addParticipantFromCatalog(encounterId, nodeId, name, hp, qty)
+      // Compute per-instance HP from the campaign's hp_method.
+      // 'roll' varies per instance; other methods give the same value each time.
+      const hps: number[] = []
+      for (let i = 0; i < qty; i++) {
+        const v = cat ? computeMonsterHp(cat.fields, hpMethod) : 0
+        hps.push(v > 0 ? v : hp)
+      }
+      const rows = await addParticipantFromCatalog(encounterId, nodeId, name, hps)
       setParticipants((ps) => [...ps, ...rows.map((r: any) => ({
         ...r, node: nd, conditions: r.conditions || [], effects: r.effects || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy',
       }))])
       router.refresh()
     } catch (e) { console.error(e) }
-  }, [encounterId, router, catalogNodes, setParticipants])
+  }, [encounterId, router, catalogNodes, setParticipants, hpMethod])
 
   return {
     onInit, onHp, onHpRaw, onMaxHp, onTempHp, onName, onRole,

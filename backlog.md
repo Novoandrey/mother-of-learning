@@ -3,7 +3,23 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-19 (chat 11)
+Updated: 2026-04-19 (chat 13)
+
+---
+
+## Новое (chat 13)
+
+### ~~BUG-013~~ ✅ FIXED SRD-монстры добавлялись с HP=0
+- **Feature**: 002-encounter-tracker
+- Fixed: `max_hp ?? hp` fallback в add-participant-row, encounter-catalog-panel, parseStatblock.
+- Причина: SRD seed (миграция 019) пишет HP в `fields.hp`, homebrew — в `fields.max_hp`. Код читал только max_hp.
+
+### IDEA-033 [P2] Homebrew / canon статус на карточках
+- **Feature**: catalog / statblock
+- Визуально отличать SRD-монстров от homebrew. Тэги `srd`/`canon` уже есть в seed.
+- В хедере статблока и в карточке каталога — маленький бэйдж "SRD" (серый) или "Homebrew" (синий).
+- Фильтр в каталоге: "только homebrew", "только SRD".
+- Позже: система "оверрайдов" (IDEA-024) — взять SRD-ноду как основу, сделать копию с префиксом "Homebrew: ...".
 
 ---
 

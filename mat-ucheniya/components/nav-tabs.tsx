@@ -8,6 +8,7 @@ const TABS = [
   { key: 'loops', href: 'loops', label: 'Петли', icon: '🔄' },
   { key: 'sessions', href: 'sessions', label: 'Сессии', icon: '📋' },
   { key: 'encounters', href: 'encounters', label: 'Энкаунтеры', icon: '⚔️' },
+  { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️' },
 ]
 
 export function NavTabs({ campaignSlug }: { campaignSlug: string }) {

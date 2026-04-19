@@ -42,16 +42,15 @@ export async function addParticipantFromCatalog(
   encounterId: string,
   nodeId: string,
   displayName: string,
-  maxHp: number,
-  quantity: number
+  hps: number[]
 ) {
   const supabase = createClient()
-  const rows = Array.from({ length: quantity }, (_, i) => ({
+  const rows = hps.map((hp, i) => ({
     encounter_id: encounterId,
     node_id: nodeId,
-    display_name: quantity === 1 ? displayName : `${displayName} ${i + 1}`,
-    max_hp: maxHp,
-    current_hp: maxHp,
+    display_name: hps.length === 1 ? displayName : `${displayName} ${i + 1}`,
+    max_hp: hp,
+    current_hp: hp,
   }))
   const { data, error } = await supabase
     .from('encounter_participants')

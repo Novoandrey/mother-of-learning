@@ -51,7 +51,11 @@ export function AddParticipantRow({ catalogNodes, onAddFromCatalog, onAddManual 
   function submit() {
     const qty = Math.max(1, parseInt(quantity) || 1)
     if (selectedNode) {
-      const maxHp = Number(selectedNode.fields?.max_hp) || 0
+      // SRD seed stores starting HP under "hp"; homebrew uses "max_hp". Accept both.
+      const maxHp =
+        Number(selectedNode.fields?.max_hp) ||
+        Number(selectedNode.fields?.hp) ||
+        0
       onAddFromCatalog(selectedNode.id, selectedNode.title, maxHp, qty)
     } else if (query.trim()) {
       onAddManual(query.trim(), 0)
@@ -120,8 +124,10 @@ export function AddParticipantRow({ catalogNodes, onAddFromCatalog, onAddManual 
                 {node.type && (
                   <span className="text-xs text-gray-400">{node.type.label}</span>
                 )}
-                {Number(node.fields?.max_hp) > 0 && (
-                  <span className="ml-auto text-xs text-gray-400">HP {String(node.fields.max_hp)}</span>
+                {Number(node.fields?.max_hp ?? node.fields?.hp) > 0 && (
+                  <span className="ml-auto text-xs text-gray-400">
+                    HP {String(node.fields?.max_hp ?? node.fields?.hp)}
+                  </span>
                 )}
               </button>
             ))}

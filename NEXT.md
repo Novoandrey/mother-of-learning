@@ -1,7 +1,7 @@
 # NEXT — контекст для следующего чата
 
 > Этот файл обновляется в конце каждого чата. Всегда актуален.
-> Last updated: 2026-04-19 (chat 12 — 5 UX фиксов на странице энкаунтера)
+> Last updated: 2026-04-19 (chat 13 — статблок-фиксы + настройки HP + LR tracker)
 
 ## Что сделано (накопительно)
 
@@ -77,20 +77,60 @@
 - `npm run build` — чисто. Turbopack 18.5s, TypeScript 0 ошибок.
 - Коммит `b12-5-ux-fixes` в main, push.
 
+## Что сделано в этом чате (chat 13, 2026-04-19)
+
+### Статблок-фиксы + настройки HP + Legendary Resistance ✅
+
+**Задачи пользователя (10 пунктов):**
+
+1. ✅ **Bug: max_hp и current_hp не подхватывались при добавлении SRD-моба.** SRD seed (миграция 019) пишет стартовое HP в `fields.hp`, homebrew — в `fields.max_hp`. Фоллбэк `max_hp ?? hp` добавлен в трёх местах: `add-participant-row.tsx` (submit + подсказка в дропдауне), `encounter-catalog-panel.tsx` (click-handler + колонка через `render`), `parseStatblock` в `lib/statblock.ts`.
+
+2. ✅ **Настройки кампании с выбором метода HP.** Миграция 021 добавила `campaigns.settings jsonb`. Новая страница `/c/[slug]/settings` с 4 опциями: `average` (DMG-среднее из статблока), `max` (хардкор — все хит-дайсы на максимум), `min` (1 за дайс), `roll` (бросок каждый раз). Server Action `updateCampaignHpMethod` мержит настройку в `settings` без затирания других ключей. `computeMonsterHp(fields, method)` в `lib/statblock.ts` парсит `hit_dice` формата `17d10+85` и выдаёт HP. При добавлении моба клиент считает массив HP на каждого из `qty` (важно для `roll`) и шлёт на сервер.
+
+3. ✅ **Спасброски и HD.** `Statblock.saves` и `hit_dice` уже были в модели — теперь рендерятся в панели: HD рядом с лейблом HP (`· 17d10+85`), спасы как отдельная строка `Спасы СИЛ +0, ТЕЛ +13, МДР +7` с русскими аббревиатурами.
+
+4. ✅ **Senses.** Добавлены `truesight` и `tremorsense` (рендерились только PP/darkvision/blindsight). Все чувства идут в стате-стрипе.
+
+5. ✅ **Proficiency bonus.** Добавлен чип `PB +X` в хедере панели. `effectiveProficiency(sb)` использует `proficiency_bonus` из полей если есть, иначе считает по CR (таблица 5e DMG: CR <5 → +2, <9 → +3, <13 → +4 и т.д., `parseCrValue` понимает `"1/4"`, `"1/8"` и т.п.).
+
+6. ✅ **Skills.** Отдельная строка `Навыки Аркан +18, Проница +9, ...` с русскими аббревиатурами (словарь `SKILL_LABEL_RU` на 18 скилов).
+
+7. ✅ **Tooltip на тип существа.** `creatureTypeInfo(type)` в `lib/statblock.ts` — словарь на 14 типов (aberration, beast, celestial, construct, dragon, elemental, fey, fiend, giant, humanoid, monstrosity, ooze, plant, undead) с русской меткой и кратким описанием. В панели подтип подчёркнут пунктиром + нативный `title=` на hover.
+
+8. ✅ **Legendary Resistance tracker.** Миграция 021 добавила `encounter_participants.legendary_resistance_used int NOT NULL DEFAULT 0`. `extractLegendaryResistanceBudget(passives)` парсит имя пассива регэкспом `/legendary resistance \((\d+)\s*\/\s*day\)/i`. Если бюджет > 0 — в хедере появляется третий `CounterChip` с иконкой Sparkles, внизу панели reminder-строка "Сопротивлений N/M осталось сегодня". Состояние синхронизируется с БД так же, как реакции/легендарки (через `makeCounterSetter`).
+
+9. ⏸ **Homebrew / canon badge** — не начато, оставлено в backlog как IDEA-033. Инфраструктура уже есть: SRD-ноды тегированы `srd`/`canon` в `fields.tags`.
+
+10. ✅ **Источник (source_doc).** Поле было в модели, теперь рендерится футером панели вместе со ссылкой на `statblock_url`: `Источник: SRD 2014 (Open5e) · статблок ↗`.
+
+### Что новое в модели
+
+- `lib/campaign.ts`: `CampaignSettings { hp_method }`, `parseCampaignSettings`, `getCampaignBySlug` теперь возвращает `Campaign & { settings }`.
+- `lib/statblock.ts`: `Statblock` расширен `proficiency_bonus`, `source_doc`, `legendary_resistance_budget`. Новые хелперы: `HpMethod`/`isHpMethod`, `parseHitDice`, `computeMonsterHp`, `parseCrValue`/`proficiencyFromCr`/`effectiveProficiency`, `extractLegendaryResistanceBudget`, `creatureTypeInfo`.
+- `encounter_participants`: новая колонка `legendary_resistance_used`.
+- `campaigns`: новая колонка `settings jsonb`.
+
+### UI-мелочи
+
+- Настройки кампании: новая вкладка ⚙️ в `nav-tabs.tsx` (пятая после Энкаунтеров).
+- `counter-chip.tsx`: принимает третью иконку `'sparkles'`.
+
+### Build + commit
+
+- `npm run build` — чисто. Turbopack 30.4s, TypeScript 0 ошибок (была одна — duplicate key в `makeCounterSetter` при слиянии объектов, починил через явный `existing`).
+- Коммит и push — будут в ответе.
+
 ## ⚠️ Действия для пользователя
 
-1. **Применить миграцию 020** (счётчики реакций/легендарок) если ещё не применена — файл в `mat-ucheniya/supabase/migrations/020_*.sql`.
-2. Убедиться, что 018 и 019 уже применены.
-3. **QA на проде** после deploy:
-   - `/c/mat-ucheniya/encounters/[id]` — левый сайдбар скрыт (только на этой странице, каталог остаётся со сайдбаром).
-   - Начать бой → счётчик реакций сбрасывается при **входе** в свой ход, счётчик легендарок сбрасывается при **выходе** из своего хода.
-   - Добавить участника → поле поиска → dropdown не обрезается краем таблицы.
-   - Лог: новые записи появляются **сверху**, страница не прыгает вниз при добавлении события.
-   - Правый сайдбар: табы "Статблок" / "Каталог".
-   - Клик "→" (следующий ход) → панель показывает активного участника, статблок из `node.fields`, HP живой (меняется от урона без reload).
-   - Hover по кнопке действия → тёмный тултип слева с подсветкой формул (+N to hit жёлтый, NdN+N красный, DC N Stat синий).
-   - Клик по area action (Fire Breath у дракона) → TargetPicker с чекбоксами, KO-цели выбираемы, dead задизаблены.
-   - Apply → запись в лог.
+1. **Применить миграцию 021** (`021_campaign_settings_and_lr.sql`, файл на руках через present_files). Добавляет `campaigns.settings` и `encounter_participants.legendary_resistance_used`. **БЕЗ этой миграции продакшн упадёт** — код теперь читает эти колонки.
+2. Проверить что 020, 019, 018 уже применены.
+3. **QA на проде:**
+   - `/c/mat-ucheniya/settings` — страница открывается, видны 4 опции метода HP, можно сохранить.
+   - Установить `max` (или желаемое), добавить дракона/лича в энкаунтер: HP должен быть максимум дайса + бонус.
+   - Переключить на `roll`, добавить 3 троллей — у каждого разное HP.
+   - SRD-монстр в энкаунтере: HP подтягивается сразу (баг 1 закрыт).
+   - Панель статблока показывает: ⚙️ тип подчёркнут, hover → русское описание; CR бэйдж; HD рядом с HP; спасы/навыки строками; PB чип; senses с blindsight/truesight/tremorsense если есть; у лича/дракона — 3-й счётчик "Сопротивл." с +/−, после использования reminder внизу; в футере источник + ссылка.
+   - Вкладка ⚙️ Настройки видна в навигации.
 
 ## Следующая задача
 

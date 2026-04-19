@@ -8,7 +8,14 @@ import { StatRow } from './stat-row'
 import { StatblockSection } from './statblock-section'
 import { ActionButton, ActionTooltip } from './action-button'
 import { TargetPickerDialog, type PickerParticipant } from './target-picker-dialog'
-import type { Statblock, StatblockAction } from '@/lib/statblock'
+import {
+  creatureTypeInfo,
+  effectiveProficiency,
+  formatMod,
+  type Statblock,
+  type StatblockAction,
+  type AbilityScores,
+} from '@/lib/statblock'
 
 type Props = {
   /** Selected participant (turn-holder, or user-picked). */
@@ -20,17 +27,21 @@ type Props = {
     temp_hp: number
     used_reactions: number
     legendary_used: number
-    conditions: string[]   // condition names
+    legendary_resistance_used: number
+    conditions: string[]
   }
-  /** Parsed statblock for the participant's node (or null = empty state). */
   statblock: Statblock | null
-  /** All active participants in the encounter, for target picker. */
   otherParticipants: PickerParticipant[]
   disabled?: boolean
   onChangeReactions: (used: number) => void
   onChangeLegendary: (used: number) => void
-  /** Called when an action is fired. `targetIds` is [] for single/self. */
+  onChangeLegendaryResistance: (used: number) => void
   onActionUsed: (action: StatblockAction, targetIds: string[]) => void
+}
+
+const ABILITY_KEYS: (keyof AbilityScores)[] = ['str', 'dex', 'con', 'int', 'wis', 'cha']
+const ABILITY_LABEL_RU: Record<keyof AbilityScores, string> = {
+  str: 'СИЛ', dex: 'ЛВК', con: 'ТЕЛ', int: 'ИНТ', wis: 'МДР', cha: 'ХАР',
 }
 
 export function StatblockPanel({
@@ -40,6 +51,7 @@ export function StatblockPanel({
   disabled,
   onChangeReactions,
   onChangeLegendary,
+  onChangeLegendaryResistance,
   onActionUsed,
 }: Props) {
   const [picker, setPicker] = useState<StatblockAction | null>(null)
@@ -52,9 +64,7 @@ export function StatblockPanel({
         setPicker(a)
         return
       }
-      // single/self: fire immediately with no target list
       onActionUsed(a, [])
-      // Spend legendary cost if any
       if (a.cost && a.cost > 0 && statblock) {
         const budget = statblock.legendary_budget ?? 0
         onChangeLegendary(Math.min(budget, participant.legendary_used + a.cost))
@@ -77,7 +87,6 @@ export function StatblockPanel({
     [picker, onActionUsed, onChangeLegendary, participant.legendary_used, statblock],
   )
 
-  // ── Empty state: no statblock data on the node ──
   if (!statblock) {
     return (
       <div
@@ -99,6 +108,20 @@ export function StatblockPanel({
   const sb = statblock
   const legBudget = sb.legendary_budget ?? 0
   const legRemaining = Math.max(0, legBudget - participant.legendary_used)
+  const lrBudget = sb.legendary_resistance_budget ?? 0
+  const lrRemaining = Math.max(0, lrBudget - participant.legendary_resistance_used)
+  const pb = effectiveProficiency(sb)
+  const typeInfo = creatureTypeInfo(sb.type)
+
+  const saves = sb.saves ?? {}
+  const saveEntries = ABILITY_KEYS
+    .filter((k) => typeof saves[k] === 'number')
+    .map((k) => ({ key: k, label: ABILITY_LABEL_RU[k], mod: saves[k] as number }))
+
+  const skills = sb.skills ?? {}
+  const skillEntries = Object.entries(skills)
+    .filter(([, v]) => typeof v === 'number')
+    .map(([k, v]) => ({ key: k, label: humanizeSkill(k), mod: v as number }))
 
   return (
     <>
@@ -120,7 +143,16 @@ export function StatblockPanel({
                 {participant.display_name}
               </div>
               <div className="mt-1 text-[11px]" style={{ color: 'var(--fg-3)' }}>
-                {[sb.size, sb.type].filter(Boolean).join(' ')}
+                {sb.size && <span>{sb.size} </span>}
+                {sb.type && (
+                  <span
+                    className={typeInfo ? 'underline decoration-dotted cursor-help' : undefined}
+                    title={typeInfo ? `${typeInfo.label} — ${typeInfo.desc}` : undefined}
+                  >
+                    {sb.type}
+                  </span>
+                )}
+                {sb.alignment && <span>, {sb.alignment}</span>}
                 {sb.name && participant.display_name !== sb.name && ` · ${sb.name}`}
               </div>
             </div>
@@ -146,7 +178,10 @@ export function StatblockPanel({
                 >
                   AC
                 </div>
-                <div className="flex items-center gap-1">
+                <div
+                  className="flex items-center gap-1"
+                  title={sb.ac_detail || undefined}
+                >
                   <Shield size={14} strokeWidth={1.5} style={{ color: 'var(--fg-2)' }} />
                   <span
                     className="font-mono tabular font-bold"
@@ -159,10 +194,18 @@ export function StatblockPanel({
             )}
             <div>
               <div
-                className="font-semibold uppercase tracking-wider"
+                className="flex items-baseline gap-1.5 font-semibold uppercase tracking-wider"
                 style={{ fontSize: 9, color: 'var(--fg-3)', letterSpacing: '0.08em' }}
               >
                 HP
+                {sb.hit_dice && (
+                  <span
+                    className="font-mono normal-case tracking-normal"
+                    style={{ color: 'var(--fg-3)', letterSpacing: 0 }}
+                  >
+                    · {sb.hit_dice}
+                  </span>
+                )}
               </div>
               <HpBar
                 current={participant.current_hp}
@@ -181,9 +224,12 @@ export function StatblockPanel({
                 </div>
                 <div className="font-mono text-[11px] leading-snug" style={{ color: 'var(--fg-2)' }}>
                   {sb.speed.walk !== undefined && <div>walk {sb.speed.walk}</div>}
-                  {sb.speed.fly !== undefined && <div>fly {sb.speed.fly}</div>}
+                  {sb.speed.fly !== undefined && (
+                    <div>fly {sb.speed.fly}{sb.speed.hover ? ' (hover)' : ''}</div>
+                  )}
                   {sb.speed.swim !== undefined && <div>swim {sb.speed.swim}</div>}
                   {sb.speed.climb !== undefined && <div>climb {sb.speed.climb}</div>}
+                  {sb.speed.burrow !== undefined && <div>burrow {sb.speed.burrow}</div>}
                 </div>
               </div>
             )}
@@ -210,6 +256,37 @@ export function StatblockPanel({
                 onInc={() => onChangeLegendary(Math.min(legBudget, participant.legendary_used + 1))}
               />
             )}
+            {lrBudget > 0 && (
+              <CounterChip
+                label="Сопротивл."
+                used={participant.legendary_resistance_used}
+                max={lrBudget}
+                icon="sparkles"
+                disabled={disabled}
+                onDec={() =>
+                  onChangeLegendaryResistance(Math.max(0, participant.legendary_resistance_used - 1))
+                }
+                onInc={() =>
+                  onChangeLegendaryResistance(
+                    Math.min(lrBudget, participant.legendary_resistance_used + 1),
+                  )
+                }
+              />
+            )}
+            {pb !== undefined && (
+              <span
+                className="inline-flex items-center rounded border font-mono text-[10px]"
+                style={{
+                  padding: '2px 7px',
+                  borderColor: 'var(--gray-200)',
+                  color: 'var(--fg-2)',
+                  background: 'var(--gray-50)',
+                }}
+                title="Бонус мастерства"
+              >
+                PB <b className="ml-1" style={{ color: 'var(--gray-900)' }}>{formatMod(pb)}</b>
+              </span>
+            )}
           </div>
         </div>
 
@@ -221,7 +298,45 @@ export function StatblockPanel({
             </div>
           )}
 
-          {(sb.senses || sb.immunities || sb.resistances) && (
+          {saveEntries.length > 0 && (
+            <div
+              className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px]"
+              style={{ color: 'var(--fg-2)' }}
+            >
+              <span
+                className="font-semibold uppercase tracking-wider"
+                style={{ fontSize: 9, color: 'var(--fg-3)', letterSpacing: '0.08em' }}
+              >
+                Спасы
+              </span>
+              {saveEntries.map((s) => (
+                <span key={s.key} className="font-mono tabular">
+                  {s.label} <b style={{ color: 'var(--gray-900)' }}>{formatMod(s.mod)}</b>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {skillEntries.length > 0 && (
+            <div
+              className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px]"
+              style={{ color: 'var(--fg-2)' }}
+            >
+              <span
+                className="font-semibold uppercase tracking-wider"
+                style={{ fontSize: 9, color: 'var(--fg-3)', letterSpacing: '0.08em' }}
+              >
+                Навыки
+              </span>
+              {skillEntries.map((s) => (
+                <span key={s.key} className="font-mono tabular">
+                  {s.label} <b style={{ color: 'var(--gray-900)' }}>{formatMod(s.mod)}</b>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {(sb.senses || sb.immunities || sb.resistances || sb.vulnerabilities || sb.condition_immunities || sb.languages) && (
             <div
               className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-y py-2 text-[11px]"
               style={{ borderColor: 'var(--gray-100)', color: 'var(--fg-2)' }}
@@ -235,30 +350,15 @@ export function StatblockPanel({
                   </b>
                 </span>
               )}
-              {sb.senses?.darkvision && (
-                <>
-                  <span style={{ color: 'var(--fg-3)' }}>·</span>
-                  <span>darkvision {sb.senses.darkvision}</span>
-                </>
-              )}
-              {sb.senses?.blindsight && (
-                <>
-                  <span style={{ color: 'var(--fg-3)' }}>·</span>
-                  <span>blindsight {sb.senses.blindsight}</span>
-                </>
-              )}
-              {sb.immunities && (
-                <>
-                  <span style={{ color: 'var(--fg-3)' }}>·</span>
-                  <span style={{ color: 'var(--red-600)' }}>имм: {sb.immunities}</span>
-                </>
-              )}
-              {sb.resistances && (
-                <>
-                  <span style={{ color: 'var(--fg-3)' }}>·</span>
-                  <span style={{ color: 'var(--orange-500)' }}>рез: {sb.resistances}</span>
-                </>
-              )}
+              {sb.senses?.darkvision && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span>darkvision {sb.senses.darkvision} ft</span></>)}
+              {sb.senses?.blindsight && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span>blindsight {sb.senses.blindsight} ft</span></>)}
+              {sb.senses?.truesight && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span>truesight {sb.senses.truesight} ft</span></>)}
+              {sb.senses?.tremorsense && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span>tremorsense {sb.senses.tremorsense} ft</span></>)}
+              {sb.vulnerabilities && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span style={{ color: '#b45309' }}>уязв: {sb.vulnerabilities}</span></>)}
+              {sb.immunities && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span style={{ color: 'var(--red-600)' }}>имм: {sb.immunities}</span></>)}
+              {sb.resistances && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span style={{ color: 'var(--orange-500)' }}>рез: {sb.resistances}</span></>)}
+              {sb.condition_immunities && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span>имм. состояний: {sb.condition_immunities}</span></>)}
+              {sb.languages && (<><span style={{ color: 'var(--fg-3)' }}>·</span><span>языки: {sb.languages}</span></>)}
             </div>
           )}
 
@@ -364,6 +464,39 @@ export function StatblockPanel({
               </div>
             </StatblockSection>
           )}
+
+          {lrBudget > 0 && (
+            <div
+              className="mt-3 rounded border px-2.5 py-1.5 text-[11px]"
+              style={{
+                borderColor: 'var(--gray-200)',
+                background: 'var(--gray-50)',
+                color: 'var(--fg-2)',
+              }}
+            >
+              <b>Легендарное сопротивление:</b> {lrRemaining}/{lrBudget} осталось сегодня.
+            </div>
+          )}
+
+          {(sb.source_doc || sb.statblock_url) && (
+            <div
+              className="mt-3 border-t pt-2 text-[10px]"
+              style={{ borderColor: 'var(--gray-100)', color: 'var(--fg-3)' }}
+            >
+              {sb.source_doc && <span>Источник: {sb.source_doc}</span>}
+              {sb.source_doc && sb.statblock_url && <span> · </span>}
+              {sb.statblock_url && (
+                <a
+                  href={sb.statblock_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-blue-600"
+                >
+                  статблок ↗
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -379,4 +512,31 @@ export function StatblockPanel({
       )}
     </>
   )
+}
+
+const SKILL_LABEL_RU: Record<string, string> = {
+  acrobatics: 'Акроб',
+  animal_handling: 'Уход',
+  arcana: 'Аркан',
+  athletics: 'Атлет',
+  deception: 'Обман',
+  history: 'История',
+  insight: 'Проница',
+  intimidation: 'Запугив',
+  investigation: 'Рассл',
+  medicine: 'Медиц',
+  nature: 'Природа',
+  perception: 'Воспр',
+  performance: 'Выступ',
+  persuasion: 'Убежд',
+  religion: 'Религия',
+  sleight_of_hand: 'Ловк. рук',
+  stealth: 'Скрытн',
+  survival: 'Выжив',
+}
+
+function humanizeSkill(key: string): string {
+  const k = key.toLowerCase().trim()
+  if (SKILL_LABEL_RU[k]) return SKILL_LABEL_RU[k]
+  return k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
