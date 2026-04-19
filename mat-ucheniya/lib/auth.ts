@@ -101,3 +101,42 @@ export async function requireMembership(campaignId: string) {
 export function loginToEmail(login: string): string {
   return `${login.toLowerCase()}@mol.local`
 }
+
+/**
+ * Server-side counterpart to the SQL `can_edit_node()` helper.
+ * Returns true if the current viewer may edit this node.
+ *
+ * Mirror of migration 028:
+ *   - owner/dm of the campaign → true for any node.
+ *   - player → true only if the node is a character AND the viewer is
+ *     in node_pc_owners for it.
+ *
+ * Used by pages/routes to decide whether to show edit UI or 403 a request.
+ * RLS is the hard boundary; this helper is for UX (hiding buttons, early
+ * redirects) and for surfacing clean error messages in API routes.
+ */
+export async function canEditNode(
+  nodeId: string,
+  campaignId: string,
+  userId: string,
+  role: Role,
+): Promise<boolean> {
+  if (role === 'owner' || role === 'dm') return true
+  if (role !== 'player') return false
+
+  const supabase = await createClient()
+  // One query: character-ness + viewer-owns-it.
+  const { data } = await supabase
+    .from('nodes')
+    .select('id, type:node_types(slug), node_pc_owners!inner(user_id)')
+    .eq('id', nodeId)
+    .eq('campaign_id', campaignId)
+    .eq('node_pc_owners.user_id', userId)
+    .maybeSingle()
+
+  if (!data) return false
+  const typeSlug = Array.isArray((data as any).type)
+    ? (data as any).type[0]?.slug
+    : (data as any).type?.slug
+  return typeSlug === 'character'
+}
