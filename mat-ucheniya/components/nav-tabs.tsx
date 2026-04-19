@@ -3,29 +3,30 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-type Tab = { key: string; href: string; label: string; icon: string; ownerOnly?: boolean }
+type Tab = { key: string; href: string; label: string; icon: string; managerOnly?: boolean }
 
 const TABS: Tab[] = [
   { key: 'catalog', href: 'catalog', label: 'Каталог', icon: '📚' },
   { key: 'loops', href: 'loops', label: 'Петли', icon: '🔄' },
   { key: 'sessions', href: 'sessions', label: 'Сессии', icon: '📋' },
   { key: 'encounters', href: 'encounters', label: 'Энкаунтеры', icon: '⚔️' },
-  { key: 'members', href: 'members', label: 'Участники', icon: '👥', ownerOnly: true },
-  { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️', ownerOnly: true },
+  { key: 'members', href: 'members', label: 'Участники', icon: '👥', managerOnly: true },
+  { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️', managerOnly: true },
 ]
 
 export function NavTabs({
   campaignSlug,
-  isOwner = false,
+  isManager = false,
 }: {
   campaignSlug: string
-  isOwner?: boolean
+  /** True if the current user is owner OR dm. Players see fewer tabs. */
+  isManager?: boolean
 }) {
   const pathname = usePathname()
 
   return (
     <div className="flex items-center gap-0 border-b border-gray-200 bg-white px-2">
-      {TABS.filter((t) => !t.ownerOnly || isOwner).map((tab) => {
+      {TABS.filter((t) => !t.managerOnly || isManager).map((tab) => {
         const href = `/c/${campaignSlug}/${tab.href}`
         const isActive = pathname.startsWith(href)
 
