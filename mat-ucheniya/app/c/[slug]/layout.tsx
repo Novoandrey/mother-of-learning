@@ -1,9 +1,11 @@
 import { getCampaignBySlug } from '@/lib/campaign'
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { NavTabs } from '@/components/nav-tabs'
 import { CampaignSidebarAside } from '@/components/campaign-sidebar-aside'
+import { UserMenu } from '@/components/user-menu'
+import { getMembership, requireAuth } from '@/lib/auth'
 
 export default async function CampaignLayout({
   children,
@@ -15,6 +17,11 @@ export default async function CampaignLayout({
   const { slug } = await params
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
+
+  // Auth: require a signed-in, onboarded user who is a member of this campaign.
+  await requireAuth()
+  const membership = await getMembership(campaign.id)
+  if (!membership) redirect('/')
 
   const supabase = await createClient()
 
@@ -39,21 +46,24 @@ export default async function CampaignLayout({
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* Top bar: campaign name + create */}
+      {/* Top bar: campaign name + create + user menu */}
       <header className="flex-shrink-0 border-b border-gray-200 bg-white">
-        <div className="px-4 py-2 flex items-center justify-between">
+        <div className="px-4 py-2 flex items-center justify-between gap-4">
           <Link
             href={`/c/${slug}/catalog`}
             className="font-semibold text-base hover:text-blue-600 transition-colors"
           >
             {campaign.name}
           </Link>
-          <Link
-            href={`/c/${slug}/catalog/new`}
-            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-          >
-            <span className="text-lg leading-none">+</span> Создать
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/c/${slug}/catalog/new`}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              <span className="text-lg leading-none">+</span> Создать
+            </Link>
+            <UserMenu />
+          </div>
         </div>
       </header>
 
