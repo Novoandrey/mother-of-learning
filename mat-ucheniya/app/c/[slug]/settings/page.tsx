@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getCampaignBySlug } from '@/lib/campaign'
+import { getMembership, requireAuth } from '@/lib/auth'
 import { updateCampaignHpMethod } from './actions'
 import type { HpMethod } from '@/lib/statblock'
 
@@ -52,6 +53,14 @@ export default async function CampaignSettingsPage({
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
+  // Spec-006 increment 3: /settings is open to all campaign members. Players
+  // see it read-only; write gate is `canEdit`.
+  await requireAuth()
+  const membership = await getMembership(campaign.id)
+  if (!membership) redirect('/')
+
+  const canEdit = membership.role === 'owner' || membership.role === 'dm'
+
   async function saveHpMethod(formData: FormData) {
     'use server'
     const method = formData.get('hp_method')
@@ -75,7 +84,7 @@ export default async function CampaignSettingsPage({
         <p className="mt-1 text-sm text-gray-500">{campaign.name}</p>
       </div>
 
-      {saved === '1' && (
+      {saved === '1' && canEdit && (
         <div className="rounded-md border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-800">
           ✓ Сохранено
         </div>
@@ -92,17 +101,18 @@ export default async function CampaignSettingsPage({
           {HP_METHOD_OPTIONS.map((opt) => (
             <label
               key={opt.value}
-              className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors ${
+              className={`flex items-start gap-3 rounded-md border p-3 transition-colors ${
                 current === opt.value
                   ? 'border-blue-400 bg-blue-50/40'
-                  : 'border-gray-200 hover:bg-gray-50'
-              }`}
+                  : 'border-gray-200'
+              } ${canEdit ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed opacity-90'}`}
             >
               <input
                 type="radio"
                 name="hp_method"
                 value={opt.value}
                 defaultChecked={current === opt.value}
+                disabled={!canEdit}
                 className="mt-0.5"
               />
               <div className="flex-1">
@@ -113,12 +123,18 @@ export default async function CampaignSettingsPage({
           ))}
 
           <div className="pt-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              Сохранить
-            </button>
+            {canEdit ? (
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              >
+                Сохранить
+              </button>
+            ) : (
+              <p className="text-[12px] italic" style={{ color: 'var(--gray-500)' }}>
+                Только для чтения. Изменениями занимается владелец или ДМ.
+              </p>
+            )}
           </div>
         </form>
       </section>

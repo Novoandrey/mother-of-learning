@@ -26,9 +26,15 @@ async function requireManager(slug: string) {
 }
 
 /**
- * Create a new member (default role: 'dm').
+ * Create a new member (role: 'dm' or 'player').
  * Creates an auth-user via admin API (email confirmation skipped), upserts
  * user_profiles with must_change_password=true, inserts campaign_members.
+ *
+ * For role='player' an optional `bind_pc_id` may be passed — if provided,
+ * after the membership is inserted we claim ownership of that character-node
+ * by setting nodes.owner_user_id = new user. The bind is best-effort: if it
+ * fails, we surface a partial-success message (user created, bind failed)
+ * rather than rolling back the whole operation.
  *
  * The 'owner' role cannot be assigned through the UI (exactly one owner per
  * campaign, enforced by a unique DB index).
@@ -41,10 +47,13 @@ export async function createMemberAction(
   const login = String(formData.get('login') ?? '').trim().toLowerCase()
   const password = String(formData.get('password') ?? '')
   const role = String(formData.get('role') ?? 'dm') as Role
+  const bindPcIdRaw = String(formData.get('bind_pc_id') ?? '').trim()
+  const bindPcId = bindPcIdRaw && bindPcIdRaw !== '__none__' ? bindPcIdRaw : null
 
-  // Role whitelist for this increment: DMs only. Players come in increment 3.
-  if (role !== 'dm') {
-    return { error: 'В этой версии можно создавать только ДМов', success: null }
+  // Role whitelist for this increment: dm or player. Owner is never assigned
+  // through the UI (unique DB index enforces one owner per campaign anyway).
+  if (role !== 'dm' && role !== 'player') {
+    return { error: 'Можно создать только ДМа или игрока', success: null }
   }
   if (!LOGIN_REGEX.test(login)) {
     return {
@@ -54,6 +63,9 @@ export async function createMemberAction(
   }
   if (password.length < 8) {
     return { error: 'Пароль: минимум 8 символов', success: null }
+  }
+  if (bindPcId && role !== 'player') {
+    return { error: 'Привязка к PC доступна только для игроков', success: null }
   }
 
   let campaignId: string
@@ -140,7 +152,47 @@ export async function createMemberAction(
     }
   }
 
+  // Optional PC bind (players only). Best-effort: membership stays even if
+  // the bind fails, we just warn in the success message.
+  let bindWarning: string | null = null
+  if (role === 'player' && bindPcId) {
+    // Validate: node exists, type=character, belongs to this campaign,
+    // currently unowned. Service-role client bypasses RLS — we check the
+    // invariants explicitly here.
+    const { data: targetNode } = await admin
+      .from('nodes')
+      .select('id, campaign_id, owner_user_id, type:node_types(slug)')
+      .eq('id', bindPcId)
+      .maybeSingle()
+
+    const typeSlug = Array.isArray((targetNode as any)?.type)
+      ? (targetNode as any).type[0]?.slug
+      : (targetNode as any)?.type?.slug
+
+    if (!targetNode || targetNode.campaign_id !== campaignId) {
+      bindWarning = 'PC-нода не найдена в этой кампании'
+    } else if (typeSlug !== 'character') {
+      bindWarning = 'Выбранная нода не является персонажем'
+    } else if (targetNode.owner_user_id && targetNode.owner_user_id !== userId) {
+      bindWarning = 'У PC уже есть владелец'
+    } else {
+      const { error: bindErr } = await admin
+        .from('nodes')
+        .update({ owner_user_id: userId })
+        .eq('id', bindPcId)
+      if (bindErr) {
+        bindWarning = 'Не удалось привязать PC: ' + bindErr.message
+      }
+    }
+  }
+
   revalidatePath(`/c/${slug}/members`)
+  if (bindWarning) {
+    return {
+      error: null,
+      success: `Добавлен ${login} (${role}). ⚠ ${bindWarning}`,
+    }
+  }
   return { error: null, success: `Добавлен ${login} (${role})` }
 }
 
@@ -312,4 +364,85 @@ export async function updateMemberRoleAction(
 
   revalidatePath(`/c/${slug}/members`)
   return { error: null, success: `Роль обновлена: ${role}` }
+}
+
+/**
+ * Bind or unbind the owner of a character-node (PC).
+ *
+ * Form fields:
+ *   - node_id:  the character-node id
+ *   - user_id:  the new owner's user_id, OR '__none__' / '' to unbind
+ *
+ * Gate: requireManager (owner or dm) — players cannot reassign ownership.
+ * Validations:
+ *   - node exists, belongs to this campaign, type = 'character'
+ *   - if binding (user_id != none): target user must be a member of this
+ *     campaign (any role — the spec only restricts at UI level, but the
+ *     action just requires membership)
+ */
+export async function bindPcOwnerAction(
+  slug: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const nodeId = String(formData.get('node_id') ?? '').trim()
+  const rawUserId = String(formData.get('user_id') ?? '').trim()
+  const unbind = rawUserId === '' || rawUserId === '__none__'
+  const targetUserId = unbind ? null : rawUserId
+
+  if (!nodeId) return { error: 'Нет node_id', success: null }
+
+  let campaignId: string
+  try {
+    const { campaign } = await requireManager(slug)
+    campaignId = campaign.id
+  } catch {
+    return { error: 'Нет прав', success: null }
+  }
+
+  const admin = createAdminClient()
+
+  // Validate the node.
+  const { data: node } = await admin
+    .from('nodes')
+    .select('id, campaign_id, type:node_types(slug)')
+    .eq('id', nodeId)
+    .maybeSingle()
+
+  if (!node || node.campaign_id !== campaignId) {
+    return { error: 'PC-нода не найдена в этой кампании', success: null }
+  }
+  const typeSlug = Array.isArray((node as any).type)
+    ? (node as any).type[0]?.slug
+    : (node as any).type?.slug
+  if (typeSlug !== 'character') {
+    return { error: 'Это не PC-нода', success: null }
+  }
+
+  // If binding: verify the target is a member of this campaign.
+  if (targetUserId) {
+    const { data: targetMember } = await admin
+      .from('campaign_members')
+      .select('user_id, role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', targetUserId)
+      .maybeSingle()
+    if (!targetMember) {
+      return { error: 'Пользователь не является членом кампании', success: null }
+    }
+  }
+
+  const { error: updErr } = await admin
+    .from('nodes')
+    .update({ owner_user_id: targetUserId })
+    .eq('id', nodeId)
+  if (updErr) {
+    return { error: 'Не удалось обновить владельца: ' + updErr.message, success: null }
+  }
+
+  revalidatePath(`/c/${slug}/catalog/${nodeId}`)
+  return {
+    error: null,
+    success: unbind ? 'Владелец снят' : 'Владелец назначен',
+  }
 }
