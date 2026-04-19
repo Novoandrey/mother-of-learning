@@ -270,10 +270,38 @@ async function main() {
   console.log(`→ PC columns in CSV: ${pcColumns.map((c) => c.name).join(', ')}`)
 
   // 4. Resolve PC columns → PC node ids (report missing)
+  //    Match strategy: exact title first, then "title starts with header"
+  //    (handles short headers like "Альд" → "Альд Манкод", "Уини" → "Уинифред Прескотт").
+  //    If startsWith is ambiguous (2+ candidates), skip with error.
+  const allPcs = Array.from(pcByName.values())
   const pcColResolved: Array<{ name: string; idx: number; nodeId: string | null }> = []
+  const ambiguous: Array<{ name: string; candidates: string[] }> = []
   for (const col of pcColumns) {
-    const pc = pcByName.get(normalizeTitle(col.name))
-    pcColResolved.push({ name: col.name, idx: col.idx, nodeId: pc?.id ?? null })
+    const normalized = normalizeTitle(col.name)
+
+    // 4a. Exact match
+    let match = pcByName.get(normalized) ?? null
+
+    // 4b. StartsWith fallback
+    if (!match) {
+      const candidates = allPcs.filter((p) => normalizeTitle(p.title).startsWith(normalized))
+      if (candidates.length === 1) {
+        match = candidates[0]
+        console.log(`  ~ "${col.name}" → "${candidates[0].title}" (prefix match)`)
+      } else if (candidates.length > 1) {
+        ambiguous.push({ name: col.name, candidates: candidates.map((c) => c.title) })
+      }
+    }
+
+    pcColResolved.push({ name: col.name, idx: col.idx, nodeId: match?.id ?? null })
+  }
+  if (ambiguous.length) {
+    console.error('✗ Ambiguous CSV headers (multiple PCs match prefix):')
+    for (const a of ambiguous) {
+      console.error(`    "${a.name}" matches: ${a.candidates.join(', ')}`)
+    }
+    console.error('  Rename the CSV column to the full PC title to disambiguate.')
+    process.exit(1)
   }
   const missing = pcColResolved.filter((c) => !c.nodeId).map((c) => c.name)
   if (missing.length) {
