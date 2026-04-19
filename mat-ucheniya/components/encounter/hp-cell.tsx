@@ -27,14 +27,12 @@ export function parseHpInput(
   const trimmed = input.trim()
   if (!trimmed) return null
 
-  // Format: "current/max" or "/max"
   if (trimmed.includes('/')) {
     const [left, right] = trimmed.split('/')
     const newMax = parseInt(right)
     if (isNaN(newMax) || newMax < 0) return null
 
     if (left.trim() === '') {
-      // "/60" — only change max
       return { current: Math.min(currentHp, newMax), max: newMax }
     }
     const newCur = parseInt(left)
@@ -42,14 +40,12 @@ export function parseHpInput(
     return { current: Math.min(newCur, newMax), max: newMax }
   }
 
-  // Delta: starts with + or -
   if (trimmed.startsWith('-') || trimmed.startsWith('+')) {
     const delta = parseInt(trimmed)
     if (isNaN(delta)) return null
     return { current: Math.max(0, Math.min(maxHp, currentHp + delta)), max: maxHp }
   }
 
-  // Direct value: set current HP
   const val = parseInt(trimmed)
   if (isNaN(val) || val < 0) return null
   return { current: Math.min(val, maxHp || val), max: maxHp || val }
@@ -69,8 +65,7 @@ export function HpCell({ currentHp, maxHp, onHpChange, onMaxHpChange, onRawInput
 
   function startEdit() {
     if (disabled) return
-    // Pre-fill with current/max for easy editing
-    setDraft(maxHp > 0 ? '' : '')
+    setDraft('')
     setEditing(true)
   }
 
@@ -79,7 +74,6 @@ export function HpCell({ currentHp, maxHp, onHpChange, onMaxHpChange, onRawInput
     const result = parseHpInput(draft, currentHp, maxHp)
     if (!result) return
 
-    // Notify parent of raw input (for mass selection)
     onRawInput?.(draft)
 
     if (result.max !== maxHp) {
@@ -97,7 +91,6 @@ export function HpCell({ currentHp, maxHp, onHpChange, onMaxHpChange, onRawInput
     if (e.key === 'Escape') setEditing(false)
   }
 
-  // Editing mode — single input
   if (editing) {
     return (
       <input
@@ -109,45 +102,58 @@ export function HpCell({ currentHp, maxHp, onHpChange, onMaxHpChange, onRawInput
         onBlur={commit}
         onKeyDown={handleKeyDown}
         placeholder={maxHp > 0 ? '-10, +7, 45, 30/60' : '60 или 30/60'}
-        className="w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-center text-sm font-mono focus:outline-none"
+        className="w-full rounded-[var(--radius)] border bg-white px-1.5 py-[3px] text-center font-mono text-[13px] focus:outline-none"
+        style={{ borderColor: 'var(--blue-500)', boxShadow: 'var(--shadow-focus)' }}
       />
     )
   }
 
-  // No max HP yet — show setup prompt
   if (maxHp === 0) {
     return (
       <button
         onClick={startEdit}
         disabled={disabled}
-        className="rounded border border-dashed border-gray-300 px-2 py-0.5 text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+        className="rounded-[var(--radius)] border border-dashed px-2 py-[3px] text-[11px] transition-colors hover:text-[var(--blue-600)]"
+        style={{ borderColor: 'var(--gray-300)', color: 'var(--fg-mute)' }}
       >
         + HP
       </button>
     )
   }
 
-  // Display mode — one clickable area
   const pct = maxHp > 0 ? (currentHp / maxHp) * 100 : 0
-  const barColor = pct > 50 ? 'bg-green-500' : pct > 25 ? 'bg-yellow-500' : pct > 0 ? 'bg-red-500' : 'bg-gray-300'
+  // Semantic HP bar colour: green > 50%, amber > 25%, red > 0%, gray at 0.
+  const barColor =
+    pct > 50 ? 'var(--green-500)' : pct > 25 ? 'var(--amber-400)' : pct > 0 ? 'var(--red-500)' : 'var(--gray-300)'
+  const trackColor = 'var(--gray-200)'
 
   return (
     <button
       onClick={startEdit}
       disabled={disabled}
-      className={`w-full text-left ${disabled ? 'cursor-default' : 'cursor-text hover:bg-blue-50/50'} rounded px-1 py-0.5 transition-colors`}
+      className={`w-full rounded-[var(--radius)] px-1 py-[3px] text-left transition-colors ${
+        disabled ? 'cursor-default' : 'cursor-text hover:bg-[var(--blue-50)]'
+      }`}
       title="Клик: -10 урон, +7 лечение, 45 прямое, 30/60 оба"
     >
-      <div className="flex items-baseline gap-0.5 font-mono text-sm">
-        <span className={`font-bold ${currentHp === 0 ? 'text-red-600' : 'text-gray-900'}`}>
+      <div className="flex items-baseline gap-0.5 tabular font-mono text-[13px]">
+        <span
+          className="font-semibold"
+          style={{ color: currentHp === 0 ? 'var(--red-600)' : 'var(--fg-1)' }}
+        >
           {currentHp}
         </span>
-        <span className="text-gray-400 text-xs">/{maxHp}</span>
+        <span className="text-[11px]" style={{ color: 'var(--fg-mute)' }}>
+          /{maxHp}
+        </span>
       </div>
-      <div className="mt-0.5 h-1 rounded-full bg-gray-200">
+      <div
+        className="mt-[3px] h-[3px] overflow-hidden rounded-full"
+        style={{ background: trackColor }}
+      >
         <div
-          className={`h-full rounded-full transition-all duration-200 ${barColor}`}
-          style={{ width: `${pct}%` }}
+          className="h-full rounded-full transition-all duration-200"
+          style={{ width: `${pct}%`, background: barColor }}
         />
       </div>
     </button>

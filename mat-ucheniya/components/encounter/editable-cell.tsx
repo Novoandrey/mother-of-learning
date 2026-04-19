@@ -54,7 +54,6 @@ export function EditableCell({
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' || e.key === 'Tab') {
-      // Let Tab propagate for natural focus movement
       if (e.key === 'Enter') e.preventDefault()
       commit()
     }
@@ -74,7 +73,8 @@ export function EditableCell({
         onBlur={commit}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className={`w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm focus:outline-none ${inputClassName} ${className}`}
+        className={`w-full rounded-[var(--radius)] border bg-white px-1.5 py-[3px] text-[13px] focus:outline-none ${inputClassName} ${className}`}
+        style={{ borderColor: 'var(--blue-500)', boxShadow: 'var(--shadow-focus)' }}
       />
     )
   }
@@ -86,11 +86,16 @@ export function EditableCell({
       type="button"
       onClick={startEdit}
       disabled={disabled}
-      className={`w-full rounded px-1.5 py-0.5 text-left text-sm transition-colors ${
-        disabled
-          ? 'cursor-default text-gray-500'
-          : 'cursor-text hover:bg-blue-50/50'
-      } ${displayValue ? 'text-gray-900' : 'text-gray-300'} ${displayClassName} ${className}`}
+      className={`w-full rounded-[var(--radius)] px-1.5 py-[3px] text-left text-[13px] transition-colors ${
+        disabled ? 'cursor-default' : 'cursor-text hover:bg-[var(--blue-50)]'
+      } ${displayClassName} ${className}`}
+      style={{
+        color: disabled
+          ? 'var(--fg-3)'
+          : displayValue
+            ? 'var(--fg-1)'
+            : 'var(--gray-300)',
+      }}
       tabIndex={disabled ? -1 : 0}
     >
       {displayValue || placeholder}

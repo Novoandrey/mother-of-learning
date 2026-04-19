@@ -32,7 +32,6 @@ export function TagCell({
   const containerRef = useRef<HTMLDivElement>(null)
 
   const tagNames = tags.map((t) => t.name)
-  // Empty query → show all available (not-yet-applied) suggestions.
   const available = suggestions.filter((s) => !tagNames.includes(s))
   const filtered = query
     ? available.filter((s) => s.toLowerCase().includes(query.toLowerCase()))
@@ -48,9 +47,6 @@ export function TagCell({
     setHighlightIdx(0)
   }, [query])
 
-  // Position the portal-rendered dropdown relative to the cell. Recomputed
-  // on open, scroll, and resize so it stays pinned even when the user
-  // scrolls the page or the grid's horizontal overflow container.
   useLayoutEffect(() => {
     if (!editing) {
       setDropdownPos(null)
@@ -71,7 +67,6 @@ export function TagCell({
     }
   }, [editing])
 
-  // Close on outside click (allow clicks inside the portal-rendered dropdown).
   useEffect(() => {
     if (!editing) return
     function handleClick(e: MouseEvent) {
@@ -137,11 +132,13 @@ export function TagCell({
     <div ref={containerRef} className="relative w-full">
       {/* Tags display + input trigger */}
       <div
-        className={`flex min-h-[28px] flex-wrap items-center gap-1 rounded px-1 py-0.5 ${
-          editing ? 'ring-1 ring-blue-400' : ''
-        } ${disabled ? '' : 'cursor-text'}`}
+        className={`flex min-h-[24px] flex-wrap items-center gap-1 rounded-[var(--radius)] px-1 py-[2px] transition-shadow ${
+          disabled ? '' : 'cursor-text'
+        }`}
+        style={{
+          boxShadow: editing ? `0 0 0 1px var(--blue-500), var(--shadow-focus)` : 'none',
+        }}
         onClick={(e) => {
-          // Prevent row-level selection toggle; this cell owns its click.
           e.stopPropagation()
           if (!disabled) setEditing(true)
         }}
@@ -149,9 +146,23 @@ export function TagCell({
         {tags.map((tag) => (
           <span
             key={tag.name}
-            className={`inline-flex items-center gap-0.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 ${
-              disabled ? '' : 'hover:bg-red-100 hover:text-red-600 cursor-pointer'
-            } transition-colors`}
+            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-[1px] text-[11px] font-medium transition-colors ${
+              disabled ? '' : 'cursor-pointer hover:text-[var(--red-600)]'
+            }`}
+            style={{
+              background: 'var(--gray-100)',
+              color: 'var(--gray-700)',
+            }}
+            onMouseEnter={(e) => {
+              if (!disabled) {
+                e.currentTarget.style.background = 'var(--red-50)'
+                e.currentTarget.style.color = 'var(--red-600)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--gray-100)'
+              e.currentTarget.style.color = 'var(--gray-700)'
+            }}
             onClick={(e) => {
               e.stopPropagation()
               if (!disabled) removeTag(tag.name)
@@ -159,7 +170,7 @@ export function TagCell({
             title={`${tag.name} — ${roundLabel(tag.round)}${disabled ? '' : ' (клик — убрать)'}`}
           >
             {tag.name}
-            {!disabled && <span className="text-[10px] opacity-50">×</span>}
+            {!disabled && <span className="text-[9px] opacity-50">×</span>}
           </span>
         ))}
         {editing && (
@@ -170,27 +181,30 @@ export function TagCell({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={tags.length === 0 ? placeholder : ''}
-            className="min-w-[60px] flex-1 border-none bg-transparent text-xs outline-none placeholder:text-gray-300"
+            className="min-w-[48px] flex-1 border-none bg-transparent text-[11px] outline-none"
+            style={{ color: 'var(--fg-1)' }}
           />
         )}
         {!editing && tags.length === 0 && !disabled && (
-          <span className="text-xs text-gray-300">{placeholder}</span>
+          <span className="text-[11px]" style={{ color: 'var(--gray-300)' }}>
+            {placeholder}
+          </span>
         )}
       </div>
 
-      {/* Autocomplete dropdown — portaled to body to escape overflow
-          containers (the table's overflow-x-auto clips any locally-
-          positioned dropdown). */}
+      {/* Autocomplete dropdown (portaled). */}
       {editing && filtered.length > 0 && dropdownPos && typeof document !== 'undefined' && createPortal(
         <div
           data-tag-dropdown
-          className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+          className="max-h-56 overflow-y-auto rounded-[var(--radius-md)] border bg-white"
           style={{
             position: 'fixed',
             left: dropdownPos.left,
             top: dropdownPos.top,
             width: dropdownPos.width,
             zIndex: 9999,
+            borderColor: 'var(--gray-200)',
+            boxShadow: 'var(--shadow-lg)',
           }}
         >
           {filtered.slice(0, 30).map((s, i) => (
@@ -198,9 +212,17 @@ export function TagCell({
               key={s}
               type="button"
               onMouseDown={(e) => { e.preventDefault(); addTag(s) }}
-              className={`block w-full px-3 py-1.5 text-left text-xs transition-colors ${
-                i === highlightIdx ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-              }`}
+              className="block w-full px-3 py-1.5 text-left text-[12px] transition-colors"
+              style={{
+                background: i === highlightIdx ? 'var(--blue-50)' : 'transparent',
+                color: i === highlightIdx ? 'var(--blue-700)' : 'var(--gray-700)',
+              }}
+              onMouseEnter={(e) => {
+                if (i !== highlightIdx) e.currentTarget.style.background = 'var(--gray-50)'
+              }}
+              onMouseLeave={(e) => {
+                if (i !== highlightIdx) e.currentTarget.style.background = 'transparent'
+              }}
             >
               {s}
             </button>
