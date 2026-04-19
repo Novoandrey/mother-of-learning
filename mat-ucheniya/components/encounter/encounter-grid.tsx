@@ -7,7 +7,6 @@ import { EditableCell } from './editable-cell'
 import { HpCell } from './hp-cell'
 import { TagCell } from './tag-cell'
 import { AddParticipantRow } from './add-participant-row'
-import { RowActionsMenu } from './row-actions-menu'
 import { NameCell } from './name-cell'
 import { SaveAsTemplateButton } from '@/components/save-as-template-button'
 import type { EventAction, EventResult } from '@/lib/event-actions'
@@ -198,76 +197,120 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
 
   return (
     <div>
+      {/* Header bar — decoupled from table columns so widths don't dictate layout */}
+      <div
+        className="mb-2 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
+      >
+        {/* Title */}
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold text-gray-900">{initial.title}</span>
+          {done && (
+            <span className="rounded bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+              Завершён
+            </span>
+          )}
+        </div>
+
+        {/* Session / Loop / Day pickers */}
+        <div className="flex items-center gap-3">
+          <DetailField
+            label="Сессия"
+            value={details.session || null}
+            onCommit={(v) => saveDetail('session', v)}
+            disabled={done}
+          />
+          <DetailField
+            label="Петля"
+            value={details.loop || null}
+            onCommit={(v) => saveDetail('loop', v)}
+            disabled={done}
+          />
+          <DetailField
+            label="День"
+            value={details.day || null}
+            onCommit={(v) => saveDetail('day', v)}
+            disabled={done}
+          />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-gray-400">Раунд</span>
+            {!done && (
+              <button
+                onClick={() => turns.setRound(-1)}
+                disabled={turns.round <= 1}
+                className="h-7 w-7 rounded border border-gray-200 text-sm text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                aria-label="Предыдущий раунд"
+              >
+                −
+              </button>
+            )}
+            <span className="min-w-[2ch] text-center font-mono text-base font-bold text-gray-900">
+              {turns.round}
+            </span>
+            {!done && (
+              <button
+                onClick={() => turns.setRound(1)}
+                className="h-7 w-7 rounded border border-gray-200 text-sm text-gray-500 hover:bg-gray-100"
+                aria-label="Следующий раунд"
+              >
+                +
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Turn controls */}
+        {!done && (
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={turns.prevTurn}
+              disabled={!inCombat.length}
+              title="Предыдущий ход (← или Shift+Space)"
+              className="h-9 w-9 rounded-lg bg-gray-100 text-base font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors"
+            >
+              ←
+            </button>
+            <div className="min-w-[120px] px-2 text-center">
+              {turns.currentTurnName ? (
+                <span className="text-sm font-semibold text-yellow-700">
+                  {turns.currentTurnName}
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400">Начать →</span>
+              )}
+            </div>
+            <button
+              onClick={turns.advanceTurn}
+              disabled={!inCombat.length}
+              title="Следующий ход (→ или Space)"
+              className="h-9 w-9 rounded-lg bg-blue-600 text-base font-bold text-white hover:bg-blue-700 disabled:opacity-30 transition-colors"
+            >
+              →
+            </button>
+            <span className="mx-1 h-6 w-px bg-gray-200" />
+            <SaveAsTemplateButton
+              campaignId={campaignId}
+              participants={participants.map((p) => ({
+                id: p.id,
+                display_name: p.display_name,
+                max_hp: p.max_hp,
+                role: p.role,
+                sort_order: p.sort_order,
+                node_id: p.node_id,
+              }))}
+            />
+            <button
+              onClick={handleEndCombat}
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors"
+            >
+              Стоп
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm" style={{ minWidth: 960 }}>
           <thead>
-            {/* Info bar row */}
-            <tr className="bg-white">
-              <th colSpan={3} className="border border-gray-200 px-2 py-1.5 text-left">
-                <span className="text-base font-bold text-gray-900">{initial.title}</span>
-                {done && (
-                  <span className="ml-2 rounded bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 align-middle">
-                    Завершён
-                  </span>
-                )}
-              </th>
-              <td className="border border-gray-200 px-2 py-1.5 text-center w-[180px]">
-                <div className="flex items-center gap-1 justify-center">
-                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">Петля</span>
-                  <EditableCell value={details.loop || null} onCommit={(v) => saveDetail('loop', v)} type="number" placeholder="—" disabled={done} className="text-center font-mono font-bold w-10" />
-                </div>
-              </td>
-              <td className="border border-gray-200 px-2 py-1.5 text-center w-[180px]">
-                <div className="flex items-center gap-1 justify-center">
-                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">День</span>
-                  <EditableCell value={details.day || null} onCommit={(v) => saveDetail('day', v)} type="number" placeholder="—" disabled={done} className="text-center font-mono font-bold w-10" />
-                </div>
-              </td>
-              <td className="border border-gray-200 px-2 py-1.5 text-center w-32">
-                <div className="flex items-center gap-1 justify-center">
-                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">Раунд</span>
-                  {!done && (
-                    <button onClick={() => turns.setRound(-1)} disabled={turns.round <= 1}
-                      className="h-5 w-5 rounded text-xs text-gray-400 hover:bg-gray-100 disabled:opacity-30">−</button>
-                  )}
-                  <span className="font-mono font-bold text-gray-900 min-w-[2ch] text-center">{turns.round}</span>
-                  {!done && (
-                    <button onClick={() => turns.setRound(1)}
-                      className="h-5 w-5 rounded text-xs text-gray-400 hover:bg-gray-100">+</button>
-                  )}
-                </div>
-              </td>
-              <td colSpan={2} className="border border-gray-200 px-2 py-1.5 text-center">
-                {!done && (
-                  <div className="flex items-center justify-center gap-1">
-                    <button onClick={turns.prevTurn} disabled={!inCombat.length}
-                      title="Предыдущий ход (← или Shift+Space)"
-                      className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors">←</button>
-                    <div className="min-w-[100px] px-2">
-                      {turns.currentTurnName ? (
-                        <span className="text-sm font-semibold text-yellow-700">{turns.currentTurnName}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">Начать →</span>
-                      )}
-                    </div>
-                    <button onClick={turns.advanceTurn} disabled={!inCombat.length}
-                      title="Следующий ход (→ или Space)"
-                      className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-30 transition-colors">→</button>
-                    <span className="mx-1 text-gray-200">|</span>
-                    <SaveAsTemplateButton campaignId={campaignId}
-                      participants={participants.map((p) => ({
-                        id: p.id, display_name: p.display_name, max_hp: p.max_hp,
-                        role: p.role, sort_order: p.sort_order, node_id: p.node_id,
-                      }))}
-                    />
-                    <button onClick={handleEndCombat}
-                      className="rounded border border-gray-200 px-2 py-0.5 text-[11px] text-gray-400 hover:border-red-300 hover:text-red-500 transition-colors">Стоп</button>
-                  </div>
-                )}
-              </td>
-            </tr>
-
-            {/* Column headers */}
             <tr className="bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <th className="border border-gray-200 w-8 px-1 py-1.5 text-center" />
               <th className="border border-gray-200 w-16 px-1 py-1.5 text-center">Ин.</th>
@@ -275,8 +318,8 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
               <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Состояния</th>
               <th className="border border-gray-200 w-[180px] px-2 py-1.5 text-left">Эффекты</th>
               <th className="border border-gray-200 w-32 px-2 py-1.5 text-center">HP</th>
-              <th className="border border-gray-200 w-14 px-1 py-1.5 text-center">Вр.</th>
-              <th className="border border-gray-200 w-12 px-1 py-1.5 text-center">⚙</th>
+              <th className="border border-gray-200 w-10 px-1 py-1.5 text-center" title="Временные хиты">Вр.</th>
+              <th className="border border-gray-200 w-[140px] px-1 py-1.5 text-center">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -356,12 +399,29 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                   </td>
                   <td className="border border-gray-200 px-1 py-1 text-center">
                     {!done && (
-                      <RowActionsMenu
-                        isActive={p.is_active}
-                        onClone={() => actions.onClone(p.id)}
-                        onToggle={() => actions.onToggle(p.id)}
-                        onDelete={() => actions.onDelete(p.id)}
-                      />
+                      <div
+                        className="flex items-center justify-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => actions.onClone(p.id)}
+                          title="Клонировать"
+                          className="inline-flex h-7 items-center gap-1 rounded border border-gray-200 px-2 text-[11px] text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+                        >
+                          <span>⧉</span>
+                          <span>Клон</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => actions.onDelete(p.id)}
+                          title="Удалить участника"
+                          className="inline-flex h-7 items-center gap-1 rounded border border-gray-200 px-2 text-[11px] text-gray-600 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+                        >
+                          <span>✕</span>
+                          <span>Удал.</span>
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -398,3 +458,31 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
     </div>
   )
 })
+
+// ── Small helper: labelled numeric detail in the header bar ─────────
+
+function DetailField({
+  label,
+  value,
+  onCommit,
+  disabled,
+}: {
+  label: string
+  value: string | null
+  onCommit: (v: string) => void
+  disabled: boolean
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] uppercase tracking-wider text-gray-400">{label}</span>
+      <EditableCell
+        value={value}
+        onCommit={onCommit}
+        type="number"
+        placeholder="—"
+        disabled={disabled}
+        className="w-12 text-center font-mono text-base font-bold"
+      />
+    </div>
+  )
+}

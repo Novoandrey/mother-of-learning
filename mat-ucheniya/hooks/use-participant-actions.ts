@@ -175,36 +175,89 @@ export function useParticipantActions({
     if (!p) return
     const oldNames = new Set((p.conditions || []).map((t) => t.name))
     const newNames = new Set(c.map((t) => t.name))
-    const added = c.filter((t) => !oldNames.has(t.name)).map((t) => t.name)
-    const removed = (p.conditions || []).filter((t) => !newNames.has(t.name)).map((t) => t.name)
+    const added = c.filter((t) => !oldNames.has(t.name))
+    const removed = (p.conditions || []).filter((t) => !newNames.has(t.name))
+    const targets = getTargets(id)
 
-    setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, conditions: c } : p))
-    try { await updateConditions(id, c) } catch { router.refresh() }
+    // Apply the same diff to every selected target (bulk).
+    setParticipants((ps) =>
+      ps.map((row) => {
+        if (!targets.includes(row.id)) return row
+        if (row.id === id) return { ...row, conditions: c }
+        const cur = row.conditions || []
+        const afterRemove = cur.filter((t) => !removed.some((r) => r.name === t.name))
+        const afterAdd = [
+          ...afterRemove,
+          ...added.filter((t) => !afterRemove.some((e) => e.name === t.name)),
+        ]
+        return { ...row, conditions: afterAdd }
+      }),
+    )
+
+    for (const tid of targets) {
+      const row = participants.find((x) => x.id === tid)
+      const cur = row?.conditions || []
+      const afterRemove = cur.filter((t) => !removed.some((r) => r.name === t.name))
+      const next = tid === id
+        ? c
+        : [...afterRemove, ...added.filter((t) => !afterRemove.some((e) => e.name === t.name))]
+      try { await updateConditions(tid, next) } catch { router.refresh() }
+    }
 
     if (onAutoEvent) {
       const r = getCurrentRound()
-      for (const name of added) onAutoEvent({ action: 'condition_add', target: p.display_name, result: { name }, round: r })
-      for (const name of removed) onAutoEvent({ action: 'condition_remove', target: p.display_name, result: { name }, round: r })
+      for (const tid of targets) {
+        const row = participants.find((x) => x.id === tid)
+        if (!row) continue
+        for (const t of added) onAutoEvent({ action: 'condition_add', target: row.display_name, result: { name: t.name }, round: r })
+        for (const t of removed) onAutoEvent({ action: 'condition_remove', target: row.display_name, result: { name: t.name }, round: r })
+      }
     }
-  }, [participants, router, getCurrentRound, onAutoEvent, setParticipants])
+  }, [participants, router, getCurrentRound, onAutoEvent, setParticipants, getTargets])
 
   const onEffects = useCallback(async (id: string, e: TagEntry[]) => {
     const p = participants.find((x) => x.id === id)
     if (!p) return
     const oldNames = new Set((p.effects || []).map((t) => t.name))
     const newNames = new Set(e.map((t) => t.name))
-    const added = e.filter((t) => !oldNames.has(t.name)).map((t) => t.name)
-    const removed = (p.effects || []).filter((t) => !newNames.has(t.name)).map((t) => t.name)
+    const added = e.filter((t) => !oldNames.has(t.name))
+    const removed = (p.effects || []).filter((t) => !newNames.has(t.name))
+    const targets = getTargets(id)
 
-    setParticipants((ps) => ps.map((p) => p.id === id ? { ...p, effects: e } : p))
-    try { await updateEffects(id, e) } catch { router.refresh() }
+    setParticipants((ps) =>
+      ps.map((row) => {
+        if (!targets.includes(row.id)) return row
+        if (row.id === id) return { ...row, effects: e }
+        const cur = row.effects || []
+        const afterRemove = cur.filter((t) => !removed.some((r) => r.name === t.name))
+        const afterAdd = [
+          ...afterRemove,
+          ...added.filter((t) => !afterRemove.some((x) => x.name === t.name)),
+        ]
+        return { ...row, effects: afterAdd }
+      }),
+    )
+
+    for (const tid of targets) {
+      const row = participants.find((x) => x.id === tid)
+      const cur = row?.effects || []
+      const afterRemove = cur.filter((t) => !removed.some((r) => r.name === t.name))
+      const next = tid === id
+        ? e
+        : [...afterRemove, ...added.filter((t) => !afterRemove.some((x) => x.name === t.name))]
+      try { await updateEffects(tid, next) } catch { router.refresh() }
+    }
 
     if (onAutoEvent) {
       const r = getCurrentRound()
-      for (const name of added) onAutoEvent({ action: 'effect_add', target: p.display_name, result: { name }, round: r })
-      for (const name of removed) onAutoEvent({ action: 'effect_remove', target: p.display_name, result: { name }, round: r })
+      for (const tid of targets) {
+        const row = participants.find((x) => x.id === tid)
+        if (!row) continue
+        for (const t of added) onAutoEvent({ action: 'effect_add', target: row.display_name, result: { name: t.name }, round: r })
+        for (const t of removed) onAutoEvent({ action: 'effect_remove', target: row.display_name, result: { name: t.name }, round: r })
+      }
     }
-  }, [participants, router, getCurrentRound, onAutoEvent, setParticipants])
+  }, [participants, router, getCurrentRound, onAutoEvent, setParticipants, getTargets])
 
   const onToggle = useCallback(async (id: string) => {
     const p = participants.find((x) => x.id === id)

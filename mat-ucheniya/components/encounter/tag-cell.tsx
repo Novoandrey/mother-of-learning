@@ -112,7 +112,11 @@ export function TagCell({
         className={`flex min-h-[28px] flex-wrap items-center gap-1 rounded px-1 py-0.5 ${
           editing ? 'ring-1 ring-blue-400' : ''
         } ${disabled ? '' : 'cursor-text'}`}
-        onClick={() => { if (!disabled) setEditing(true) }}
+        onClick={(e) => {
+          // Prevent row-level selection toggle; this cell owns its click.
+          e.stopPropagation()
+          if (!disabled) setEditing(true)
+        }}
       >
         {tags.map((tag) => (
           <span
