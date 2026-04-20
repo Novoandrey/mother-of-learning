@@ -1,4 +1,5 @@
 import { LoginForm } from './login-form'
+import { APP_NAME, APP_LOGIN_SUBTITLE } from '@/lib/branding'
 
 export default function LoginPage() {
   return (
@@ -18,13 +19,13 @@ export default function LoginPage() {
           className="mb-1 text-[18px] font-semibold"
           style={{ color: 'var(--fg-1)' }}
         >
-          Мать Учения
+          {APP_NAME}
         </h1>
         <p
           className="mb-6 text-[12px]"
           style={{ color: 'var(--gray-500)' }}
         >
-          Войдите, чтобы продолжить
+          {APP_LOGIN_SUBTITLE}
         </p>
         <LoginForm />
       </div>
