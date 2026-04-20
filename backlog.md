@@ -3,7 +3,174 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Feature-specific items live in `.specify/specs/NNN-*/backlog.md`.
 
-Updated: 2026-04-19 (chat 25)
+Updated: 2026-04-20 (chat 27 — ultrareview + shared world editing + perf)
+
+---
+
+## 🔜 NEXT — полишинг по итогам ultrareview (chat 28)
+
+В chat 27 сделали `/ultrareview` и триаж трёх зарепорченных проблем
+(права игроков, лавина запросов, фидбек). Проблемы 1 и 2 закрыты,
+3 — частично (loading/error + alert на 403; toast-менеджер отложен).
+Следующий чат берёт оставшиеся пункты ultrareview + дополиривает №3.
+
+### BUG-014 [P1] `roundRef.current = turns.round` в render body
+- **Feature**: encounter tracker
+- `components/encounter/encounter-grid.tsx:143` — присваивание ref
+  прямо в render. React 19 ругается через `react-hooks/set-state-in-effect`.
+- Фикс: удалить строку, ref уже синхронизируется через `onRoundChange`
+  callback в хуке `useEncounterTurns`.
+- На самом деле в chat 27 я уже сделал фикс в working copy, но откатил
+  (пользователь попросил отдельный приоритет). В chat 28 применить
+  одним коммитом.
+
+### TECH-001 [P2] Хардкод "Мать Учения" → env var
+- **Feature**: universality (constitution X)
+- Два места с захардкоженным названием кампании:
+  - `app/layout.tsx:7` — `title: 'Мать Учения'`
+  - `app/login/page.tsx:21` — `<h1>Мать Учения</h1>`
+- Фикс: `lib/branding.ts` с `APP_NAME = process.env.NEXT_PUBLIC_APP_NAME
+  || 'Мать Учения'`. Текущий деплой не меняется (fallback), форки
+  переопределяют env.
+- В chat 27 файл создан в working copy, откачен. В chat 28 применить.
+
+### TECH-002 [P2] 7 мест `react-hooks/set-state-in-effect`
+- **Feature**: dx (lint cleanup)
+- Next 16/React 19 стал строже. Паттерн везде один: форма сбросилась
+  → `useEffect([state.success])` → `setOpen(false)`. Правильно —
+  реагировать в хендлере:
+  ```tsx
+  async function submit(fd: FormData) {
+    const r = await boundAction(state, fd)
+    if (r.success) { formRef.current?.reset(); setOpen(false) }
+    return r
+  }
+  ```
+- Места:
+  - `components/encounter/tag-cell.tsx:51,56` (×2)
+  - `components/encounter/add-participant-row.tsx:31`
+  - `components/encounter/statblock/action-resolve-dialog.tsx:53`
+  - `app/c/[slug]/electives/electives-client.tsx:477`
+  - `app/c/[slug]/members/members-client.tsx:76`
+- ~3 часа.
+
+### TECH-003 [P2] 40+ `any` в Supabase join ответах
+- **Feature**: dx (типизация)
+- Паттерн `(x as any).type[0]?.slug` — Supabase TS-генератор не
+  угадывает, вернёт ли join массив или объект. Фикс — утилита
+  `lib/supabase/joins.ts`:
+  ```ts
+  export type Joined<T> = T | T[] | null
+  export function unwrapOne<T>(j: Joined<T>): T | null {
+    return Array.isArray(j) ? (j[0] ?? null) : j
+  }
+  ```
+- Горячие точки: `members/actions.ts` (×6), `hooks/use-node-form.ts`,
+  `hooks/use-participant-actions.ts`, `lib/loops.ts`, `lib/auth.ts`.
+- ~2 часа.
+
+### UX-001 [P2] Toast-менеджер вместо alert()
+- **Feature**: ui (доделка проблемы 3)
+- В chat 27 временно вставил `alert()` в client mutations (node-detail,
+  chronicles, create-edge-form) — закрывает 403 тихофейл, но UX убогий.
+- Нужен простой toast Provider в root layout, хук `useToast()`, wrapper
+  над fetch который читает `error` из response и показывает toast.
+- Интеграция с server actions: `useActionState` уже возвращает
+  `{error, success}` — рендерить автоматически.
+- ~0.5 дня.
+
+### UX-002 [P3] Индикаторы pending на inline-формах
+- **Feature**: ui
+- `electives-client.tsx`, `members-client.tsx` используют
+  `useActionState` → возвращают `pending`, но не везде его отображают
+  (disable + spinner).
+- Пройтись по всем формам, убедиться что во время `pending`
+  submit disabled + маленькая крутилка.
+
+### TECH-004 [P2] `unstable_cache` на sidebar query
+- **Feature**: perf
+- В chat 27 не делал — сначала закрыл группы по умолчанию, измерили
+  эффект. Если после деплоя chat 28 пользователь говорит «всё ещё
+  лагает» — завернуть layout sidebar query (150 нод) в
+  `unstable_cache(..., { tags: ['sidebar:' + campaignId], revalidate: 60 })`,
+  добавить `revalidateTag` в server actions которые мутируют ноды.
+- Оценка: 30 минут, если мерить показало что надо. Иначе — пропустить.
+
+### TECH-005 [P3] Middleware → Proxy (Next 16 deprecation)
+- **Feature**: dx
+- Предупреждение `The "middleware" file convention is deprecated.
+  Please use "proxy" instead.`
+- Сейчас работает, но при апгрейде до Next 17 поломается. Переименовать
+  `middleware.ts` → `proxy.ts`, обновить конфиг.
+
+---
+
+## 🔒 TECH DEBT от ultrareview — для отдельных фич, не в chat 28
+
+### DEBT-001 [P3] Chronicles не мигрированы в ноды графа
+- **Feature**: spec-003 (граф как единая модель)
+- Отдельная таблица `chronicles` с собственными `loop_number`, `node_id`,
+  API routes `/api/chronicles/*`. Нарушает constitution I + II.
+- Правильно: `chronicle_entry` как node type, `chronicle→node` и
+  `chronicle→loop` как edges. Убирает отдельные API routes, отдельный
+  компонент, дублирующийся `loop_number`.
+- Не срочно. Отдельная фича на 0.5–1 день.
+
+### DEBT-002 [P3] `008_party.sql` — мёртвая таблица
+- **Feature**: dx (cleanup)
+- Таблица `party` и `party_members` созданы в миграции 008_party, но
+  ни одного `from('party')` в коде нет. Либо удалить миграцией 032,
+  либо в комментарии задокументировать «reserved for IDEA-X».
+
+### DEBT-003 [P2] SRD seed привязан к `slug='mat-ucheniya'`
+- **Feature**: universality (constitution X) — open source blocker
+- Миграции 003 (conditions), 005 (effects), 022 (exhaustion levels)
+  инсертят в `WHERE c.slug='mat-ucheniya'`. Новая кампания, созданная
+  через UI, получит пустой тип `condition`, ноль conditions,
+  ноль effects → трекер энкаунтера сломан из коробки.
+- Правильный фикс: server action `initializeCampaignFromTemplate(id)` +
+  `lib/seeds/dnd5e-srd.ts` — идемпотентно инсертит универсальные SRD
+  данные. Вызывать при создании кампании.
+- Блокирует open source релиз. Оценка — 1 день.
+
+### DEBT-004 [P3] `to_tsvector('russian')` hardcoded
+- **Feature**: i18n / universality
+- Search trigger использует русский Snowball словарь. Англ/другие
+  языки не получат stemming. Фикс: колонка `campaigns.language` +
+  триггер читает её. Не срочно.
+
+### DEBT-005 [P3] `loop` как node_type в каждой кампании
+- **Feature**: universality
+- Миграция 012 инсертит `loop` в каждую существующую кампанию. Новая
+  кампания для обычной (без петли времени) игры получит лишний тип.
+- Правильно: per-campaign feature flags (`campaign_features` table
+  или `campaigns.features jsonb`).
+
+### DEBT-006 [P3] `/api/chronicles`, `/api/nodes/*` — REST вместо actions
+- **Feature**: dx (консистентность)
+- Весь остальной проект — server actions. Только chronicles + nodes API
+  остались на REST routes. Непоследовательно. При рефакторинге (например
+  в DEBT-001) перенести на actions.
+
+### DEBT-007 [P3] Zod схема для statblock
+- **Feature**: dx (надёжность)
+- `lib/statblock.ts` определяет тип Statblock (~40 полей в JSONB), но
+  ни runtime validation, ни CHECK constraint. Один неверный write —
+  и UI падает молча.
+- Фикс: zod schema в `lib/statblock.ts`, использовать в
+  `lib/encounter-actions.ts` на входе. 0.5 дня.
+
+### DEBT-008 [P3] Глобальный error reporting
+- **Feature**: dx / observability
+- 18 мест с `console.error` в prod. Для open source нормально (юзер
+  в консоль смотрит), но для серьёзного продакшна — надо Sentry или
+  аналог. Обёртка `lib/log.ts` с `reportError()`.
+
+### DEBT-009 [P3] `save-as-template-button.tsx` не подключён
+- **Feature**: encounter templates (IDEA-001)
+- Компонент + server action + миграция 007 существуют, но нигде не
+  импортируется. Либо подключить в `encounter-grid.tsx` (IDEA-001
+  как была помечена 🔜), либо удалить dead code.
 
 ---
 
