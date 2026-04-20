@@ -140,7 +140,6 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
     done,
     onRoundChange: (r) => { roundRef.current = r },
   })
-  roundRef.current = turns.round
 
   useEffect(() => { onActiveChange?.(turns.turnId) }, [turns.turnId, onActiveChange])
   useEffect(() => { onParticipantsChange?.(participants) }, [participants, onParticipantsChange])

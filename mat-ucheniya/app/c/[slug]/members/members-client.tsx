@@ -66,16 +66,19 @@ function CreateMemberBlock({
   availablePcs: AvailablePc[]
 }) {
   const boundAction = createMemberAction.bind(null, slug)
-  const [state, formAction, pending] = useActionState(boundAction, initialState)
   const formRef = useRef<HTMLFormElement>(null)
   const [role, setRole] = useState<'dm' | 'player'>('dm')
-
-  useEffect(() => {
-    if (state.success) {
-      formRef.current?.reset()
-      setRole('dm')
-    }
-  }, [state.success])
+  const [state, formAction, pending] = useActionState(
+    async (prev: ActionState, fd: FormData) => {
+      const result = await boundAction(prev, fd)
+      if (result.success) {
+        formRef.current?.reset()
+        setRole('dm')
+      }
+      return result
+    },
+    initialState,
+  )
 
   return (
     <section
