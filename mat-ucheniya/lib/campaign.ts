@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { isHpMethod, type HpMethod } from '@/lib/statblock'
 
@@ -26,18 +27,25 @@ export function parseCampaignSettings(raw: unknown): CampaignSettings {
   return out
 }
 
-export async function getCampaignBySlug(slug: string): Promise<Campaign | null> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('campaigns')
-    .select('id, name, slug, settings')
-    .eq('slug', slug)
-    .single()
-  if (!data) return null
-  return {
-    id: data.id,
-    name: data.name,
-    slug: data.slug,
-    settings: parseCampaignSettings((data as { settings?: unknown }).settings),
-  }
-}
+/**
+ * React cache() wraps the campaign lookup so layout + generateMetadata +
+ * page share one DB roundtrip per request. A single /c/[slug]/catalog/[id]
+ * navigation calls this 3 times — without cache(), that's 3 selects.
+ */
+export const getCampaignBySlug = cache(
+  async (slug: string): Promise<Campaign | null> => {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('campaigns')
+      .select('id, name, slug, settings')
+      .eq('slug', slug)
+      .single()
+    if (!data) return null
+    return {
+      id: data.id,
+      name: data.name,
+      slug: data.slug,
+      settings: parseCampaignSettings((data as { settings?: unknown }).settings),
+    }
+  },
+)

@@ -45,116 +45,115 @@ export default async function NodePage({
 
   const supabase = await createClient()
 
-  // Fetch node (type resolved for the owner-section branch below).
-  const { data: node } = await supabase
-    .from('nodes')
-    .select('id, title, fields, content, type:node_types(slug, label, icon)')
-    .eq('id', id)
-    .single()
+  // Parallel fetch: node + edges (both directions in one .or() query) + chronicles.
+  // The merged edges query includes type joins for children, so we don't need a
+  // second "fetch node_types for child ids" roundtrip afterward.
+  const [nodeRes, edgeRes, chroniclesRes] = await Promise.all([
+    supabase
+      .from('nodes')
+      .select('id, title, fields, content, type:node_types(slug, label, icon)')
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('edges')
+      .select(
+        'id, label, source_id, target_id, ' +
+          'source:nodes!source_id(id, title, type:node_types(icon, label)), ' +
+          'target:nodes!target_id(id, title, type:node_types(icon, label)), ' +
+          'edge_type:edge_types(slug, label)',
+      )
+      .or(`source_id.eq.${id},target_id.eq.${id}`),
+    supabase
+      .from('chronicles')
+      .select('id, title, content, loop_number, game_date, created_at, updated_at')
+      .eq('node_id', id)
+      .order('loop_number', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+  ])
 
+  const node = nodeRes.data
   if (!node) notFound()
 
-  // Fetch edges (outgoing + incoming) with related node titles and edge type labels
-  const { data: outgoing } = await supabase
-    .from('edges')
-    .select('id, label, target:nodes!target_id(id, title), edge_type:edge_types(slug, label)')
-    .eq('source_id', id)
+  // Split merged edges into (outgoing vs incoming) by comparing source_id.
+  type EdgeRow = {
+    id: string
+    label: string | null
+    source_id: string
+    target_id: string
+    source: { id: string; title: string; type: { icon?: string; label?: string } | null } | null
+    target: { id: string; title: string; type: { icon?: string; label?: string } | null } | null
+    edge_type: { slug: string; label: string } | null
+  }
+  const allEdges = (edgeRes.data ?? []) as unknown as EdgeRow[]
+  const outgoing = allEdges.filter((e) => e.source_id === id)
+  const incoming = allEdges.filter((e) => e.target_id === id)
 
-  const { data: incoming } = await supabase
-    .from('edges')
-    .select('id, label, source:nodes!source_id(id, title), edge_type:edge_types(slug, label)')
-    .eq('target_id', id)
-
-  // Separate contains edges from regular edges
-  const children = (outgoing || [])
-    .filter((e: any) => e.edge_type?.slug === 'contains')
-    .map((e: any) => ({
-      id: e.target?.id,
-      title: e.target?.title || '?',
+  // Separate contains-edges (parent/child) from regular edges.
+  const childrenWithTypes = outgoing
+    .filter((e) => e.edge_type?.slug === 'contains' && e.target)
+    .map((e) => ({
+      id: e.target!.id,
+      title: e.target!.title,
+      typeIcon: e.target!.type?.icon,
+      typeLabel: e.target!.type?.label,
     }))
+    .sort((a, b) => a.title.localeCompare(b.title))
 
-  const parent = (incoming || [])
-    .filter((e: any) => e.edge_type?.slug === 'contains')
-    .map((e: any) => ({
-      id: e.source?.id,
-      title: e.source?.title || '?',
-    }))[0] || null
+  const parent =
+    incoming
+      .filter((e) => e.edge_type?.slug === 'contains' && e.source)
+      .map((e) => ({ id: e.source!.id, title: e.source!.title }))[0] ?? null
 
-  // Normalize non-contains edges into a flat structure
+  // Normalize non-contains edges into flat structure for the UI.
   const edges = [
-    ...(outgoing || [])
-      .filter((e: any) => e.edge_type?.slug !== 'contains')
-      .map((e: any) => ({
+    ...outgoing
+      .filter((e) => e.edge_type?.slug !== 'contains')
+      .map((e) => ({
         id: e.id,
         type_label: e.edge_type?.label || '?',
         label: e.label,
         direction: 'outgoing' as const,
-        related_id: e.target?.id,
+        related_id: e.target?.id ?? '',
         related_title: e.target?.title || '?',
       })),
-    ...(incoming || [])
-      .filter((e: any) => e.edge_type?.slug !== 'contains')
-      .map((e: any) => ({
+    ...incoming
+      .filter((e) => e.edge_type?.slug !== 'contains')
+      .map((e) => ({
         id: e.id,
         type_label: e.edge_type?.label || '?',
         label: e.label,
         direction: 'incoming' as const,
-        related_id: e.source?.id,
+        related_id: e.source?.id ?? '',
         related_title: e.source?.title || '?',
       })),
   ]
 
-  // Fetch node types for children display
-  const childNodeIds = children.map((c: any) => c.id).filter(Boolean)
-  let childrenWithTypes: { id: string; title: string; typeIcon?: string; typeLabel?: string }[] = []
-  if (childNodeIds.length > 0) {
-    const { data: childNodes } = await supabase
-      .from('nodes')
-      .select('id, title, type:node_types(icon, label)')
-      .in('id', childNodeIds)
-      .order('title')
-    childrenWithTypes = (childNodes || []).map((n: any) => ({
-      id: n.id,
-      title: n.title,
-      typeIcon: n.type?.icon,
-      typeLabel: n.type?.label,
-    }))
-  }
-
-  // Fetch chronicles for this node
-  const { data: chronicles } = await supabase
-    .from('chronicles')
-    .select('id, title, content, loop_number, game_date, created_at, updated_at')
-    .eq('node_id', id)
-    .order('loop_number', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
+  const chronicles = chroniclesRes.data
 
   // Owner context for character-nodes. Admin client is used so we can read
   // profiles / player list even for viewers whose RLS might tighten in the
   // next increment — keeps the section resilient.
-  const typeRaw = (node as any).type
-  const typeSlug = Array.isArray(typeRaw) ? typeRaw[0]?.slug : typeRaw?.slug
+  const typeRaw = (node as { type?: unknown }).type
+  const typeSlug = Array.isArray(typeRaw)
+    ? (typeRaw[0] as { slug?: string } | undefined)?.slug
+    : (typeRaw as { slug?: string } | null)?.slug
   let ownerContext: OwnerContext | undefined
 
   if (typeSlug === 'character') {
     const admin = createAdminClient()
 
-    // Load all current owners of this PC (many-to-many).
-    const { data: ownerRows } = await admin
-      .from('node_pc_owners')
-      .select('user_id')
-      .eq('node_id', id)
+    // Parallel fetch: owners of this PC (many-to-many) + player-members of campaign.
+    const [ownersRes, playersRes] = await Promise.all([
+      admin.from('node_pc_owners').select('user_id').eq('node_id', id),
+      admin
+        .from('campaign_members')
+        .select('user_id')
+        .eq('campaign_id', campaign.id)
+        .eq('role', 'player'),
+    ])
 
-    const ownerIds = (ownerRows ?? []).map((r) => r.user_id)
-
-    // Load candidate players (campaign members with role='player').
-    const { data: playerRows } = await admin
-      .from('campaign_members')
-      .select('user_id')
-      .eq('campaign_id', campaign.id)
-      .eq('role', 'player')
-
-    const playerIds = (playerRows ?? []).map((r) => r.user_id)
+    const ownerIds = (ownersRes.data ?? []).map((r) => r.user_id)
+    const playerIds = (playersRes.data ?? []).map((r) => r.user_id)
 
     // One profile lookup for the union of owner + player ids.
     const profileIds = Array.from(new Set([...ownerIds, ...playerIds]))
@@ -204,16 +203,23 @@ export default async function NodePage({
     }
   }
 
-  // Spec-006 increment 4: canEdit decides which write-UI renders in the
-  // detail view (edit/delete buttons, tag editor, add-edge form).
-  // - owner/dm → always true
-  // - player  → true only on their own PC (character + viewer in owners)
+  // canEdit decides which write-UI renders in the detail view
+  // (edit/delete buttons, tag editor, add-edge form). Mirror of migration 031:
+  //   - owner/dm → always true
+  //   - member   → true for any non-character node
+  //   - player   → true for a character only if they're in node_pc_owners
   // RLS on the server-side is the hard boundary; this just mirrors it
   // so the UI doesn't show buttons that would 403.
   const isManager = membership.role === 'owner' || membership.role === 'dm'
-  let canEdit = isManager
-  if (!isManager && membership.role === 'player' && typeSlug === 'character' && ownerContext) {
+  let canEdit: boolean
+  if (isManager) {
+    canEdit = true
+  } else if (typeSlug !== 'character') {
+    canEdit = true
+  } else if (ownerContext) {
     canEdit = ownerContext.owners.some((o) => o.user_id === user.id)
+  } else {
+    canEdit = false
   }
 
   return (
@@ -235,7 +241,23 @@ export default async function NodePage({
         </Link>
       )}
       <NodeDetail
-        node={node as any}
+        node={{
+          id: node.id,
+          title: node.title,
+          fields: (node.fields ?? {}) as Record<string, unknown>,
+          content: (node as { content?: string }).content ?? '',
+          type: {
+            slug: typeSlug ?? '',
+            label:
+              (Array.isArray(typeRaw)
+                ? (typeRaw[0] as { label?: string } | undefined)?.label
+                : (typeRaw as { label?: string } | null)?.label) ?? '',
+            icon:
+              (Array.isArray(typeRaw)
+                ? (typeRaw[0] as { icon?: string | null } | undefined)?.icon
+                : (typeRaw as { icon?: string | null } | null)?.icon) ?? null,
+          },
+        }}
         edges={edges}
         childNodes={childrenWithTypes}
         chronicles={chronicles || []}

@@ -100,7 +100,13 @@ export function UniversalSidebar({
   className,
 }: UniversalSidebarProps) {
   const [search, setSearch] = useState('')
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // Groups are closed by default — opening 10+ groups × 15 rows each is heavy
+  // DOM for a thin sidebar and not useful for navigation. The user opens a
+  // group, the set persists in React state during the session. Search (below)
+  // overrides: typing a query auto-expands matching groups.
+  const [collapsed, setCollapsed] = useState<Set<string>>(
+    () => new Set(Object.keys(groupLabels)),
+  )
 
   // Filter by visible types + search
   const filtered = useMemo(() => {
@@ -242,7 +248,9 @@ export function UniversalSidebar({
           <p className="p-3 text-center text-xs text-gray-300">Ничего не найдено</p>
         )}
         {groups.map(([slug, items]) => {
-          const isCollapsed = collapsed.has(slug)
+          // Search overrides collapsed state — otherwise a closed group would
+          // hide matching results and the search would feel broken.
+          const isCollapsed = !search.trim() && collapsed.has(slug)
           const label = groupLabels[slug] || items[0]?.type?.label || slug
           return (
             <div key={slug}>
