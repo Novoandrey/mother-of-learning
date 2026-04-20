@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cache } from 'react'
 import { createClient } from './supabase/server'
 
 export type UserProfile = {
@@ -18,28 +19,35 @@ export type CampaignMembership = {
 }
 
 /**
+ * React cache() wraps these helpers so multiple callers within the same
+ * request (layout + generateMetadata + page) share a single result. Without
+ * this, a single navigation to /c/[slug]/catalog/[id] fires auth.getUser()
+ * and the profile/membership queries three times each.
+ *
+ * cache() is per-request — separate requests still hit Supabase.
+ */
+
+/**
  * Gets the currently authenticated user, or null.
  * Safe in Server Components and Server Actions.
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   return user
-}
+})
 
 /**
  * Gets the current user plus their profile row. Returns null if not
  * authenticated or profile doesn't exist yet.
  */
-export async function getCurrentUserAndProfile() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export const getCurrentUserAndProfile = cache(async () => {
+  const user = await getCurrentUser()
   if (!user) return null
 
+  const supabase = await createClient()
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('*')
@@ -47,7 +55,7 @@ export async function getCurrentUserAndProfile() {
     .single()
 
   return { user, profile: (profile ?? null) as UserProfile | null }
-}
+})
 
 /**
  * Redirects to /login if not authenticated, or to /onboarding if
@@ -66,22 +74,22 @@ export async function requireAuth() {
 /**
  * Returns the user's membership in a campaign, or null if not a member.
  */
-export async function getMembership(campaignId: string): Promise<CampaignMembership | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+export const getMembership = cache(
+  async (campaignId: string): Promise<CampaignMembership | null> => {
+    const user = await getCurrentUser()
+    if (!user) return null
 
-  const { data } = await supabase
-    .from('campaign_members')
-    .select('campaign_id, user_id, role')
-    .eq('campaign_id', campaignId)
-    .eq('user_id', user.id)
-    .single()
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('campaign_members')
+      .select('campaign_id, user_id, role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', user.id)
+      .single()
 
-  return (data as CampaignMembership | null) ?? null
-}
+    return (data as CampaignMembership | null) ?? null
+  },
+)
 
 /**
  * Require the current user to be a member of the given campaign.
@@ -106,10 +114,10 @@ export function loginToEmail(login: string): string {
  * Server-side counterpart to the SQL `can_edit_node()` helper.
  * Returns true if the current viewer may edit this node.
  *
- * Mirror of migration 028:
+ * Mirror of migration 031:
  *   - owner/dm of the campaign → true for any node.
- *   - player → true only if the node is a character AND the viewer is
- *     in node_pc_owners for it.
+ *   - player → true for any NON-character node in this campaign.
+ *   - player → true for a character node only if they're in node_pc_owners.
  *
  * Used by pages/routes to decide whether to show edit UI or 403 a request.
  * RLS is the hard boundary; this helper is for UX (hiding buttons, early
@@ -125,18 +133,26 @@ export async function canEditNode(
   if (role !== 'player') return false
 
   const supabase = await createClient()
-  // One query: character-ness + viewer-owns-it.
+  // Load the node's type plus (if character) the owner set. One query.
   const { data } = await supabase
     .from('nodes')
-    .select('id, type:node_types(slug), node_pc_owners!inner(user_id)')
+    .select('id, type:node_types(slug), node_pc_owners(user_id)')
     .eq('id', nodeId)
     .eq('campaign_id', campaignId)
-    .eq('node_pc_owners.user_id', userId)
     .maybeSingle()
 
   if (!data) return false
-  const typeSlug = Array.isArray((data as any).type)
-    ? (data as any).type[0]?.slug
-    : (data as any).type?.slug
-  return typeSlug === 'character'
+
+  const typeRaw = (data as { type: unknown }).type
+  const typeSlug = Array.isArray(typeRaw)
+    ? (typeRaw[0] as { slug?: string } | undefined)?.slug
+    : (typeRaw as { slug?: string } | null)?.slug
+
+  // Non-character: any member can edit (shared world).
+  if (typeSlug !== 'character') return true
+
+  // Character: only if viewer is in node_pc_owners.
+  const owners = (data as { node_pc_owners?: Array<{ user_id: string }> })
+    .node_pc_owners ?? []
+  return owners.some((o) => o.user_id === userId)
 }

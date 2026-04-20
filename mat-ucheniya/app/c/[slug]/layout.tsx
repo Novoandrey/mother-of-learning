@@ -23,8 +23,6 @@ export default async function CampaignLayout({
   const membership = await getMembership(campaign.id)
   if (!membership) redirect('/')
 
-  const isManager = membership.role === 'owner' || membership.role === 'dm'
-
   const supabase = await createClient()
 
   const { data: nodeTypes } = await supabase
@@ -40,11 +38,19 @@ export default async function CampaignLayout({
     .order('title')
     .limit(500)
 
-  const nodes = (nodeRows || []).map((n: any) => ({
-    id: n.id,
-    title: n.title,
-    type_slug: n.type?.slug ?? '',
-  }))
+  type NodeRow = {
+    id: string
+    title: string
+    type: { slug: string } | { slug: string }[] | null
+  }
+  const nodes = ((nodeRows ?? []) as NodeRow[]).map((n) => {
+    const t = Array.isArray(n.type) ? n.type[0] : n.type
+    return {
+      id: n.id,
+      title: n.title,
+      type_slug: t?.slug ?? '',
+    }
+  })
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
@@ -58,14 +64,12 @@ export default async function CampaignLayout({
             {campaign.name}
           </Link>
           <div className="flex items-center gap-4">
-            {isManager && (
-              <Link
-                href={`/c/${slug}/catalog/new`}
-                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-              >
-                <span className="text-lg leading-none">+</span> Создать
-              </Link>
-            )}
+            <Link
+              href={`/c/${slug}/catalog/new`}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              <span className="text-lg leading-none">+</span> Создать
+            </Link>
             <UserMenu />
           </div>
         </div>
