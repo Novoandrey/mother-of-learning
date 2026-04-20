@@ -68,7 +68,7 @@ export function CreateEdgeForm({
     // For incoming: flip source/target so the other node points TO this node
     const finalSourceId = direction === 'outgoing' ? sourceId : targetId
     const finalTargetId = direction === 'outgoing' ? targetId : sourceId
-    await supabase.from('edges').insert({
+    const { error } = await supabase.from('edges').insert({
       campaign_id: campaignId,
       source_id: finalSourceId,
       target_id: finalTargetId,
@@ -76,6 +76,18 @@ export function CreateEdgeForm({
       label: label.trim() || null,
     })
     setSaving(false)
+    if (error) {
+      console.error('Failed to create edge:', error)
+      const isPerms = /row-level security|permission denied|42501/i.test(
+        error.message ?? '',
+      )
+      alert(
+        isPerms
+          ? 'Нет прав на создание этой связи.'
+          : `Не удалось создать связь: ${error.message}`,
+      )
+      return
+    }
     onDone()
     router.refresh()
   }

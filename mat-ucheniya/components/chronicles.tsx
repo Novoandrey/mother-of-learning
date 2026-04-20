@@ -117,7 +117,18 @@ function ChronicleEntry({
     setDeleting(true)
     try {
       const res = await fetch(`/api/chronicles/${entry.id}`, { method: 'DELETE' })
-      if (res.ok) onDeleted(entry.id)
+      if (res.ok) {
+        onDeleted(entry.id)
+        return
+      }
+      const msg =
+        res.status === 403
+          ? 'Нет прав на удаление этой записи.'
+          : `Не удалось удалить запись (HTTP ${res.status}).`
+      alert(msg)
+    } catch (err) {
+      console.error('Failed to delete chronicle:', err)
+      alert('Не удалось удалить — проверь подключение.')
     } finally {
       setDeleting(false)
     }
