@@ -149,14 +149,23 @@ export function NodeDetail({
   const saveTags = useCallback(async (newTags: string[]) => {
     setSavingTags(true)
     try {
-      await fetch(`/api/nodes/${node.id}`, {
+      const res = await fetch(`/api/nodes/${node.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields: { tags: newTags } }),
       })
+      if (!res.ok) {
+        const msg =
+          res.status === 403
+            ? 'Нет прав на изменение этой ноды.'
+            : `Не удалось сохранить теги (HTTP ${res.status}).`
+        alert(msg)
+        return
+      }
       setTags(newTags)
     } catch (err) {
       console.error('Failed to save tags:', err)
+      alert('Не удалось сохранить теги — проверь подключение.')
     } finally {
       setSavingTags(false)
     }
@@ -185,9 +194,17 @@ export function NodeDetail({
       if (res.ok) {
         router.push(`/c/${campaignSlug}/catalog`)
         router.refresh()
+        return
       }
+      const msg =
+        res.status === 403
+          ? 'Нет прав на удаление этой ноды. Обычно это чужой PC.'
+          : `Не удалось удалить (HTTP ${res.status}).`
+      alert(msg)
+      setDeleting(false)
     } catch (err) {
       console.error('Failed to delete:', err)
+      alert('Не удалось удалить — проверь подключение.')
       setDeleting(false)
     }
   }
