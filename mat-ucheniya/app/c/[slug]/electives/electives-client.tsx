@@ -468,15 +468,18 @@ function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => voi
 function CreateElectiveInline({ slug, kinds }: { slug: string; kinds: string[] }) {
   const [open, setOpen] = useState(false)
   const boundAction = createElectiveAction.bind(null, slug)
-  const [state, formAction, pending] = useActionState(boundAction, initialState)
   const formRef = useRef<HTMLFormElement>(null)
-
-  useEffect(() => {
-    if (state.success) {
-      formRef.current?.reset()
-      setOpen(false)
-    }
-  }, [state.success])
+  const [state, formAction, pending] = useActionState(
+    async (prev: typeof initialState, fd: FormData) => {
+      const result = await boundAction(prev, fd)
+      if (result.success) {
+        formRef.current?.reset()
+        setOpen(false)
+      }
+      return result
+    },
+    initialState,
+  )
 
   if (!open) {
     return (

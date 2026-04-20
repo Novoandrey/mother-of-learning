@@ -47,15 +47,21 @@ export function TagCell({
     }
   }, [editing])
 
-  useEffect(() => {
+  // Sync highlight reset and dropdown close in handlers, not effects.
+  function updateQuery(q: string) {
+    setQuery(q)
     setHighlightIdx(0)
-  }, [query])
+  }
+
+  function closeEditing() {
+    setEditing(false)
+    setQuery('')
+    setHighlightIdx(0)
+    setDropdownPos(null)
+  }
 
   useLayoutEffect(() => {
-    if (!editing) {
-      setDropdownPos(null)
-      return
-    }
+    if (!editing) return
     const update = () => {
       const el = containerRef.current
       if (!el) return
@@ -78,8 +84,7 @@ export function TagCell({
       if (t.closest?.('[data-tag-dropdown]')) return
       if (t.closest?.('[data-pill-editor]')) return
       if (containerRef.current && !containerRef.current.contains(t)) {
-        setEditing(false)
-        setQuery('')
+        closeEditing()
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -91,7 +96,7 @@ export function TagCell({
     if (trimmed && !tagNames.includes(trimmed)) {
       onChange([...tags, { name: trimmed, round: currentRound }])
     }
-    setQuery('')
+    updateQuery('')
     inputRef.current?.focus()
   }
 
@@ -109,8 +114,7 @@ export function TagCell({
       }
     }
     if (e.key === 'Escape') {
-      setEditing(false)
-      setQuery('')
+      closeEditing()
     }
     if (e.key === 'Backspace' && !query && tags.length > 0) {
       onChange(tags.slice(0, -1))
@@ -124,8 +128,7 @@ export function TagCell({
       setHighlightIdx((i) => Math.max(i - 1, 0))
     }
     if (e.key === 'Tab') {
-      setEditing(false)
-      setQuery('')
+      closeEditing()
     }
   }
 
@@ -183,8 +186,7 @@ export function TagCell({
                 setOpenPill({ name: tag.name, el: e.currentTarget })
                 // Close any inline edit state so dropdown and popover don't overlap.
                 if (editing) {
-                  setEditing(false)
-                  setQuery('')
+                  closeEditing()
                 }
               }}
               title={tag.name}
@@ -198,7 +200,7 @@ export function TagCell({
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => updateQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={tags.length === 0 ? placeholder : ''}
             className="min-w-[48px] flex-1 border-none bg-transparent text-[11px] outline-none"

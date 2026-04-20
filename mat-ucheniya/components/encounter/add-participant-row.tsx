@@ -28,7 +28,12 @@ export function AddParticipantRow({ catalogNodes, onAddFromCatalog, onAddManual 
     ? catalogNodes.filter((n) => n.title.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
     : []
 
-  useEffect(() => setHighlightIdx(0), [query])
+  // Reset the highlight when the query changes. Done in a handler to avoid
+  // a setState-in-effect cascade (react-hooks/set-state-in-effect).
+  function updateQuery(q: string) {
+    setQuery(q)
+    setHighlightIdx(0)
+  }
 
   // Close on outside click
   useEffect(() => {
@@ -43,7 +48,7 @@ export function AddParticipantRow({ catalogNodes, onAddFromCatalog, onAddManual 
 
   function selectNode(node: CatalogNode) {
     setSelectedNode(node)
-    setQuery(node.title)
+    updateQuery(node.title)
     setShowSuggestions(false)
     setQuantity('1')
   }
@@ -62,7 +67,7 @@ export function AddParticipantRow({ catalogNodes, onAddFromCatalog, onAddManual 
     } else {
       return
     }
-    setQuery('')
+    updateQuery('')
     setSelectedNode(null)
     setQuantity('1')
     inputRef.current?.focus()
@@ -99,7 +104,7 @@ export function AddParticipantRow({ catalogNodes, onAddFromCatalog, onAddManual 
           type="text"
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value)
+            updateQuery(e.target.value)
             setSelectedNode(null)
             setShowSuggestions(true)
           }}

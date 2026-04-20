@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Swords, X } from 'lucide-react'
 import { HpBar } from './hp-bar'
 import type { StatblockAction } from '@/lib/statblock'
@@ -39,18 +39,15 @@ type Props = {
  *   area action        → target picker → this dialog (targets pre-filled)
  */
 export function ActionResolveDialog({ action, targets, onApply, onClose }: Props) {
-  const initial = useMemo<Record<string, Outcome>>(() => {
-    const out: Record<string, Outcome> = {}
-    for (const t of targets) out[t.id] = { hit: true, damage: '', note: '' }
-    return out
-  }, [targets])
-
-  const [outcomes, setOutcomes] = useState<Record<string, Outcome>>(initial)
+  // Outcomes are sparse overrides: a target's entry is created only when the
+  // DM touches its row. Reading with `?? default` (done at every use site)
+  // makes target changes self-heal — no reset side-effect needed, which
+  // sidesteps the setState-in-effect / ref-in-render lint rules.
+  const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({})
   const [comment, setComment] = useState('')
   const closeBtnRef = useRef<HTMLButtonElement | null>(null)
 
-  // Recompute when targets change (rare, but safe)
-  useEffect(() => setOutcomes(initial), [initial])
+  const defaultOutcome: Outcome = { hit: true, damage: '', note: '' }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -65,12 +62,15 @@ export function ActionResolveDialog({ action, targets, onApply, onClose }: Props
   }, [onClose])
 
   function patch(id: string, p: Partial<Outcome>) {
-    setOutcomes((prev) => ({ ...prev, [id]: { ...prev[id], ...p } }))
+    setOutcomes((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? defaultOutcome), ...p },
+    }))
   }
 
   function handleApply() {
     const perTarget = targets.map((t) => {
-      const o = outcomes[t.id] ?? { hit: true, damage: '', note: '' }
+      const o = outcomes[t.id] ?? defaultOutcome
       const dmg = parseInt(o.damage, 10)
       return {
         id: t.id,
@@ -142,7 +142,7 @@ export function ActionResolveDialog({ action, targets, onApply, onClose }: Props
         {!isSelf && (
           <div className="max-h-[320px] overflow-y-auto">
             {targets.map((t) => {
-              const o = outcomes[t.id] ?? { hit: true, damage: '', note: '' }
+              const o = outcomes[t.id] ?? defaultOutcome
               return (
                 <div
                   key={t.id}
