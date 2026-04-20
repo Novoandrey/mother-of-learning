@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { invalidateSidebarAction } from '@/app/actions/cache'
 import {
   NUMBER_FIELDS,
   HIDDEN_FIELDS,
@@ -248,6 +249,10 @@ export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedTyp
       }
     }
 
+    // Title/type may have changed and the node may be brand new.
+    // Invalidate the cached sidebar list so the next navigation sees it.
+    await invalidateSidebarAction(campaignId)
+
     if (selectedType.slug === 'loop') {
       const num = cleanFields.number ?? fields.number
       router.push(`/c/${campaignSlug}/loops?loop=${num}`)
@@ -264,6 +269,7 @@ export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedTyp
     if (!editNode?.id || !confirm('Удалить эту сущность? Связи удалятся автоматически.')) return
     setDeleting(true)
     await supabase.from('nodes').delete().eq('id', editNode.id)
+    await invalidateSidebarAction(campaignId)
 
     if (selectedType?.slug === 'loop') router.push(`/c/${campaignSlug}/loops`)
     else if (selectedType?.slug === 'session') router.push(`/c/${campaignSlug}/sessions`)
