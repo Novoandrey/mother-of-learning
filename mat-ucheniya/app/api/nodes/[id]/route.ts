@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { canEditNode, getCurrentUserAndProfile, getMembership } from '@/lib/auth'
+import { invalidateSidebar } from '@/lib/sidebar-cache'
 import { NextRequest, NextResponse } from 'next/server'
 
 async function resolveNodeCampaign(
@@ -114,6 +115,9 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Node gone → sidebar list is stale for this campaign.
+  invalidateSidebar(nodeMeta.campaign_id)
 
   return NextResponse.json({ ok: true })
 }

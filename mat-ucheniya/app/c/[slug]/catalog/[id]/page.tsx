@@ -13,20 +13,14 @@ import type { Metadata } from 'next'
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string; id: string }>
+  params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const { slug, id } = await params
+  // Previously this fired an extra supabase query for the node title,
+  // duplicating the fetch in the page component. Keeping metadata tied
+  // to the campaign alone is enough for tab titles and skips a roundtrip.
+  const { slug } = await params
   const campaign = await getCampaignBySlug(slug)
-  if (!campaign) return { title: 'Не найдено' }
-
-  const supabase = await createClient()
-  const { data: node } = await supabase
-    .from('nodes')
-    .select('title')
-    .eq('id', id)
-    .single()
-
-  return { title: node ? `${node.title} — ${campaign.name}` : 'Не найдено' }
+  return { title: campaign ? campaign.name : 'Не найдено' }
 }
 
 export default async function NodePage({
@@ -35,11 +29,16 @@ export default async function NodePage({
   params: Promise<{ slug: string; id: string }>
 }) {
   const { slug, id } = await params
-  const campaign = await getCampaignBySlug(slug)
-  if (!campaign) notFound()
 
-  // Auth gate: authenticated + member of this campaign.
-  const { user } = await requireAuth()
+  // Fan out: auth and campaign lookup are independent. Supabase auth +
+  // campaign SELECT run in parallel instead of sequentially.
+  const [campaign, authResult] = await Promise.all([
+    getCampaignBySlug(slug),
+    requireAuth(),
+  ])
+  if (!campaign) notFound()
+  const { user } = authResult
+
   const membership = await getMembership(campaign.id)
   if (!membership) redirect('/')
 

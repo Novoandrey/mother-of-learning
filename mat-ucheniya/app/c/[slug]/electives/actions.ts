@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { invalidateSidebar } from '@/lib/sidebar-cache'
 
 type ActionState = { error: string | null; success: string | null }
 
@@ -186,6 +187,7 @@ export async function createElectiveAction(
   if (error) return { error: 'Не удалось создать: ' + error.message, success: null }
 
   revalidatePath(`/c/${slug}/electives`)
+  invalidateSidebar(campaignId)
   return { error: null, success: `Создан факультатив «${title}»` }
 }
 
@@ -223,6 +225,7 @@ export async function updateElectiveAction(
   if (error) return { error: 'Не удалось обновить: ' + error.message, success: null }
 
   revalidatePath(`/c/${slug}/electives`)
+  invalidateSidebar(campaignId)
   return { error: null, success: 'Сохранено' }
 }
 
@@ -250,5 +253,6 @@ export async function deleteElectiveAction(
   if (error) return { error: 'Не удалось удалить: ' + error.message, success: null }
 
   revalidatePath(`/c/${slug}/electives`)
+  invalidateSidebar(campaignId)
   return { error: null, success: 'Удалено' }
 }

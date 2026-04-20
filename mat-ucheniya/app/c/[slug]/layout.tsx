@@ -1,11 +1,11 @@
 import { getCampaignBySlug } from '@/lib/campaign'
-import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { NavTabs } from '@/components/nav-tabs'
 import { CampaignSidebarAside } from '@/components/campaign-sidebar-aside'
 import { UserMenu } from '@/components/user-menu'
 import { getMembership, requireAuth } from '@/lib/auth'
+import { getSidebarData } from '@/lib/sidebar-cache'
 
 export default async function CampaignLayout({
   children,
@@ -15,42 +15,25 @@ export default async function CampaignLayout({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const campaign = await getCampaignBySlug(slug)
+
+  // Fan-out: campaign lookup and auth check are independent, so run them
+  // in parallel. requireAuth throws redirect() on failure; Next handles
+  // that correctly inside a Promise.all.
+  const [campaign] = await Promise.all([
+    getCampaignBySlug(slug),
+    requireAuth(),
+  ])
   if (!campaign) notFound()
 
-  // Auth: require a signed-in, onboarded user who is a member of this campaign.
-  await requireAuth()
-  const membership = await getMembership(campaign.id)
+  // Second wave: membership depends on campaign.id, sidebar data is
+  // independent. Run them together. getSidebarData is wrapped in
+  // unstable_cache with tag 'sidebar:<campaignId>' and 60s revalidate,
+  // so repeat navigations inside the same campaign are essentially free.
+  const [membership, sidebar] = await Promise.all([
+    getMembership(campaign.id),
+    getSidebarData(campaign.id),
+  ])
   if (!membership) redirect('/')
-
-  const supabase = await createClient()
-
-  const { data: nodeTypes } = await supabase
-    .from('node_types')
-    .select('id, slug, label, icon')
-    .eq('campaign_id', campaign.id)
-    .order('sort_order')
-
-  const { data: nodeRows } = await supabase
-    .from('nodes')
-    .select('id, title, type:node_types(slug)')
-    .eq('campaign_id', campaign.id)
-    .order('title')
-    .limit(500)
-
-  type NodeRow = {
-    id: string
-    title: string
-    type: { slug: string } | { slug: string }[] | null
-  }
-  const nodes = ((nodeRows ?? []) as NodeRow[]).map((n) => {
-    const t = Array.isArray(n.type) ? n.type[0] : n.type
-    return {
-      id: n.id,
-      title: n.title,
-      type_slug: t?.slug ?? '',
-    }
-  })
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
@@ -82,8 +65,8 @@ export default async function CampaignLayout({
       <div className="flex flex-1 min-h-0">
         {/* Sidebar (hidden on encounter detail page) */}
         <CampaignSidebarAside
-          nodeTypes={nodeTypes || []}
-          nodes={nodes}
+          nodeTypes={sidebar.nodeTypes}
+          nodes={sidebar.nodes}
           campaignSlug={slug}
         />
 
