@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useToast } from './toast-provider'
 
 type Chronicle = {
   id: string
@@ -111,6 +112,7 @@ function ChronicleEntry({
   onDeleted: (id: string) => void
 }) {
   const [deleting, setDeleting] = useState(false)
+  const { toast } = useToast()
 
   const handleDelete = async () => {
     if (!confirm('Удалить запись из летописи?')) return
@@ -125,10 +127,10 @@ function ChronicleEntry({
         res.status === 403
           ? 'Нет прав на удаление этой записи.'
           : `Не удалось удалить запись (HTTP ${res.status}).`
-      alert(msg)
+      toast(msg, { variant: 'error' })
     } catch (err) {
       console.error('Failed to delete chronicle:', err)
-      alert('Не удалось удалить — проверь подключение.')
+      toast('Не удалось удалить — проверь подключение.', { variant: 'error' })
     } finally {
       setDeleting(false)
     }

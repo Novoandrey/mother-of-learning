@@ -8,6 +8,7 @@ import { NodeOwnerSection, type OwnerContext } from './node-owner-section'
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useToast } from './toast-provider'
 
 type Edge = {
   id: string
@@ -136,6 +137,7 @@ export function NodeDetail({
   canEdit = true,
 }: Props) {
   const router = useRouter()
+  const { toast } = useToast()
   const [showEdgeForm, setShowEdgeForm] = useState(false)
   const [tags, setTags] = useState<string[]>((node.fields?.tags as string[]) || [])
   const [tagInput, setTagInput] = useState('')
@@ -159,17 +161,17 @@ export function NodeDetail({
           res.status === 403
             ? 'Нет прав на изменение этой ноды.'
             : `Не удалось сохранить теги (HTTP ${res.status}).`
-        alert(msg)
+        toast(msg, { variant: 'error' })
         return
       }
       setTags(newTags)
     } catch (err) {
       console.error('Failed to save tags:', err)
-      alert('Не удалось сохранить теги — проверь подключение.')
+      toast('Не удалось сохранить теги — проверь подключение.', { variant: 'error' })
     } finally {
       setSavingTags(false)
     }
-  }, [node.id])
+  }, [node.id, toast])
 
   function handleAddTag() {
     const tag = tagInput.trim().toLowerCase()
@@ -200,11 +202,11 @@ export function NodeDetail({
         res.status === 403
           ? 'Нет прав на удаление этой ноды. Обычно это чужой PC.'
           : `Не удалось удалить (HTTP ${res.status}).`
-      alert(msg)
+      toast(msg, { variant: 'error' })
       setDeleting(false)
     } catch (err) {
       console.error('Failed to delete:', err)
-      alert('Не удалось удалить — проверь подключение.')
+      toast('Не удалось удалить — проверь подключение.', { variant: 'error' })
       setDeleting(false)
     }
   }

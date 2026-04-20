@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useToast } from './toast-provider'
 
 type EdgeType = { id: string; slug: string; label: string }
 type SearchResult = { id: string; title: string }
@@ -14,6 +15,7 @@ export function CreateEdgeForm({
 }) {
   const supabase = createClient()
   const router = useRouter()
+  const { toast } = useToast()
   const [edgeTypes, setEdgeTypes] = useState<EdgeType[]>([])
   const [selectedTypeId, setSelectedTypeId] = useState('')
   const [query, setQuery] = useState('')
@@ -81,10 +83,11 @@ export function CreateEdgeForm({
       const isPerms = /row-level security|permission denied|42501/i.test(
         error.message ?? '',
       )
-      alert(
+      toast(
         isPerms
           ? 'Нет прав на создание этой связи.'
           : `Не удалось создать связь: ${error.message}`,
+        { variant: 'error' },
       )
       return
     }
