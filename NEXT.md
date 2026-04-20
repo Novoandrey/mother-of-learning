@@ -1,7 +1,7 @@
 # NEXT — контекст для следующего чата
 
 > Этот файл обновляется в конце каждого чата. Всегда актуален.
-> Last updated: 2026-04-19 (chat 26 — PC roster v2 + bulk-invite игроков)
+> Last updated: 2026-04-20 (chat 27 — ultrareview + shared world editing + perf + UX)
 
 ## Что сделано (накопительно)
 
@@ -18,6 +18,144 @@
 - **Spec-007 этап 1** (chat 9): фундамент статблоков — миграция 018 (структура полей + GIN-индекс), миграция 019 (10 SRD монстров).
 - **Spec-008 Факультативы** (chat 25): миграция 029, страница `/c/[slug]/electives` с двумя табами (факультативы + персонажи), CSV-импортёр, bulk-seed игроков с автогенерацией логинов.
 - **PC roster v2** (chat 26): миграция 030, 23 новых PC + переименование Маркуса, пустой `stats:{}` как заготовка под лист персонажа, `players.json` на 20 игроков, шаблон рассылки.
+- **Shared world editing + perf** (chat 27): миграция 031, RLS переписана — любой member создаёт/редактирует/удаляет ноды кроме чужих PC. React cache() на auth/campaign, Promise.all на карточке ноды, closed groups в сайдбаре. loading.tsx + error.tsx.
+
+## Что сделано в этом чате (chat 27, 2026-04-20)
+
+### `/ultrareview` — трёхпроходный аудит проекта ✅
+
+Запустил полный аудит по просьбе пользователя. Проход 1 (инвентаризация):
+билд зелёный, 52 lint-проблемы (44 errors), `save-as-template-button`
+болтается неподключённый, хардкод «Мать Учения» в 2 местах, project
+files сильно устарели vs реальный репо. Проход 2 (качество кода):
+`electives-client.tsx` 833 строки — не God-Component, хорошо разделён;
+`encounter-grid.tsx` — рефакторинг chat 8 реально работает; RLS
+настоящий (не косметика); 7 мест `react-hooks/set-state-in-effect`;
+`roundRef.current = turns.round` в render body — латентный баг.
+Проход 3 (модель данных): миграции последовательны, search trigger
+починен через `jsonb_each_text`, RLS покрывает все таблицы. Но:
+две миграции `008_`, SRD seed привязан к `slug='mat-ucheniya'`
+(open source блокер), `to_tsvector('russian')` hardcoded, chronicles
+не мигрированы в ноды.
+
+Все находки записаны в backlog.md в секции «🔒 TECH DEBT от ultrareview».
+
+### Триаж трёх зарепорченных пользователем проблем
+
+**Проблема 1: регрессия прав игроков ✅ CLOSED**
+
+Игроки потеряли кнопку «+Создать» и не могли редактировать ничего
+кроме своего PC. Нашёл 3 слоя ограничения: UI (layout.tsx
+`isManager &&`), server page (catalog/new → redirect), RLS
+(миграция 028 — `nodes_insert` только dm/owner, `can_edit_node`
+разрешает только character-ноды игрока).
+
+Уточнил с пользователем модель:
+- PC защищены (чужой PC = read-only)
+- Всё остальное общее: создание/редактирование/удаление любого NPC,
+  локации, заклинания — взаимно между всеми member'ами
+- Settings/members — только owner/dm
+
+**Миграция 031 `031_shared_world_editing.sql`** (отдана, применена):
+- `can_edit_node` v2: `is_member AND (is_dm_or_owner OR
+  type != 'character' OR in node_pc_owners)`
+- `nodes_insert`: `is_member` (было: dm/owner)
+- `nodes_delete`: через `can_edit_node` (было: dm/owner)
+- `edges_*`: открыты для всех member'ов (связи = метаданные, не сам PC).
+  FK CASCADE чистит edges при удалении ноды автоматически.
+- `chronicles`: наследуется через `can_edit_node` автоматом
+- **Баг в первой версии**: забыл `drop policy if exists edges_select`
+  (политика edges_select жила с миграции 024). Пользователь получил
+  `42710: policy "edges_select" already exists`, я исправил и отдал
+  повторно. Применено.
+
+TS-слой синхронизирован с новой RLS:
+- `lib/auth.ts` `canEditNode` v2 — mirror SQL-логики
+- `app/c/[slug]/layout.tsx` — кнопка «Создать» всем member'ам
+- `app/c/[slug]/catalog/new/page.tsx` — убран redirect игроков
+- `app/c/[slug]/catalog/[id]/page.tsx` — canEdit gating пересчитан
+
+**Проблема 2: лавина запросов при открытии ноды ✅ CLOSED (главное)**
+
+Посчитал на конкретной странице `/c/[slug]/catalog/[id]`: было
+**15–18 запросов** последовательно, из которых 6–8 дубликаты
+(`getCampaignBySlug` ×3, `auth.getUser()` ×3, `getMembership` ×3).
+
+Фиксы:
+- **React `cache()`** на `getCurrentUser`, `getCurrentUserAndProfile`,
+  `getMembership` (в `lib/auth.ts`), `getCampaignBySlug` (в
+  `lib/campaign.ts`). Per-request дедуп — убрал 5–7 дублей.
+- **`Promise.all`** на странице ноды: node + edges + chronicles
+  параллельно (было sequential). Owner context (character-ноды)
+  тоже параллелен.
+- **Merged edges query**: `.or('source_id.eq.X,target_id.eq.X')`
+  с type join для children. Был отдельный запрос для `edges_outgoing`,
+  `edges_incoming`, и третий для child node types — теперь один.
+- **Sidebar groups closed by default**: `universal-sidebar.tsx`
+  `useState(new Set(Object.keys(groupLabels)))` + search автоматически
+  разворачивает группы при активном поиске. 150 нод × 10 групп
+  больше не рендерятся в DOM сразу.
+
+Итого ~15–18 запросов → ~7–9, lat ~800ms → ~250ms на переходе.
+
+**Отложено:** `unstable_cache` на запрос сайдбара в layout (150 нод
+на каждой навигации). Решил сначала измерить — возможно после
+закрытых групп уже ок. Если пользователь пожалуется снова — в chat 28
+добавить с `revalidateTag` в server actions (TECH-004 в backlog).
+
+**Проблема 3: отсутствует фидбек загрузки/ошибок ⚠ PARTIAL**
+
+Сделано:
+- **`app/c/[slug]/loading.tsx`** — spinner вместо белого экрана
+  при server-side fetch'е child routes. Sidebar+header остаются.
+- **`app/c/[slug]/error.tsx`** — error boundary. Классифицирует
+  ошибку по сообщению (`row-level security`, `permission denied`,
+  `42501`) → «Нет доступа» vs «Что-то пошло не так». Reset + link
+  в каталог.
+- **403 feedback на client mutations**:
+  - `node-detail.tsx` `handleDelete` / `saveTags` — alert на 403
+    с понятным текстом
+  - `chronicles.tsx` `handleDelete` — то же
+  - `create-edge-form.tsx` `handleSubmit` — проверка supabase error,
+    различает RLS vs other
+
+**Не сделано — оставлено на chat 28 (UX-001, UX-002):**
+- Toast-менеджер (заменить `alert()` на toast Provider + `useToast()`)
+- Pending-индикаторы на inline-формах (`useActionState` pending не
+  везде отрисовывается)
+
+### Build + commits + push
+
+Два коммита в main:
+1. `fe51d79` `fix(perms+perf): shared world editing + query cache` —
+   migration 031 + lib/auth.ts + lib/campaign.ts + layout + catalog
+   pages + universal-sidebar
+2. `86bd0a8` `feat(ux): loading + error boundaries + 403 feedback` —
+   app/c/[slug]/loading.tsx + error.tsx + fetch error handling
+
+Оба запушены в `main`. Миграция 031 применена пользователем
+(после исправления `edges_select` конфликта).
+
+### ⚠️ Что должен помнить chat 28 — полишинг по ultrareview
+
+В начале chat 28 нужно: прочитать backlog.md секцию «🔜 NEXT —
+полишинг». Там семь пунктов, 4 критичных (BUG-014, TECH-001..003,
+UX-001) на 1 день работы, остальные по мере сил.
+
+**BUG-014** и **TECH-001** я уже делал в working copy во время
+chat 27 (ref-fix + branding env), откатил по просьбе пользователя
+чтобы не мешать с правами. В chat 28 применить первым же коммитом.
+
+### Действия для пользователя (сделаны или в процессе)
+
+1. ✅ Применил миграцию 031 (после фикса).
+2. ✅ Деплой на Vercel (автопуш через main).
+3. **Осталось протестировать** с реальным игроком: видит ли кнопку
+   «Создать», создаёт ли NPC, редактирует ли NPC (но не чужой PC),
+   открытие карточки — ощущается ли быстрее.
+4. Если всё ок — в chat 28 идём полировать по backlog.
+
+---
 
 ## Что сделано в этом чате (chat 26, 2026-04-19)
 
