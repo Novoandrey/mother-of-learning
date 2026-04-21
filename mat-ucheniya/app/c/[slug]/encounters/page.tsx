@@ -35,7 +35,16 @@ export default async function EncountersPage({
 
   if (error) console.error('encounters fetch error:', error)
 
-  const encounterIds = (encounters || []).map((e: any) => e.id)
+  type EncounterRow = {
+    id: string
+    title: string
+    status: string
+    current_round: number
+    updated_at: string
+  }
+  const encounterRows: EncounterRow[] = encounters ?? []
+
+  const encounterIds = encounterRows.map((e) => e.id)
   const { data: participantRows } = encounterIds.length > 0
     ? await supabase
         .from('encounter_participants')
@@ -48,7 +57,7 @@ export default async function EncountersPage({
     countMap[row.encounter_id] = (countMap[row.encounter_id] || 0) + 1
   }
 
-  const items = (encounters || []).map((e: any) => ({
+  const items = encounterRows.map((e) => ({
     id: e.id,
     title: e.title,
     status: e.status as 'active' | 'completed',

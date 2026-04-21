@@ -60,13 +60,27 @@ export default async function EncounterPage({
     .eq('campaign_id', campaign.id)
     .order('title')
 
-  const filteredCatalog = (catalogNodes || []).filter((n: any) =>
-    n.type && ['character', 'npc', 'creature'].includes(n.type.slug)
-  )
+  type CatalogNode = {
+    id: string
+    title: string
+    fields: Record<string, unknown>
+    type: { slug: string; label: string } | { slug: string; label: string }[] | null
+  }
+  const catalogList: CatalogNode[] = catalogNodes ?? []
+  const nodeTypeSlug = (n: CatalogNode): string | undefined => {
+    const t = n.type
+    if (!t) return undefined
+    return Array.isArray(t) ? t[0]?.slug : t.slug
+  }
 
-  const rawConditions = (catalogNodes || [])
-    .filter((n: any) => n.type?.slug === 'condition')
-    .map((n: any) => n.title as string)
+  const filteredCatalog = catalogList.filter((n) => {
+    const slug = nodeTypeSlug(n)
+    return slug !== undefined && ['character', 'npc', 'creature'].includes(slug)
+  })
+
+  const rawConditions = catalogList
+    .filter((n) => nodeTypeSlug(n) === 'condition')
+    .map((n) => n.title)
 
   // Rank conditions by real usage across the whole campaign.
   // encounter_participants.conditions is jsonb array of {name, round}.
@@ -94,9 +108,9 @@ export default async function EncounterPage({
     return a.localeCompare(b, 'ru')
   })
 
-  const effectNames = (catalogNodes || [])
-    .filter((n: any) => n.type?.slug === 'effect')
-    .map((n: any) => n.title)
+  const effectNames = catalogList
+    .filter((n) => nodeTypeSlug(n) === 'effect')
+    .map((n) => n.title)
 
   // Action log entries
   const { data: logEntries } = await supabase

@@ -3,7 +3,7 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Single source of truth — все баги, фичи, идеи живут здесь.
 
-Updated: 2026-04-20 (chat 27 — ultrareview + shared world editing + perf)
+Updated: 2026-04-21 (chat 28 — TECH-003 type safety cleanup)
 
 ---
 
@@ -54,20 +54,16 @@ Updated: 2026-04-20 (chat 27 — ultrareview + shared world editing + perf)
   - `app/c/[slug]/members/members-client.tsx:76`
 - ~3 часа.
 
-### TECH-003 [P2] 40+ `any` в Supabase join ответах
-- **Feature**: dx (типизация)
-- Паттерн `(x as any).type[0]?.slug` — Supabase TS-генератор не
-  угадывает, вернёт ли join массив или объект. Фикс — утилита
-  `lib/supabase/joins.ts`:
-  ```ts
-  export type Joined<T> = T | T[] | null
-  export function unwrapOne<T>(j: Joined<T>): T | null {
-    return Array.isArray(j) ? (j[0] ?? null) : j
-  }
-  ```
-- Горячие точки: `members/actions.ts` (×6), `hooks/use-node-form.ts`,
-  `hooks/use-participant-actions.ts`, `lib/loops.ts`, `lib/auth.ts`.
-- ~2 часа.
+### TECH-003 [P2] ✅ DONE — `any` в Supabase join ответах
+- **Сделано**: chat 28
+- Создана утилита `lib/supabase/joins.ts` с `Joined<T>`, `unwrapOne<T>`,
+  `unwrapMany<T>`.
+- Убрано 21 `any` из 9 файлов: `members/actions.ts` (×6),
+  `encounters/page.tsx` (×2), `encounters/[id]/page.tsx` (×4),
+  `loops/page.tsx`, `catalog/page.tsx`, `app/page.tsx`,
+  `lib/loops.ts` (×2), `hooks/use-node-form.ts` (×2),
+  `hooks/use-participant-actions.ts`.
+- `tsc --noEmit` + `next build` проходят чисто.
 
 ### UX-001 [P2] Toast-менеджер вместо alert()
 - **Feature**: ui (доделка проблемы 3)

@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, loginToEmail, requireAuth, type Role } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { unwrapOne, type Joined } from '@/lib/supabase/joins'
+
+type NodeTypeSlug = { slug: string }
+type NodeWithType = { id: string; campaign_id: string; type: Joined<NodeTypeSlug> }
 
 type ActionState = { error: string | null; success: string | null }
 
@@ -162,11 +166,9 @@ export async function createMemberAction(
       .from('nodes')
       .select('id, campaign_id, type:node_types(slug)')
       .eq('id', bindPcId)
-      .maybeSingle()
+      .maybeSingle<NodeWithType>()
 
-    const typeSlug = Array.isArray((targetNode as any)?.type)
-      ? (targetNode as any).type[0]?.slug
-      : (targetNode as any)?.type?.slug
+    const typeSlug = unwrapOne(targetNode?.type)?.slug
 
     if (!targetNode || targetNode.campaign_id !== campaignId) {
       bindWarning = 'PC-нода не найдена в этой кампании'
@@ -405,14 +407,12 @@ export async function addPcOwnerAction(
     .from('nodes')
     .select('id, campaign_id, type:node_types(slug)')
     .eq('id', nodeId)
-    .maybeSingle()
+    .maybeSingle<NodeWithType>()
 
   if (!node || node.campaign_id !== campaignId) {
     return { error: 'PC-нода не найдена в этой кампании', success: null }
   }
-  const typeSlug = Array.isArray((node as any).type)
-    ? (node as any).type[0]?.slug
-    : (node as any).type?.slug
+  const typeSlug = unwrapOne(node.type)?.slug
   if (typeSlug !== 'character') {
     return { error: 'Это не PC-нода', success: null }
   }

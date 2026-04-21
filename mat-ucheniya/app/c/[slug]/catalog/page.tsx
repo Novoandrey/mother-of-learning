@@ -61,6 +61,22 @@ export default async function CatalogPage({
   const { data: nodes } = await nodesQuery
   const count = nodes?.length ?? 0
 
+  // Normalize join shape: `type:node_types(...)` may come back as array.
+  type RawNode = {
+    id: string
+    title: string
+    fields: Record<string, unknown>
+    type:
+      | { slug: string; label: string; icon: string | null }
+      | { slug: string; label: string; icon: string | null }[]
+      | null
+  }
+  const normalizedNodes = (nodes as RawNode[] | null ?? []).flatMap((n) => {
+    const t = Array.isArray(n.type) ? n.type[0] : n.type
+    if (!t) return []
+    return [{ id: n.id, title: n.title, fields: n.fields, type: t }]
+  })
+
   const isSearching = !!q || !!type
 
   const heading = type
@@ -125,7 +141,7 @@ export default async function CatalogPage({
               <p className="text-gray-400">Ничего не найдено</p>
             </div>
           ) : (
-            <NodeList nodes={(nodes as any[]) || []} campaignSlug={slug} />
+            <NodeList nodes={normalizedNodes} campaignSlug={slug} />
           )}
         </div>
       ) : (
