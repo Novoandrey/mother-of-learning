@@ -1,4 +1,4 @@
--- 008_party.sql
+-- 008a_party.sql
 -- Feature: "Current Party" — persistent PC group that lives across encounters
 
 CREATE TABLE party (

@@ -1,4 +1,4 @@
--- Migration: 008_loops_and_chronicles
+-- Migration: 008b_loops_and_chronicles
 -- Feature: Loops timeline + Character chronicles
 
 -- ============================================================
