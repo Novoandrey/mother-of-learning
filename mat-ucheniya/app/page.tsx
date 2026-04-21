@@ -18,10 +18,16 @@ export default async function Home() {
     .select('role, campaign:campaigns(slug, name)')
     .eq('user_id', user.id)
 
-  const rows =
-    (memberships ?? []).flatMap((m: any) =>
-      m.campaign ? [{ slug: m.campaign.slug as string, name: m.campaign.name as string, role: m.role as string }] : [],
-    )
+  type CampaignShort = { slug: string; name: string }
+  type MembershipRow = {
+    role: string
+    campaign: CampaignShort | CampaignShort[] | null
+  }
+
+  const rows = ((memberships ?? []) as MembershipRow[]).flatMap((m) => {
+    const c = Array.isArray(m.campaign) ? m.campaign[0] : m.campaign
+    return c ? [{ slug: c.slug, name: c.name, role: m.role }] : []
+  })
 
   if (rows.length === 0) {
     // Authenticated but not attached to any campaign — show a friendly stub

@@ -116,14 +116,23 @@ export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedTyp
           .eq('type_id', loopType.id)
           .then(({ data: loopNodes }) => {
             if (loopNodes) {
+              type LoopNodeRow = {
+                id: string
+                title: string
+                fields: Record<string, unknown> | null
+              }
               setLoops(
-                loopNodes
-                  .map((n: any) => ({
-                    id: n.id,
-                    number: Number(n.fields?.number ?? 0),
-                    title: n.title,
-                    status: (n.fields?.status as string) ?? 'past',
-                  }))
+                (loopNodes as LoopNodeRow[])
+                  .map((n) => {
+                    const number = n.fields?.['number']
+                    const status = n.fields?.['status']
+                    return {
+                      id: n.id,
+                      number: Number(number ?? 0),
+                      title: n.title,
+                      status: typeof status === 'string' ? status : 'past',
+                    }
+                  })
                   .sort((a: LoopOption, b: LoopOption) => a.number - b.number),
               )
             }
@@ -206,7 +215,14 @@ export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedTyp
       cleanFields.tags = editNode.fields.tags
     }
 
-    const payload: any = {
+    type NodeInsertPayload = {
+      campaign_id: string
+      type_id: string
+      title: string
+      fields: Record<string, unknown>
+      content?: string
+    }
+    const payload: NodeInsertPayload = {
       campaign_id: campaignId,
       type_id: selectedType.id,
       title: finalTitle,

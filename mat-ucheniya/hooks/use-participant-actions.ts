@@ -386,8 +386,38 @@ export function useParticipantActions({
       const acSeed = typeof rawAc === 'number' ? rawAc
         : (typeof rawAc === 'string' && !isNaN(parseInt(rawAc)) ? parseInt(rawAc) : null)
       const rows = await addParticipantFromCatalog(encounterId, nodeId, name, hps, acSeed)
-      setParticipants((ps) => [...ps, ...rows.map((r: any) => ({
-        ...r, node: nd, conditions: r.conditions || [], effects: r.effects || [], temp_hp: r.temp_hp || 0, role: r.role || 'enemy',
+      type NewParticipantRow = {
+        id: string
+        display_name: string
+        initiative: number | null
+        max_hp: number
+        current_hp: number
+        ac: number | null
+        sort_order: number
+        is_active: boolean
+        node_id: string | null
+        temp_hp?: number | null
+        role?: string | null
+        conditions?: TagEntry[] | null
+        effects?: TagEntry[] | null
+        death_saves?: { successes: number; failures: number } | null
+      }
+      const typedRows = (rows ?? []) as NewParticipantRow[]
+      setParticipants((ps) => [...ps, ...typedRows.map<Participant>((r) => ({
+        id: r.id,
+        display_name: r.display_name,
+        initiative: r.initiative,
+        max_hp: r.max_hp,
+        current_hp: r.current_hp,
+        ac: r.ac,
+        sort_order: r.sort_order,
+        is_active: r.is_active,
+        node_id: r.node_id,
+        node: nd,
+        conditions: r.conditions || [],
+        effects: r.effects || [],
+        temp_hp: r.temp_hp || 0,
+        role: r.role || 'enemy',
         death_saves: r.death_saves || { successes: 0, failures: 0 },
       }))])
       router.refresh()

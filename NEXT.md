@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-21
+> Last updated: 2026-04-21 (chat 28)
 
 ## В проде сейчас
 
@@ -16,6 +16,7 @@
 - **Факультативы**: миграция `029`
 - **PC roster v2**: миграция `030`
 - **Shared world editing + perf**: миграция `031`, React `cache()`, `Promise.all`
+- **TECH-003**: убрано 21 `any` из join-ответов, утилита `lib/supabase/joins.ts`
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning

@@ -41,7 +41,7 @@ export default async function LoopsPage({
 
   // Chronicles for this loop
   const supabase = await createClient()
-  const { data: chronicles } = currentLoop
+  const { data: chroniclesData } = currentLoop
     ? await supabase
         .from('chronicles')
         .select('id, title, game_date, node_id, node:nodes(id, title)')
@@ -50,6 +50,15 @@ export default async function LoopsPage({
         .order('created_at', { ascending: false })
         .limit(10)
     : { data: [] }
+
+  type ChronicleRow = {
+    id: string
+    title: string
+    game_date: string | null
+    node_id: string | null
+    node: { id: string; title: string } | { id: string; title: string }[] | null
+  }
+  const chronicles: ChronicleRow[] = chroniclesData ?? []
 
   const statusLabel: Record<string, string> = { past: 'Завершена', current: 'Текущая', future: 'Будущая' }
   const statusColors: Record<string, string> = {
@@ -176,17 +185,20 @@ export default async function LoopsPage({
               <div>
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Хроники</h2>
                 <div className="space-y-1.5">
-                  {(chronicles as any[]).map((ch) => (
+                  {chronicles.map((ch) => {
+                    const node = Array.isArray(ch.node) ? ch.node[0] : ch.node
+                    return (
                     <div key={ch.id} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
                       {ch.game_date && <span className="text-xs text-gray-400 flex-shrink-0 w-16">{ch.game_date}</span>}
                       <span className="flex-1 text-sm text-gray-900 font-medium truncate">{ch.title}</span>
-                      {ch.node && (
-                        <Link href={`/c/${slug}/catalog/${ch.node.id}`} className="text-xs text-blue-600 hover:underline flex-shrink-0">
-                          {ch.node.title}
+                      {node && (
+                        <Link href={`/c/${slug}/catalog/${node.id}`} className="text-xs text-blue-600 hover:underline flex-shrink-0">
+                          {node.title}
                         </Link>
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}

@@ -39,29 +39,47 @@ export async function getSessionNodeTypeId(campaignId: string) {
   return getNodeTypeId(campaignId, 'session')
 }
 
+// Raw shape returned by Supabase for loop/session node rows.
+type NodeRow = {
+  id: string
+  title: string
+  fields: Record<string, unknown> | null
+  content?: string | null
+}
+
 // Map a node row to a Loop
-function nodeToLoop(node: any): Loop {
+function nodeToLoop(node: NodeRow): Loop {
+  const fields = node.fields ?? {}
+  const number = fields['number']
+  const status = fields['status']
   return {
     id: node.id,
-    number: Number(node.fields?.number ?? 0),
+    number: Number(number ?? 0),
     title: node.title,
-    status: (node.fields?.status as Loop['status']) ?? 'past',
+    status: (typeof status === 'string' ? status : 'past') as Loop['status'],
     notes: node.content ?? '',
   }
 }
 
 // Map a node row to a Session
-function nodeToSession(node: any): Session {
+function nodeToSession(node: NodeRow): Session {
   const f = node.fields ?? {}
+  const session_number = f['session_number']
+  const loop_number = f['loop_number']
+  const recap = f['recap']
+  const dm_notes = f['dm_notes']
+  const game_date = f['game_date']
+  const played_at = f['played_at']
   return {
     id: node.id,
-    session_number: Number(f.session_number ?? 0),
-    loop_number: f.loop_number != null && f.loop_number !== '' ? Number(f.loop_number) : null,
+    session_number: Number(session_number ?? 0),
+    loop_number:
+      loop_number != null && loop_number !== '' ? Number(loop_number) : null,
     title: node.title,
-    recap: f.recap ?? '',
-    dm_notes: f.dm_notes ?? '',
-    game_date: f.game_date || null,
-    played_at: f.played_at || null,
+    recap: typeof recap === 'string' ? recap : '',
+    dm_notes: typeof dm_notes === 'string' ? dm_notes : '',
+    game_date: typeof game_date === 'string' && game_date ? game_date : null,
+    played_at: typeof played_at === 'string' && played_at ? played_at : null,
   }
 }
 
