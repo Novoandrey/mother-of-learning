@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-22 (chat 29)
+> Last updated: 2026-04-22 (chat 30)
 
 ## В проде сейчас
 
@@ -24,6 +24,11 @@
   с fallback на каталог (раньше всегда летел в `/catalog`)
 - **TECH-005 (chat 29)**: `middleware.ts` → `proxy.ts` (Next 16 file
   convention), deprecation warning убран
+- **DEBT-003 (chat 30)**: SRD seed вынесен из миграций в
+  `lib/seeds/dnd5e-srd.ts` + server action
+  `initializeCampaignFromTemplate` + CLI `npm run seed-srd`.
+  Open source unblocker — новые кампании больше не получают
+  пустой `condition` тип.
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
@@ -31,10 +36,9 @@
 
 ## Следующий приоритет
 
-Свободное окно — все P1/P2 баги закрыты. Можно браться за что угодно
-из бэклога. Логичные кандидаты:
+Свободное окно — все P1/P2 баги закрыты, DEBT-003 закрыт. Можно браться
+за что угодно из бэклога. Логичные кандидаты:
 
-- **DEBT-003** [P2] — SRD seed привязан к `slug='mat-ucheniya'` (open source blocker)
 - **IDEA-037** [P2] — факультативы → бонусы к статам PC
 - **IDEA-041** [P2] — система фидбека внутри приложения (кнопка + лента)
 - **Spec-007 этап 4 stage 4** — трекер трат на ход (action/bonus/movement)
