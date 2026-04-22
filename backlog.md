@@ -49,18 +49,25 @@ Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
     concurrency vs version column vs realtime). Заводится отдельно
     при появлении реальных жалоб.
 
-### TECH-007 [P3] CLI-скрипты не могут инвалидировать сайдбар
+### TECH-007 [P3] ✅ DONE — invalidate-from-CLI
+- **Сделано**: chat 32
 - **Контекст**: BUG-016 нашёл, что после `npm run seed-srd` каталог
   показывает 34, а сайдбар 20 до 60с TTL. Скрипты вне Next runtime,
   `revalidateTag` недоступен.
-- **Варианты**:
-  - `POST /api/admin/invalidate-sidebar?campaign=...` с auth по
-    service-role или admin-токену. CLI дёргает после успеха.
-  - Снизить TTL `revalidate: 60` → `10`. Тривиально, но удваивает
-    нагрузку на sidebar query.
-- **Оценка**: 30 минут.
-- **Триггер**: либо появится регулярный workflow «массовый seed +
-  сразу смотрю», либо просто всплывёт ещё раз.
+- **Решение**: defensive infra (вариант A из backlog).
+  - `POST /api/admin/invalidate-sidebar?campaign=<slug-или-uuid>` —
+    auth `Bearer SUPABASE_SERVICE_ROLE_KEY` (constant-time compare),
+    резолвит slug в id, дёргает `invalidateSidebar(campaignId)`.
+  - `scripts/lib/invalidate-sidebar-remote.ts` — fetch-хелпер,
+    читает `APP_URL` (default `localhost:3000`) + service-role key.
+    Non-fatal: при ошибке логирует warning, скрипт всё равно success.
+  - Проводка: `seed-srd.ts`, `dedupe-srd.ts`, `import-electives.ts`.
+  - `AGENTS.md` — секция про CLI обновлена.
+- **Прод-настройка**: для запуска CLI против прода надо выставить
+  `APP_URL=https://mother-of-learning.vercel.app`.
+- **Замечание**: в момент работы триггер не сработал (BUG-016 уже
+  закрыт, сайдбар корректен). Сделано как defensive infra по
+  явному решению — при появлении массового workflow всё готово.
 
 
 - **Сделано**: chat 29

@@ -28,6 +28,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { invalidateSidebarRemote } from './lib/invalidate-sidebar-remote'
 
 // ─────────────────────────── Arg parsing ───────────────────────────
 
@@ -395,6 +396,8 @@ async function main() {
   console.log(`  Electives updated: ${electivesUpdated}`)
   console.log(`  Edges created/upserted: ${edgesCreated}`)
   if (edgesSkipped) console.log(`  Edges skipped (errors): ${edgesSkipped}`)
+
+  await invalidateSidebarRemote(campaign.slug)
 }
 
 main().catch((e) => {

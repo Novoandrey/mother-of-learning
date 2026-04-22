@@ -16,7 +16,7 @@ How to invalidate, by call site:
 
 - **Server action / Route Handler** — `import { invalidateSidebar } from '@/lib/sidebar-cache'` and call `invalidateSidebar(campaignId)`.
 - **Client hook / component** — `import { invalidateSidebarAction } from '@/app/actions/cache'` and `await invalidateSidebarAction(campaignId)`. The server action gates on membership.
-- **CLI script (outside Next runtime)** — can't invalidate. Print a notice that the sidebar will refresh in ~60s or after a page reload.
+- **CLI script (outside Next runtime)** — call `invalidateSidebarRemote(campaignSlug)` from `scripts/lib/invalidate-sidebar-remote.ts`. It POSTs to `/api/admin/invalidate-sidebar` (auth: `Bearer SUPABASE_SERVICE_ROLE_KEY`). Reads `APP_URL` (default `http://localhost:3000`); set it to the deployed URL when running against prod. Failures are non-fatal — the script still succeeds and the sidebar self-heals after 60s.
 
 Other tables (`chronicles`, `encounters`, `encounter_participants`,
 `edges`, `node_pc_owners`) are NOT in the sidebar cache. Pages that read

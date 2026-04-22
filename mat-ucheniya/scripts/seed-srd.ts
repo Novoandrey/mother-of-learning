@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { seedCampaignSrd } from '../lib/seeds/dnd5e-srd'
+import { invalidateSidebarRemote } from './lib/invalidate-sidebar-remote'
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {}
@@ -108,6 +109,8 @@ async function main() {
   console.log(`   node_types inserted: ${result.node_types_inserted}`)
   console.log(`   nodes inserted:      ${result.nodes_inserted}`)
   console.log(`   nodes already there: ${result.nodes_skipped_existing}`)
+
+  await invalidateSidebarRemote(campaignSlug)
 }
 
 main().catch((err) => {
