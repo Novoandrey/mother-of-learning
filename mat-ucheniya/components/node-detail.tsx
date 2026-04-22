@@ -191,10 +191,19 @@ export function NodeDetail({
   async function handleDelete() {
     if (!confirm(`Удалить «${node.title}»? Все связи тоже будут удалены.`)) return
     setDeleting(true)
+    // Capture history depth BEFORE navigation — after delete, the current page
+    // becomes invalid, so we want to return to wherever the user came from
+    // (e.g. parent loop page when drilling into a recap). Fallback to catalog
+    // when there's no history (direct link).
+    const hasHistory = typeof window !== 'undefined' && window.history.length > 1
     try {
       const res = await fetch(`/api/nodes/${node.id}`, { method: 'DELETE' })
       if (res.ok) {
-        router.push(`/c/${campaignSlug}/catalog`)
+        if (hasHistory) {
+          router.back()
+        } else {
+          router.push(`/c/${campaignSlug}/catalog`)
+        }
         router.refresh()
         return
       }

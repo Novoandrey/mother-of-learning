@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-21 (chat 28)
+> Last updated: 2026-04-22 (chat 29)
 
 ## В проде сейчас
 
@@ -17,21 +17,26 @@
 - **PC roster v2**: миграция `030`
 - **Shared world editing + perf**: миграция `031`, React `cache()`, `Promise.all`
 - **TECH-003**: убрано 21 `any` из join-ответов, утилита `lib/supabase/joins.ts`
+- **Ultrareview-полишинг (chat 28)**: BUG-014, TECH-001 (branding env),
+  TECH-002 (react-hooks lint), TECH-004 (cached sidebar), UX-001 (toast),
+  UX-002 (pending indicators) — всё в проде
+- **BUG-015 (chat 29)**: после удаления ноды редирект через `router.back()`
+  с fallback на каталог (раньше всегда летел в `/catalog`)
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
 **Последняя применённая миграция:** `031_shared_world_editing.sql`
 
-## Следующий приоритет — полировка по ultrareview
+## Следующий приоритет
 
-Источник: `backlog.md` секция «🔜 NEXT». Четыре критичных пункта на ~1 день:
+Свободное окно — все P1/P2 баги закрыты. Можно браться за что угодно
+из бэклога. Логичные кандидаты:
 
-- **BUG-014** — `roundRef.current = turns.round` в render body (латентный баг)
-- **TECH-001** — хардкод «Мать Учения» → env var (open source блокер)
-- **UX-001** — toast-менеджер вместо `alert()`
-- **UX-002** — pending-индикаторы на inline-формах (`useActionState`)
-
-Далее — остальные пункты ultrareview по мере сил.
+- **TECH-005** [P3] — `middleware.ts` → `proxy.ts` (Next 16 deprecation)
+- **DEBT-003** [P2] — SRD seed привязан к `slug='mat-ucheniya'` (open source blocker)
+- **IDEA-037** [P2] — факультативы → бонусы к статам PC
+- **Spec-007 этап 4 stage 4** — трекер трат на ход (action/bonus/movement)
+- **Мобилка игрока** (Spec-007 этап 5) — большая фича, ждёт решения
 
 ## Отложенные фичи
 
