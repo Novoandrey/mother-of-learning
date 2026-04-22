@@ -38,7 +38,7 @@ SRD-данные через `WHERE c.slug = 'mat-ucheniya'`. Любая нова
 - (нет — DEBT-003 решается на уровне приложения)
 
 ## Коммиты
-- `<TBD>` `feat(seeds): DEBT-003 — extract SRD seed from migrations`
+- `4636b7e` `feat(seeds): DEBT-003 — extract SRD seed from migrations`
 
 ## Действия пользователю (после чата)
 - [x] задеплоить (авто через main)
