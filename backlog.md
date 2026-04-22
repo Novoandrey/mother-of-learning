@@ -90,16 +90,18 @@ Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
   ни одного `from('party')` в коде нет. Либо удалить миграцией 032,
   либо в комментарии задокументировать «reserved for IDEA-X».
 
-### DEBT-003 [P2] SRD seed привязан к `slug='mat-ucheniya'`
+### DEBT-003 [P2] ✅ DONE (chat 30) — SRD seed привязан к `slug='mat-ucheniya'`
 - **Feature**: universality (constitution X) — open source blocker
 - Миграции 003 (conditions), 005 (effects), 022 (exhaustion levels)
-  инсертят в `WHERE c.slug='mat-ucheniya'`. Новая кампания, созданная
-  через UI, получит пустой тип `condition`, ноль conditions,
+  инсертили в `WHERE c.slug='mat-ucheniya'`. Новая кампания, созданная
+  через UI, получила бы пустой тип `condition`, ноль conditions,
   ноль effects → трекер энкаунтера сломан из коробки.
-- Правильный фикс: server action `initializeCampaignFromTemplate(id)` +
-  `lib/seeds/dnd5e-srd.ts` — идемпотентно инсертит универсальные SRD
-  данные. Вызывать при создании кампании.
-- Блокирует open source релиз. Оценка — 1 день.
+- **Решение**: `lib/seeds/dnd5e-srd.ts` — единый источник правды,
+  идемпотентный сидер. `lib/campaign-actions.ts` — server action
+  `initializeCampaignFromTemplate`. CLI `npm run seed-srd -- --campaign <slug>`
+  для бэкфилла. Без новой SQL-миграции — чистая TS-логика.
+- **Осталось**: когда появится UI «Создать кампанию», сразу после
+  INSERT в `campaigns` вызывать `initializeCampaignFromTemplate`.
 
 ### DEBT-004 [P3] `to_tsvector('russian')` hardcoded
 - **Feature**: i18n / universality
