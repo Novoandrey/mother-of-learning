@@ -13,6 +13,11 @@
  *   condition/effect node type and SRD node exists. Safe to re-run any
  *   number of times — only missing rows are inserted.
  *
+ *   Idempotency key for nodes is `fields->>'name_en'`, NOT `title`. Russian
+ *   titles are user-facing and DMs DO rename them (e.g. to gender-neutral
+ *   forms — "Бессознательный" → "Без сознания"). The English name is the
+ *   stable cross-language identifier that we own and never mutate.
+ *
  *   Call sites:
  *     • `initializeCampaignFromTemplate` server action (on campaign create)
  *     • `npm run seed-srd -- --campaign <slug>` CLI (for backfill)
@@ -383,9 +388,13 @@ export async function seedCampaignSrd(
     new Set(ALL_NODES.map((n) => typeIdBySlug.get(n.type_slug)).filter(Boolean) as string[]),
   )
 
+  // Read existing nodes' English names. We use `name_en` (not `title`) as
+  // the idempotency key because Russian titles are user-editable — DMs
+  // rename them (gender-neutral forms, world-specific flavor) and we must
+  // not duplicate-seed under the original Russian title.
   const { data: existingNodes, error: existingNodesErr } = await supabase
     .from('nodes')
-    .select('title, type_id')
+    .select('type_id, fields')
     .eq('campaign_id', campaignId)
     .in('type_id', requiredTypeIds)
 
@@ -393,13 +402,15 @@ export async function seedCampaignSrd(
     throw new Error(`seedCampaignSrd: failed to read existing nodes: ${existingNodesErr.message}`)
   }
 
-  // Compose a (type_id|title) lookup key — title alone is not unique across
-  // node types, even if it happens to be unique within our SRD set today.
-  const existingKey = new Set(
-    ((existingNodes ?? []) as { title: string; type_id: string }[]).map(
-      (r) => `${r.type_id}|${r.title}`,
-    ),
-  )
+  // Compose a (type_id|name_en) lookup key. name_en alone is not
+  // unique across node types — a future "effect" called "Bless" and a
+  // hypothetical "condition" called "Bless" must coexist.
+  const existingKey = new Set<string>()
+  for (const row of (existingNodes ?? []) as { type_id: string; fields: unknown }[]) {
+    const fields = (row.fields ?? {}) as { name_en?: unknown }
+    const nameEn = typeof fields.name_en === 'string' ? fields.name_en : ''
+    if (nameEn) existingKey.add(`${row.type_id}|${nameEn}`)
+  }
 
   const toInsert: { campaign_id: string; type_id: string; title: string; fields: unknown }[] = []
   for (const node of ALL_NODES) {
@@ -408,7 +419,13 @@ export async function seedCampaignSrd(
       // Defensive: shouldn't happen — we just inserted the type above.
       throw new Error(`seedCampaignSrd: node_type slug not found: ${node.type_slug}`)
     }
-    const key = `${typeId}|${node.title}`
+    const nameEn = typeof node.fields.name_en === 'string' ? node.fields.name_en : ''
+    if (!nameEn) {
+      // Every SRD node must have a stable name_en — refuse to seed without one,
+      // otherwise re-runs would duplicate.
+      throw new Error(`seedCampaignSrd: SRD node "${node.title}" missing name_en`)
+    }
+    const key = `${typeId}|${nameEn}`
     if (existingKey.has(key)) {
       result.nodes_skipped_existing += 1
       continue

@@ -10,6 +10,7 @@
     "seed-owner": "tsx scripts/seed-owner.ts",
     "seed-players": "tsx scripts/seed-players.ts",
     "seed-srd": "tsx scripts/seed-srd.ts",
+    "dedupe-srd": "tsx scripts/dedupe-srd.ts",
     "import-electives": "tsx scripts/import-electives.ts"
   },
   "dependencies": {
