@@ -29,6 +29,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { invalidateSidebarRemote } from './lib/invalidate-sidebar-remote'
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {}
@@ -239,6 +240,8 @@ async function main() {
   }
 
   console.log(`✅ Deleted ${idsToDelete.length} duplicate node(s).`)
+
+  await invalidateSidebarRemote(campaign.slug)
 }
 
 main().catch((err) => {

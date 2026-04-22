@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-22 (chat 31)
+> Last updated: 2026-04-22 (chat 32)
 
 ## В проде сейчас
 
@@ -35,6 +35,11 @@
   (создание кампании). Правило задокументировано в `AGENTS.md`.
   Остальные ~10 мутаций проверены — либо уже зовут invalidate,
   либо не аффектят сайдбар.
+- **TECH-007 (chat 32)**: invalidate-from-CLI. Новый POST endpoint
+  `/api/admin/invalidate-sidebar` (auth: `Bearer SUPABASE_SERVICE_ROLE_KEY`)
+  + хелпер `scripts/lib/invalidate-sidebar-remote.ts` проведён в
+  `seed-srd`, `dedupe-srd`, `import-electives`. Non-fatal: сайдбар
+  всё равно self-heal через 60с TTL. Прод-env: `APP_URL=...vercel.app`.
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
@@ -44,10 +49,6 @@
 
 Логичные кандидаты:
 
-- **TECH-007** [P3] — invalidate-from-CLI. CLI-скрипты (`seed-srd`,
-  `dedupe-srd`, etc.) не могут звать `revalidateTag`. Варианты:
-  `POST /api/admin/invalidate-sidebar?campaign=...` либо снизить
-  `revalidate: 60` до 10. Маленькая задача.
 - **IDEA-037** [P2] — факультативы → бонусы к статам PC
 - **IDEA-041** [P2] — система фидбека внутри приложения (кнопка + лента)
 - **Spec-007 этап 4 stage 4** — трекер трат на ход (action/bonus/movement)
