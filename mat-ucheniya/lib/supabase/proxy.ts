@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 /**
- * Refreshes the Supabase auth session in a Next.js middleware request.
+ * Refreshes the Supabase auth session in a Next.js proxy request
+ * (proxy is the Next.js 16 successor to middleware).
  * Follows the standard pattern from @supabase/ssr docs: we create a
  * server client that writes any refreshed cookies onto the response,
  * call getUser() to trigger a refresh if needed, then return the

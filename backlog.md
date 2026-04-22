@@ -63,12 +63,13 @@ Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
 - Layout sidebar query завёрнут в `unstable_cache`, плюс параллельные
   fetches через `Promise.all`.
 
-### TECH-005 [P3] Middleware → Proxy (Next 16 deprecation)
-- **Feature**: dx
-- Предупреждение `The "middleware" file convention is deprecated.
-  Please use "proxy" instead.`
-- Сейчас работает, но при апгрейде до Next 17 поломается. Переименовать
-  `middleware.ts` → `proxy.ts`, обновить конфиг.
+### TECH-005 [P3] ✅ DONE — Middleware → Proxy (Next 16)
+- **Сделано**: chat 29
+- `mat-ucheniya/middleware.ts` → `proxy.ts`, функция `middleware` → `proxy`.
+- Заодно `lib/supabase/middleware.ts` → `lib/supabase/proxy.ts`
+  для консистентности (это просто имя файла, не file convention).
+- Edge runtime в проекте не использовался → миграция тривиальна.
+- Deprecation warning ушёл, проект готов к Next 17.
 
 ---
 
