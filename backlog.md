@@ -12,57 +12,55 @@ Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
 Все 4 пункта из прошлого NEXT (BUG-014, TECH-001, UX-001, UX-002)
 по факту уже сделаны в chat 28 — backlog отстал. Синхронизировано.
 
-### BUG-016 [P2] Каталог и сайдбар рассинхронизируются (stale cache)
-- **Found**: chat 30 — пользователь увидел 34 в каталоге и 20 в сайдбаре
-  после `npm run seed-srd`. Причина системная, а не локальная:
-  каталог делает живой SELECT, сайдбар кэшируется в `unstable_cache`
-  с TTL 60с и инвалидируется только через `revalidateTag` из Next
-  runtime. CLI-скрипты (`seed-srd`, `dedupe-srd`) не могут дёрнуть
-  `revalidateTag` — они вне Next, поэтому сайдбар показывает старые
-  данные до истечения TTL или ручного refresh.
-- Конкретный баг в коде: `hooks/use-node-form.ts:163` `createCustomType`
-  создаёт новый `node_type`, но не вызывает `invalidateSidebarAction`.
-  После создания кастомного типа сайдбар показывает старый список
-  типов до 60с TTL.
-- Покрывается TECH-006 (ниже) — системный аудит всех инвалидаций.
+### BUG-016 [P2] ✅ DONE — Каталог и сайдбар рассинхронизируются (stale cache)
+- **Сделано**: chat 31
+- Системный аудит: см. TECH-006 ниже. В рамках BUG-016 конкретно
+  починен `createCustomType` (миссинг `invalidateSidebarAction`
+  после инсерта в `node_types`).
+- CLI-кейс (когда `seed-srd` показывает 34 в каталоге и 20 в сайдбаре)
+  остался открытым — вынесен в TECH-007.
 
-### TECH-006 [P2] Аудит инвалидаций кэша и stale-data
-- **Feature**: reliability / UX consistency
-- **Зачем**: подтверждённый баг BUG-016 показывает что инвалидации
-  сделаны точечно и неконсистентно. Нужен systematic sweep.
-- **Что успел проверить (chat 30)**:
-  - ✅ `api/nodes/[id]` DELETE вызывает `invalidateSidebar`
-  - ✅ `electives/actions.ts` insert/delete вызывают `invalidateSidebar`
-  - ✅ `use-node-form.ts` `handleSubmit` / `handleDelete` вызывают
-  - ❌ `use-node-form.ts` `createCustomType` — НЕ вызывает (подтверждённый баг)
-  - `api/nodes/[id]` PATCH и `/content` route не вызывают, но
-    обновляют поля, которых нет в сайдбаре — технически ОК
-  - `members/actions.ts` использует `revalidatePath`, а не
-    `invalidateSidebar` — нужна ревизия
-- **Что осталось проверить**:
-  - `node_pc_owners` мутации — влияют на «Мои персонажи» у игроков
-  - `chronicles` мутации — счётчики на странице ноды
-  - `encounters` мутации — список на странице энкаунтеров
-  - `loops` / `sessions` мутации
-  - `edges` (создание/удаление связей)
-  - Race conditions в encounter grid когда два DM правят одновременно
-    (последний write выигрывает молча — может быть ОК, но надо
-    зафиксировать поведение)
-  - Optimistic updates без rollback при ошибке
-  - `revalidatePath` vs `invalidateSidebar` — какой путь покрывает
-    какие консьюмеры, где дыры
-- **Результаты работы**:
-  - Починить `createCustomType` (1 строка)
-  - Завести BUG-017+ на каждый новый найденный рассинхрон
-  - Подумать про invalidation-from-CLI (варианты: удалённый
-    `POST /api/admin/invalidate-sidebar?campaign=...`, либо
-    `revalidate: 10` вместо 60 в `unstable_cache`)
-  - CLI-скрипты (`seed-srd`, `dedupe-srd`, `seed-owner`, `seed-players`,
-    `import-electives`) — добавить в вывод подсказку «сайдбар
-    обновится в течение ~60с или после refresh»
-  - Документировать правило в `AGENTS.md`: любая серверная мутация
-    `nodes` / `node_types` обязана звать `invalidateSidebar`
-- **Оценка**: 0.5–1 день (аудит + фиксы).
+### TECH-006 [P2] ✅ DONE — Аудит инвалидаций кэша и stale-data
+- **Сделано**: chat 31
+- Прошёл systematic sweep по всем мутациям таргетных таблиц
+  (nodes, node_types, node_pc_owners, chronicles, encounters,
+  loops, sessions, edges).
+- **Зафикшено** (2 миссинга):
+  - `hooks/use-node-form.ts` `createCustomType` — добавлен
+    `invalidateSidebarAction(campaignId)`.
+  - `lib/campaign-actions.ts` `initializeCampaignFromTemplate` —
+    добавлен `invalidateSidebar(campaignId)` после `seedCampaignSrd`.
+- **Проверено OK** (не требует фиксов):
+  - `api/nodes/[id]` DELETE — уже зовёт invalidate.
+  - `api/nodes/[id]` PATCH/content — обновляет поля вне сайдбара.
+  - `api/chronicles/*` — catalog/loops `force-dynamic`, UI оптимистичный.
+  - `members/actions.ts` PC owners — сайдбар не фильтрует по owner-ам.
+  - `electives/actions.ts`, `use-node-form.ts` handleSubmit/handleDelete
+    — уже зовут invalidate.
+  - `lib/encounter-actions.ts`, `use-encounter-turns.ts`,
+    `encounter-grid.tsx`, `encounter-page-client.tsx` — encounters
+    + encounter_participants не в сайдбаре.
+  - `create-edge-form.tsx` — edges не в сайдбаре, `router.refresh()` ok.
+- **Документация**: правило добавлено в `AGENTS.md` (sidebar cache
+  invalidation by call site).
+- **Не покрыто** (отдельные задачи):
+  - CLI-скрипты — TECH-007 ниже.
+  - Race conditions в encounter grid — нужен план (optimistic
+    concurrency vs version column vs realtime). Заводится отдельно
+    при появлении реальных жалоб.
+
+### TECH-007 [P3] CLI-скрипты не могут инвалидировать сайдбар
+- **Контекст**: BUG-016 нашёл, что после `npm run seed-srd` каталог
+  показывает 34, а сайдбар 20 до 60с TTL. Скрипты вне Next runtime,
+  `revalidateTag` недоступен.
+- **Варианты**:
+  - `POST /api/admin/invalidate-sidebar?campaign=...` с auth по
+    service-role или admin-токену. CLI дёргает после успеха.
+  - Снизить TTL `revalidate: 60` → `10`. Тривиально, но удваивает
+    нагрузку на sidebar query.
+- **Оценка**: 30 минут.
+- **Триггер**: либо появится регулярный workflow «массовый seed +
+  сразу смотрю», либо просто всплывёт ещё раз.
 
 
 - **Сделано**: chat 29

@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-22 (chat 30)
+> Last updated: 2026-04-22 (chat 31)
 
 ## В проде сейчас
 
@@ -29,6 +29,12 @@
   `initializeCampaignFromTemplate` + CLI `npm run seed-srd`.
   Open source unblocker — новые кампании больше не получают
   пустой `condition` тип.
+- **BUG-016 + TECH-006 (chat 31)**: аудит инвалидаций кэша
+  сайдбара. Зафикшены 2 миссинга: `createCustomType` (создание
+  кастомного типа ноды) и `initializeCampaignFromTemplate`
+  (создание кампании). Правило задокументировано в `AGENTS.md`.
+  Остальные ~10 мутаций проверены — либо уже зовут invalidate,
+  либо не аффектят сайдбар.
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
@@ -38,14 +44,16 @@
 
 Логичные кандидаты:
 
-- **BUG-016 + TECH-006** [P2] — аудит инвалидаций кэша. Найден
-  конкретный баг (`createCustomType` не обновляет сайдбар) +
-  системная проблема рассинхрона каталога и сайдбара. Нужен
-  systematic sweep всех мутаций → `revalidateTag` / `revalidatePath` /
-  `invalidateSidebar`. Подробности в backlog.
+- **TECH-007** [P3] — invalidate-from-CLI. CLI-скрипты (`seed-srd`,
+  `dedupe-srd`, etc.) не могут звать `revalidateTag`. Варианты:
+  `POST /api/admin/invalidate-sidebar?campaign=...` либо снизить
+  `revalidate: 60` до 10. Маленькая задача.
 - **IDEA-037** [P2] — факультативы → бонусы к статам PC
 - **IDEA-041** [P2] — система фидбека внутри приложения (кнопка + лента)
 - **Spec-007 этап 4 stage 4** — трекер трат на ход (action/bonus/movement)
+- **Encounter race conditions** [P3] — поведение при одновременных
+  правках двух DM в encounter grid (last-write-wins сейчас, нужно
+  зафиксировать или сделать optimistic concurrency).
 - **Мобилка игрока** (Spec-007 этап 5) — большая фича, ждёт решения
 
 ## Отложенные фичи
