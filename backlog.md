@@ -30,22 +30,39 @@ Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
 - **Feature**: reliability / UX consistency
 - **Зачем**: подтверждённый баг BUG-016 показывает что инвалидации
   сделаны точечно и неконсистентно. Нужен systematic sweep.
-- **Что проверить**:
-  - Все мутации `nodes` / `node_types` вызывают `invalidateSidebar`
-    (уже найден миссинг: `createCustomType`).
-  - Все мутации `node_pc_owners` обновляют «Мои персонажи» игрока.
-  - Мутации `chronicles` / `encounters` / `loops` / `sessions` /
-    `edges` корректно `revalidatePath` / `revalidateTag` для
-    всех затронутых маршрутов (не только того где сделана мутация).
+- **Что успел проверить (chat 30)**:
+  - ✅ `api/nodes/[id]` DELETE вызывает `invalidateSidebar`
+  - ✅ `electives/actions.ts` insert/delete вызывают `invalidateSidebar`
+  - ✅ `use-node-form.ts` `handleSubmit` / `handleDelete` вызывают
+  - ❌ `use-node-form.ts` `createCustomType` — НЕ вызывает (подтверждённый баг)
+  - `api/nodes/[id]` PATCH и `/content` route не вызывают, но
+    обновляют поля, которых нет в сайдбаре — технически ОК
+  - `members/actions.ts` использует `revalidatePath`, а не
+    `invalidateSidebar` — нужна ревизия
+- **Что осталось проверить**:
+  - `node_pc_owners` мутации — влияют на «Мои персонажи» у игроков
+  - `chronicles` мутации — счётчики на странице ноды
+  - `encounters` мутации — список на странице энкаунтеров
+  - `loops` / `sessions` мутации
+  - `edges` (создание/удаление связей)
   - Race conditions в encounter grid когда два DM правят одновременно
     (последний write выигрывает молча — может быть ОК, но надо
-    зафиксировать поведение).
-  - Optimistic updates без rollback при ошибке.
+    зафиксировать поведение)
+  - Optimistic updates без rollback при ошибке
+  - `revalidatePath` vs `invalidateSidebar` — какой путь покрывает
+    какие консьюмеры, где дыры
+- **Результаты работы**:
+  - Починить `createCustomType` (1 строка)
+  - Завести BUG-017+ на каждый новый найденный рассинхрон
+  - Подумать про invalidation-from-CLI (варианты: удалённый
+    `POST /api/admin/invalidate-sidebar?campaign=...`, либо
+    `revalidate: 10` вместо 60 в `unstable_cache`)
   - CLI-скрипты (`seed-srd`, `dedupe-srd`, `seed-owner`, `seed-players`,
     `import-electives`) — добавить в вывод подсказку «сайдбар
-    обновится в течение ~60с или после refresh».
+    обновится в течение ~60с или после refresh»
+  - Документировать правило в `AGENTS.md`: любая серверная мутация
+    `nodes` / `node_types` обязана звать `invalidateSidebar`
 - **Оценка**: 0.5–1 день (аудит + фиксы).
-- **Уже найдено**: миссинг в `createCustomType` (fix на 1 строку).
 
 
 - **Сделано**: chat 29
@@ -105,46 +122,6 @@ Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
   для консистентности (это просто имя файла, не file convention).
 - Edge runtime в проекте не использовался → миграция тривиальна.
 - Deprecation warning ушёл, проект готов к Next 17.
-
-### TECH-006 [P2] Аудит кэш-инвалидации / stale data (chat 30)
-- **Feature**: dx / корректность UI
-- **Контекст (chat 30)**: после бага с дублями SRD пользователь
-  заметил рассинхрон — в каталоге показалось 34 состояния, а в
-  боковой панели 20. Причина: sidebar использует `unstable_cache`
-  (60с TTL), каталог считает напрямую. CLI-скрипты (`seed-srd`,
-  `dedupe-srd`) не умеют вызывать `revalidateTag` — они вне Next
-  runtime. Минутный ожидание или ручной refresh решает, но UX плохой.
-- **Уже найденный баг**: `hooks/use-node-form.ts:163` — функция
-  `createCustomType` создаёт новый `node_type`, но НЕ вызывает
-  `invalidateSidebarAction`. После создания кастомного типа сайдбар
-  показывает старый список до 60с TTL.
-- **Что успел проверить (chat 30)**:
-  - ✅ `api/nodes/[id]` DELETE вызывает invalidate
-  - ✅ `electives/actions.ts` insert/delete вызывают invalidate
-  - ✅ `use-node-form.ts` handleSubmit/handleDelete вызывают invalidate
-  - ❌ `use-node-form.ts` createCustomType — НЕ вызывает
-  - `api/nodes/[id]` PATCH и `/content` не вызывают, но обновляют
-    поля, которых нет в сайдбаре — технически ОК
-  - `members/actions.ts` использует `revalidatePath`, а не
-    `invalidateSidebar` — нужна ревизия (см. ниже)
-- **Что осталось проверить**:
-  - `node_pc_owners` мутации — влияют на «Мои персонажи» у игроков
-  - `chronicles` мутации — счётчики на странице ноды
-  - `encounters` мутации — список на странице энкаунтеров
-  - `loops` / `sessions` мутации
-  - `edges` (создание/удаление связей)
-  - Условия гонок в encounter grid (несколько DM одновременно)
-  - Optimistic updates без rollback на ошибке
-  - `revalidatePath` vs `invalidateSidebar` — какой путь покрывает
-    какие консьюмеры, где дыры
-- **Результаты работы**:
-  - Починить createCustomType (1 строка)
-  - Завести BUG-016+ на каждый найденный рассинхрон
-  - Подумать про invalidation-from-CLI (варианты: удалённый
-    `POST /api/admin/invalidate-sidebar?campaign=...`, либо
-    `revalidate: 10` вместо 60 в `unstable_cache`)
-  - Документировать правило в `AGENTS.md`: любая серверная мутация
-    `nodes` / `node_types` обязана звать `invalidateSidebar`
 
 ---
 
