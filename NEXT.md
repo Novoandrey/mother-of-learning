@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-22 (chat 32)
+> Last updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
 
 ## В проде сейчас
 
@@ -47,7 +47,17 @@
 
 ## Следующий приоритет
 
-Логичные кандидаты:
+**Бухгалтерия** — серия из 7 спецификаций (`009-015`) для учёта денег,
+лута, общака и распределения ресурсов. Roadmap + решения зафиксированы в
+`.specify/memory/bookkeeping-roadmap.md` — **читать перед стартом
+каждой спеки**.
+
+Первая на очереди — **spec-009 Loop progress bar + session packs**:
+поля `day_from/day_to` на сессии, список `participants` (пачка),
+прогрессбар петли со stacked rows (видно overlap пачек). Оценка 2-3 дня.
+Пишется в отдельном новом чате (`specify → clarify → plan → tasks`).
+
+### Параллельные кандидаты (если бухгалтерия пауза)
 
 - **IDEA-037** [P2] — факультативы → бонусы к статам PC
 - **IDEA-041** [P2] — система фидбека внутри приложения (кнопка + лента)
@@ -80,6 +90,8 @@
 - `.specify/memory/constitution.md` — конституция v3.0.0 (действующая)
 - `.specify/memory/encounter-tracker-v1-retrospective.md` — ретро v1 трекера
 - `.specify/memory/character-sheet-excel-system.md` — система листа персонажа
+- `.specify/memory/bookkeeping-roadmap.md` — roadmap для спецификаций 009-015
+  (Бухгалтерия: петля/транзакции/общак/лут)
 - `.specify/memory/assets/character-sheet-examples.xlsx` — Excel с примерами листов (для будущей фичи)
 - `mat-ucheniya/STYLE.md` — design tokens (source of truth для UI)
 - `mat-ucheniya/AGENTS.md` — предупреждение про Next.js 16
