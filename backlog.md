@@ -3,7 +3,19 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Single source of truth — все баги, фичи, идеи живут здесь.
 
-Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
+Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
+
+---
+
+## 📋 Активная серия: Бухгалтерия (specs 009-015)
+
+Большая фича, разбита на 7 независимых спецификаций. Source of truth
+для контекста, решений и ограничений:
+
+→ **`.specify/memory/bookkeeping-roadmap.md`**
+
+Каждая спека пишется в отдельном чате. Следующая на очереди —
+**spec-009 Loop progress bar + session packs**.
 
 ---
 
