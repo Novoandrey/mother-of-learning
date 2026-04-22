@@ -22,6 +22,8 @@
   UX-002 (pending indicators) — всё в проде
 - **BUG-015 (chat 29)**: после удаления ноды редирект через `router.back()`
   с fallback на каталог (раньше всегда летел в `/catalog`)
+- **TECH-005 (chat 29)**: `middleware.ts` → `proxy.ts` (Next 16 file
+  convention), deprecation warning убран
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
@@ -32,9 +34,9 @@
 Свободное окно — все P1/P2 баги закрыты. Можно браться за что угодно
 из бэклога. Логичные кандидаты:
 
-- **TECH-005** [P3] — `middleware.ts` → `proxy.ts` (Next 16 deprecation)
 - **DEBT-003** [P2] — SRD seed привязан к `slug='mat-ucheniya'` (open source blocker)
 - **IDEA-037** [P2] — факультативы → бонусы к статам PC
+- **IDEA-041** [P2] — система фидбека внутри приложения (кнопка + лента)
 - **Spec-007 этап 4 stage 4** — трекер трат на ход (action/bonus/movement)
 - **Мобилка игрока** (Spec-007 этап 5) — большая фича, ждёт решения
 

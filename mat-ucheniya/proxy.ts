@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { updateSession } from '@/lib/supabase/middleware'
+import { updateSession } from '@/lib/supabase/proxy'
 
 /**
- * Auth middleware:
+ * Auth proxy (Next.js 16 file convention; renamed from middleware):
  * - Refreshes the Supabase session cookie on every matched request.
  * - Redirects unauthenticated users on /c/* to /login.
  * - Redirects users with must_change_password to /onboarding
@@ -10,7 +10,7 @@ import { updateSession } from '@/lib/supabase/middleware'
  * - Redirects authenticated users on /login to / (no point in showing
  *   the login form to someone already in).
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { response, user, supabase } = await updateSession(request)
   const { pathname } = request.nextUrl
 
