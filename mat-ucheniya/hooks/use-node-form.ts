@@ -188,6 +188,10 @@ export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedTyp
     const newType = data as NodeType
     setTypes((prev) => [...prev, newType])
     selectType(newType)
+
+    // New node_type means the sidebar type list changed; drop the cache
+    // so the next navigation shows it instead of waiting for the 60s TTL.
+    await invalidateSidebarAction(campaignId)
   }
 
   // ── Submit ──────────────────────────────────────

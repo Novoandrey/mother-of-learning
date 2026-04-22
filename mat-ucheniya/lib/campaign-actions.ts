@@ -16,6 +16,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { seedCampaignSrd, type SeedResult } from '@/lib/seeds/dnd5e-srd'
+import { invalidateSidebar } from '@/lib/sidebar-cache'
 
 export type InitializeCampaignResult =
   | { ok: true; seed: SeedResult }
@@ -64,6 +65,10 @@ export async function initializeCampaignFromTemplate(
 
   try {
     const seed = await seedCampaignSrd(supabase, campaignId)
+    // Seeding inserts node_types + nodes — both live in the sidebar cache.
+    // Drop the cache so the freshly seeded campaign shows full content
+    // immediately instead of waiting for the 60s TTL.
+    invalidateSidebar(campaignId)
     return { ok: true, seed }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Неизвестная ошибка сидинга'
