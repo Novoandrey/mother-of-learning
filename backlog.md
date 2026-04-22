@@ -3,56 +3,39 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Single source of truth — все баги, фичи, идеи живут здесь.
 
-Updated: 2026-04-21 (chat 28 — TECH-003 type safety cleanup)
+Updated: 2026-04-22 (chat 29 — BUG-015 + backlog sync)
 
 ---
 
-## 🔜 NEXT — полишинг по итогам ultrareview (chat 28)
+## 🔜 NEXT — баги и мелочёвка (chat 29)
 
-В chat 27 сделали `/ultrareview` и триаж трёх зарепорченных проблем
-(права игроков, лавина запросов, фидбек). Проблемы 1 и 2 закрыты,
-3 — частично (loading/error + alert на 403; toast-менеджер отложен).
-Следующий чат берёт оставшиеся пункты ultrareview + дополиривает №3.
+Все 4 пункта из прошлого NEXT (BUG-014, TECH-001, UX-001, UX-002)
+по факту уже сделаны в chat 28 — backlog отстал. Синхронизировано.
 
-### BUG-014 [P1] `roundRef.current = turns.round` в render body
-- **Feature**: encounter tracker
-- `components/encounter/encounter-grid.tsx:143` — присваивание ref
-  прямо в render. React 19 ругается через `react-hooks/set-state-in-effect`.
-- Фикс: удалить строку, ref уже синхронизируется через `onRoundChange`
-  callback в хуке `useEncounterTurns`.
-- На самом деле в chat 27 я уже сделал фикс в working copy, но откатил
-  (пользователь попросил отдельный приоритет). В chat 28 применить
-  одним коммитом.
+### BUG-015 [P2] ✅ DONE — после удаления ноды редирект всегда в /catalog
+- **Сделано**: chat 29
+- При удалении рекапа из его детальной страницы (куда пришёл с петли)
+  пользователь оказывался в /catalog, а не возвращался на родительскую
+  петлю. Плюс задержка перехода создавала впечатление что кнопка
+  «Удаляю…» зависла.
+- Фикс: `node-detail.tsx` `handleDelete` теперь делает `router.back()`
+  если в истории есть откуда вернуться, иначе fallback на `/catalog`.
 
-### TECH-001 [P2] Хардкод "Мать Учения" → env var
-- **Feature**: universality (constitution X)
-- Два места с захардкоженным названием кампании:
-  - `app/layout.tsx:7` — `title: 'Мать Учения'`
-  - `app/login/page.tsx:21` — `<h1>Мать Учения</h1>`
-- Фикс: `lib/branding.ts` с `APP_NAME = process.env.NEXT_PUBLIC_APP_NAME
-  || 'Мать Учения'`. Текущий деплой не меняется (fallback), форки
-  переопределяют env.
-- В chat 27 файл создан в working copy, откачен. В chat 28 применить.
+### BUG-014 [P1] ✅ DONE — `roundRef.current = turns.round` в render body
+- **Сделано**: chat 28 (commit `330a290`)
+- Удалена строка из `encounter-grid.tsx`, ref синхронизируется
+  через `onRoundChange` callback в `useEncounterTurns`.
 
-### TECH-002 [P2] 7 мест `react-hooks/set-state-in-effect`
-- **Feature**: dx (lint cleanup)
-- Next 16/React 19 стал строже. Паттерн везде один: форма сбросилась
-  → `useEffect([state.success])` → `setOpen(false)`. Правильно —
-  реагировать в хендлере:
-  ```tsx
-  async function submit(fd: FormData) {
-    const r = await boundAction(state, fd)
-    if (r.success) { formRef.current?.reset(); setOpen(false) }
-    return r
-  }
-  ```
-- Места:
-  - `components/encounter/tag-cell.tsx:51,56` (×2)
-  - `components/encounter/add-participant-row.tsx:31`
-  - `components/encounter/statblock/action-resolve-dialog.tsx:53`
-  - `app/c/[slug]/electives/electives-client.tsx:477`
-  - `app/c/[slug]/members/members-client.tsx:76`
-- ~3 часа.
+### TECH-001 [P2] ✅ DONE — Хардкод "Мать Учения" → env var
+- **Сделано**: chat 28 (commit `496fcd9`)
+- `lib/branding.ts` создан, `APP_NAME = process.env.NEXT_PUBLIC_APP_NAME
+  || 'Мать Учения'`. `app/layout.tsx` и `app/login/page.tsx` используют его.
+
+### TECH-002 [P2] ✅ DONE — 7 мест `react-hooks/set-state-in-effect`
+- **Сделано**: chat 28 (commit `330a290`)
+- `tag-cell`, `add-participant-row`, `action-resolve-dialog`,
+  `electives-client`, `members-client` — везде паттерн заменён
+  на реакцию в хендлере вместо `useEffect`.
 
 ### TECH-003 [P2] ✅ DONE — `any` в Supabase join ответах
 - **Сделано**: chat 28
@@ -65,32 +48,20 @@ Updated: 2026-04-21 (chat 28 — TECH-003 type safety cleanup)
   `hooks/use-participant-actions.ts`.
 - `tsc --noEmit` + `next build` проходят чисто.
 
-### UX-001 [P2] Toast-менеджер вместо alert()
-- **Feature**: ui (доделка проблемы 3)
-- В chat 27 временно вставил `alert()` в client mutations (node-detail,
-  chronicles, create-edge-form) — закрывает 403 тихофейл, но UX убогий.
-- Нужен простой toast Provider в root layout, хук `useToast()`, wrapper
-  над fetch который читает `error` из response и показывает toast.
-- Интеграция с server actions: `useActionState` уже возвращает
-  `{error, success}` — рендерить автоматически.
-- ~0.5 дня.
+### UX-001 [P2] ✅ DONE — Toast-менеджер вместо alert()
+- **Сделано**: chat 28 (commit `496fcd9`)
+- `components/toast-provider.tsx` + `useToast()` хук в `app/layout.tsx`.
+  Используется в `node-detail.tsx`, `chronicles.tsx`, `create-edge-form.tsx`.
 
-### UX-002 [P3] Индикаторы pending на inline-формах
-- **Feature**: ui
-- `electives-client.tsx`, `members-client.tsx` используют
-  `useActionState` → возвращают `pending`, но не везде его отображают
-  (disable + spinner).
-- Пройтись по всем формам, убедиться что во время `pending`
-  submit disabled + маленькая крутилка.
+### UX-002 [P3] ✅ DONE — Индикаторы pending на inline-формах
+- **Сделано**: chat 28 (commit `330a290` + другие)
+- `electives-client.tsx` и `members-client.tsx` уже используют
+  `useActionState` с `pending` → `disabled={pending}` на submit-кнопках.
 
-### TECH-004 [P2] `unstable_cache` на sidebar query
-- **Feature**: perf
-- В chat 27 не делал — сначала закрыл группы по умолчанию, измерили
-  эффект. Если после деплоя chat 28 пользователь говорит «всё ещё
-  лагает» — завернуть layout sidebar query (150 нод) в
-  `unstable_cache(..., { tags: ['sidebar:' + campaignId], revalidate: 60 })`,
-  добавить `revalidateTag` в server actions которые мутируют ноды.
-- Оценка: 30 минут, если мерить показало что надо. Иначе — пропустить.
+### TECH-004 [P2] ✅ DONE — `unstable_cache` на sidebar query
+- **Сделано**: chat 28 (commit `c12e248`)
+- Layout sidebar query завёрнут в `unstable_cache`, плюс параллельные
+  fetches через `Promise.all`.
 
 ### TECH-005 [P3] Middleware → Proxy (Next 16 deprecation)
 - **Feature**: dx
