@@ -27,6 +27,7 @@ export type Session = {
   day_from: number | null
   day_to: number | null
   participants: SessionParticipant[]
+  content: string
 }
 
 // Helper: get node_type id by slug for a campaign
@@ -156,6 +157,7 @@ function nodeToSession(
     day_from: parseDay(f['day_from']),
     day_to: parseDay(f['day_to']),
     participants,
+    content: node.content ?? '',
   }
 }
 

@@ -73,6 +73,21 @@ export default async function NodePage({
   const node = nodeRes.data
   if (!node) notFound()
 
+  // Sessions have a dedicated, session-specific view at /sessions/[id]
+  // with day-range chips, participants row, and prev/next nav. Redirect
+  // catalog access so there's exactly one canonical URL per session and
+  // no duplicate-view confusion. (Edit links still point at
+  // /catalog/[id]/edit — the generic form handles session editing too.)
+  {
+    const typeRaw = (node as { type?: unknown }).type
+    const earlyTypeSlug = Array.isArray(typeRaw)
+      ? (typeRaw[0] as { slug?: string } | undefined)?.slug
+      : (typeRaw as { slug?: string } | null)?.slug
+    if (earlyTypeSlug === 'session') {
+      redirect(`/c/${slug}/sessions/${id}`)
+    }
+  }
+
   // Split merged edges into (outgoing vs incoming) by comparing source_id.
   type EdgeRow = {
     id: string

@@ -305,21 +305,14 @@ export function NodeDetail({
         </div>
       )}
 
-      {/* Link to specialized view for loops and sessions */}
+      {/* Link to specialized view for loops — sessions now auto-redirect
+          from catalog/[id] to /sessions/[id], so they don't need a banner. */}
       {node.type.slug === 'loop' && (
         <Link
           href={`/c/${campaignSlug}/loops?loop=${node.fields?.number ?? ''}`}
           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
         >
           🔄 Открыть на странице петли →
-        </Link>
-      )}
-      {node.type.slug === 'session' && (
-        <Link
-          href={`/c/${campaignSlug}/sessions/${node.id}`}
-          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
-        >
-          📋 Открыть на странице сессии →
         </Link>
       )}
 
