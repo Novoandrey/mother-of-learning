@@ -117,19 +117,33 @@ export function LoopProgressBar({ loop, sessions, campaignSlug }: Props) {
           ))
         )}
 
-        {/* Frontier marker — dashed vertical line. Positioned by
-            percentage to stay in sync with fluid columns. */}
+        {/* Frontier marker — solid blue vertical line. Positioned by
+            percentage to stay in sync with fluid columns. A 0-width
+            element with dashed border sometimes renders nothing; a
+            filled 2px-wide div is reliable. */}
         {showFrontier && frontierPercent != null && (
           <div
-            className="absolute top-3 bottom-1 border-l-2 border-dashed border-blue-400 pointer-events-none"
+            className="absolute top-3 bottom-1 w-0.5 bg-blue-500 pointer-events-none"
             style={{ left: `${frontierPercent}%` }}
             aria-hidden
           />
         )}
       </div>
 
-      {showFrontier && frontier != null && (
-        <p className="mt-1 text-xs text-blue-600">Дошли до дня {frontier}</p>
+      {showFrontier && frontierPercent != null && (
+        <div className="relative h-5">
+          <span
+            className="absolute -top-0.5 whitespace-nowrap text-xs font-medium text-blue-600"
+            style={{
+              // Anchor under the line; clamp so near-edge labels don't
+              // overflow the card.
+              left: `${Math.min(Math.max(frontierPercent, 2), 98)}%`,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            ↑ дошли до дня {frontier}
+          </span>
+        </div>
       )}
 
       {undated.length > 0 && (
