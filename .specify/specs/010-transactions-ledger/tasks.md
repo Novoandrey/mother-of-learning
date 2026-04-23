@@ -335,13 +335,13 @@ edit/delete from the ledger (completes US4 acceptance scenarios
   - (If P2 done) record an item — US6
   - (If P2 done) add a category from settings — US7
 - [x] **T042** [P1] Mark all `[ ]` → `[x]` in this `tasks.md` as they complete
-- [ ] **T043** [P1] Update `NEXT.md`:
+- [x] **T043** [P1] Update `NEXT.md`:
   - Move "spec-010 Transactions ledger" from "Следующий приоритет" into "В проде сейчас"
   - Set next priority to spec-011 Common stash
   - Bump last applied migration to `034_transactions_ledger.sql`
-- [ ] **T044** [P1] Add a `chatlog/YYYY-MM-DD-chatNN-spec-010-transactions-ledger.md` entry per `chatlog/README.md` template
-- [ ] **T045** [P1] Update `backlog.md` if anything new surfaced during implement (e.g. materialized-view follow-up, bulk-edit follow-up, collapsed-transfer-row view)
-- [ ] **T046** [P1] Git commit + push:
+- [x] **T044** [P1] Add a `chatlog/YYYY-MM-DD-chatNN-spec-010-transactions-ledger.md` entry per `chatlog/README.md` template
+- [x] **T045** [P1] Update `backlog.md` if anything new surfaced during implement (e.g. materialized-view follow-up, bulk-edit follow-up, collapsed-transfer-row view)
+- [x] **T046** [P1] Git commit + push:
   - Conventional-style message: `feat(spec-010): transactions ledger`
   - Push to `main`, Vercel auto-deploys
 
