@@ -93,6 +93,35 @@ Chat 37 имплементил spec-010 полностью и запушил `0c
 ## Коммиты
 
 - `81a2c7a` `fix(spec-010): inline day input, data-driven default day priority`
+- `91de992` `fix(spec-010): row-level delete for transfers calls deleteTransfer`
+
+## Пост-пуш фикс (delete bug для переводов)
+
+После смока на проде пользователь заметил: нажатие «уд.» на строке
+перевода (в ledger или в recent-list кошелька) валится с ошибкой
+«Удаление переводов — через deleteTransfer». Корень:
+`handleDelete` в обоих клиентах звал `deleteTransaction(id)` без
+учёта kind'а, а серверный action на `kind='transfer'` возвращает
+эту ошибку и просит идти через `deleteTransfer(groupId)`.
+
+Фикс:
+
+- `components/ledger-row.tsx` — сигнатура prop'а `onDelete`
+  расширена с `(id: string) => void` до `(row:
+  TransactionWithRelations) => void`, в call site передаётся вся
+  строка.
+- `components/wallet-block-client.tsx` + `ledger-list-client.tsx`
+  — `handleDelete(row)` ветвится по `row.kind === 'transfer' &&
+  row.transfer_group_id`: для перевода зовёт `deleteTransfer`,
+  для всего остального `deleteTransaction`. Confirm-подсказка
+  для перевода говорит «обе стороны будут удалены».
+- В `ledger-list-client` оптимистично прячет и second leg через
+  `hiddenIds`, чтобы не мигал одинокий получатель до
+  `router.refresh()`.
+
+Редактирование перевода в форме уже работало (submit идёт через
+`updateTransfer(groupId, patch)`, ownership пропускает автора) —
+UI-кнопку «изм.» трогать не пришлось.
 
 ## Действия пользователю (после чата)
 
