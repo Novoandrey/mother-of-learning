@@ -1,5 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { unwrapOne } from '@/lib/supabase/joins'
+import { DEFAULT_LOOP_LENGTH_DAYS, parseLengthDays } from './loop-length'
+
+// Re-export for back-compat with existing call sites. The pure helpers
+// live in `loop-length.ts` so client code can import them without
+// pulling in `next/headers` via the server Supabase client.
+export { DEFAULT_LOOP_LENGTH_DAYS, parseLengthDays }
 
 export type Loop = {
   id: string
@@ -108,14 +114,6 @@ function parseDay(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null
 }
 
-// Parse length_days from loop fields. Always returns a positive number;
-// falls back to 30 when missing, empty, or non-numeric.
-function parseLengthDays(v: unknown): number {
-  if (v == null || v === '') return 30
-  const n = typeof v === 'number' ? v : Number(String(v).trim())
-  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 30
-}
-
 // Map a node row to a Loop
 function nodeToLoop(node: NodeRow): Loop {
   const fields = node.fields ?? {}
@@ -197,9 +195,14 @@ async function hydrateParticipants(
     result.set(row.source_id, arr)
   }
 
-  // Stable order inside each pack: by title.
+  // Stable order inside each pack: by title, tie-broken by id so two
+  // PCs with the same title render in a deterministic order across
+  // reloads (Postgres doesn't guarantee the row order without
+  // ORDER BY, so without the tie-break the tooltip list can shuffle).
   for (const arr of result.values()) {
-    arr.sort((a, b) => a.title.localeCompare(b.title, 'ru'))
+    arr.sort(
+      (a, b) => a.title.localeCompare(b.title, 'ru') || a.id.localeCompare(b.id),
+    )
   }
 
   return result
@@ -308,6 +311,15 @@ export async function getSessionById(id: string): Promise<Session | null> {
  * Loop frontier: the largest `day_to` across all sessions contained in
  * the loop. null ⇒ no dated sessions yet. Single round-trip via
  * `contains` edge embed.
+ *
+ * ⚠️ Invariant assumed: a session's `loop_number` field and its
+ * `contains` edge from the parent loop are kept in sync by the write
+ * path — see `use-node-form.handleSubmit` which rewrites the contains
+ * edge on every session save. Pages that filter sessions by
+ * `loop_number` (the catalog/loops page) and this helper (which
+ * traverses `contains` edges) will therefore agree. If a future write
+ * path bypasses `use-node-form`, it MUST also maintain the edge or
+ * the frontier will drift.
  */
 export async function getLoopFrontier(loopId: string): Promise<number | null> {
   const supabase = await createClient()
@@ -343,18 +355,29 @@ export async function getLoopFrontier(loopId: string): Promise<number | null> {
  * Per-PC frontier within a single loop: the largest `day_to` among the
  * sessions where this PC is a participant AND which belong to this loop.
  *
- * Returns both the frontier number and the list of session ids that
- * qualified — the UI uses them to render links to the most recent ones.
+ * Returns the frontier number plus the list of qualifying sessions
+ * (id + session_number + day_to). The UI uses session_number for
+ * chip labels; day_to is returned so the caller can sort most-recent-
+ * first without a second round-trip.
  *
  * Two chained queries:
  *   1. sessions contained in the loop (via `contains` edges);
  *   2. of those, sessions where the PC is a participated_in target,
- *      plus their `day_to` values via embedded node fields.
+ *      plus their fields via embedded node select.
  */
+export type CharacterFrontierSession = {
+  id: string
+  session_number: number
+  day_to: number | null
+}
+
 export async function getCharacterFrontier(
   characterId: string,
   loopId: string,
-): Promise<{ frontier: number | null; sessionIds: string[] }> {
+): Promise<{
+  frontier: number | null
+  sessions: CharacterFrontierSession[]
+}> {
   const supabase = await createClient()
   const containsId = await getContainsEdgeTypeId()
   const participatedInId = await getParticipatedInEdgeTypeId()
@@ -368,11 +391,12 @@ export async function getCharacterFrontier(
 
   const loopSessionIds = (loopEdges ?? []).map((r) => r.target_id as string)
   if (loopSessionIds.length === 0) {
-    return { frontier: null, sessionIds: [] }
+    return { frontier: null, sessions: [] }
   }
 
   // Q2: participated_in edges for this PC, scoped to those sessions,
-  //      with the session node's fields embedded to aggregate day_to.
+  //      with the session node's fields embedded to aggregate day_to
+  //      and surface session_number for UI chips.
   const { data: pcEdges } = await supabase
     .from('edges')
     .select('source_id, session:nodes!source_id(fields)')
@@ -381,7 +405,7 @@ export async function getCharacterFrontier(
     .in('source_id', loopSessionIds)
 
   if (!pcEdges || pcEdges.length === 0) {
-    return { frontier: null, sessionIds: [] }
+    return { frontier: null, sessions: [] }
   }
 
   type Row = {
@@ -393,14 +417,16 @@ export async function getCharacterFrontier(
   }
 
   let frontier: number | null = null
-  const sessionIds: string[] = []
+  const sessions: CharacterFrontierSession[] = []
   for (const row of pcEdges as Row[]) {
-    sessionIds.push(row.source_id)
     const session = unwrapOne(row.session)
-    const d = parseDay(session?.fields?.['day_to'])
+    const fields = session?.fields ?? null
+    const sn = Number(fields?.['session_number'] ?? 0)
+    const d = parseDay(fields?.['day_to'])
+    sessions.push({ id: row.source_id, session_number: sn, day_to: d })
     if (d == null) continue
     if (frontier == null || d > frontier) frontier = d
   }
 
-  return { frontier, sessionIds }
+  return { frontier, sessions }
 }
