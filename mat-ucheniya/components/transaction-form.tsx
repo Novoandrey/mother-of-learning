@@ -146,15 +146,15 @@ export default function TransactionForm({
   )
   const [recipientPcId, setRecipientPcId] = useState<string | null>(null)
   const [comment, setComment] = useState<string>(editing?.comment ?? '')
-  const [loopNumber, setLoopNumber] = useState<number>(
-    editing?.loop_number ?? defaultLoopNumber,
-  )
+  // Loop is context — never editable in this form. If the DM needs to
+  // record something in a past/future loop, that flow belongs in a
+  // dedicated bulk-edit tool (IDEA-043), not the per-tx sheet.
+  const loopNumber: number = editing?.loop_number ?? defaultLoopNumber
   const [dayInLoop, setDayInLoop] = useState<number>(
     editing?.day_in_loop ?? defaultDayInLoop,
   )
   const sessionId: string | null = editing?.session_id ?? defaultSessionId
 
-  const [captionExpanded, setCaptionExpanded] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -392,57 +392,33 @@ export default function TransactionForm({
         />
       </div>
 
-      {/* Auto-filled temporal caption (expandable) */}
-      <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          onClick={() => setCaptionExpanded((v) => !v)}
-          className="self-start text-xs text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          Петля {loopNumber} · день {dayInLoop}
-          {sessionId ? ' · привязано к сессии' : ' · без сессии'}
-          <span className="ml-1 text-gray-400">
-            {captionExpanded ? '▾' : '▸'}
-          </span>
-        </button>
-        {captionExpanded && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-0.5">
-                <span className="text-xs text-gray-500">Петля</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  value={loopNumber}
-                  onChange={(e) => {
-                    const n = Number(e.target.value)
-                    if (Number.isFinite(n) && n > 0) setLoopNumber(Math.trunc(n))
-                  }}
-                  className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-xs text-gray-500">День в петле</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  value={dayInLoop}
-                  onChange={(e) => {
-                    const n = Number(e.target.value)
-                    if (Number.isFinite(n) && n > 0) setDayInLoop(Math.trunc(n))
-                  }}
-                  className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-                />
-              </label>
-            </div>
-            <p className="mt-2 text-xs text-gray-400">
-              Сессия подставляется автоматически по фронтиру; переназначение
-              будет в отдельной итерации.
-            </p>
-          </div>
-        )}
+      {/* Temporal context. Loop is read-only (it's campaign state,
+          changed via the loops page); day is an inline number input so
+          the user can nudge it without expanding anything. Session is
+          auto-attached from the frontier — explicit override ships
+          with IDEA-045/TECH-009. */}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span>Петля {loopNumber}</span>
+        <span aria-hidden="true">·</span>
+        <label className="flex items-center gap-1">
+          <span>День</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="1"
+            value={dayInLoop}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (Number.isFinite(n) && n > 0) setDayInLoop(Math.trunc(n))
+            }}
+            disabled={busy}
+            className="w-16 rounded border border-gray-200 px-2 py-0.5 text-right text-xs focus:border-blue-500 focus:outline-none disabled:opacity-50"
+          />
+        </label>
+        <span aria-hidden="true">·</span>
+        <span className="text-gray-400">
+          {sessionId ? 'сессия подставлена' : 'без сессии'}
+        </span>
       </div>
 
       {error && (

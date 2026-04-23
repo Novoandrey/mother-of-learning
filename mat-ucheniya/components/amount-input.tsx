@@ -103,7 +103,7 @@ export default function AmountInput({ value, onChange, label = 'Сумма' }: P
           <span className="flex items-center px-2 text-sm text-gray-500">GP</span>
         </div>
       ) : (
-        <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+        <>
           <div className="grid grid-cols-4 gap-2">
             {DENOMINATIONS.map((d) => (
               <label key={d} className="flex flex-col gap-0.5">
@@ -132,11 +132,11 @@ export default function AmountInput({ value, onChange, label = 'Сумма' }: P
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            className="mt-2 text-sm text-blue-600 hover:underline"
+            className="self-start text-sm text-blue-600 hover:underline"
           >
             свернуть
           </button>
-        </div>
+        </>
       )}
 
       {!expanded && (

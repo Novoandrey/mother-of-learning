@@ -1,8 +1,11 @@
 import { getCurrentLoop } from '@/lib/loops'
 import { getCurrentUser, getMembership } from '@/lib/auth'
-import { getWallet, getRecentByPc } from '@/lib/transactions'
+import {
+  computeDefaultDayForTx,
+  getRecentByPc,
+  getWallet,
+} from '@/lib/transactions'
 import { listCategories } from '@/lib/categories'
-import { createAdminClient } from '@/lib/supabase/admin'
 import type { TransactionWithRelations } from '@/lib/transactions'
 import WalletBalance from './wallet-balance'
 import WalletBlockClient from './wallet-block-client'
@@ -53,63 +56,12 @@ export default async function WalletBlock({
     listCategories(campaignId, 'transaction'),
   ])
 
-  // Day default: current loop → last visited day (frontier) via the
-  // PC's participated_in edges; lifetime fallback → day 1. Pulled
-  // inline to avoid a fifth module dependency in the wallet block.
-  let defaultDayInLoop = 1
-  let defaultSessionId: string | null = null
-  if (currentLoop) {
-    const admin = createAdminClient()
-    // Cheapest path: grab the max day_to among sessions the PC has
-    // participated in, in this loop. If none, default to 1.
-    const { data: participatedSessions } = await admin
-      .from('edges')
-      .select(
-        'source_id, source:nodes!source_id(id, fields)',
-      )
-      .eq('target_id', pcId)
-      .eq(
-        'type_id',
-        (
-          await admin
-            .from('edge_types')
-            .select('id')
-            .eq('campaign_id', campaignId)
-            .eq('slug', 'participated_in')
-            .maybeSingle()
-        ).data?.id ?? '',
-      )
-
-    let maxDayTo = 0
-    let frontierSessionId: string | null = null
-    for (const row of (participatedSessions ?? []) as {
-      source_id: string
-      source:
-        | { id: string; fields: Record<string, unknown> | null }
-        | { id: string; fields: Record<string, unknown> | null }[]
-        | null
-    }[]) {
-      const src = Array.isArray(row.source) ? row.source[0] : row.source
-      if (!src?.fields) continue
-      const rawLoop = src.fields['loop_number']
-      const loopOfSession =
-        rawLoop != null && rawLoop !== ''
-          ? Number(rawLoop)
-          : null
-      if (loopOfSession !== currentLoop.number) continue
-      const rawDayTo = src.fields['day_to']
-      const dayTo =
-        rawDayTo != null && rawDayTo !== '' ? Number(rawDayTo) : null
-      if (dayTo != null && dayTo > maxDayTo) {
-        maxDayTo = dayTo
-        frontierSessionId = src.id
-      }
-    }
-    if (maxDayTo > 0) {
-      defaultDayInLoop = maxDayTo
-      defaultSessionId = frontierSessionId
-    }
-  }
+  // Day default: delegated to the shared helper so the form sheet here
+  // and the actor bar on /accounting agree on the rule (latest tx →
+  // frontier → 1).
+  const defaultDayInLoop = currentLoop
+    ? await computeDefaultDayForTx(pcId, currentLoop.number, currentLoop.id)
+    : 1
 
   const defaultLoopNumber = currentLoop?.number ?? 1
 
@@ -146,7 +98,7 @@ export default async function WalletBlock({
           canManage={canManage}
           defaultLoopNumber={defaultLoopNumber}
           defaultDayInLoop={defaultDayInLoop}
-          defaultSessionId={defaultSessionId}
+          defaultSessionId={null}
           categories={categories}
           recent={rowsForClient as TransactionWithRelations[]}
         />

@@ -7,6 +7,7 @@ import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth } from '@/lib/auth'
 import { getCurrentLoop } from '@/lib/loops'
 import { listCategories } from '@/lib/categories'
+import { computeDefaultDayForTx } from '@/lib/transactions'
 import { getCampaignPCs } from '@/app/actions/characters'
 import { createAdminClient } from '@/lib/supabase/admin'
 import LedgerList from '@/components/ledger-list'
@@ -69,6 +70,25 @@ export default async function AccountingPage({
 
   const defaultLoopNumber = currentLoop?.number ?? 1
 
+  // Prefetch default day per available PC so `LedgerActorBar` has a
+  // sensible pre-fill the moment the user picks an actor. Without this
+  // every switch of the actor dropdown would have to round-trip to the
+  // server. Parallelised because each call is an independent read.
+  const defaultDayByPcId: Record<string, number> = {}
+  if (currentLoop && availablePcs.length > 0) {
+    const entries = await Promise.all(
+      availablePcs.map(async (pc) => {
+        const day = await computeDefaultDayForTx(
+          pc.id,
+          currentLoop.number,
+          currentLoop.id,
+        )
+        return [pc.id, day] as const
+      }),
+    )
+    for (const [id, day] of entries) defaultDayByPcId[id] = day
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-4 flex flex-col gap-4">
@@ -93,7 +113,7 @@ export default async function AccountingPage({
             availablePcs={availablePcs}
             categories={categories}
             defaultLoopNumber={defaultLoopNumber}
-            defaultDayInLoop={1}
+            defaultDayByPcId={defaultDayByPcId}
           />
         )}
       </div>

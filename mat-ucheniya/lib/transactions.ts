@@ -632,3 +632,59 @@ export async function getLedgerPage(
     nextCursor,
   };
 }
+
+// ---------- Default day resolver ----------
+
+/**
+ * Pick a sensible `day_in_loop` to pre-fill a new transaction form for
+ * the given PC.
+ *
+ * Priority (first match wins):
+ *   1. The PC's most recent approved tx in this loop — so reopening the
+ *      form after recording something on day 12 doesn't rewind the
+ *      field back to the frontier on day 7.
+ *   2. The PC's frontier day — max `day_to` across sessions they
+ *      participated in (`getCharacterFrontier`).
+ *   3. Day 1.
+ *
+ * Current-session day (IDEA-045, DM-picked "current session" override)
+ * is intentionally skipped for now — it slots in above frontier once
+ * the roadmap item lands.
+ *
+ * `lib/loops` is imported dynamically to avoid a circular module graph
+ * (loops ↔ transactions via shared Supabase types). The dynamic import
+ * is fine at the server-action scale we operate at.
+ */
+export async function computeDefaultDayForTx(
+  pcId: string,
+  loopNumber: number,
+  loopId: string,
+): Promise<number> {
+  const supabase = await createClient();
+
+  // 1. Latest tx in this loop wins.
+  const { data: latest } = await supabase
+    .from('transactions')
+    .select('day_in_loop')
+    .eq('actor_pc_id', pcId)
+    .eq('loop_number', loopNumber)
+    .eq('status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const latestDay = (latest as { day_in_loop: number } | null)?.day_in_loop;
+  if (typeof latestDay === 'number' && latestDay > 0) {
+    return latestDay;
+  }
+
+  // 2. Frontier day (participated-in sessions max day_to).
+  const { getCharacterFrontier } = await import('./loops');
+  const { frontier } = await getCharacterFrontier(pcId, loopId);
+  if (typeof frontier === 'number' && frontier > 0) {
+    return frontier;
+  }
+
+  // 3. Fallback.
+  return 1;
+}
