@@ -23,3 +23,23 @@ Other tables (`chronicles`, `encounters`, `encounter_participants`,
 them are mostly `export const dynamic = 'force-dynamic'`, so they don't
 need explicit invalidation. If you add caching to a new table, document
 its invalidation contract here.
+
+## Current-phase priorities: data → desktop UX → mobile
+
+The app is used by one DM (owner) on a desktop browser and a handful
+of players who mostly read. While that stays true, always tackle
+work in this order:
+
+1. **Data correctness.** Schema, server actions, queries. A wrong
+   row in the DB poisons every client; a wrong pixel doesn't.
+2. **Desktop UX.** The primary surface. Make the keyboard + wide
+   layout feel native before touching responsive overrides.
+3. **Mobile UX.** Deferred until there's an explicit mobile spec.
+   The only mobile-on-desktop-tour exception is "this control is
+   literally unclickable on a phone" — fix it in place, keep the
+   change minimal.
+
+When in doubt about a mobile-specific fix, add it to `backlog.md`
+and tag it with the future mobile spec instead of ad-hoc styling it.
+A full responsive pass will come as its own spec once desktop
+stabilises.

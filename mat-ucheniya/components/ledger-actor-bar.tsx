@@ -10,7 +10,13 @@ type Props = {
   availablePcs: CampaignPC[]
   categories: Category[]
   defaultLoopNumber: number
-  defaultDayInLoop: number
+  /**
+   * Per-PC default day pre-computed on the server (latest tx →
+   * frontier → 1). The bar looks up the active PC's day from this
+   * map when the sheet opens so the form pre-fills correctly without
+   * a round-trip. Missing key → `1` fallback.
+   */
+  defaultDayByPcId: Record<string, number>
 }
 
 /**
@@ -34,7 +40,7 @@ export default function LedgerActorBar({
   availablePcs,
   categories,
   defaultLoopNumber,
-  defaultDayInLoop,
+  defaultDayByPcId,
 }: Props) {
   const storageKey = `mol:accounting-actor-pc:${campaignId}`
 
@@ -162,7 +168,7 @@ export default function LedgerActorBar({
           campaignId={campaignId}
           actorPcId={selectedPc.id}
           defaultLoopNumber={defaultLoopNumber}
-          defaultDayInLoop={defaultDayInLoop}
+          defaultDayInLoop={defaultDayByPcId[selectedPc.id] ?? 1}
           defaultSessionId={null}
           categories={categories}
           editing={null}
