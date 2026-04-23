@@ -42,7 +42,7 @@ tables, indexes, RLS policies, seed defaults for mat-ucheniya.
 **⚠️ Idempotent & non-destructive.** New tables only; no
 `ALTER` on existing tables. Rollback = `drop table …`.
 
-- [ ] **T001** [P1] Write `mat-ucheniya/supabase/migrations/034_transactions_ledger.sql`:
+- [x] **T001** [P1] Write `mat-ucheniya/supabase/migrations/034_transactions_ledger.sql`:
   - `create table categories` with columns per plan `## Data Model` (campaign_id FK, scope CHECK IN ('transaction','item'), slug, label, sort_order, is_deleted, created_at); `unique (campaign_id, scope, slug)`; partial index `(campaign_id, scope) WHERE is_deleted = false`
   - `create table transactions` with all CHECK constraints (`transactions_item_has_no_coins`, `transactions_item_has_name`, `transactions_money_no_item_name`, `transactions_money_nonzero`, `transactions_transfer_has_group`, `transactions_day_range`)
   - Indexes per plan: `idx_tx_campaign_created`, `idx_tx_pc_loop`, `idx_tx_session`, `idx_tx_transfer_group`, `idx_tx_campaign_category`
@@ -51,7 +51,7 @@ tables, indexes, RLS policies, seed defaults for mat-ucheniya.
   - Seed the 6 defaults for mat-ucheniya (scope='transaction'): income/Доход/10, expense/Расход/20, credit/Кредит/30, loot/Добыча/40, transfer/Перевод/50, other/Прочее/100 — scoped via `select c.id from campaigns c where c.slug = 'mat-ucheniya'`, `on conflict do nothing`
   - Wrap in `begin; … commit;`
   - **Call `present_files` after writing** (project rule)
-- [ ] **T002** [P1] User applies migration in Supabase (manual step). Wait for confirmation before Phase 2.
+- [x] **T002** [P1] User applies migration in Supabase (manual step). Wait for confirmation before Phase 2.
 
 **Checkpoint**: `categories` + `transactions` tables exist with RLS; mat-ucheniya has 6 seeded categories (scope='transaction'); existing data untouched.
 
@@ -62,12 +62,12 @@ tables, indexes, RLS policies, seed defaults for mat-ucheniya.
 **Purpose**: Dev-dep for pure-unit tests + canonical type
 definitions used by every follow-up file.
 
-- [ ] **T003** [P1] Install vitest and wire `npm run test`:
+- [x] **T003** [P1] Install vitest and wire `npm run test`:
   - Add `vitest` to `devDependencies` in `mat-ucheniya/package.json`
   - Add `"test": "vitest run"` to `scripts`
   - Create minimal `mat-ucheniya/vitest.config.ts` (Node env, tsconfig-paths for `@/…`)
   - Smoke-check: `npm run test` passes with zero test files
-- [ ] **T004** [P1] Create type definitions in `mat-ucheniya/lib/transactions.ts` (types only — queries come later):
+- [x] **T004** [P1] Create type definitions in `mat-ucheniya/lib/transactions.ts` (types only — queries come later):
   - `CoinSet`, `TransactionKind`, `TransactionStatus`
   - `Transaction`, `TransactionWithRelations`, `Wallet`, `Category` (per plan `## Server Layer → Types`)
   - Export everything; no implementations yet
@@ -82,25 +82,25 @@ definitions used by every follow-up file.
 formatter, validators. Zero DB dependencies — easy to test and
 review in isolation.
 
-- [ ] **T005** [P1] [P] Write `mat-ucheniya/lib/transaction-resolver.ts`:
+- [x] **T005** [P1] [P] Write `mat-ucheniya/lib/transaction-resolver.ts`:
   - Export `DENOMINATIONS: readonly Denom[] = ['cp','sp','gp','pp']`
   - Export `GP_WEIGHT: Record<Denom, number>` with correct ratios
   - `aggregateGp(coins)` — reduce over DENOMINATIONS
   - `resolveSpend(holdings, target_gp): CoinSet` — smallest-first, whole coins only, no breaking; returns negated CoinSet (per plan)
   - `resolveEarn(target_gp): CoinSet` — credits to gp pile
   - `signedCoinsToStored(negate, coins)` — uses DENOMINATIONS
-- [ ] **T006** [P1] [P] Write `mat-ucheniya/lib/transaction-format.ts`:
+- [x] **T006** [P1] [P] Write `mat-ucheniya/lib/transaction-format.ts`:
   - `formatAmount(coins: CoinSet): string` — e.g. `−5 GP (2 g, 20 s, 100 c)`; collapses to single-denom case (`5 GP`); zero → `—`
   - `DENOM_SHORT: { cp:'c', sp:'s', gp:'g', pp:'p' }`
   - Iterates over DENOMINATIONS from resolver (no hard-coded order)
-- [ ] **T007** [P1] [P] Write `mat-ucheniya/lib/transaction-validation.ts`:
+- [x] **T007** [P1] [P] Write `mat-ucheniya/lib/transaction-validation.ts`:
   - `validateAmountSign(amountGp)` — non-zero, sign required
   - `validateDayInLoop(day, loopLength)` — 1..loopLength
   - `validateTransfer(senderId, recipientId, senderLoop, recipientLoop)` — self-transfer blocked, cross-loop blocked
   - `validateCoinSet(coins)` — integers, at least one non-zero, no negative-zero
-- [ ] **T008** [P1] [P] Write `mat-ucheniya/lib/__tests__/transaction-resolver.test.ts` covering: exact match (500cp for 5gp), small-only partial (100cp + 1gp for 2gp), no small coins, insufficient holdings (partial return), earn path, cp-precision rounding
-- [ ] **T009** [P1] [P] Write `mat-ucheniya/lib/__tests__/transaction-format.test.ts` covering: single-denom collapse (`5 GP`, not `5 GP (5 g)`), multi-denom breakdown, negative-sign placement, zero → `—`
-- [ ] **T010** [P1] [P] Write `mat-ucheniya/lib/__tests__/transaction-validation.test.ts` covering: zero amount rejected, day out-of-range rejected, transfer-to-self rejected, cross-loop transfer rejected
+- [x] **T008** [P1] [P] Write `mat-ucheniya/lib/__tests__/transaction-resolver.test.ts` covering: exact match (500cp for 5gp), small-only partial (100cp + 1gp for 2gp), no small coins, insufficient holdings (partial return), earn path, cp-precision rounding
+- [x] **T009** [P1] [P] Write `mat-ucheniya/lib/__tests__/transaction-format.test.ts` covering: single-denom collapse (`5 GP`, not `5 GP (5 g)`), multi-denom breakdown, negative-sign placement, zero → `—`
+- [x] **T010** [P1] [P] Write `mat-ucheniya/lib/__tests__/transaction-validation.test.ts` covering: zero amount rejected, day out-of-range rejected, transfer-to-self rejected, cross-loop transfer rejected
 
 **Checkpoint**: `npm run test` green; utilities importable from other modules.
 
@@ -111,16 +111,16 @@ review in isolation.
 **Purpose**: Seed helper for new campaigns + read-side queries
 for wallets, ledger feed, and categories.
 
-- [ ] **T011** [P1] Write `mat-ucheniya/lib/seeds/categories.ts`:
+- [x] **T011** [P1] Write `mat-ucheniya/lib/seeds/categories.ts`:
   - `seedCampaignCategories(supabase, campaignId)` inserts the 6 defaults with `scope='transaction'`, `on conflict do nothing`
   - Idempotent, safe to call multiple times
-- [ ] **T012** [P1] Modify `mat-ucheniya/lib/campaign-actions.ts`:
+- [x] **T012** [P1] Modify `mat-ucheniya/lib/campaign-actions.ts`:
   - After `seedCampaignSrd(supabase, campaignId)`, call `await seedCampaignCategories(supabase, campaignId)`
   - Add to the returned `InitializeCampaignResult` summary if desired (optional)
-- [ ] **T013** [P1] Write `mat-ucheniya/lib/categories.ts`:
+- [x] **T013** [P1] Write `mat-ucheniya/lib/categories.ts`:
   - `listCategories(campaignId, scope, { includeDeleted? })` — server-side query
   - Uses `unwrapOne` / `unwrapMany` if joins happen (unlikely here)
-- [ ] **T014** [P1] Extend `mat-ucheniya/lib/transactions.ts` with query functions (depends on T004 types):
+- [x] **T014** [P1] Extend `mat-ucheniya/lib/transactions.ts` with query functions (depends on T004 types):
   - `getWallet(pcId, loopNumber): Promise<Wallet>` — `SUM()` aggregate where `actor_pc_id = ? AND loop_number = ? AND status = 'approved'`
   - `getRecentByPc(pcId, loopNumber, limit)` — returns `TransactionWithRelations[]` joined to category + session
   - `getLedgerPage(campaignId, filters, cursor, pageSize): LedgerPage` — cursor-based pagination, filter WHERE clause; includes a summary subquery for `{count, distinctPcs, netAggregateGp}` with the same WHERE
@@ -137,7 +137,7 @@ for wallets, ledger feed, and categories.
 **Purpose**: Write-side server actions with explicit ownership
 checks. Pattern from `updateSessionParticipants`.
 
-- [ ] **T015** [P1] Write `mat-ucheniya/app/actions/transactions.ts` — **money only** (P1 subset):
+- [x] **T015** [P1] Write `mat-ucheniya/app/actions/transactions.ts` — **money only** (P1 subset):
   - `createTransaction(input: CreateTransactionInput)` — money/item kinds; ownership check (author is PC owner OR DM/owner); uses `resolveSpend`/`resolveEarn`; inserts via admin client
   - `updateTransaction(id, input)` — fetches existing, verifies author OR DM, applies validation, updates via admin client; for transfers → forbid in this action (they go through `updateTransfer`)
   - `deleteTransaction(id)` — fetches, verifies author OR DM, hard-deletes; for transfers → forbid (use `deleteTransfer`)
@@ -153,17 +153,17 @@ checks. Pattern from `updateSessionParticipants`.
 **Purpose**: Small, composable, mostly-pure client components
 that the form and lists will compose.
 
-- [ ] **T016** [P1] [P] Write `mat-ucheniya/components/amount-input.tsx` (client, mobile-first):
+- [x] **T016** [P1] [P] Write `mat-ucheniya/components/amount-input.tsx` (client, mobile-first):
   - Default mode: single "gp-equivalent" numeric field with +/− toggle
   - "per-coin details…" link expands four numeric inputs (cp/sp/gp/pp); collapses on outside tap
   - Controlled component; `onChange` emits `{ mode: 'gp', amount } | { mode: 'denom', coins }`
   - Uses tokens from STYLE.md (standard input)
-- [ ] **T017** [P1] [P] Write `mat-ucheniya/components/category-dropdown.tsx` (client, mobile-first):
+- [x] **T017** [P1] [P] Write `mat-ucheniya/components/category-dropdown.tsx` (client, mobile-first):
   - Props: `campaignId`, `scope: 'transaction' | 'item'`, `value`, `onChange`
   - Fetches categories client-side via a server action (or accepts a prefetched list)
   - Renders a native `<select>` on mobile for OS-native picker UX; on `md+` can upgrade to a custom dropdown (MVP: native select everywhere)
   - Reusable in spec-015 by flipping `scope='item'`
-- [ ] **T018** [P1] [P] Write `mat-ucheniya/components/wallet-balance.tsx` (client, pure presentation):
+- [x] **T018** [P1] [P] Write `mat-ucheniya/components/wallet-balance.tsx` (client, pure presentation):
   - Props: `wallet: Wallet`
   - Renders aggregate gp primary (`75.00 GP`), per-denom caption (`0 c · 3 s · 75 g · 0 p`)
   - Reuses `aggregateGp` + `formatAmount` from pure utils
@@ -176,14 +176,14 @@ that the form and lists will compose.
 
 **Purpose**: The ≤ 3-field mobile flow at the table.
 
-- [ ] **T019** [P1] Write `mat-ucheniya/components/transaction-form.tsx` (client, mobile-first):
+- [x] **T019** [P1] Write `mat-ucheniya/components/transaction-form.tsx` (client, mobile-first):
   - **P1 scope: `kind = 'money'` only.** Kind switcher is visible but `item` / `transfer` tabs are disabled in this phase (enabled in P2 phases 10/11).
   - Fields: `<AmountInput>` (slot 1), `<CategoryDropdown>` (slot 2), comment text input (slot 3)
   - Auto-filled caption below: `Петля N · день D · нет сессии` (or session title if linked). Caption expands into inline editors on tap (loop / day / session selectors)
   - Props: `campaignId`, `actorPcId`, `defaultLoopNumber`, `defaultDayInLoop`, `defaultSessionId`, `editing?`
   - On submit, calls `createTransaction` or `updateTransaction` action
   - Error handling: inline red-50 banner with Russian message from action response
-- [ ] **T020** [P1] Write `mat-ucheniya/components/transaction-form-sheet.tsx` (client, responsive wrapper):
+- [x] **T020** [P1] Write `mat-ucheniya/components/transaction-form-sheet.tsx` (client, responsive wrapper):
   - Bottom sheet on small viewports (`max-width: md`); centered modal on `md+`
   - Mounts `<TransactionForm>` with passed-through props
   - Handles open/close state; dismisses on successful save
@@ -196,7 +196,7 @@ that the form and lists will compose.
 
 **Purpose**: The player's home screen shows balance and recent activity.
 
-- [ ] **T021** [P1] Write `mat-ucheniya/components/wallet-block.tsx` (server, mobile-first):
+- [x] **T021** [P1] Write `mat-ucheniya/components/wallet-block.tsx` (server, mobile-first):
   - Props: `pcId`, `campaignId`
   - Fetches `getWallet(pcId, currentLoopNumber)` + `getRecentByPc(pcId, currentLoopNumber, 10)` in `Promise.all`
   - Renders `<WalletBalance>` + a compact list of 10 recent rows + "View all →" link to `/c/[slug]/accounting?pc=<id>`
@@ -204,7 +204,7 @@ that the form and lists will compose.
   - Edit/delete affordances on each row: visible when `author_user_id === currentUserId` OR user is owner/dm
   - Empty state: "В этой петле пока нет транзакций" + the "+ Transaction" CTA
   - Fallback when no current loop exists: render lifetime aggregate + a caption explaining the fallback (per FR-015)
-- [ ] **T022** [P1] Modify `mat-ucheniya/app/c/[slug]/catalog/[id]/page.tsx`:
+- [x] **T022** [P1] Modify `mat-ucheniya/app/c/[slug]/catalog/[id]/page.tsx`:
   - If the loaded node is `type='character'`, render `<WalletBlock pcId={node.id} campaignId={campaign.id} />` above the existing detail UI (near the character-frontier card from spec-009)
   - No-op for other node types (no regression on NPC / location pages)
 
@@ -218,24 +218,24 @@ that the form and lists will compose.
 edit/delete from the ledger (completes US4 acceptance scenarios
 1–4).
 
-- [ ] **T023** [P1] Write `mat-ucheniya/components/ledger-row.tsx` (server, responsive):
+- [x] **T023** [P1] Write `mat-ucheniya/components/ledger-row.tsx` (server, responsive):
   - Single-column stacked layout on mobile; table-like row on `md+`
   - Columns (desktop): `Loop N · Day D`, PC actor (link), kind + category, amount (via `formatAmount`), comment, session link, author
   - Edit/delete buttons rendered when `canEdit = isDmOrOwner || row.author_user_id === currentUserId`; buttons open `<TransactionFormSheet>` in edit mode or trigger `deleteTransaction`
   - Graceful "[deleted character]" / "[deleted session]" when joined rows are null
-- [ ] **T024** [P1] Write `mat-ucheniya/components/ledger-filters.tsx` (client, desktop-primary):
+- [x] **T024** [P1] Write `mat-ucheniya/components/ledger-filters.tsx` (client, desktop-primary):
   - Controls: PC multi-select, loop multi-select, day-from / day-to numeric inputs, category multi-select, kind checkboxes, "Clear filters" button
   - URL-synced via `useSearchParams` + `router.push` with merged query
   - On mobile: the bar collapses into a single "Фильтры" button that opens a bottom sheet hosting the same controls (per device contract)
-- [ ] **T025** [P1] Write `mat-ucheniya/components/ledger-list.tsx` (server + thin client wrapper):
+- [x] **T025** [P1] Write `mat-ucheniya/components/ledger-list.tsx` (server + thin client wrapper):
   - Server part: reads URL params, calls `getLedgerPage` with filters, renders summary header (`N транзакций · M игроков · net ±X GP`) + first page of rows + `<LedgerFilters>`
   - Client part: "Load more" button that requests the next page via a `loadMoreAction` (server action) and appends rows
-- [ ] **T026** [P1] Write `mat-ucheniya/app/c/[slug]/accounting/page.tsx`:
+- [x] **T026** [P1] Write `mat-ucheniya/app/c/[slug]/accounting/page.tsx`:
   - `export const dynamic = 'force-dynamic'`
   - Auth gate: `requireAuth()` + `getMembership(campaign.id)` (players allowed; members only)
   - Mounts `<LedgerList campaignId={campaign.id} />`; passes initial URL-sync'd filters
   - `generateMetadata`: `Бухгалтерия — ${campaign.name}`
-- [ ] **T027** [P1] Modify `mat-ucheniya/app/c/[slug]/layout.tsx`:
+- [x] **T027** [P1] Modify `mat-ucheniya/app/c/[slug]/layout.tsx`:
   - Add a "Бухгалтерия" link to the top-level campaign nav, pointing at `/c/[slug]/accounting`
   - Visible to every member (no role gate at the link level)
 
@@ -247,14 +247,14 @@ edit/delete from the ledger (completes US4 acceptance scenarios
 
 **Purpose**: Two-legged atomic-ish transfer. Unblocks spec-011 (стах) since that spec uses the same primitive.
 
-- [ ] **T028** [P2] [P] Write `mat-ucheniya/components/transfer-recipient-picker.tsx`:
+- [x] **T028** [P2] [P] Write `mat-ucheniya/components/transfer-recipient-picker.tsx`:
   - Searchable single-select of campaign PCs, excluding sender
   - Reuses `getCampaignPCs` action (already in `app/actions/characters.ts` from spec-009)
-- [ ] **T029** [P2] Extend `mat-ucheniya/components/transaction-form.tsx` with transfer mode:
+- [x] **T029** [P2] Extend `mat-ucheniya/components/transaction-form.tsx` with transfer mode:
   - Enable the "Перевод" tab in the kind switcher
   - When kind='transfer', replace amount sign toggle with a fixed outflow sign, show `<TransferRecipientPicker>` below the amount
   - Client-side pre-validation: sender ≠ recipient (uses `validateTransfer`)
-- [ ] **T030** [P2] Extend `mat-ucheniya/app/actions/transactions.ts` with `createTransfer` / `updateTransfer` / `deleteTransfer`:
+- [x] **T030** [P2] Extend `mat-ucheniya/app/actions/transactions.ts` with `createTransfer` / `updateTransfer` / `deleteTransfer`:
   - `createTransfer(input)` — validates; `transfer_group_id = crypto.randomUUID()`; resolves sender outflow via `resolveSpend`; inserts two rows in one `.insert([legA, legB])` call
   - `updateTransfer(groupId, input)` — fetches both legs via `getTransferPair`, applies updates to both (two UPDATEs, last-write-wins)
   - `deleteTransfer(groupId)` — deletes both legs in one DELETE with `where transfer_group_id = $1`
@@ -268,16 +268,16 @@ edit/delete from the ledger (completes US4 acceptance scenarios
 
 **Purpose**: Free-text item breadcrumbs until spec-015.
 
-- [ ] **T031** [P2] Extend `mat-ucheniya/components/transaction-form.tsx` with item mode:
+- [x] **T031** [P2] Extend `mat-ucheniya/components/transaction-form.tsx` with item mode:
   - Enable the "Предмет" tab in the kind switcher
   - When kind='item', swap `<AmountInput>` for a single-line item-name text input; coin-level fields are hidden; comment slot stays
   - Client-side validation: `item_name` required and non-empty when kind='item'
-- [ ] **T032** [P2] Extend `mat-ucheniya/app/actions/transactions.ts` with item handling in `createTransaction`:
+- [x] **T032** [P2] Extend `mat-ucheniya/app/actions/transactions.ts` with item handling in `createTransaction`:
   - When input kind='item', enforce `item_name` presence, zero all coin columns, skip resolver
   - Item rows have no monetary effect — existing wallet query already excludes them via `amount_*` columns being zero
-- [ ] **T033** [P2] Update `mat-ucheniya/components/ledger-row.tsx`:
+- [x] **T033** [P2] Update `mat-ucheniya/components/ledger-row.tsx`:
   - Item rows show the item name in the amount slot, `—` for aggregate, and the summary net-gp excludes them
-- [ ] **T034** [P2] Update `mat-ucheniya/components/ledger-filters.tsx`:
+- [x] **T034** [P2] Update `mat-ucheniya/components/ledger-filters.tsx`:
   - When `kind` filter includes only `item`, the summary's "net gp" is labelled as "—" (item-only view has no monetary sum)
 
 **Checkpoint**: US6 acceptance scenarios 1–3 pass; US1 scenario 6 (item shortcut in the default form) passes.
@@ -288,19 +288,19 @@ edit/delete from the ledger (completes US4 acceptance scenarios
 
 **Purpose**: DM curates the taxonomy from inside the accounting section.
 
-- [ ] **T035** [P2] Write `mat-ucheniya/app/actions/categories.ts`:
+- [x] **T035** [P2] Write `mat-ucheniya/app/actions/categories.ts`:
   - `listCategoriesAction(campaignId, scope, includeDeleted?)`
   - `createCategoryAction(campaignId, scope, slug, label)` — slug validation (lowercase ASCII `a-z 0-9 _ -`), gates on `is_dm_or_owner`
   - `renameCategoryAction(campaignId, scope, slug, newLabel)`
   - `softDeleteCategoryAction(campaignId, scope, slug)`
   - All return `{ ok: true, ... } | { ok: false, error: string }`
-- [ ] **T036** [P2] Write `mat-ucheniya/components/category-settings.tsx` (client, desktop-primary):
+- [x] **T036** [P2] Write `mat-ucheniya/components/category-settings.tsx` (client, desktop-primary):
   - Props: `campaignId`, `scope`, `canEdit`
   - Lists active categories with inline rename + soft-delete buttons
   - Collapsible "soft-deleted" section below
   - "+ Add" inline form (slug + label)
   - Takes `scope` prop — re-usable by spec-015 at an item-categories route
-- [ ] **T037** [P2] Write `mat-ucheniya/app/c/[slug]/accounting/settings/categories/page.tsx`:
+- [x] **T037** [P2] Write `mat-ucheniya/app/c/[slug]/accounting/settings/categories/page.tsx`:
   - `export const dynamic = 'force-dynamic'`
   - `requireAuth()` + membership check; `canEdit = role in ('owner','dm')`
   - Mounts `<CategorySettings campaignId={campaign.id} scope="transaction" canEdit={canEdit} />`
@@ -313,7 +313,7 @@ edit/delete from the ledger (completes US4 acceptance scenarios
 
 ## Phase 13: Stretch — session page transactions (P3)
 
-- [ ] **T038** [P3] [P] Modify `mat-ucheniya/app/c/[slug]/sessions/[id]/page.tsx`:
+- [x] **T038** [P3] [P] Modify `mat-ucheniya/app/c/[slug]/sessions/[id]/page.tsx`:
   - Add a "Транзакции" section below the existing header/participants rows
   - Compact list of transactions where `session_id = <this session>` (reuse `<LedgerRow>` if the layout fits)
   - Empty state: "На этой сессии транзакций нет"
@@ -324,8 +324,8 @@ edit/delete from the ledger (completes US4 acceptance scenarios
 
 ## Phase 14: Close-out
 
-- [ ] **T039** [P1] Run lint + typecheck: `cd mat-ucheniya && npm run lint && npx tsc --noEmit`. Fix any errors.
-- [ ] **T040** [P1] Run tests: `cd mat-ucheniya && npm run test`. All pure-util tests green.
+- [x] **T039** [P1] Run lint + typecheck: `cd mat-ucheniya && npm run lint && npx tsc --noEmit`. Fix any errors.
+- [x] **T040** [P1] Run tests: `cd mat-ucheniya && npm run test`. All pure-util tests green.
 - [ ] **T041** [P1] Manual smoke walkthrough on mat-ucheniya production data:
   - Create a money transaction from a PC page (mobile viewport in DevTools) — US1
   - Verify wallet block on PC page — US2
@@ -334,7 +334,7 @@ edit/delete from the ledger (completes US4 acceptance scenarios
   - (If P2 done) issue a transfer between two PCs — US5
   - (If P2 done) record an item — US6
   - (If P2 done) add a category from settings — US7
-- [ ] **T042** [P1] Mark all `[ ]` → `[x]` in this `tasks.md` as they complete
+- [x] **T042** [P1] Mark all `[ ]` → `[x]` in this `tasks.md` as they complete
 - [ ] **T043** [P1] Update `NEXT.md`:
   - Move "spec-010 Transactions ledger" from "Следующий приоритет" into "В проде сейчас"
   - Set next priority to spec-011 Common stash

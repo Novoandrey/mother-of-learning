@@ -11,6 +11,8 @@ import type { Metadata } from 'next'
 import { MarkdownContent } from '@/components/markdown-content'
 import { Chronicles } from '@/components/chronicles'
 import { EdgeList } from '@/components/edge-list'
+import { getTransactionsBySession } from '@/lib/transactions'
+import { formatAmount } from '@/lib/transaction-format'
 
 export async function generateMetadata({
   params,
@@ -79,9 +81,9 @@ export default async function SessionDetailPage({
   const session = await getSessionById(id)
   if (!session) notFound()
 
-  // Parallel fetch: edges (both directions) + chronicles.
+  // Parallel fetch: edges (both directions) + chronicles + session transactions.
   const supabase = await createClient()
-  const [edgeRes, chroniclesRes] = await Promise.all([
+  const [edgeRes, chroniclesRes, sessionTxs] = await Promise.all([
     supabase
       .from('edges')
       .select(
@@ -97,6 +99,7 @@ export default async function SessionDetailPage({
       .eq('node_id', id)
       .order('loop_number', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false }),
+    getTransactionsBySession(id),
   ])
 
   type EdgeRow = {
@@ -252,6 +255,63 @@ export default async function SessionDetailPage({
         initialContent={session.content}
         campaignSlug={slug}
       />
+
+      {/* Spec-010 phase 13 (stretch): transactions attached to this session. */}
+      <section className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Транзакции
+          </h2>
+          <Link
+            href={`/c/${slug}/accounting`}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            В бухгалтерию →
+          </Link>
+        </div>
+        {sessionTxs.length === 0 ? (
+          <p className="text-sm text-gray-400">На этой сессии транзакций нет</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {sessionTxs.map((tx) => (
+              <li
+                key={tx.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2"
+              >
+                <div className="flex min-w-0 flex-col">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-medium text-gray-900">
+                      {tx.kind === 'item'
+                        ? tx.item_name ?? '—'
+                        : formatAmount(tx.coins)}
+                    </span>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                      {tx.category_label}
+                    </span>
+                  </div>
+                  {tx.comment && (
+                    <span className="truncate text-xs text-gray-500">
+                      {tx.comment}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-shrink-0 text-xs text-gray-400">
+                  {tx.actor_pc_title ? (
+                    <Link
+                      href={`/c/${slug}/catalog/${tx.actor_pc_id ?? ''}`}
+                      className="hover:text-blue-600"
+                    >
+                      {tx.actor_pc_title}
+                    </Link>
+                  ) : (
+                    '[удалённый персонаж]'
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Letopis (chronicles tied to this session). */}
       <Chronicles
