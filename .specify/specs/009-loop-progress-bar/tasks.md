@@ -109,7 +109,7 @@ server actions, validation utility.
   - On submit: after the existing node insert/update (which persists `day_from`/`day_to` via `fields`), call `updateSessionParticipants(sessionId, participantIds)`
   - Show inline validation error from `validateDayRange()` before allowing submit
   - Resolve `loopLength` from the session's selected loop's `fields.length_days` (fallback 30); re-validate on loop change
-- [ ] **T013** [P1] Manual test US1:
+- [x] **T013** [P1] Manual test US1:
   - Create new session with day_from=7, day_to=9, 5 participants → reload → see everything persisted
   - Edit existing session, change day_to to 10, remove one participant → reload → see changes
   - Try day_from=9, day_to=7 → error blocks save
@@ -124,11 +124,11 @@ server actions, validation utility.
 
 **Purpose**: Visual loop progress bar with stacked lanes, overlap obvious, tooltip on interaction.
 
-- [ ] **T014** [P1] [P] Create `mat-ucheniya/components/loop-progress-bar-lanes.ts`:
+- [x] **T014** [P1] [P] Create `mat-ucheniya/components/loop-progress-bar-lanes.ts`:
   - Pure function `assignLanes(sessions: {id, day_from, day_to}[]): { laneByid: Map<string, number>; laneCount: number }`
   - Greedy algorithm per plan.md (sort by day_from ASC then day_to ASC; first-fit lane)
   - No React, no Supabase — purely a data function for easy manual verification
-- [ ] **T015** [P1] Create `mat-ucheniya/components/loop-progress-bar.tsx` (client component):
+- [x] **T015** [P1] Create `mat-ucheniya/components/loop-progress-bar.tsx` (client component):
   - Props: `loop: { id, length_days, status }`, `sessions: Session[]` (hydrated)
   - Filter dated vs undated; run `assignLanes` on dated
   - Render outer `<div class="overflow-x-auto">` with min-width sized to `length_days * 24px` (mobile) / `length_days * 24px` (desktop — works for 30, ~720px)
@@ -138,11 +138,11 @@ server actions, validation utility.
   - Loop frontier marker: if `loop.status === 'current'`, dashed vertical line after `frontier + 1` column, caption "дошли до дня N" (computed client-side via `Math.max(...day_to)`)
   - Undated sessions: pill-row rendered **below** the bar ("Undated: #6 Title, #7 Title" with anchor links to session pages)
   - Empty state: when no dated sessions, bar renders but shows "пока нет сессий с датами" caption below axis
-- [ ] **T016** [P1] Add segment interaction in `loop-progress-bar.tsx`:
+- [x] **T016** [P1] Add segment interaction in `loop-progress-bar.tsx`:
   - Desktop: on hover, show a small tooltip card below the segment (session #, title, day range, participant names). Use `group-hover` + absolute positioning, no external library.
   - Mobile (viewport < 640px): on tap, open bottom sheet — `<div>` sliding up from the bottom with backdrop. Same content. Close on backdrop tap or swipe-down (tracked via touch events, simple ΔY > 50px threshold).
   - Ensure both modes share the same content render function to avoid drift
-- [ ] **T017** [P1] Integrate into `mat-ucheniya/app/c/[slug]/loops/page.tsx`:
+- [x] **T017** [P1] Integrate into `mat-ucheniya/app/c/[slug]/loops/page.tsx`:
   - When a loop is selected, render `<LoopProgressBar loop={currentLoop} sessions={sessions} />` below the loop title, above the sessions list
   - Sessions are already fetched in the page; just ensure they are the hydrated version (day_from/day_to/participants)
 - [ ] **T018** [P1] Manual test US2:
