@@ -158,7 +158,7 @@ server actions, validation utility.
 
 ## Phase 5: Session Detail Page Polish (Shippable with Phase 3-4)
 
-- [ ] **T019** [P2] [P] Modify `mat-ucheniya/app/c/[slug]/sessions/[id]/page.tsx`:
+- [x] **T019** [P2] [P] Modify `mat-ucheniya/app/c/[slug]/sessions/[id]/page.tsx`:
   - In the header area, render a chip "Дни {day_from}-{day_to}" when both are set; fall back to legacy `game_date` caption otherwise
   - Below the header, render a "Участники: @name1, @name2, …" row (linking each participant to their node page)
   - If `participants.length === 0`, skip the row entirely
