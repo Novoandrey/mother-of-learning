@@ -11,6 +11,9 @@ export const FIELD_LABELS: Record<string, string> = {
   dm_notes: 'Заметки ДМа',
   played_at: 'Дата игры',
   game_date: 'Игровая дата',
+  day_from: 'День от',
+  day_to: 'День до',
+  length_days: 'Длина петли (дней)',
   notes: 'Заметки',
   title: 'Подзаголовок',
   max_hp: 'Макс. HP',
@@ -20,7 +23,7 @@ export const FIELD_LABELS: Record<string, string> = {
 }
 
 export const TEXTAREA_FIELDS = ['description', 'recap', 'dm_notes', 'notes']
-export const NUMBER_FIELDS = ['number', 'session_number', 'max_hp', 'armor_class']
+export const NUMBER_FIELDS = ['number', 'session_number', 'max_hp', 'armor_class', 'day_from', 'day_to', 'length_days']
 export const URL_FIELDS = ['statblock_url', 'link']
 export const DATE_FIELDS = ['played_at']
 export const HIDDEN_FIELDS = ['tags']
@@ -33,6 +36,10 @@ export const LOOP_STATUSES = [
 
 // Field ordering priority (lower = earlier)
 export function fieldPriority(k: string): number {
+  // day_from / day_to sit right after session_number, before other NUMBER_FIELDS
+  // that follow — keeps "Номер сессии | День от | День до" in logical order.
+  if (k === 'day_from') return 0.4
+  if (k === 'day_to') return 0.5
   if (NUMBER_FIELDS.includes(k)) return 0
   if (k === 'status' || k === 'loop_number') return 1
   if (k === 'title' || k === 'player') return 2

@@ -18,7 +18,13 @@ export type NodeType = {
   default_fields: Record<string, string>
 }
 
-export type LoopOption = { id: string; number: number; title: string; status: string }
+export type LoopOption = {
+  id: string
+  number: number
+  title: string
+  status: string
+  length_days: number
+}
 
 export type ExistingNode = {
   id: string
@@ -33,13 +39,29 @@ type Options = {
   campaignSlug: string
   editNode?: ExistingNode
   preselectedType?: string
+  /**
+   * Optional callback invoked after the node has been saved (and any
+   * edge-management done) but before the redirect+refresh. Receives the
+   * new/updated node id plus the type slug so callers can persist
+   * related data (e.g. session participants via `participated_in`
+   * edges) that lives outside `nodes.fields`.
+   *
+   * Exceptions thrown here abort the submit and surface as a form error.
+   */
+  onBeforeRedirect?: (nodeId: string, typeSlug: string) => Promise<void>
 }
 
 /**
  * Data loading, state, and persistence for the node create/edit form.
  * UI-agnostic: component picks state + handlers from here.
  */
-export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedType }: Options) {
+export function useNodeForm({
+  campaignId,
+  campaignSlug,
+  editNode,
+  preselectedType,
+  onBeforeRedirect,
+}: Options) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = useMemo(() => createClient(), [])
@@ -126,11 +148,24 @@ export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedTyp
                   .map((n) => {
                     const number = n.fields?.['number']
                     const status = n.fields?.['status']
+                    const rawLength = n.fields?.['length_days']
+                    const parsedLength =
+                      rawLength == null || rawLength === ''
+                        ? 30
+                        : Number(
+                            typeof rawLength === 'number'
+                              ? rawLength
+                              : String(rawLength).trim(),
+                          )
                     return {
                       id: n.id,
                       number: Number(number ?? 0),
                       title: n.title,
                       status: typeof status === 'string' ? status : 'past',
+                      length_days:
+                        Number.isFinite(parsedLength) && parsedLength > 0
+                          ? Math.trunc(parsedLength)
+                          : 30,
                     }
                   })
                   .sort((a: LoopOption, b: LoopOption) => a.number - b.number),
@@ -272,6 +307,19 @@ export function useNodeForm({ campaignId, campaignSlug, editNode, preselectedTyp
     // Title/type may have changed and the node may be brand new.
     // Invalidate the cached sidebar list so the next navigation sees it.
     await invalidateSidebarAction(campaignId)
+
+    // Caller-provided hook: persist data that doesn't live in nodes.fields
+    // (e.g. session participants via the `participated_in` edge set).
+    // Thrown errors abort the redirect and surface as a form error.
+    if (onBeforeRedirect) {
+      try {
+        await onBeforeRedirect(id, selectedType.slug)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Ошибка сохранения связей')
+        setSaving(false)
+        return
+      }
+    }
 
     if (selectedType.slug === 'loop') {
       const num = cleanFields.number ?? fields.number
