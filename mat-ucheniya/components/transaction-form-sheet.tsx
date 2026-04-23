@@ -15,7 +15,7 @@ type Props = {
   categories?: Category[]
   editing?: TransactionWithRelations | null
   /** Pre-select a tab on mount (create flow). Ignored in edit mode. */
-  initialKind?: 'income' | 'expense' | 'item' | 'transfer'
+  initialKind?: 'income' | 'expense' | 'transfer'
 }
 
 /**

@@ -3,7 +3,6 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AmountInput, { type AmountInputValue } from './amount-input'
-import CategoryDropdown from './category-dropdown'
 import TransferRecipientPicker from './transfer-recipient-picker'
 import {
   createTransaction,
@@ -28,6 +27,7 @@ type Props = {
   defaultLoopNumber: number
   defaultDayInLoop: number
   defaultSessionId: string | null
+  /** Retained for shape compat — unused while category UI is hidden (IDEA-050). */
   categories?: Category[]
   editing?: TransactionWithRelations | null
   /** Pre-select a tab in create mode. Ignored when `editing` is set. */
@@ -38,27 +38,39 @@ type Props = {
 
 /**
  * Form-level kind. `income` and `expense` collapse onto the DB's
- * `kind='money'` with a + / − sign respectively — the sign lives
- * in the tab choice instead of a toggle inside the amount field.
+ * `kind='money'` with + / − sign; `transfer` stays its own kind.
+ *
+ * `item` was removed from the UI (chat 37) — it comes back with
+ * spec-015 (items-as-nodes). Legacy item rows still render in the
+ * ledger and stay editable through the server action, just not via
+ * this form.
  */
-type FormKind = 'income' | 'expense' | 'item' | 'transfer'
+type FormKind = 'income' | 'expense' | 'transfer'
 
 const TAB_LABELS: Record<FormKind, string> = {
   income: 'Доход',
   expense: 'Расход',
-  item: 'Предмет',
   transfer: 'Перевод',
+}
+
+/**
+ * Auto-assigned category slug per form kind. Mirrors the seed in
+ * migration 034 — every new campaign has these 3 slugs. `seedCampaign-
+ * Categories` guarantees it going forward. If a DM soft-deleted one
+ * of them via /settings/categories, the row still writes cleanly —
+ * `category_slug` has no FK on `categories.slug` by design.
+ */
+const AUTO_CATEGORY: Record<FormKind, string> = {
+  income: 'income',
+  expense: 'expense',
+  transfer: 'transfer',
 }
 
 function seedFromEditing(tx: TransactionWithRelations): {
   kind: FormKind
   amount: AmountInputValue
 } {
-  if (tx.kind === 'item') {
-    return { kind: 'item', amount: { mode: 'gp', amount: 0 } }
-  }
   if (tx.kind === 'transfer') {
-    // Transfer sender leg has negative coins; we display magnitude.
     const abs: CoinSet = {
       cp: Math.abs(tx.coins.cp),
       sp: Math.abs(tx.coins.sp),
@@ -74,6 +86,13 @@ function seedFromEditing(tx: TransactionWithRelations): {
       kind: 'transfer',
       amount: { mode: 'gp', amount: Math.abs(aggregateGp(tx.coins)) },
     }
+  }
+  if (tx.kind === 'item') {
+    // Legacy item row — we no longer edit these through this form
+    // (item mode was removed chat 37). Fall through to `expense`
+    // as a safe default so users aren't stuck; they can delete and
+    // re-create if they want to change the kind.
+    return { kind: 'expense', amount: { mode: 'gp', amount: 0 } }
   }
   // money
   const agg = aggregateGp(tx.coins)
@@ -93,16 +112,13 @@ function seedFromEditing(tx: TransactionWithRelations): {
 }
 
 /**
- * Transaction form — mobile-first. Four tabs at the top:
- *   Доход / Расход / Предмет / Перевод
+ * Transaction form — mobile-first. Three tabs:
+ *   Доход (green) / Расход (red) / Перевод (blue)
  *
- * The form carries the sign via the tab choice (income = +,
- * expense / transfer = −). `AmountInput` is magnitude-only; no
- * more +/− toggle that duplicated the tab labels.
- *
- * Editing a transfer locks the tab switcher to the transfer tab —
- * swapping a transfer into income/expense/item would orphan the
- * counterpart leg.
+ * Sign is carried by the tab choice; `AmountInput` is magnitude-
+ * only. Category picker is hidden (IDEA-050) — slug is auto-
+ * assigned from kind; users who need category filters use the
+ * /settings/categories editor and the ledger filter bar.
  */
 export default function TransactionForm({
   campaignId,
@@ -110,7 +126,6 @@ export default function TransactionForm({
   defaultLoopNumber,
   defaultDayInLoop,
   defaultSessionId,
-  categories,
   editing,
   initialKind,
   onSuccess,
@@ -129,11 +144,7 @@ export default function TransactionForm({
   const [amount, setAmount] = useState<AmountInputValue>(
     seed?.amount ?? { mode: 'gp', amount: 0 },
   )
-  const [itemName, setItemName] = useState<string>(editing?.item_name ?? '')
   const [recipientPcId, setRecipientPcId] = useState<string | null>(null)
-  const [categorySlug, setCategorySlug] = useState<string>(
-    editing?.category_slug ?? '',
-  )
   const [comment, setComment] = useState<string>(editing?.comment ?? '')
   const [loopNumber, setLoopNumber] = useState<number>(
     editing?.loop_number ?? defaultLoopNumber,
@@ -148,34 +159,18 @@ export default function TransactionForm({
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleKindChange = useCallback(
-    (next: FormKind) => {
-      setKind(next)
-      setError(null)
-      // Pre-select a slug that matches the intent if the default
-      // taxonomy is present. Keeps the form at 2 visible fields
-      // for the common path.
-      if (!editingId && categories) {
-        const hint =
-          next === 'income'
-            ? 'income'
-            : next === 'expense'
-            ? 'expense'
-            : next === 'item'
-            ? 'loot'
-            : 'transfer'
-        const match = categories.find((c) => c.slug === hint)
-        if (match) setCategorySlug(match.slug)
-      }
-    },
-    [categories, editingId],
-  )
+  const handleKindChange = useCallback((next: FormKind) => {
+    setKind(next)
+    setError(null)
+  }, [])
 
-  /** Sign the coin magnitudes for money-kind storage. */
   const applyMoneySign = useCallback(
     (magnitude: AmountInputValue, sign: 1 | -1) => {
       if (magnitude.mode === 'gp') {
-        return { signedGp: magnitude.amount * sign, perDenomOverride: undefined as CoinSet | undefined }
+        return {
+          signedGp: magnitude.amount * sign,
+          perDenomOverride: undefined as CoinSet | undefined,
+        }
       }
       return {
         signedGp: undefined,
@@ -192,11 +187,7 @@ export default function TransactionForm({
 
   const submit = useCallback(async () => {
     setError(null)
-
-    if (!categorySlug) {
-      setError('Выберите категорию')
-      return
-    }
+    const categorySlug = AUTO_CATEGORY[kind]
 
     setSubmitting(true)
     try {
@@ -232,38 +223,8 @@ export default function TransactionForm({
           setError(res.error)
           return
         }
-      } else if (kind === 'item') {
-        if (!itemName.trim()) {
-          setError('Укажите название предмета')
-          return
-        }
-        const res = editingId
-          ? await updateTransaction(editingId, {
-              kind: 'item',
-              itemName: itemName.trim(),
-              categorySlug,
-              comment,
-              loopNumber,
-              dayInLoop,
-              sessionId,
-            })
-          : await createTransaction({
-              campaignId,
-              actorPcId,
-              kind: 'item',
-              itemName: itemName.trim(),
-              categorySlug,
-              comment,
-              loopNumber,
-              dayInLoop,
-              sessionId,
-            })
-        if (!res.ok) {
-          setError(res.error)
-          return
-        }
       } else {
-        // transfer — magnitude from the form, sign applied in the action.
+        // transfer
         if (!editingTransferGroupId && !recipientPcId) {
           setError('Выберите получателя')
           return
@@ -336,12 +297,10 @@ export default function TransactionForm({
     amount,
     applyMoneySign,
     campaignId,
-    categorySlug,
     comment,
     dayInLoop,
     editingId,
     editingTransferGroupId,
-    itemName,
     kind,
     loopNumber,
     onSuccess,
@@ -371,18 +330,17 @@ export default function TransactionForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 4-tab kind switcher. Доход/Расход get brand colors so the
-          intent is clear at a glance (mirrors the bar on /accounting
-          where the matching entry-point buttons are green/red). */}
+      {/* Kind switcher — coloured active states mirror the coloured
+          entry-point buttons on /accounting. */}
       <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
-        {(['income', 'expense', 'item', 'transfer'] as const).map((k) => {
+        {(['income', 'expense', 'transfer'] as const).map((k) => {
           const isActive = kind === k
           const locked = editingKindLocked && k !== 'transfer'
           const activeClass = (() => {
             if (!isActive) return ''
             if (k === 'income') return 'bg-emerald-600 text-white shadow-sm'
             if (k === 'expense') return 'bg-red-600 text-white shadow-sm'
-            return 'bg-white text-gray-900 shadow-sm'
+            return 'bg-blue-600 text-white shadow-sm'
           })()
           return (
             <button
@@ -405,24 +363,8 @@ export default function TransactionForm({
         })}
       </div>
 
-      {/* Slot 1: amount (magnitude only) or item name */}
-      {kind === 'item' ? (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Название предмета
-          </label>
-          <input
-            type="text"
-            value={itemName}
-            onChange={(e) => setItemName(e.target.value)}
-            placeholder="Например: кольцо невидимости"
-            disabled={busy}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none disabled:opacity-50"
-          />
-        </div>
-      ) : (
-        <AmountInput value={amount} onChange={setAmount} />
-      )}
+      {/* Slot 1: amount (magnitude only) */}
+      <AmountInput value={amount} onChange={setAmount} />
 
       {/* Slot 1a (transfer + create only): recipient picker */}
       {kind === 'transfer' && !editingTransferGroupId && (
@@ -435,17 +377,7 @@ export default function TransactionForm({
         />
       )}
 
-      {/* Slot 2: category */}
-      <CategoryDropdown
-        campaignId={campaignId}
-        scope="transaction"
-        value={categorySlug || null}
-        onChange={setCategorySlug}
-        prefetched={categories}
-        disabled={busy}
-      />
-
-      {/* Slot 3: comment */}
+      {/* Slot 2: comment (free-form; category is auto-assigned per kind). */}
       <div className="flex flex-col gap-1">
         <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
           Комментарий
@@ -454,7 +386,7 @@ export default function TransactionForm({
           type="text"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="Необязательно"
+          placeholder="Откуда / за что / детали"
           disabled={busy}
           className="rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none disabled:opacity-50"
         />

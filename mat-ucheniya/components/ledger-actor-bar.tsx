@@ -73,14 +73,17 @@ export default function LedgerActorBar({
   )
 
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [initialKind, setInitialKind] = useState<'income' | 'expense' | null>(
-    null,
-  )
+  const [initialKind, setInitialKind] = useState<
+    'income' | 'expense' | 'transfer' | null
+  >(null)
 
-  const openSheet = useCallback((kind: 'income' | 'expense') => {
-    setInitialKind(kind)
-    setSheetOpen(true)
-  }, [])
+  const openSheet = useCallback(
+    (kind: 'income' | 'expense' | 'transfer') => {
+      setInitialKind(kind)
+      setSheetOpen(true)
+    },
+    [],
+  )
 
   const closeSheet = useCallback(() => {
     setSheetOpen(false)
@@ -142,6 +145,14 @@ export default function LedgerActorBar({
         className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
       >
         − Расход
+      </button>
+      <button
+        type="button"
+        onClick={() => openSheet('transfer')}
+        disabled={buttonsDisabled}
+        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+      >
+        Перевод →
       </button>
 
       {selectedPc && initialKind && (
