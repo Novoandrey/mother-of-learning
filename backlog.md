@@ -179,6 +179,43 @@ Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
 
 ## 🔒 TECH DEBT от ultrareview — для отдельных фич, не в chat 28
 
+### TECH-008 [P3] spec-010 ledger totals считаются в памяти
+- **Feature**: spec-010 performance
+- `getLedgerPage` тянет `(actor_pc_id, kind, amount_*)` без LIMIT
+  для summary (`count / distinctPcs / netAggregateGp`) и агрегирует
+  в JS. На текущем масштабе (~сотни транзакций) это ОК, но при
+  ~тысячах станет заметно.
+- **Фикс**: materialized view на `(campaign_id, loop_number,
+  actor_pc_id)` + refresh triggers + view в `getWallet` и summary.
+- Актуально когда одна из кампаний перевалит за 1000 транзакций.
+- В плане spec-010 уже зафиксировано в разделе Performance.
+
+### TECH-009 [P3] spec-010 session picker в форме транзакции не сделан
+- **Feature**: spec-010 UX
+- Сейчас `defaultSessionId` подставляется автоматически из PC
+  frontier. Ручное переназначение (выбрать другую сессию) отложено
+  — в caption-editor форма показывает note
+  «Сессия подставляется автоматически по фронтиру; переназначение
+  будет в отдельной итерации».
+- **Фикс**: добавить session picker в expanded caption editor.
+  Реюзнуть pattern из participants-picker или ограничиться
+  session'ями текущей петли.
+- Не срочно — в практике DM чаще создаёт транзакцию прямо во время
+  сессии, когда фронтир совпадает.
+
+### IDEA-042 [P3] spec-010 bulk-edit и collapsed transfer row в ledger
+- **Feature**: spec-010 UX polish
+- Два follow-up улучшения для ledger page:
+  - **Bulk-edit**: multi-select нескольких строк + массовая
+    смена категории / удаление.
+  - **Collapsed transfer row view**: toggle «показывать переводы
+    одной строкой» — сейчас transfer отображается как две записи
+    (sender leg + recipient leg). В одну строку с обоими PC'шниками
+    читать быстрее, но теряется flexibility фильтрации.
+- Низкий приоритет до жалоб от ДМ.
+
+---
+
 ### DEBT-001 [P3] Chronicles не мигрированы в ноды графа
 - **Feature**: spec-003 (граф как единая модель)
 - Отдельная таблица `chronicles` с собственными `loop_number`, `node_id`,

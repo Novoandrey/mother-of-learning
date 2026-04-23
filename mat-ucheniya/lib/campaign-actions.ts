@@ -16,10 +16,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { seedCampaignSrd, type SeedResult } from '@/lib/seeds/dnd5e-srd'
+import { seedCampaignCategories, type CategoriesSeedResult } from '@/lib/seeds/categories'
 import { invalidateSidebar } from '@/lib/sidebar-cache'
 
 export type InitializeCampaignResult =
-  | { ok: true; seed: SeedResult }
+  | { ok: true; seed: SeedResult; categories: CategoriesSeedResult }
   | { ok: false; error: string }
 
 /**
@@ -65,11 +66,14 @@ export async function initializeCampaignFromTemplate(
 
   try {
     const seed = await seedCampaignSrd(supabase, campaignId)
+    // Spec-010 transaction categories — idempotent, safe to call
+    // every time alongside the SRD seed.
+    const categories = await seedCampaignCategories(supabase, campaignId)
     // Seeding inserts node_types + nodes — both live in the sidebar cache.
     // Drop the cache so the freshly seeded campaign shows full content
     // immediately instead of waiting for the 60s TTL.
     invalidateSidebar(campaignId)
-    return { ok: true, seed }
+    return { ok: true, seed, categories }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Неизвестная ошибка сидинга'
     return { ok: false, error: message }

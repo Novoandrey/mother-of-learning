@@ -15,6 +15,7 @@ const TABS: Tab[] = [
   { key: 'sessions', href: 'sessions', label: 'Сессии', icon: '📋' },
   { key: 'encounters', href: 'encounters', label: 'Энкаунтеры', icon: '⚔️' },
   { key: 'electives', href: 'electives', label: 'Факультативы', icon: '🎓' },
+  { key: 'accounting', href: 'accounting', label: 'Бухгалтерия', icon: '💰' },
   { key: 'members', href: 'members', label: 'Участники', icon: '👥' },
   { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️' },
 ]

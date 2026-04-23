@@ -8,6 +8,7 @@ import { getCurrentLoop } from '@/lib/loops'
 import { notFound, redirect } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
 import { CharacterFrontierCard } from '@/components/character-frontier-card'
+import WalletBlock from '@/components/wallet-block'
 import type { OwnerContext } from '@/components/node-owner-section'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -240,19 +241,28 @@ export default async function NodePage({
 
   // Spec-009 US3: for PCs, show a "current loop progress" card when a
   // loop with status='current' exists. Silent no-op otherwise.
+  // Spec-010 US2: for PCs, show the wallet block above the frontier
+  // card — balance + recent activity + "+ Transaction" CTA.
   let frontierCard: React.ReactNode = null
   if (typeSlug === 'character') {
     const currentLoop = await getCurrentLoop(campaign.id)
-    if (currentLoop) {
-      frontierCard = (
-        <CharacterFrontierCard
-          characterId={node.id}
-          loopId={currentLoop.id}
-          loopNumber={currentLoop.number}
+    frontierCard = (
+      <>
+        <WalletBlock
+          pcId={node.id}
+          campaignId={campaign.id}
           campaignSlug={slug}
         />
-      )
-    }
+        {currentLoop && (
+          <CharacterFrontierCard
+            characterId={node.id}
+            loopId={currentLoop.id}
+            loopNumber={currentLoop.number}
+            campaignSlug={slug}
+          />
+        )}
+      </>
+    )
   }
 
   return (
