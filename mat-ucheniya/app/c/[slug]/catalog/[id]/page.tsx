@@ -4,8 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth } from '@/lib/auth'
+import { getCurrentLoop } from '@/lib/loops'
 import { notFound, redirect } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
+import { CharacterFrontierCard } from '@/components/character-frontier-card'
 import type { OwnerContext } from '@/components/node-owner-section'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -236,6 +238,23 @@ export default async function NodePage({
     canEdit = false
   }
 
+  // Spec-009 US3: for PCs, show a "current loop progress" card when a
+  // loop with status='current' exists. Silent no-op otherwise.
+  let frontierCard: React.ReactNode = null
+  if (typeSlug === 'character') {
+    const currentLoop = await getCurrentLoop(campaign.id)
+    if (currentLoop) {
+      frontierCard = (
+        <CharacterFrontierCard
+          characterId={node.id}
+          loopId={currentLoop.id}
+          loopNumber={currentLoop.number}
+          campaignSlug={slug}
+        />
+      )
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
       {parent ? (
@@ -278,6 +297,7 @@ export default async function NodePage({
         campaignSlug={slug}
         campaignId={campaign.id}
         ownerContext={ownerContext}
+        frontierCard={frontierCard}
         canEdit={canEdit}
       />
     </div>

@@ -55,6 +55,12 @@ type Props = {
    */
   ownerContext?: OwnerContext
   /**
+   * Spec-009 US3: optional server-rendered "current loop frontier" card
+   * injected by the page. Slotted next to the owner section for PCs.
+   * Page decides whether to render it (character + current loop exists).
+   */
+  frontierCard?: React.ReactNode
+  /**
    * Spec-006 increment 3: infrastructure only. When false, write-capable UI
    * is suppressed (edit/delete buttons, tag editor, create-edge form).
    * Call-sites currently always pass `true` — the switch will be flipped
@@ -134,6 +140,7 @@ export function NodeDetail({
   campaignSlug,
   campaignId,
   ownerContext,
+  frontierCard,
   canEdit = true,
 }: Props) {
   const router = useRouter()
@@ -358,6 +365,10 @@ export function NodeDetail({
           ctx={ownerContext}
         />
       )}
+
+      {/* Spec-009 US3: current-loop frontier for PCs. Page decides
+          whether to render it; component is server-fetched. */}
+      {frontierCard}
 
       <MarkdownContent
         nodeId={node.id}
