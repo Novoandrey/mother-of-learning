@@ -458,6 +458,14 @@ Statblock icon in participant-row and catalog-panel.
 
 ## Ideas
 
+### IDEA-042 [P3] PC session history — full list with expand/collapse
+- Сейчас на карточке PC в рамках spec-009 показывается только
+  character frontier текущей петли + до 3 последних сессий.
+- Когда у PC накопится много сессий (например, 40+ за несколько
+  петель), нужен полный список с «Раскрыть все» / пагинацией.
+- Минор, не блокирует spec-009/010.
+- Источник: chat 34, обсуждение plan-009.
+
 ### ~~IDEA-001~~ ✅ DONE Encounter templates (save → clone → modify)
 - SaveAsTemplateButton в combat-tracker, список шаблонов на странице энкаунтеров.
 
