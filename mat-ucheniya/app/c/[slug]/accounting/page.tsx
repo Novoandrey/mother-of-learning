@@ -10,7 +10,7 @@ import { listCategories } from '@/lib/categories'
 import { getCampaignPCs } from '@/app/actions/characters'
 import { createAdminClient } from '@/lib/supabase/admin'
 import LedgerList from '@/components/ledger-list'
-import LedgerCreateButton from '@/components/ledger-create-button'
+import LedgerActorBar from '@/components/ledger-actor-bar'
 
 export async function generateMetadata({
   params,
@@ -71,28 +71,31 @@ export default async function AccountingPage({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Бухгалтерия</h1>
-          <p className="text-sm text-gray-500">
-            Транзакции кампании: монеты, предметы, переводы.
-          </p>
+      <div className="mb-4 flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Бухгалтерия</h1>
+            <p className="text-sm text-gray-500">
+              Транзакции кампании: монеты, предметы, переводы.
+            </p>
+          </div>
+          <Link
+            href={`/c/${slug}/accounting/settings/categories`}
+            className="flex-shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Категории
+          </Link>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <LedgerCreateButton
+
+        {availablePcs.length > 0 && (
+          <LedgerActorBar
             campaignId={campaign.id}
             availablePcs={availablePcs}
             categories={categories}
             defaultLoopNumber={defaultLoopNumber}
             defaultDayInLoop={1}
           />
-          <Link
-            href={`/c/${slug}/accounting/settings/categories`}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            Категории
-          </Link>
-        </div>
+        )}
       </div>
 
       <LedgerList

@@ -30,6 +30,8 @@ type Props = {
   defaultSessionId: string | null
   categories?: Category[]
   editing?: TransactionWithRelations | null
+  /** Pre-select a tab in create mode. Ignored when `editing` is set. */
+  initialKind?: FormKind
   onSuccess?: () => void
   onCancel?: () => void
 }
@@ -110,6 +112,7 @@ export default function TransactionForm({
   defaultSessionId,
   categories,
   editing,
+  initialKind,
   onSuccess,
   onCancel,
 }: Props) {
@@ -120,7 +123,9 @@ export default function TransactionForm({
 
   const seed = editing ? seedFromEditing(editing) : null
 
-  const [kind, setKind] = useState<FormKind>(seed?.kind ?? 'expense')
+  const [kind, setKind] = useState<FormKind>(
+    seed?.kind ?? initialKind ?? 'expense',
+  )
   const [amount, setAmount] = useState<AmountInputValue>(
     seed?.amount ?? { mode: 'gp', amount: 0 },
   )
@@ -366,11 +371,19 @@ export default function TransactionForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 4-tab kind switcher */}
+      {/* 4-tab kind switcher. Доход/Расход get brand colors so the
+          intent is clear at a glance (mirrors the bar on /accounting
+          where the matching entry-point buttons are green/red). */}
       <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
         {(['income', 'expense', 'item', 'transfer'] as const).map((k) => {
           const isActive = kind === k
           const locked = editingKindLocked && k !== 'transfer'
+          const activeClass = (() => {
+            if (!isActive) return ''
+            if (k === 'income') return 'bg-emerald-600 text-white shadow-sm'
+            if (k === 'expense') return 'bg-red-600 text-white shadow-sm'
+            return 'bg-white text-gray-900 shadow-sm'
+          })()
           return (
             <button
               key={k}
@@ -379,7 +392,7 @@ export default function TransactionForm({
               disabled={locked || busy}
               className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-white text-gray-900 shadow-sm'
+                  ? activeClass
                   : locked
                   ? 'text-gray-400 cursor-not-allowed'
                   : 'text-gray-500 hover:text-gray-700'
