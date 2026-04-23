@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
+> Last updated: 2026-04-23 (chat 34 — spec-009 Loop progress bar)
 
 ## В проде сейчас
 
@@ -10,6 +10,13 @@
 - **spec-002/005 Трекер энкаунтера v3**: инициатива, HP, условия, эффекты, лог
 - **spec-003 Петли и сессии как ноды**: миграции `008a`-`012`
 - **spec-006 Auth + роли**: миграции `024`, `027`-`028`, `031`
+- **spec-009 Loop progress bar + session packs**: миграции `032`-`033`.
+  `participated_in` edge_type, `day_from/day_to` на сессии,
+  `length_days` на петле. `ParticipantsPicker` в форме,
+  fluid-grid progress bar со stacked lanes + tooltip/sheet,
+  frontier marker для current-петли, PC frontier card на
+  странице персонажа. Единый view сессии — `/catalog/[id]`
+  редиректит на `/sessions/[id]`.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -43,19 +50,16 @@
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `031_shared_world_editing.sql`
+**Последняя применённая миграция:** `033_session_form_cleanup.sql`
 
 ## Следующий приоритет
 
-**Бухгалтерия** — серия из 7 спецификаций (`009-015`) для учёта денег,
-лута, общака и распределения ресурсов. Roadmap + решения зафиксированы в
-`.specify/memory/bookkeeping-roadmap.md` — **читать перед стартом
-каждой спеки**.
-
-Первая на очереди — **spec-009 Loop progress bar + session packs**:
-поля `day_from/day_to` на сессии, список `participants` (пачка),
-прогрессбар петли со stacked rows (видно overlap пачек). Оценка 2-3 дня.
-Пишется в отдельном новом чате (`specify → clarify → plan → tasks`).
+**spec-010 Transactions ledger** — следующая спека серии
+«Бухгалтерия». Учёт денег и лута на PC/партии: add/spend/transfer,
+история транзакций, текущий баланс. Roadmap + решения зафиксированы в
+`.specify/memory/bookkeeping-roadmap.md` — **читать перед стартом**.
+Пишется в отдельном новом чате через полный spec-kit flow
+(`specify → clarify → plan → tasks → implement`).
 
 ### Параллельные кандидаты (если бухгалтерия пауза)
 

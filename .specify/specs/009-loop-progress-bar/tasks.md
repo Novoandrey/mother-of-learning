@@ -171,12 +171,12 @@ server actions, validation utility.
 
 **Purpose**: On a PC node detail page, show "Current loop: up to day N (sessions #X, #Y)".
 
-- [ ] **T020** [P2] [P] Create `mat-ucheniya/components/character-frontier-card.tsx` (server component):
+- [x] **T020** [P2] [P] Create `mat-ucheniya/components/character-frontier-card.tsx` (server component):
   - Props: `characterId`, `loopId`, `loopNumber`
   - Calls `getCharacterFrontier(characterId, loopId)`
   - Renders: `Петля {loopNumber}: до дня {frontier}` + up to 3 most recent session links as `#6`, `#7` chips; overflow as `+N more`
   - When frontier is null: `Петля {loopNumber}: ещё не играл в этой петле`
-- [ ] **T021** [P2] Modify `mat-ucheniya/components/node-detail.tsx`:
+- [x] **T021** [P2] Modify `mat-ucheniya/components/node-detail.tsx`:
   - When `node.type === 'character'` AND the campaign has a loop with `status='current'`: render `<CharacterFrontierCard />` in the node metadata sidebar/block (pick a slot consistent with existing layout — probably next to owner info)
   - If no current loop exists — skip silently
 - [ ] **T022** [P2] Manual test US3:
@@ -190,7 +190,7 @@ server actions, validation utility.
 
 ## Phase 7: Close-out
 
-- [ ] **T023** [P1] Run lint + typecheck:
+- [x] **T023** [P1] Run lint + typecheck:
   - `cd mat-ucheniya && npm run lint && npx tsc --noEmit`
   - Fix any errors introduced during Phases 2-6
 - [ ] **T024** [P1] Mark all `[ ]` → `[x]` in this `tasks.md` as they complete
