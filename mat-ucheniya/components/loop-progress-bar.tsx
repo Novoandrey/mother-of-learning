@@ -11,9 +11,10 @@ type Props = {
   campaignSlug: string
 }
 
-// Pixel width per day column. Chosen so a 30-day loop renders at ~720px
-// — fits comfortably on desktop and scrolls horizontally on mobile.
-const DAY_WIDTH = 24
+// Per-day minimum width. Columns stretch to 1fr of available space,
+// so a 30-day bar fills the card on desktop and still fits on mobile.
+// No horizontal scrollbar needed — the grid is fluid.
+const DAY_MIN_WIDTH = 18
 
 /**
  * Horizontal timeline for a single loop. Dated sessions are placed as
@@ -46,13 +47,19 @@ export function LoopProgressBar({ loop, sessions, campaignSlug }: Props) {
   )
 
   const totalDays = Math.max(1, loop.length_days)
-  const minWidth = totalDays * DAY_WIDTH
-  const gridCols = `repeat(${totalDays}, ${DAY_WIDTH}px)`
+  // Fluid columns: each day is at least DAY_MIN_WIDTH px, then
+  // distributes extra space equally up to 1fr. No overflow container
+  // needed — the grid auto-fits the parent card.
+  const gridCols = `repeat(${totalDays}, minmax(${DAY_MIN_WIDTH}px, 1fr))`
 
   // Frontier = the largest day_to reached so far. Rendered only on
   // current loops — past/future loops skip the marker.
   const frontier = dated.length === 0 ? null : Math.max(...dated.map((s) => s.day_to))
   const showFrontier = loop.status === 'current' && frontier !== null
+  // Frontier marker sits at the right edge of the `frontier` day
+  // column. Expressed as a percentage of the grid so it stays aligned
+  // regardless of column width.
+  const frontierPercent = frontier != null ? (frontier / totalDays) * 100 : null
 
   const openSession = openSessionId
     ? sessions.find((s) => s.id === openSessionId) ?? null
@@ -60,67 +67,65 @@ export function LoopProgressBar({ loop, sessions, campaignSlug }: Props) {
 
   return (
     <div>
-      <div className="overflow-x-auto">
-        <div className="relative pb-1" style={{ minWidth: `${minWidth}px` }}>
-          {/* Day axis */}
-          <div className="grid mb-1.5" style={{ gridTemplateColumns: gridCols }}>
-            {Array.from({ length: totalDays }, (_, i) => {
-              const day = i + 1
-              const isMajor = day % 5 === 0 || day === 1
-              return (
-                <div
-                  key={day}
-                  className={`text-center text-[10px] leading-tight ${
-                    isMajor ? 'text-gray-600 font-medium' : 'text-gray-300'
-                  }`}
-                >
-                  {day}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Lanes */}
-          {dated.length === 0 ? (
-            <div
-              className="h-7 rounded border border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400 italic"
-            >
-              пока нет сессий с датами
-            </div>
-          ) : (
-            Array.from({ length: laneCount }, (_, laneIdx) => (
+      <div className="relative pb-1">
+        {/* Day axis */}
+        <div className="grid mb-1.5" style={{ gridTemplateColumns: gridCols }}>
+          {Array.from({ length: totalDays }, (_, i) => {
+            const day = i + 1
+            const isMajor = day % 5 === 0 || day === 1
+            return (
               <div
-                key={laneIdx}
-                className="grid mb-1"
-                style={{ gridTemplateColumns: gridCols }}
+                key={day}
+                className={`text-center text-[10px] leading-tight ${
+                  isMajor ? 'text-gray-600 font-medium' : 'text-gray-300'
+                }`}
               >
-                {dated
-                  .filter((s) => laneById.get(s.id) === laneIdx)
-                  .map((s) => (
-                    <SegmentBlock
-                      key={s.id}
-                      session={s}
-                      dayFrom={s.day_from}
-                      dayTo={s.day_to}
-                      totalDays={totalDays}
-                      onOpen={setOpenSessionId}
-                      campaignSlug={campaignSlug}
-                    />
-                  ))}
+                {day}
               </div>
-            ))
-          )}
-
-          {/* Frontier marker — dashed vertical line drawn at right edge
-              of `frontier` day column. Offset = frontier * DAY_WIDTH. */}
-          {showFrontier && frontier != null && (
-            <div
-              className="absolute top-3 bottom-1 border-l-2 border-dashed border-blue-400 pointer-events-none"
-              style={{ left: `${frontier * DAY_WIDTH}px` }}
-              aria-hidden
-            />
-          )}
+            )
+          })}
         </div>
+
+        {/* Lanes */}
+        {dated.length === 0 ? (
+          <div
+            className="h-7 rounded border border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400 italic"
+          >
+            пока нет сессий с датами
+          </div>
+        ) : (
+          Array.from({ length: laneCount }, (_, laneIdx) => (
+            <div
+              key={laneIdx}
+              className="grid mb-1"
+              style={{ gridTemplateColumns: gridCols }}
+            >
+              {dated
+                .filter((s) => laneById.get(s.id) === laneIdx)
+                .map((s) => (
+                  <SegmentBlock
+                    key={s.id}
+                    session={s}
+                    dayFrom={s.day_from}
+                    dayTo={s.day_to}
+                    totalDays={totalDays}
+                    onOpen={setOpenSessionId}
+                    campaignSlug={campaignSlug}
+                  />
+                ))}
+            </div>
+          ))
+        )}
+
+        {/* Frontier marker — dashed vertical line. Positioned by
+            percentage to stay in sync with fluid columns. */}
+        {showFrontier && frontierPercent != null && (
+          <div
+            className="absolute top-3 bottom-1 border-l-2 border-dashed border-blue-400 pointer-events-none"
+            style={{ left: `${frontierPercent}%` }}
+            aria-hidden
+          />
+        )}
       </div>
 
       {showFrontier && frontier != null && (
