@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-23 (chat 34 — spec-009 Loop progress bar)
+> Last updated: 2026-04-24 (chat 36 — spec-010 specify/clarify/plan/tasks)
 
 ## В проде сейчас
 
@@ -54,12 +54,30 @@
 
 ## Следующий приоритет
 
-**spec-010 Transactions ledger** — следующая спека серии
-«Бухгалтерия». Учёт денег и лута на PC/партии: add/spend/transfer,
-история транзакций, текущий баланс. Roadmap + решения зафиксированы в
-`.specify/memory/bookkeeping-roadmap.md` — **читать перед стартом**.
-Пишется в отдельном новом чате через полный spec-kit flow
-(`specify → clarify → plan → tasks → implement`).
+**spec-010 Transactions ledger — Implement.** Spec, plan, tasks
+**готовы и закоммичены** (`.specify/specs/010-transactions-ledger/`).
+Следующий чат начинает `implement` по `tasks.md`: одна задача за
+раз, `[x]` + confirm между задачами (hard rule).
+
+Ключевое из плана:
+- **"Бухгалтерия" как top-level app** под `/c/[slug]/accounting/*`
+  (ledger + `settings/categories` + будущие под-роуты
+  spec-011..015). Nav-линк добавляется в `layout.tsx`.
+- Одна таблица **`categories` с `scope text`** (default
+  `'transaction'`, CHECK IN ('transaction','item')) —
+  spec-015 добавит `scope='item'` без schema change.
+- **День — primary temporal anchor** (не сессия); auto-fill
+  из `getCharacterFrontier` (spec-009). "Off-session" — default,
+  не режим.
+- Денойминации через const map `DENOMINATIONS + GP_WEIGHT` —
+  добавить homebrew-валюту = 1 entry + 1 колонка.
+- Mobile-first для игрока, desktop-primary для ДМ — **same
+  components, Tailwind media queries**, никаких `useIsMobile()`
+  хуков.
+
+MVP shippable после phase 9 (T001–T027 — US1/US2/US3/US4). P2
+фазы (transfer/item/DM-settings) можно в том же PR или отдельно.
+Новый dev-dep: `vitest` (T003).
 
 ### Параллельные кандидаты (если бухгалтерия пауза)
 
