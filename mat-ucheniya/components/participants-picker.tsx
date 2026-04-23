@@ -235,8 +235,16 @@ export function ParticipantsPicker({
                 </div>
               )}
 
+              {/* Selected group + header. Previously wrapped in
+                  `sticky top-0` with the "Остальные" label inside —
+                  but when the wrapper grew taller than max-h-80
+                  (6+ selected PCs + both headers), sticky behaviour
+                  pinned the whole block and pushed unselected rows
+                  off the scrollable viewport. Now the structure is
+                  flat: selected rows stream at the top, headers are
+                  plain text, scroll works for any count. */}
               {selectedRows.length > 0 && (
-                <div className="sticky top-0 z-10 bg-white">
+                <>
                   <div className="px-2 pt-1 text-[11px] uppercase tracking-wide text-gray-400">
                     Выбрано
                   </div>
@@ -253,7 +261,7 @@ export function ParticipantsPicker({
                       Остальные
                     </div>
                   )}
-                </div>
+                </>
               )}
 
               {unselectedRows.map((pc) => (
