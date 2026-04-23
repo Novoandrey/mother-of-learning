@@ -145,7 +145,7 @@ server actions, validation utility.
 - [x] **T017** [P1] Integrate into `mat-ucheniya/app/c/[slug]/loops/page.tsx`:
   - When a loop is selected, render `<LoopProgressBar loop={currentLoop} sessions={sessions} />` below the loop title, above the sessions list
   - Sessions are already fetched in the page; just ensure they are the hydrated version (day_from/day_to/participants)
-- [ ] **T018** [P1] Manual test US2:
+- [x] **T018** [P1] Manual test US2:
   - Loop with sessions [5-8, 7-9, 12-14] → three segments, overlap visible on different lanes
   - Empty loop → empty bar with ticks and "no dated sessions" caption
   - Hover (desktop) / tap (mobile) → tooltip/sheet shows correct participants
@@ -179,7 +179,7 @@ server actions, validation utility.
 - [x] **T021** [P2] Modify `mat-ucheniya/components/node-detail.tsx`:
   - When `node.type === 'character'` AND the campaign has a loop with `status='current'`: render `<CharacterFrontierCard />` in the node metadata sidebar/block (pick a slot consistent with existing layout — probably next to owner info)
   - If no current loop exists — skip silently
-- [ ] **T022** [P2] Manual test US3:
+- [x] **T022** [P2] Manual test US3:
   - PC that played in sessions #6 (3-5) and #7 (6-9) of current loop → card shows "до дня 9" and links to #6, #7
   - PC that played in 0 sessions of current loop → "ещё не играл"
   - No current loop → card not rendered
@@ -193,14 +193,14 @@ server actions, validation utility.
 - [x] **T023** [P1] Run lint + typecheck:
   - `cd mat-ucheniya && npm run lint && npx tsc --noEmit`
   - Fix any errors introduced during Phases 2-6
-- [ ] **T024** [P1] Mark all `[ ]` → `[x]` in this `tasks.md` as they complete
-- [ ] **T025** [P1] Update `NEXT.md`:
+- [x] **T024** [P1] Mark all `[ ]` → `[x]` in this `tasks.md` as they complete
+- [x] **T025** [P1] Update `NEXT.md`:
   - Move "spec-009 Loop progress bar + session packs" from "Следующий приоритет" into "В проде сейчас"
   - Set next priority to spec-010 Transactions ledger
   - Bump last applied migration to `032_session_packs_and_loop_length.sql`
-- [ ] **T026** [P1] Add a `chatlog/YYYY-MM-DD-chatNN-spec-009-loop-progress-bar.md` entry per `chatlog/README.md` template
-- [ ] **T027** [P1] Update `backlog.md` if anything new surfaced during implement
-- [ ] **T028** [P1] Git commit + push:
+- [x] **T026** [P1] Add a `chatlog/YYYY-MM-DD-chatNN-spec-009-loop-progress-bar.md` entry per `chatlog/README.md` template
+- [x] **T027** [P1] Update `backlog.md` if anything new surfaced during implement
+- [x] **T028** [P1] Git commit + push:
   - Conventional-style message: `feat(spec-009): loop progress bar + session packs`
   - Push to `main`, Vercel auto-deploys
 
