@@ -321,6 +321,14 @@ export function useNodeForm({
       }
     }
 
+    // Reset saving BEFORE navigating. Next.js server actions (the
+    // invalidateSidebar + participants calls above) run inside a React
+    // transition, and router.push inside or just after a pending
+    // transition can be deferred. If that happens the button would stay
+    // "Сохраняю" forever. Flip it now so the UI is always responsive;
+    // the navigation itself still fires below.
+    setSaving(false)
+
     if (selectedType.slug === 'loop') {
       const num = cleanFields.number ?? fields.number
       router.push(`/c/${campaignSlug}/loops?loop=${num}`)

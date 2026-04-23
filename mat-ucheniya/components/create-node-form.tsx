@@ -118,6 +118,17 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
   // Day range fields get their own dedicated flex-row below the grid —
   // keep them out of the generic short-field layout.
   const shortFields = allShortFields.filter((k) => !DAY_RANGE_KEYS.includes(k))
+  // For sessions, session_number is visually anchored on its own row at
+  // the very top. Everything else (loop_number, played_at, …) goes in a
+  // grid *after* the day-range block and participants picker — those
+  // two are the inputs filled at session start and deserve high
+  // position.
+  const sessionEarlyKey = 'session_number'
+  const shortFieldsEarly =
+    isSession && shortFields.includes(sessionEarlyKey) ? [sessionEarlyKey] : []
+  const shortFieldsLate = isSession
+    ? shortFields.filter((k) => k !== sessionEarlyKey)
+    : shortFields
   const hasDayRange =
     isSession && DAY_RANGE_KEYS.every((k) => k in f.fields)
   const longFields = fieldOrder.filter((k) => TEXTAREA_FIELDS.includes(k))
@@ -224,32 +235,8 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
             )}
           </div>
 
-          {shortFields.length > 1 ? (
-            <div className="grid grid-cols-2 gap-3">
-              {shortFields.map((key) => (
-                <NodeFormField
-                  key={key}
-                  fieldKey={key}
-                  value={f.fields[key]}
-                  onChange={(v) => f.setFields({ ...f.fields, [key]: v })}
-                  typeSlug={f.selectedType?.slug}
-                  loops={f.loops}
-                />
-              ))}
-            </div>
-          ) : (
-            shortFields.map((key) => (
-              <NodeFormField
-                key={key}
-                fieldKey={key}
-                value={f.fields[key]}
-                onChange={(v) => f.setFields({ ...f.fields, [key]: v })}
-                typeSlug={f.selectedType?.slug}
-                loops={f.loops}
-              />
-            ))
-          )}
-          {longFields.map((key) => (
+          {/* Sessions: session_number first, standalone. */}
+          {shortFieldsEarly.map((key) => (
             <NodeFormField
               key={key}
               fieldKey={key}
@@ -260,7 +247,33 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
             />
           ))}
 
-          {/* Session-only: day range + participants (spec-009). */}
+          {/* Non-session types: render the single grid as before. */}
+          {!isSession && shortFieldsLate.length > 1 && (
+            <div className="grid grid-cols-2 gap-3">
+              {shortFieldsLate.map((key) => (
+                <NodeFormField
+                  key={key}
+                  fieldKey={key}
+                  value={f.fields[key]}
+                  onChange={(v) => f.setFields({ ...f.fields, [key]: v })}
+                  typeSlug={f.selectedType?.slug}
+                  loops={f.loops}
+                />
+              ))}
+            </div>
+          )}
+          {!isSession && shortFieldsLate.length === 1 && (
+            <NodeFormField
+              key={shortFieldsLate[0]}
+              fieldKey={shortFieldsLate[0]}
+              value={f.fields[shortFieldsLate[0]]}
+              onChange={(v) => f.setFields({ ...f.fields, [shortFieldsLate[0]]: v })}
+              typeSlug={f.selectedType?.slug}
+              loops={f.loops}
+            />
+          )}
+
+          {/* Session-only: day range (T012). */}
           {hasDayRange && (
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-3">
@@ -293,6 +306,7 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
             </div>
           )}
 
+          {/* Session-only: participants (T012). */}
           {isSession && (
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -306,6 +320,43 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
               />
             </div>
           )}
+
+          {/* Sessions: loop_number / played_at / etc. land AFTER day range + picker. */}
+          {isSession && shortFieldsLate.length > 1 && (
+            <div className="grid grid-cols-2 gap-3">
+              {shortFieldsLate.map((key) => (
+                <NodeFormField
+                  key={key}
+                  fieldKey={key}
+                  value={f.fields[key]}
+                  onChange={(v) => f.setFields({ ...f.fields, [key]: v })}
+                  typeSlug={f.selectedType?.slug}
+                  loops={f.loops}
+                />
+              ))}
+            </div>
+          )}
+          {isSession && shortFieldsLate.length === 1 && (
+            <NodeFormField
+              key={shortFieldsLate[0]}
+              fieldKey={shortFieldsLate[0]}
+              value={f.fields[shortFieldsLate[0]]}
+              onChange={(v) => f.setFields({ ...f.fields, [shortFieldsLate[0]]: v })}
+              typeSlug={f.selectedType?.slug}
+              loops={f.loops}
+            />
+          )}
+
+          {longFields.map((key) => (
+            <NodeFormField
+              key={key}
+              fieldKey={key}
+              value={f.fields[key]}
+              onChange={(v) => f.setFields({ ...f.fields, [key]: v })}
+              typeSlug={f.selectedType?.slug}
+              loops={f.loops}
+            />
+          ))}
 
           {f.selectedType.slug === 'loop' && (
             <div>
