@@ -321,22 +321,36 @@ export function useNodeForm({
       }
     }
 
-    // Reset saving BEFORE navigating. Next.js server actions (the
-    // invalidateSidebar + participants calls above) run inside a React
-    // transition, and router.push inside or just after a pending
-    // transition can be deferred. If that happens the button would stay
-    // "Сохраняю" forever. Flip it now so the UI is always responsive;
-    // the navigation itself still fires below.
+    // Reset saving BEFORE navigating. Even if navigation stalls the
+    // button won't stay "Сохраняю" forever.
     setSaving(false)
 
+    // Build destination URL.
+    let dest: string
     if (selectedType.slug === 'loop') {
       const num = cleanFields.number ?? fields.number
-      router.push(`/c/${campaignSlug}/loops?loop=${num}`)
+      dest = `/c/${campaignSlug}/loops?loop=${num}`
     } else if (selectedType.slug === 'session') {
-      router.push(`/c/${campaignSlug}/sessions/${id}`)
+      dest = `/c/${campaignSlug}/sessions/${id}`
     } else {
-      router.push(`/c/${campaignSlug}/catalog/${id}`)
+      dest = `/c/${campaignSlug}/catalog/${id}`
     }
+
+    // When onBeforeRedirect has run (currently sessions, which chain
+    // multiple server actions — invalidateSidebar + updateSessionParticipants),
+    // Next 16 + React 19 queue router.push behind the pending transitions
+    // and navigation visibly stalls. Hard navigation is reliable in
+    // that case; the one-time full reload is an acceptable trade-off
+    // for "save succeeded, you land on the new page every time".
+    //
+    // For the simple path (no onBeforeRedirect) soft navigation is
+    // preserved — no behaviour change for loop / generic node saves.
+    if (onBeforeRedirect && typeof window !== 'undefined') {
+      window.location.href = dest
+      return
+    }
+
+    router.push(dest)
     router.refresh()
   }
 
