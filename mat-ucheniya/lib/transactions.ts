@@ -198,13 +198,15 @@ function rawToTransaction(raw: TxRawRow): Transaction {
 /**
  * Joined read shape — pulls in actor/session/category/author display strings.
  * `actor_pc` and `session` are `nodes` rows (the project's polymorphic node
- * table); `author` is `user_profiles`; `category` is resolved via a separate
- * in-memory map since there's no FK on `category_slug` (by design — see plan).
+ * table). Author display comes from a separate `user_profiles` fetch — the
+ * FK on `transactions.author_user_id` points at `auth.users(id)`, not at
+ * `user_profiles`, so PostgREST can't embed it directly.
+ * `category` is resolved via a separate in-memory map since there's no FK
+ * on `category_slug` (by design — see plan).
  */
 type TxJoinedRow = TxRawRow & {
   actor_pc: { title: string } | { title: string }[] | null;
   session: { title: string; fields: Record<string, unknown> | null } | { title: string; fields: Record<string, unknown> | null }[] | null;
-  author: { display_name: string | null } | { display_name: string | null }[] | null;
 };
 
 const JOIN_SELECT = `
@@ -215,8 +217,7 @@ const JOIN_SELECT = `
   transfer_group_id, status, author_user_id,
   created_at, updated_at,
   actor_pc:nodes!actor_pc_id(title),
-  session:nodes!session_id(title, fields),
-  author:user_profiles!author_user_id(display_name)
+  session:nodes!session_id(title, fields)
 `;
 
 async function hydrateCategoryLabels(
@@ -245,14 +246,42 @@ async function hydrateCategoryLabels(
   return out;
 }
 
+/**
+ * Batch-fetch author display names. Separate query because the FK on
+ * `transactions.author_user_id` points at `auth.users(id)`, not at
+ * `user_profiles` — PostgREST can't embed a two-hop relation.
+ */
+async function hydrateAuthors(
+  rows: Transaction[],
+): Promise<Map<string, string | null>> {
+  const ids = [...new Set(rows.map((r) => r.author_user_id).filter((v): v is string => !!v))];
+  if (ids.length === 0) return new Map();
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('user_id, display_name')
+    .in('user_id', ids);
+
+  if (error) {
+    throw new Error(`hydrateAuthors failed: ${error.message}`);
+  }
+
+  const out = new Map<string, string | null>();
+  for (const row of (data ?? []) as { user_id: string; display_name: string | null }[]) {
+    out.set(row.user_id, row.display_name);
+  }
+  return out;
+}
+
 function joinedToRelations(
   raw: TxJoinedRow,
   categoryLabels: Map<string, string>,
+  authors: Map<string, string | null>,
 ): TransactionWithRelations {
   const base = rawToTransaction(raw);
   const pc = unwrapOne(raw.actor_pc);
   const session = unwrapOne(raw.session);
-  const author = unwrapOne(raw.author);
 
   let session_number: number | null = null;
   if (session?.fields) {
@@ -267,7 +296,9 @@ function joinedToRelations(
     session_title: session?.title ?? null,
     session_number,
     category_label: categoryLabels.get(base.category_slug) ?? base.category_slug,
-    author_display_name: author?.display_name ?? null,
+    author_display_name: base.author_user_id
+      ? authors.get(base.author_user_id) ?? null
+      : null,
   };
 }
 
@@ -355,11 +386,11 @@ export async function getRecentByPc(
   if (rows.length === 0) return [];
 
   const plain = rows.map(rawToTransaction);
-  const labels = await hydrateCategoryLabels(
-    rows[0].campaign_id,
-    plain,
-  );
-  return rows.map((r) => joinedToRelations(r, labels));
+  const [labels, authors] = await Promise.all([
+    hydrateCategoryLabels(rows[0].campaign_id, plain),
+    hydrateAuthors(plain),
+  ]);
+  return rows.map((r) => joinedToRelations(r, labels, authors));
 }
 
 /**
@@ -385,8 +416,11 @@ export async function getTransactionsBySession(
   if (rows.length === 0) return [];
 
   const plain = rows.map(rawToTransaction);
-  const labels = await hydrateCategoryLabels(rows[0].campaign_id, plain);
-  return rows.map((r) => joinedToRelations(r, labels));
+  const [labels, authors] = await Promise.all([
+    hydrateCategoryLabels(rows[0].campaign_id, plain),
+    hydrateAuthors(plain),
+  ]);
+  return rows.map((r) => joinedToRelations(r, labels, authors));
 }
 
 /** Single transaction by id, with joined relations. For the edit view. */
@@ -406,10 +440,12 @@ export async function getTransactionById(
   if (!data) return null;
 
   const raw = data as unknown as TxJoinedRow;
-  const labels = await hydrateCategoryLabels(raw.campaign_id, [
-    rawToTransaction(raw),
+  const plain = rawToTransaction(raw);
+  const [labels, authors] = await Promise.all([
+    hydrateCategoryLabels(raw.campaign_id, [plain]),
+    hydrateAuthors([plain]),
   ]);
-  return joinedToRelations(raw, labels);
+  return joinedToRelations(raw, labels, authors);
 }
 
 /**
@@ -437,8 +473,11 @@ export async function getTransferPair(
   if (rows.length !== 2) return null;
 
   const plain = rows.map(rawToTransaction);
-  const labels = await hydrateCategoryLabels(rows[0].campaign_id, plain);
-  const hydrated = rows.map((r) => joinedToRelations(r, labels)) as [
+  const [labels, authors] = await Promise.all([
+    hydrateCategoryLabels(rows[0].campaign_id, plain),
+    hydrateAuthors(plain),
+  ]);
+  const hydrated = rows.map((r) => joinedToRelations(r, labels, authors)) as [
     TransactionWithRelations,
     TransactionWithRelations,
   ];
@@ -529,10 +568,14 @@ export async function getLedgerPage(
   const rawRows = (rowsData ?? []) as unknown as TxJoinedRow[];
   const hasNext = rawRows.length > pageSize;
   const pageRows = hasNext ? rawRows.slice(0, pageSize) : rawRows;
-  const labels = pageRows.length
-    ? await hydrateCategoryLabels(campaignId, pageRows.map(rawToTransaction))
-    : new Map<string, string>();
-  const rows = pageRows.map((r) => joinedToRelations(r, labels));
+  const plainPage = pageRows.map(rawToTransaction);
+  const [labels, authors] = pageRows.length
+    ? await Promise.all([
+        hydrateCategoryLabels(campaignId, plainPage),
+        hydrateAuthors(plainPage),
+      ])
+    : [new Map<string, string>(), new Map<string, string | null>()];
+  const rows = pageRows.map((r) => joinedToRelations(r, labels, authors));
 
   const nextCursor: string | null = hasNext
     ? encodeCursor({
