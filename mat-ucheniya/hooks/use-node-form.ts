@@ -241,9 +241,14 @@ export function useNodeForm({
       const trimmed = v.trim()
       if (trimmed) {
         if (NUMBER_FIELDS.includes(k)) {
-          cleanFields[k] = parseInt(trimmed) || trimmed
+          // `Number(trimmed)` accepts 0 and negatives (0 is valid day
+          // noise that the validator rejects separately; we just don't
+          // want `parseInt("0") || trimmed` coercing it back to string).
+          const n = Number(trimmed)
+          cleanFields[k] = Number.isFinite(n) ? n : trimmed
         } else if (k === 'loop_number' && trimmed) {
-          cleanFields[k] = parseInt(trimmed) || null
+          const n = Number(trimmed)
+          cleanFields[k] = Number.isFinite(n) ? n : null
         } else {
           cleanFields[k] = trimmed
         }
@@ -321,9 +326,11 @@ export function useNodeForm({
       }
     }
 
-    // Reset saving BEFORE navigating. Even if navigation stalls the
-    // button won't stay "Сохраняю" forever.
-    setSaving(false)
+    // Reset saving BEFORE soft navigating. Hard navigation is handled
+    // below — we intentionally keep `saving=true` in that branch so
+    // the submit button can't be double-clicked in the ≈ms window
+    // between the server actions completing and the browser actually
+    // unloading the page.
 
     // Build destination URL.
     let dest: string
@@ -346,10 +353,13 @@ export function useNodeForm({
     // For the simple path (no onBeforeRedirect) soft navigation is
     // preserved — no behaviour change for loop / generic node saves.
     if (onBeforeRedirect && typeof window !== 'undefined') {
+      // Keep saving=true; the page is about to unload. Resetting would
+      // briefly re-enable the submit button.
       window.location.href = dest
       return
     }
 
+    setSaving(false)
     router.push(dest)
     router.refresh()
   }
