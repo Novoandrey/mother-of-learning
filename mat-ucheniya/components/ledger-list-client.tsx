@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import LedgerRow from './ledger-row'
 import TransactionFormSheet from './transaction-form-sheet'
@@ -27,15 +27,16 @@ type Props = {
 }
 
 /**
- * Client side of the ledger: accumulates additional pages via
- * "Load more", owns the shared form sheet for edit flows, and
- * routes delete actions through `deleteTransaction`.
+ * Client side of the ledger.
  *
- * Edit sheet works in two directions: on success, the sheet closes
- * and `router.refresh()` is fired so the server component re-runs
- * the page query and the edited row re-materializes with the new
- * values. Appended pages (not yet on the server) stay in local
- * state, and the refresh rebuilds them.
+ * Source-of-truth split:
+ *   • `initialRows` — server-rendered first page (changes every
+ *     refresh). Consumed straight from props, never copied into
+ *     local state — that would desync after `router.refresh()`.
+ *   • `appendedRows` — additional pages fetched via "Load more".
+ *     Reset by the parent via a `key` prop when filters change.
+ *   • `hiddenIds` — optimistic removal of deleted rows before the
+ *     server refresh lands.
  */
 export default function LedgerListClient({
   campaignId,
@@ -50,14 +51,23 @@ export default function LedgerListClient({
 }: Props) {
   const router = useRouter()
 
-  const [rows, setRows] = useState<TransactionWithRelations[]>(initialRows)
+  const [appendedRows, setAppendedRows] = useState<TransactionWithRelations[]>(
+    [],
+  )
   const [cursor, setCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState<TransactionWithRelations | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  const rows = useMemo(() => {
+    const combined = [...initialRows, ...appendedRows]
+    if (hiddenIds.size === 0) return combined
+    return combined.filter((r) => !hiddenIds.has(r.id))
+  }, [initialRows, appendedRows, hiddenIds])
 
   const loadMore = useCallback(async () => {
     if (!cursor || loading) return
@@ -69,7 +79,7 @@ export default function LedgerListClient({
         setLoadError(res.error)
         return
       }
-      setRows((prev) => [...prev, ...res.page.rows])
+      setAppendedRows((prev) => [...prev, ...res.page.rows])
       setCursor(res.page.nextCursor)
     } finally {
       setLoading(false)
@@ -96,9 +106,11 @@ export default function LedgerListClient({
           alert(res.error)
           return
         }
-        // Optimistic local removal — hides the row instantly for
-        // users with slow networks; the server refresh confirms it.
-        setRows((prev) => prev.filter((r) => r.id !== id))
+        setHiddenIds((prev) => {
+          const next = new Set(prev)
+          next.add(id)
+          return next
+        })
         router.refresh()
       } finally {
         setBusyId(null)
@@ -107,9 +119,6 @@ export default function LedgerListClient({
     [router],
   )
 
-  // For edit defaults we need a loopNumber/day to pass to the form when
-  // opening a fresh transaction. When editing an existing row, the form
-  // seeds from `editing` directly; defaults are a harmless placeholder.
   const defaultLoopNumber = editing?.loop_number ?? 1
   const defaultDayInLoop = editing?.day_in_loop ?? 1
   const defaultSessionId = editing?.session_id ?? null

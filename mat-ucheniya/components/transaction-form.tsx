@@ -34,37 +34,73 @@ type Props = {
   onCancel?: () => void
 }
 
-type Kind = 'money' | 'item' | 'transfer'
+/**
+ * Form-level kind. `income` and `expense` collapse onto the DB's
+ * `kind='money'` with a + / − sign respectively — the sign lives
+ * in the tab choice instead of a toggle inside the amount field.
+ */
+type FormKind = 'income' | 'expense' | 'item' | 'transfer'
 
-function seedAmountFromEditing(tx: TransactionWithRelations): AmountInputValue {
-  const agg = aggregateGp(tx.coins)
-  const nonZeroCount = (['cp', 'sp', 'gp', 'pp'] as (keyof CoinSet)[]).reduce(
-    (n, d) => n + (tx.coins[d] !== 0 ? 1 : 0),
-    0,
-  )
-  const sign: 1 | -1 = agg < 0 ? -1 : 1
-  if (nonZeroCount > 1) {
-    const absCoins: CoinSet = {
+const TAB_LABELS: Record<FormKind, string> = {
+  income: 'Доход',
+  expense: 'Расход',
+  item: 'Предмет',
+  transfer: 'Перевод',
+}
+
+function seedFromEditing(tx: TransactionWithRelations): {
+  kind: FormKind
+  amount: AmountInputValue
+} {
+  if (tx.kind === 'item') {
+    return { kind: 'item', amount: { mode: 'gp', amount: 0 } }
+  }
+  if (tx.kind === 'transfer') {
+    // Transfer sender leg has negative coins; we display magnitude.
+    const abs: CoinSet = {
       cp: Math.abs(tx.coins.cp),
       sp: Math.abs(tx.coins.sp),
       gp: Math.abs(tx.coins.gp),
       pp: Math.abs(tx.coins.pp),
     }
-    return { mode: 'denom', coins: absCoins, sign }
+    const nonZero = (['cp', 'sp', 'gp', 'pp'] as const).reduce(
+      (n, d) => n + (abs[d] !== 0 ? 1 : 0),
+      0,
+    )
+    if (nonZero > 1) return { kind: 'transfer', amount: { mode: 'denom', coins: abs } }
+    return {
+      kind: 'transfer',
+      amount: { mode: 'gp', amount: Math.abs(aggregateGp(tx.coins)) },
+    }
   }
-  return { mode: 'gp', amount: Math.abs(agg), sign }
+  // money
+  const agg = aggregateGp(tx.coins)
+  const kind: FormKind = agg < 0 ? 'expense' : 'income'
+  const abs: CoinSet = {
+    cp: Math.abs(tx.coins.cp),
+    sp: Math.abs(tx.coins.sp),
+    gp: Math.abs(tx.coins.gp),
+    pp: Math.abs(tx.coins.pp),
+  }
+  const nonZero = (['cp', 'sp', 'gp', 'pp'] as const).reduce(
+    (n, d) => n + (abs[d] !== 0 ? 1 : 0),
+    0,
+  )
+  if (nonZero > 1) return { kind, amount: { mode: 'denom', coins: abs } }
+  return { kind, amount: { mode: 'gp', amount: Math.abs(agg) } }
 }
 
 /**
- * Transaction form — mobile-first. All three kinds supported:
- *   • money  — sign toggle + gp or per-denom amount
- *   • item   — free-text item name, no coins
- *   • transfer — recipient picker + fixed-outflow amount
+ * Transaction form — mobile-first. Four tabs at the top:
+ *   Доход / Расход / Предмет / Перевод
  *
- * Edit mode auto-detects kind from `editing`. Transfer edits act on
- * both legs via `updateTransfer`. Editing a transfer row is locked
- * to the transfer tab — swapping a transfer into a non-transfer
- * would corrupt the pair.
+ * The form carries the sign via the tab choice (income = +,
+ * expense / transfer = −). `AmountInput` is magnitude-only; no
+ * more +/− toggle that duplicated the tab labels.
+ *
+ * Editing a transfer locks the tab switcher to the transfer tab —
+ * swapping a transfer into income/expense/item would orphan the
+ * counterpart leg.
  */
 export default function TransactionForm({
   campaignId,
@@ -82,22 +118,12 @@ export default function TransactionForm({
   const editingTransferGroupId = editing?.transfer_group_id ?? null
   const editingKindLocked = editing?.kind === 'transfer'
 
-  const initialKind: Kind = editing?.kind ?? 'money'
-  const [kind, setKind] = useState<Kind>(initialKind)
+  const seed = editing ? seedFromEditing(editing) : null
 
-  const [amount, setAmount] = useState<AmountInputValue>(() => {
-    if (!editing || editing.kind === 'item') {
-      return { mode: 'gp', amount: 0, sign: 1 }
-    }
-    const seeded = seedAmountFromEditing(editing)
-    // Transfers are always an outflow from the sender — force sign to -1
-    // when seeding the sender's leg, even if someone opens the recipient
-    // leg (the form never targets the recipient side directly).
-    if (editing.kind === 'transfer') {
-      return { ...seeded, sign: -1 }
-    }
-    return seeded
-  })
+  const [kind, setKind] = useState<FormKind>(seed?.kind ?? 'expense')
+  const [amount, setAmount] = useState<AmountInputValue>(
+    seed?.amount ?? { mode: 'gp', amount: 0 },
+  )
   const [itemName, setItemName] = useState<string>(editing?.item_name ?? '')
   const [recipientPcId, setRecipientPcId] = useState<string | null>(null)
   const [categorySlug, setCategorySlug] = useState<string>(
@@ -118,40 +144,46 @@ export default function TransactionForm({
   const [error, setError] = useState<string | null>(null)
 
   const handleKindChange = useCallback(
-    (next: Kind) => {
+    (next: FormKind) => {
       setKind(next)
       setError(null)
-      if (next === 'transfer') {
-        setAmount((prev) =>
-          prev.mode === 'gp'
-            ? { mode: 'gp', amount: prev.amount, sign: -1 }
-            : { mode: 'denom', coins: prev.coins, sign: -1 },
-        )
-      }
-      // Preselect a matching-slug category when available — keeps the
-      // form at the spec's 3-field target for fresh entries.
+      // Pre-select a slug that matches the intent if the default
+      // taxonomy is present. Keeps the form at 2 visible fields
+      // for the common path.
       if (!editingId && categories) {
-        const match = categories.find((c) => c.slug === next)
+        const hint =
+          next === 'income'
+            ? 'income'
+            : next === 'expense'
+            ? 'expense'
+            : next === 'item'
+            ? 'loot'
+            : 'transfer'
+        const match = categories.find((c) => c.slug === hint)
         if (match) setCategorySlug(match.slug)
       }
     },
     [categories, editingId],
   )
 
-  const buildMoneyCoinsPayload = useCallback(() => {
-    const signedGp =
-      amount.mode === 'gp' ? amount.amount * amount.sign : undefined
-    const perDenomOverride: CoinSet | undefined =
-      amount.mode === 'denom'
-        ? {
-            cp: amount.coins.cp * amount.sign,
-            sp: amount.coins.sp * amount.sign,
-            gp: amount.coins.gp * amount.sign,
-            pp: amount.coins.pp * amount.sign,
-          }
-        : undefined
-    return { signedGp, perDenomOverride }
-  }, [amount])
+  /** Sign the coin magnitudes for money-kind storage. */
+  const applyMoneySign = useCallback(
+    (magnitude: AmountInputValue, sign: 1 | -1) => {
+      if (magnitude.mode === 'gp') {
+        return { signedGp: magnitude.amount * sign, perDenomOverride: undefined as CoinSet | undefined }
+      }
+      return {
+        signedGp: undefined,
+        perDenomOverride: {
+          cp: magnitude.coins.cp * sign,
+          sp: magnitude.coins.sp * sign,
+          gp: magnitude.coins.gp * sign,
+          pp: magnitude.coins.pp * sign,
+        } as CoinSet,
+      }
+    },
+    [],
+  )
 
   const submit = useCallback(async () => {
     setError(null)
@@ -163,8 +195,10 @@ export default function TransactionForm({
 
     setSubmitting(true)
     try {
-      if (kind === 'money') {
-        const { signedGp, perDenomOverride } = buildMoneyCoinsPayload()
+      if (kind === 'income' || kind === 'expense') {
+        const sign: 1 | -1 = kind === 'income' ? 1 : -1
+        const { signedGp, perDenomOverride } = applyMoneySign(amount, sign)
+
         const payload: CreateTransactionInput = {
           campaignId,
           actorPcId,
@@ -224,7 +258,7 @@ export default function TransactionForm({
           return
         }
       } else {
-        // transfer
+        // transfer — magnitude from the form, sign applied in the action.
         if (!editingTransferGroupId && !recipientPcId) {
           setError('Выберите получателя')
           return
@@ -242,17 +276,9 @@ export default function TransactionForm({
           }
         }
 
-        const absAmount =
-          amount.mode === 'gp' ? Math.abs(amount.amount) : undefined
+        const absAmount = amount.mode === 'gp' ? amount.amount : undefined
         const perDenomOverride: CoinSet | undefined =
-          amount.mode === 'denom'
-            ? {
-                cp: Math.abs(amount.coins.cp),
-                sp: Math.abs(amount.coins.sp),
-                gp: Math.abs(amount.coins.gp),
-                pp: Math.abs(amount.coins.pp),
-              }
-            : undefined
+          amount.mode === 'denom' ? amount.coins : undefined
 
         if (editingTransferGroupId) {
           const patch: Partial<TransferInput> = {
@@ -303,7 +329,7 @@ export default function TransactionForm({
   }, [
     actorPcId,
     amount,
-    buildMoneyCoinsPayload,
+    applyMoneySign,
     campaignId,
     categorySlug,
     comment,
@@ -340,10 +366,9 @@ export default function TransactionForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Kind switcher */}
+      {/* 4-tab kind switcher */}
       <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
-        {(['money', 'item', 'transfer'] as const).map((k) => {
-          const labels = { money: 'Монеты', item: 'Предмет', transfer: 'Перевод' }
+        {(['income', 'expense', 'item', 'transfer'] as const).map((k) => {
           const isActive = kind === k
           const locked = editingKindLocked && k !== 'transfer'
           return (
@@ -352,7 +377,7 @@ export default function TransactionForm({
               type="button"
               onClick={() => !locked && handleKindChange(k)}
               disabled={locked || busy}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-white text-gray-900 shadow-sm'
                   : locked
@@ -361,13 +386,13 @@ export default function TransactionForm({
               }`}
               aria-pressed={isActive}
             >
-              {labels[k]}
+              {TAB_LABELS[k]}
             </button>
           )
         })}
       </div>
 
-      {/* Slot 1: amount or item name */}
+      {/* Slot 1: amount (magnitude only) or item name */}
       {kind === 'item' ? (
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -383,13 +408,7 @@ export default function TransactionForm({
           />
         </div>
       ) : (
-        <AmountInput
-          value={amount}
-          onChange={setAmount}
-          // Transfer is always an outflow from the sender — lock the sign
-          // so users can't accidentally create a reverse transfer.
-          signLocked={kind === 'transfer'}
-        />
+        <AmountInput value={amount} onChange={setAmount} />
       )}
 
       {/* Slot 1a (transfer + create only): recipient picker */}
@@ -481,12 +500,10 @@ export default function TransactionForm({
         )}
       </div>
 
-      {/* Error banner */}
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
       )}
 
-      {/* Actions */}
       <div className="flex items-center gap-2 pt-2">
         <button
           type="button"

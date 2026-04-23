@@ -8,38 +8,33 @@ import { DENOM_SHORT } from '@/lib/transaction-format'
 // --- Types exported for the form wrapper ---
 
 export type AmountInputValue =
-  | { mode: 'gp'; amount: number; sign: 1 | -1 }
-  | { mode: 'denom'; coins: CoinSet; sign: 1 | -1 }
+  | { mode: 'gp'; amount: number }
+  | { mode: 'denom'; coins: CoinSet }
 
 type Props = {
   value: AmountInputValue
   onChange: (v: AmountInputValue) => void
-  /** Disables sign toggle (for item rows / earn-only contexts). */
-  signLocked?: boolean
-  /** Label shown above the field. Defaults to "Сумма". */
+  /** Label shown above the field. */
   label?: string
 }
 
 /**
- * Amount input — mobile-first.
+ * Amount input — mobile-first, **magnitude-only**.
  *
- * Default mode: single gp-equivalent numeric field + `+/−` toggle.
- * Tap "подробнее по монетам…" to expand four numeric inputs
- * (cp/sp/gp/pp). Clicks outside the per-denom panel collapse it
- * back to the aggregate field. Controlled component — `value` in,
- * `onChange` out, no internal source of truth.
+ * The sign of a transaction is carried by the parent form (tab
+ * choice: Доход / Расход / Перевод). This widget emits absolute
+ * values only, which gets rid of the +/− toggle that was confusing
+ * when the tabs were already labelled Income/Expense.
+ *
+ * Default mode: single gp-equivalent field. Tap "подробнее по
+ * монетам…" to expand four numeric inputs (cp/sp/gp/pp). Clicks
+ * outside the per-denom panel collapse it.
  */
-export default function AmountInput({
-  value,
-  onChange,
-  signLocked = false,
-  label = 'Сумма',
-}: Props) {
+export default function AmountInput({ value, onChange, label = 'Сумма' }: Props) {
   const [expanded, setExpanded] = useState(value.mode === 'denom')
   const rootRef = useRef<HTMLDivElement>(null)
 
-  // Collapse the per-denom panel when focus leaves the widget. Mousedown-based
-  // detection matches the native select/dropdown dismiss behavior.
+  // Collapse the per-denom panel when focus leaves the widget.
   useEffect(() => {
     if (!expanded) return
     function onDocMouseDown(e: MouseEvent) {
@@ -51,23 +46,13 @@ export default function AmountInput({
     return () => document.removeEventListener('mousedown', onDocMouseDown)
   }, [expanded])
 
-  const toggleSign = useCallback(() => {
-    if (signLocked) return
-    const next: AmountInputValue = { ...value, sign: value.sign === 1 ? -1 : 1 }
-    onChange(next)
-  }, [onChange, signLocked, value])
-
   const handleGpChange = useCallback(
     (raw: string) => {
       const parsed = raw === '' ? 0 : Number(raw)
       if (!Number.isFinite(parsed)) return
-      onChange({
-        mode: 'gp',
-        amount: Math.max(0, parsed),
-        sign: value.sign,
-      })
+      onChange({ mode: 'gp', amount: Math.max(0, parsed) })
     },
-    [onChange, value.sign],
+    [onChange],
   )
 
   const handleDenomChange = useCallback(
@@ -81,7 +66,6 @@ export default function AmountInput({
       onChange({
         mode: 'denom',
         coins: { ...currentCoins, [d]: Math.max(0, Math.trunc(parsed)) },
-        sign: value.sign,
       })
     },
     [onChange, value],
@@ -92,7 +76,6 @@ export default function AmountInput({
       onChange({
         mode: 'denom',
         coins: { cp: 0, sp: 0, gp: value.amount, pp: 0 },
-        sign: value.sign,
       })
     }
     setExpanded(true)
@@ -106,19 +89,6 @@ export default function AmountInput({
 
       {!expanded ? (
         <div className="flex items-stretch gap-2">
-          <button
-            type="button"
-            onClick={toggleSign}
-            disabled={signLocked}
-            aria-label={value.sign === 1 ? 'Доход' : 'Расход'}
-            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
-              value.sign === 1
-                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                : 'bg-red-50 text-red-700 hover:bg-red-100'
-            }`}
-          >
-            {value.sign === 1 ? '+' : '−'}
-          </button>
           <input
             type="number"
             inputMode="decimal"
@@ -134,21 +104,6 @@ export default function AmountInput({
         </div>
       ) : (
         <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleSign}
-              disabled={signLocked}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-                value.sign === 1
-                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-red-50 text-red-700 hover:bg-red-100'
-              }`}
-            >
-              {value.sign === 1 ? '+' : '−'}
-            </button>
-            <span className="text-xs text-gray-500">знак применится ко всем монетам</span>
-          </div>
           <div className="grid grid-cols-4 gap-2">
             {DENOMINATIONS.map((d) => (
               <label key={d} className="flex flex-col gap-0.5">
