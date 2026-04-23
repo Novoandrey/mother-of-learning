@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { getCampaignBySlug } from '@/lib/campaign'
-import { getSessionById, getLoops, getAllSessions } from '@/lib/loops'
+import { getSessionById, getAllSessions } from '@/lib/loops'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -22,6 +22,19 @@ export async function generateMetadata({
   }
 }
 
+function formatPlayedAt(iso: string): string {
+  return new Date(iso).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function formatDayRange(from: number | null, to: number | null): string | null {
+  if (from == null || to == null) return null
+  return from === to ? `День ${from}` : `Дни ${from}–${to}`
+}
+
 export default async function SessionDetailPage({
   params,
 }: {
@@ -34,11 +47,13 @@ export default async function SessionDetailPage({
   const session = await getSessionById(id)
   if (!session) notFound()
 
+  const dayRange = formatDayRange(session.day_from, session.day_to)
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1 text-sm text-gray-400">
             <Link
               href={`/c/${slug}/sessions`}
@@ -64,20 +79,48 @@ export default async function SessionDetailPage({
             </span>
             {session.title}
           </h1>
-          <div className="flex items-center gap-3 mt-1">
-            {session.played_at && (
-              <p className="text-sm text-gray-400">
-                {new Date(session.played_at).toLocaleDateString('ru-RU', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </p>
-            )}
-            {session.game_date && (
-              <p className="text-sm text-gray-400">· {session.game_date}</p>
-            )}
-          </div>
+
+          {/* Meta chips row: in-game day range, real-world played_at,
+              game_date fallback when the new day range is absent. */}
+          {(dayRange || session.played_at || session.game_date) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              {dayRange && (
+                <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">
+                  {dayRange}
+                </span>
+              )}
+              {!dayRange && session.game_date && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">
+                  {session.game_date}
+                </span>
+              )}
+              {session.played_at && (
+                <span className="text-gray-400">
+                  Сыграна {formatPlayedAt(session.played_at)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Participants (T019 / US1). */}
+          {session.participants.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
+              <span className="text-gray-400">Участники:</span>
+              {session.participants.map((p, i) => (
+                <span key={p.id} className="contents">
+                  <Link
+                    href={`/c/${slug}/catalog/${p.id}`}
+                    className="rounded px-1.5 py-0.5 text-gray-800 hover:bg-gray-100 transition-colors"
+                  >
+                    {p.title}
+                  </Link>
+                  {i < session.participants.length - 1 && (
+                    <span className="text-gray-300">·</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <Link
           href={`/c/${slug}/catalog/${id}/edit`}
