@@ -151,6 +151,7 @@ export default async function LedgerList({
       />
 
       <LedgerListClient
+        key={JSON.stringify(filters)}
         campaignId={campaignId}
         campaignSlug={campaignSlug}
         currentUserId={user.id}
