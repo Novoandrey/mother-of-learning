@@ -5,7 +5,17 @@ import { getCampaignPCs, type CampaignPC } from '@/app/actions/characters'
 
 type Props = {
   campaignId: string
-  initialSelectedIds: string[]
+  /**
+   * Currently selected character ids. This is a fully controlled prop —
+   * the picker holds no selection state of its own. Changes bubble up
+   * through `onChange`, and the host decides when (if) to persist.
+   *
+   * Passing a new array reference in response to async hydration (e.g.
+   * "load existing participants" effect in the session form) is safe:
+   * the picker will re-render against the new value without resetting
+   * any user interaction in flight.
+   */
+  selectedIds: string[]
   onChange: (selectedIds: string[]) => void
 }
 
@@ -20,12 +30,12 @@ type Props = {
  * ones float to the top, rest follow. A filter input narrows both lists
  * by title or owner label.
  *
- * Selection state is kept locally; every toggle calls `onChange` with the
- * full selected id list so the hosting form can decide when to persist.
+ * Fully controlled: `selectedIds` is the single source of truth. Every
+ * toggle calls `onChange` with the next full id list.
  */
 export function ParticipantsPicker({
   campaignId,
-  initialSelectedIds,
+  selectedIds,
   onChange,
 }: Props) {
   const [open, setOpen] = useState(false)
@@ -34,17 +44,11 @@ export function ParticipantsPicker({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
 
-  // Use Set for O(1) toggles; serialize to array for onChange.
-  const initialSet = useMemo(
-    () => new Set(initialSelectedIds),
-    // Run only on first mount; caller is expected to remount the picker
-    // when the source of truth changes (e.g. switching edited session).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
-  const [selected, setSelected] = useState<Set<string>>(initialSet)
-
   const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // Derive the selection Set from the controlled prop on every render.
+  // Cheap (selections are tiny) and guarantees no drift from parent.
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds])
 
   // ── Lazy PC load on first open ─────────────────────────────────────
   const loadPcs = useCallback(async () => {
@@ -92,13 +96,10 @@ export function ParticipantsPicker({
     const next = new Set(selected)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    setSelected(next)
     onChange(Array.from(next))
   }
 
   function clearAll() {
-    const next = new Set<string>()
-    setSelected(next)
     onChange([])
   }
 
@@ -118,10 +119,25 @@ export function ParticipantsPicker({
   const selectedCount = selected.size
   const total = list.length
 
-  const triggerLabel =
-    selectedCount === 0
-      ? 'Выбрать участников'
-      : `Участников: ${selectedCount}`
+  // Trigger label:
+  //   - 0 selected → placeholder "Выбрать участников"
+  //   - ≤3 selected AND PCs loaded → actual names
+  //   - otherwise → counter "Участников: N"
+  //
+  // The names-mode is deliberately gated on `pcs !== null` because the
+  // picker loads its PC list lazily on first open. Before that, we
+  // don't know the titles. Once loaded, the trigger self-upgrades —
+  // no extra open needed.
+  const triggerLabel = (() => {
+    if (selectedCount === 0) return 'Выбрать участников'
+    if (pcs && selectedCount <= 3) {
+      const names = list
+        .filter((p) => selected.has(p.id))
+        .map((p) => p.title)
+      if (names.length === selectedCount) return names.join(', ')
+    }
+    return `Участников: ${selectedCount}`
+  })()
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -132,10 +148,14 @@ export function ParticipantsPicker({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className={selectedCount === 0 ? 'text-gray-500' : 'text-gray-800'}>
+        <span
+          className={`truncate text-left ${
+            selectedCount === 0 ? 'text-gray-500' : 'text-gray-800'
+          }`}
+        >
           {triggerLabel}
         </span>
-        <span className="text-gray-400">▾</span>
+        <span className="flex-shrink-0 text-gray-400 ml-2">▾</span>
       </button>
 
       {open && (

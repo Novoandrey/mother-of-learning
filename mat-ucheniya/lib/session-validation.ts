@@ -1,3 +1,5 @@
+import { DEFAULT_LOOP_LENGTH_DAYS } from './loop-length'
+
 /**
  * Day-range validation for session nodes (spec-009).
  *
@@ -43,7 +45,9 @@ export function validateDayRange(
 
   // Within loop length.
   const bound =
-    Number.isFinite(loopLength) && loopLength > 0 ? Math.trunc(loopLength) : 30
+    Number.isFinite(loopLength) && loopLength > 0
+      ? Math.trunc(loopLength)
+      : DEFAULT_LOOP_LENGTH_DAYS
   if (from > bound || to > bound) {
     return `День не должен превышать длину петли (${bound}).`
   }

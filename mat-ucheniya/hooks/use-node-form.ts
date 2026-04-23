@@ -9,6 +9,7 @@ import {
   HIDDEN_FIELDS,
   slugify,
 } from '@/lib/node-form-constants'
+import { parseLengthDays } from '@/lib/loop-length'
 
 export type NodeType = {
   id: string
@@ -148,24 +149,12 @@ export function useNodeForm({
                   .map((n) => {
                     const number = n.fields?.['number']
                     const status = n.fields?.['status']
-                    const rawLength = n.fields?.['length_days']
-                    const parsedLength =
-                      rawLength == null || rawLength === ''
-                        ? 30
-                        : Number(
-                            typeof rawLength === 'number'
-                              ? rawLength
-                              : String(rawLength).trim(),
-                          )
                     return {
                       id: n.id,
                       number: Number(number ?? 0),
                       title: n.title,
                       status: typeof status === 'string' ? status : 'past',
-                      length_days:
-                        Number.isFinite(parsedLength) && parsedLength > 0
-                          ? Math.trunc(parsedLength)
-                          : 30,
+                      length_days: parseLengthDays(n.fields?.['length_days']),
                     }
                   })
                   .sort((a: LoopOption, b: LoopOption) => a.number - b.number),

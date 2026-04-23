@@ -8,6 +8,7 @@ import { TEXTAREA_FIELDS, fieldPriority } from '@/lib/node-form-constants'
 import { validateDayRange } from '@/lib/session-validation'
 import { createClient } from '@/lib/supabase/client'
 import { updateSessionParticipants } from '@/app/actions/sessions'
+import { DEFAULT_LOOP_LENGTH_DAYS } from '@/lib/loop-length'
 
 type Props = {
   campaignId: string
@@ -84,12 +85,12 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
 
   // ── Resolve loopLength for the currently selected session loop ─────
   const loopLength = useMemo(() => {
-    if (!isSession) return 30
+    if (!isSession) return DEFAULT_LOOP_LENGTH_DAYS
     const raw = f.fields.loop_number
     const parsed = raw ? Number(raw) : NaN
-    if (!Number.isFinite(parsed)) return 30
+    if (!Number.isFinite(parsed)) return DEFAULT_LOOP_LENGTH_DAYS
     const loop = f.loops.find((l) => l.number === parsed)
-    return loop?.length_days ?? 30
+    return loop?.length_days ?? DEFAULT_LOOP_LENGTH_DAYS
   }, [isSession, f.fields.loop_number, f.loops])
 
   // ── Live-ish day-range validation (re-run on relevant changes) ─────
@@ -315,7 +316,7 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
               <ParticipantsPicker
                 key={editNode?.id ?? 'new'}
                 campaignId={campaignId}
-                initialSelectedIds={participantIds}
+                selectedIds={participantIds}
                 onChange={setParticipantIds}
               />
             </div>

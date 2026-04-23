@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { getCharacterFrontier } from '@/lib/loops'
-import { createClient } from '@/lib/supabase/server'
 
 type Props = {
   characterId: string
@@ -18,6 +17,9 @@ type Props = {
  * edges to any session in this loop.
  *
  * Server component: fetches its own data so the caller just slots it in.
+ * Single round-trip via `getCharacterFrontier` — session_number + day_to
+ * are returned alongside the frontier so we don't need a follow-up
+ * `select` for chip labels.
  */
 export async function CharacterFrontierCard({
   characterId,
@@ -25,10 +27,10 @@ export async function CharacterFrontierCard({
   loopNumber,
   campaignSlug,
 }: Props) {
-  const { frontier, sessionIds } = await getCharacterFrontier(characterId, loopId)
+  const { frontier, sessions } = await getCharacterFrontier(characterId, loopId)
 
   // No play history in this loop — terse "ещё не играл" state.
-  if (sessionIds.length === 0) {
+  if (sessions.length === 0) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
@@ -41,38 +43,16 @@ export async function CharacterFrontierCard({
     )
   }
 
-  // Fetch minimal session details to (a) sort by day_to desc and
-  // (b) render session_number chips. One query, bounded by sessionIds.
-  const supabase = await createClient()
-  const { data: sessionRows } = await supabase
-    .from('nodes')
-    .select('id, fields')
-    .in('id', sessionIds)
-
-  type SessionLite = { id: string; session_number: number; day_to: number | null }
-  const sessions: SessionLite[] = (sessionRows ?? []).map((r) => {
-    const f = (r.fields ?? {}) as Record<string, unknown>
-    const sn = Number(f['session_number'] ?? 0)
-    const dt = f['day_to']
-    const dayTo =
-      dt == null || dt === ''
-        ? null
-        : Number.isFinite(Number(dt))
-        ? Math.trunc(Number(dt))
-        : null
-    return { id: r.id, session_number: sn, day_to: dayTo }
-  })
-
   // Most-recent first: higher day_to wins; session_number as tie-break.
-  sessions.sort((a, b) => {
+  const sorted = [...sessions].sort((a, b) => {
     const ad = a.day_to ?? -Infinity
     const bd = b.day_to ?? -Infinity
     if (ad !== bd) return bd - ad
     return b.session_number - a.session_number
   })
 
-  const top = sessions.slice(0, 3)
-  const overflow = sessions.length - top.length
+  const top = sorted.slice(0, 3)
+  const overflow = sorted.length - top.length
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -85,7 +65,9 @@ export async function CharacterFrontierCard({
           {frontier != null ? (
             <>до дня <span className="font-medium">{frontier}</span></>
           ) : (
-            <span className="text-gray-500">сыграны сессии без дат</span>
+            <span className="text-gray-500">
+              {sorted.length} {pluralizeSessions(sorted.length)} без дат
+            </span>
           )}
         </span>
         {top.map((s) => (
@@ -103,4 +85,16 @@ export async function CharacterFrontierCard({
       </div>
     </div>
   )
+}
+
+/**
+ * Russian plural for "сессия". 1 сессия, 2-4 сессии, 5+/11-14 сессий.
+ */
+function pluralizeSessions(n: number): string {
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 14) return 'сессий'
+  const mod10 = n % 10
+  if (mod10 === 1) return 'сессия'
+  if (mod10 >= 2 && mod10 <= 4) return 'сессии'
+  return 'сессий'
 }

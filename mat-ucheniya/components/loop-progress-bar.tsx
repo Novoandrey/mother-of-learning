@@ -42,11 +42,23 @@ export function LoopProgressBar({ loop, sessions, campaignSlug }: Props) {
   )
   const undated = sessions.filter((s) => s.day_from == null || s.day_to == null)
 
+  // Defensive: `parseLengthDays` falls back to 30, so we shouldn't get
+  // here with a bad value. But if someone stores 0 / negative directly
+  // (legacy, manual DB edit, future breakage), render a neutral
+  // placeholder instead of a 1-day bar that would look buggy.
+  if (loop.length_days <= 0) {
+    return (
+      <div className="rounded border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-400 italic">
+        Длина петли не задана
+      </div>
+    )
+  }
+
   const { laneById, laneCount } = assignLanes(
     dated.map((s) => ({ id: s.id, day_from: s.day_from, day_to: s.day_to })),
   )
 
-  const totalDays = Math.max(1, loop.length_days)
+  const totalDays = loop.length_days
   // Fluid columns: each day is at least DAY_MIN_WIDTH px, then
   // distributes extra space equally up to 1fr. No overflow container
   // needed — the grid auto-fits the parent card.
@@ -203,6 +215,10 @@ function SegmentBlock({
   return (
     <div
       className="group relative"
+      // CSS Grid's grid-column-end is exclusive: a session on days 5..7
+      // occupies lines 5..8, so we add 1 to the end day to get the line
+      // number. `repeat(N, 1fr)` means column i starts at line i and
+      // ends at line i+1.
       style={{ gridColumn: `${clampedFrom} / ${clampedTo + 1}` }}
     >
       <button
@@ -214,9 +230,10 @@ function SegmentBlock({
         #{session.session_number}
       </button>
 
-      {/* Desktop-only tooltip. Hidden on mobile (below sm); only group-hover
-          at sm+ reveals it. */}
-      <div className="hidden sm:group-hover:block absolute z-20 top-full mt-1 left-0 w-60 rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-xs">
+      {/* Desktop-only tooltip. `group-hover` covers mouse; `group-focus-within`
+          covers keyboard (Tab lands on the button, which is inside .group).
+          Mobile (<sm) falls back to the click-to-open bottom sheet. */}
+      <div className="hidden sm:group-hover:block sm:group-focus-within:block absolute z-20 top-full mt-1 left-0 w-60 rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-xs">
         <SessionDetailCard session={session} campaignSlug={campaignSlug} />
       </div>
     </div>
