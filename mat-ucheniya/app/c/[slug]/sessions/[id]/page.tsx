@@ -2,9 +2,15 @@ export const dynamic = 'force-dynamic'
 
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getSessionById, getAllSessions } from '@/lib/loops'
-import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getMembership, requireAuth } from '@/lib/auth'
+import { unwrapOne } from '@/lib/supabase/joins'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { MarkdownContent } from '@/components/markdown-content'
+import { Chronicles } from '@/components/chronicles'
+import { EdgeList } from '@/components/edge-list'
 
 export async function generateMetadata({
   params,
@@ -35,17 +41,98 @@ function formatDayRange(from: number | null, to: number | null): string | null {
   return from === to ? `День ${from}` : `Дни ${from}–${to}`
 }
 
+type Edge = {
+  id: string
+  type_label: string
+  label: string | null
+  direction: 'outgoing' | 'incoming'
+  related_id: string
+  related_title: string
+}
+
+type Chronicle = {
+  id: string
+  title: string
+  content: string
+  loop_number: number | null
+  game_date: string | null
+  created_at: string
+  updated_at: string
+}
+
 export default async function SessionDetailPage({
   params,
 }: {
   params: Promise<{ slug: string; id: string }>
 }) {
   const { slug, id } = await params
-  const campaign = await getCampaignBySlug(slug)
+
+  const [campaign] = await Promise.all([
+    getCampaignBySlug(slug),
+    requireAuth(),
+  ])
   if (!campaign) notFound()
+
+  const membership = await getMembership(campaign.id)
+  if (!membership) redirect('/')
 
   const session = await getSessionById(id)
   if (!session) notFound()
+
+  // Parallel fetch: edges (both directions) + chronicles.
+  const supabase = await createClient()
+  const [edgeRes, chroniclesRes] = await Promise.all([
+    supabase
+      .from('edges')
+      .select(
+        'id, label, source_id, target_id, ' +
+          'source:nodes!source_id(id, title), ' +
+          'target:nodes!target_id(id, title), ' +
+          'edge_type:edge_types(slug, label)',
+      )
+      .or(`source_id.eq.${id},target_id.eq.${id}`),
+    supabase
+      .from('chronicles')
+      .select('id, title, content, loop_number, game_date, created_at, updated_at')
+      .eq('node_id', id)
+      .order('loop_number', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+  ])
+
+  type EdgeRow = {
+    id: string
+    label: string | null
+    source_id: string
+    target_id: string
+    source: { id: string; title: string } | Array<{ id: string; title: string }> | null
+    target: { id: string; title: string } | Array<{ id: string; title: string }> | null
+    edge_type: { slug: string; label: string } | Array<{ slug: string; label: string }> | null
+  }
+
+  // Exclude participated_in — those are already rendered as the
+  // "Участники" row above. Other edges (custom DM-authored connections)
+  // land in the generic Связи section below.
+  const edges: Edge[] = ((edgeRes.data ?? []) as unknown as EdgeRow[])
+    .map((e) => {
+      const edgeType = unwrapOne(e.edge_type)
+      const slug = edgeType?.slug ?? ''
+      if (slug === 'participated_in') return null
+      const direction: 'outgoing' | 'incoming' = e.source_id === id ? 'outgoing' : 'incoming'
+      const related =
+        direction === 'outgoing' ? unwrapOne(e.target) : unwrapOne(e.source)
+      if (!related) return null
+      return {
+        id: e.id,
+        type_label: edgeType?.label ?? slug,
+        label: e.label ?? null,
+        direction,
+        related_id: related.id,
+        related_title: related.title,
+      }
+    })
+    .filter((x): x is Edge => x !== null)
+
+  const chronicles = (chroniclesRes.data ?? []) as Chronicle[]
 
   const dayRange = formatDayRange(session.day_from, session.day_to)
 
@@ -80,8 +167,7 @@ export default async function SessionDetailPage({
             {session.title}
           </h1>
 
-          {/* Meta chips row: in-game day range, real-world played_at,
-              game_date fallback when the new day range is absent. */}
+          {/* Meta chips row */}
           {(dayRange || session.played_at || session.game_date) && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
               {dayRange && (
@@ -156,6 +242,36 @@ export default async function SessionDetailPage({
           <div className="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed">
             {session.dm_notes}
           </div>
+        </div>
+      )}
+
+      {/* Markdown content (same component as node-detail). Empty by
+          default; "+ Написать" shows up for campaign members. */}
+      <MarkdownContent
+        nodeId={session.id}
+        initialContent={session.content}
+        campaignSlug={slug}
+      />
+
+      {/* Letopis (chronicles tied to this session). */}
+      <Chronicles
+        nodeId={session.id}
+        campaignId={campaign.id}
+        campaignSlug={slug}
+        initialChronicles={chronicles}
+      />
+
+      {/* Other relations (excluding participated_in — those are the
+          Участники row above). Custom DM-authored edges surface here. */}
+      {edges.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
+            Связи
+          </h2>
+          <EdgeList
+            edges={edges}
+            campaignSlug={slug}
+          />
         </div>
       )}
     </div>
