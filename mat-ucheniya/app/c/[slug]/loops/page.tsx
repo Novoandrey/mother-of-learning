@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { LoopProgressBar } from '@/components/loop-progress-bar'
 
 export async function generateMetadata({
   params,
@@ -146,6 +147,22 @@ export default async function LoopsPage({
                 </div>
               )}
             </div>
+
+            {/* Progress bar (spec-009 T017). Sits between the loop header
+                and the sessions list. Hidden for length_days <= 0, which
+                shouldn't happen — parser falls back to 30 — but defensive. */}
+            {currentLoop.length_days > 0 && (
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
+                  Прогресс петли
+                </h2>
+                <LoopProgressBar
+                  loop={currentLoop}
+                  sessions={sessions}
+                  campaignSlug={slug}
+                />
+              </div>
+            )}
 
             {/* Sessions */}
             <div>
