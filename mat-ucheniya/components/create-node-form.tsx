@@ -1,9 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NodeFormField } from './node-form-field'
+import { ParticipantsPicker } from './participants-picker'
 import { useNodeForm, type ExistingNode } from '@/hooks/use-node-form'
 import { TEXTAREA_FIELDS, fieldPriority } from '@/lib/node-form-constants'
+import { validateDayRange } from '@/lib/session-validation'
+import { createClient } from '@/lib/supabase/client'
+import { updateSessionParticipants } from '@/app/actions/sessions'
 
 type Props = {
   campaignId: string
@@ -12,8 +16,27 @@ type Props = {
   preselectedType?: string
 }
 
+const DAY_RANGE_KEYS = ['day_from', 'day_to']
+
 export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselectedType }: Props) {
-  const f = useNodeForm({ campaignId, campaignSlug, editNode, preselectedType })
+  // ── Session participants state (T012) ──────────────────────────────
+  // Tracked locally: participants live in `participated_in` edges, not
+  // in `nodes.fields`. Loaded from the DB for edit; persisted through
+  // the `onBeforeRedirect` hook passed into useNodeForm below.
+  const [participantIds, setParticipantIds] = useState<string[]>([])
+  const [dayError, setDayError] = useState<string | null>(null)
+
+  const f = useNodeForm({
+    campaignId,
+    campaignSlug,
+    editNode,
+    preselectedType,
+    onBeforeRedirect: async (nodeId, typeSlug) => {
+      // Only sessions store participants; no-op otherwise.
+      if (typeSlug !== 'session') return
+      await updateSessionParticipants(nodeId, participantIds)
+    },
+  })
 
   const [showNewType, setShowNewType] = useState(false)
   const [newTypeLabel, setNewTypeLabel] = useState('')
@@ -32,8 +55,71 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
     setCreatingType(false)
   }
 
+  // ── Load existing participants when editing a session ──────────────
+  const supabase = useMemo(() => createClient(), [])
+  const isSession = f.selectedType?.slug === 'session'
+  useEffect(() => {
+    if (!editNode || !isSession) return
+    let canceled = false
+    ;(async () => {
+      const { data: et } = await supabase
+        .from('edge_types')
+        .select('id')
+        .eq('slug', 'participated_in')
+        .eq('is_base', true)
+        .maybeSingle()
+      if (canceled || !et) return
+      const { data } = await supabase
+        .from('edges')
+        .select('target_id')
+        .eq('source_id', editNode.id)
+        .eq('type_id', et.id)
+      if (canceled) return
+      setParticipantIds((data ?? []).map((r) => r.target_id as string))
+    })()
+    return () => {
+      canceled = true
+    }
+  }, [editNode, isSession, supabase])
+
+  // ── Resolve loopLength for the currently selected session loop ─────
+  const loopLength = useMemo(() => {
+    if (!isSession) return 30
+    const raw = f.fields.loop_number
+    const parsed = raw ? Number(raw) : NaN
+    if (!Number.isFinite(parsed)) return 30
+    const loop = f.loops.find((l) => l.number === parsed)
+    return loop?.length_days ?? 30
+  }, [isSession, f.fields.loop_number, f.loops])
+
+  // ── Live-ish day-range validation (re-run on relevant changes) ─────
+  useEffect(() => {
+    if (!isSession) {
+      if (dayError) setDayError(null)
+      return
+    }
+    const err = validateDayRange(f.fields.day_from, f.fields.day_to, loopLength)
+    setDayError(err)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSession, f.fields.day_from, f.fields.day_to, loopLength])
+
+  // ── Submit gate: block on day-range error; let hook handle the rest ─
+  function handleSubmitClick() {
+    if (isSession) {
+      const err = validateDayRange(f.fields.day_from, f.fields.day_to, loopLength)
+      setDayError(err)
+      if (err) return
+    }
+    f.handleSubmit()
+  }
+
   const fieldOrder = Object.keys(f.fields).sort((a, b) => fieldPriority(a) - fieldPriority(b))
-  const shortFields = fieldOrder.filter((k) => !TEXTAREA_FIELDS.includes(k))
+  const allShortFields = fieldOrder.filter((k) => !TEXTAREA_FIELDS.includes(k))
+  // Day range fields get their own dedicated flex-row below the grid —
+  // keep them out of the generic short-field layout.
+  const shortFields = allShortFields.filter((k) => !DAY_RANGE_KEYS.includes(k))
+  const hasDayRange =
+    isSession && DAY_RANGE_KEYS.every((k) => k in f.fields)
   const longFields = fieldOrder.filter((k) => TEXTAREA_FIELDS.includes(k))
 
   return (
@@ -174,6 +260,53 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
             />
           ))}
 
+          {/* Session-only: day range + participants (spec-009). */}
+          {hasDayRange && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <NodeFormField
+                  key="day_from"
+                  fieldKey="day_from"
+                  value={f.fields.day_from ?? ''}
+                  onChange={(v) => f.setFields({ ...f.fields, day_from: v })}
+                  typeSlug={f.selectedType?.slug}
+                  loops={f.loops}
+                />
+                <NodeFormField
+                  key="day_to"
+                  fieldKey="day_to"
+                  value={f.fields.day_to ?? ''}
+                  onChange={(v) => f.setFields({ ...f.fields, day_to: v })}
+                  typeSlug={f.selectedType?.slug}
+                  loops={f.loops}
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                Диапазон дней внутри петли (длина петли: {loopLength}). Оставь
+                пустым, если сессия без точной даты.
+              </p>
+              {dayError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-1.5">
+                  {dayError}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isSession && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Участники (пачка)
+              </label>
+              <ParticipantsPicker
+                key={editNode?.id ?? 'new'}
+                campaignId={campaignId}
+                initialSelectedIds={participantIds}
+                onChange={setParticipantIds}
+              />
+            </div>
+          )}
+
           {f.selectedType.slug === 'loop' && (
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Заметки ДМа (markdown)</label>
@@ -191,8 +324,12 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
 
           <div className="flex items-center gap-3 pt-1">
             <button
-              onClick={f.handleSubmit}
-              disabled={f.saving || (!f.title.trim() && !f.autoTitle)}
+              onClick={handleSubmitClick}
+              disabled={
+                f.saving ||
+                (!f.title.trim() && !f.autoTitle) ||
+                (isSession && dayError !== null)
+              }
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {f.saving ? 'Сохраняю...' : f.isEdit ? 'Сохранить' : 'Создать'}

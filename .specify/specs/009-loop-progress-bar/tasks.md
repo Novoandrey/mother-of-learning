@@ -34,13 +34,13 @@ P3 = nice-to-have.
 **⚠️ Idempotent & non-destructive.** No ALTER TABLE. Safe to
 re-run.
 
-- [ ] **T001** [P1] Write `mat-ucheniya/supabase/migrations/032_session_packs_and_loop_length.sql`:
+- [x] **T001** [P1] Write `mat-ucheniya/supabase/migrations/032_session_packs_and_loop_length.sql`:
   - `INSERT INTO edge_types (slug='participated_in', label='Участник сессии', is_base=true)` with `ON CONFLICT … DO NOTHING`
   - `UPDATE node_types … SET default_fields = default_fields || {day_from: "", day_to: ""}` where `slug='session'` and key not present
   - `UPDATE node_types … SET default_fields = default_fields || {length_days: 30}` where `slug='loop'` and key not present
   - Wrap in `BEGIN; … COMMIT;`
   - After writing: call `present_files` so the user can download
-- [ ] **T002** [P1] User applies migration in Supabase (manual step). Wait for confirmation before Phase 2.
+- [x] **T002** [P1] User applies migration in Supabase (manual step). Wait for confirmation before Phase 2.
 
 **Checkpoint**: `edge_types` has `participated_in`. `node_types` default_fields extended. Existing data untouched.
 
@@ -51,24 +51,24 @@ re-run.
 **Purpose**: Type definitions, query hydration for participants,
 server actions, validation utility.
 
-- [ ] **T003** [P1] Extend types in `mat-ucheniya/lib/loops.ts`:
+- [x] **T003** [P1] Extend types in `mat-ucheniya/lib/loops.ts`:
   - `Session` gets `day_from: number | null`, `day_to: number | null`, `participants: { id: string; title: string }[]`
   - `Loop` gets `length_days: number` (always a number in the type — parsed with fallback 30)
   - `nodeToSession()` parses `day_from`/`day_to` from `fields` (accept int, numeric string, or empty); `participants` defaults to `[]` when not injected
   - `nodeToLoop()` parses `length_days` with fallback 30
-- [ ] **T004** [P1] Add participants hydration in `mat-ucheniya/lib/loops.ts`:
+- [x] **T004** [P1] Add participants hydration in `mat-ucheniya/lib/loops.ts`:
   - New internal helper `hydrateParticipants(sessionIds: string[]): Promise<Map<string, {id,title}[]>>` — single Supabase query on `edges` joined to `nodes`, filtered by `type_id = participated_in`
   - Update `getSessionsByLoop()` and `getAllSessions()` to call hydration and merge into sessions
   - Update `getSessionById()` similarly (single-element case)
   - Verify no N+1 (2 queries total per call site)
-- [ ] **T005** [P1] Add frontier helpers in `mat-ucheniya/lib/loops.ts`:
+- [x] **T005** [P1] Add frontier helpers in `mat-ucheniya/lib/loops.ts`:
   - `getLoopFrontier(loopId: string): Promise<number | null>` — reduces over already-loaded sessions if available, otherwise single query
   - `getCharacterFrontier(characterId: string, loopId: string): Promise<{ frontier: number | null; sessionIds: string[] }>` — two chained queries: fetch session ids where PC is `participated_in` target AND `contains` target from loop, then aggregate
-- [ ] **T006** [P1] Create server action file `mat-ucheniya/app/actions/characters.ts`:
+- [x] **T006** [P1] Create server action file `mat-ucheniya/app/actions/characters.ts`:
   - `'use server'` directive
   - `getCampaignPCs(campaignId: string): Promise<{ id: string; title: string; owner_display_name: string | null }[]>` — inner join `nodes` with `node_pc_owners` where `type='character'`, left join `user_profiles` for owner display name, sort by `title`
   - Membership check via existing helper
-- [ ] **T007** [P1] Create server action file `mat-ucheniya/app/actions/sessions.ts`:
+- [x] **T007** [P1] Create server action file `mat-ucheniya/app/actions/sessions.ts`:
   - `'use server'` directive
   - `updateSessionParticipants(sessionId: string, characterIds: string[]): Promise<void>`
   - Membership check
@@ -77,10 +77,10 @@ server actions, validation utility.
   - `delete from edges where source_id=$sessionId and type_id=$pid` (raw enough — RLS enforces access)
   - `insert into edges (...)` for each characterId (no duplicates because of unique constraint; treat conflicts as no-op via `onConflict('source_id,target_id,type_id')`)
   - Call `invalidateSidebar(campaignId)` at end
-- [ ] **T008** [P1] [P] Create `mat-ucheniya/lib/session-validation.ts`:
+- [x] **T008** [P1] [P] Create `mat-ucheniya/lib/session-validation.ts`:
   - `validateDayRange(day_from, day_to, loopLength): string | null` — exact rules per plan.md
   - Both empty ⇒ OK; both set ⇒ integer check + range check + ordering check
-- [ ] **T009** [P1] [P] Update `mat-ucheniya/lib/node-form-constants.ts`:
+- [x] **T009** [P1] [P] Update `mat-ucheniya/lib/node-form-constants.ts`:
   - `FIELD_LABELS`: add `day_from: 'День от'`, `day_to: 'День до'`, `length_days: 'Длина петли (дней)'`
   - `NUMBER_FIELDS`: add `'day_from'`, `'day_to'`, `'length_days'`
   - `fieldPriority`: put `day_from`/`day_to` right after `session_number` (priority value between 0 and 1)
@@ -93,17 +93,17 @@ server actions, validation utility.
 
 **Purpose**: DM can set day range and participants on a session.
 
-- [ ] **T010** [P1] Create `mat-ucheniya/components/participants-picker.tsx` (client component):
+- [x] **T010** [P1] Create `mat-ucheniya/components/participants-picker.tsx` (client component):
   - Dropdown opens on button click; fetches PCs via `getCampaignPCs` server action (cached with `useState` on first open)
   - Filter text input
   - Scrollable list with checkbox per row; selected rows sticky at top
   - Counter `{n} / {total} selected`
   - On viewport < 640px: render as full-screen sheet (dialog with `position: fixed; inset: 0`) instead of dropdown
   - Props: `campaignId`, `initialSelectedIds`, `onChange`
-- [ ] **T011** [P1] Modify `mat-ucheniya/components/node-form-field.tsx`:
+- [x] **T011** [P1] Modify `mat-ucheniya/components/node-form-field.tsx`:
   - Add early-return special case for `fieldKey === 'day_from'` when `typeSlug === 'session'`: render a combined "День от / День до" widget (two numeric inputs side-by-side). The widget calls `onChange` for `day_from` and accepts/emits `day_to` via a new optional prop pattern OR use two separate rendered widgets with validation wrapper — **decision**: render two separate inputs but wrap them in a flex row when both appear in form sequence. Keep it dumb.
   - For `fieldKey === 'day_to'`: render standard number input (same as other NUMBER_FIELDS), no special case needed beyond ordering
-- [ ] **T012** [P1] Modify `mat-ucheniya/components/create-node-form.tsx`:
+- [x] **T012** [P1] Modify `mat-ucheniya/components/create-node-form.tsx`:
   - When `typeSlug === 'session'`: render `<ParticipantsPicker />` as a separate section below the fields grid
   - Track `participantIds` in local state (not in `fields`)
   - On submit: after the existing node insert/update (which persists `day_from`/`day_to` via `fields`), call `updateSessionParticipants(sessionId, participantIds)`
