@@ -150,9 +150,23 @@ export default function TransactionForm({
   // record something in a past/future loop, that flow belongs in a
   // dedicated bulk-edit tool (IDEA-043), not the per-tx sheet.
   const loopNumber: number = editing?.loop_number ?? defaultLoopNumber
-  const [dayInLoop, setDayInLoop] = useState<number>(
-    editing?.day_in_loop ?? defaultDayInLoop,
+  // Day is stored as the raw input string so the user can clear the
+  // field and type a new number — a plain `useState<number>` rejects
+  // the intermediate empty state and freezes the cursor. We normalise
+  // to a valid number on blur and again at submit: empty/<1 → 1, >30
+  // → 30 (30 matches the current loop-length default; revisit once
+  // loops carry variable length_days all the way down to the form).
+  const initialDay: number = editing?.day_in_loop ?? defaultDayInLoop
+  const [dayInLoopText, setDayInLoopText] = useState<string>(
+    String(initialDay),
   )
+  const normalizeDay = useCallback((raw: string): number => {
+    const n = Number(raw)
+    if (!Number.isFinite(n) || n < 1) return 1
+    if (n > 30) return 30
+    return Math.trunc(n)
+  }, [])
+  const dayInLoop = normalizeDay(dayInLoopText)
   const sessionId: string | null = editing?.session_id ?? defaultSessionId
 
   const [submitting, setSubmitting] = useState(false)
@@ -406,11 +420,10 @@ export default function TransactionForm({
             type="number"
             inputMode="numeric"
             min="1"
-            value={dayInLoop}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (Number.isFinite(n) && n > 0) setDayInLoop(Math.trunc(n))
-            }}
+            max="30"
+            value={dayInLoopText}
+            onChange={(e) => setDayInLoopText(e.target.value)}
+            onBlur={() => setDayInLoopText(String(normalizeDay(dayInLoopText)))}
             disabled={busy}
             className="w-16 rounded border border-gray-200 px-2 py-0.5 text-right text-xs focus:border-blue-500 focus:outline-none disabled:opacity-50"
           />
