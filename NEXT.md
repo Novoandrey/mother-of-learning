@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 37 — spec-010 implement)
+> Last updated: 2026-04-24 (chat 38 — spec-010 UX fixes)
 
 ## В проде сейчас
 
@@ -11,7 +11,7 @@
 - **spec-003 Петли и сессии как ноды**: миграции `008a`-`012`
 - **spec-006 Auth + роли**: миграции `024`, `027`-`028`, `031`
 - **spec-009 Loop progress bar + session packs**: миграции `032`-`033`
-- **spec-010 Transactions ledger (chat 37)**: миграция `034`. Новая
+- **spec-010 Transactions ledger (chat 37-38)**: миграция `034`. Новая
   top-level app `/c/[slug]/accounting` (ledger + /settings/categories).
   Single-file UI: `transaction-form.tsx` поддерживает все три kind'а
   (money/item/transfer). Wallet block на странице PC (balance +
@@ -21,6 +21,13 @@
   based таблица готова к spec-015 (item). Vitest подключён
   (47 pure-unit tests). Nav tab «Бухгалтерия» для всех member'ов.
   На session page секция «Транзакции» (stretch).
+  **Chat 38 polish**: дефолтный день транзакции подставляется
+  data-driven helper'ом `computeDefaultDayForTx` (latest tx →
+  frontier → 1) — день «липнет», не откатывается при повторном
+  открытии формы. В форме `loop` read-only, `day` — inline input
+  без expand. `amount-input` per-denom panel без синего wrapper'а.
+  Accounting page prefetchит `defaultDayByPcId` для всех
+  доступных PC параллельно.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -58,13 +65,22 @@ transfer-примитив из spec-010 (два лега с `transfer_group_id`)
 ### Хвосты spec-010 (не блокеры)
 
 - Session binding в форме: сейчас session подставляется только из
-  фронтира, ручное переназначение отложено (caption-editor имеет
-  TODO-note в UI)
+  фронтира, ручное переназначение отложено (см. TECH-009 /
+  IDEA-045).
 - Ledger totals считаются в памяти (`getLedgerPage` тянет агрегат
   без LIMIT). В плане есть follow-up про materialized view на
   (campaign, loop, pc) — актуально когда mat-ucheniya перевалит
-  за ~тысячу транзакций
-- Bulk-edit и collapsed-transfer-row view — отложены (см. backlog)
+  за ~тысячу транзакций (TECH-008).
+- Bulk-edit и collapsed-transfer-row view — отложены (IDEA-043).
+- Стартовый капитал из класса/бэкграунда — IDEA-051.
+- UI/UX skill для Claude — IDEA-052 (meta).
+
+## Приоритеты текущего этапа
+
+`mat-ucheniya/AGENTS.md` теперь фиксирует порядок: **данные →
+десктоп-UX → мобилка**. Мобильная спека придёт отдельно; точечные
+мобильные фиксы — только если контрол вообще не кликабелен на
+телефоне.
 
 ## Отложенные фичи
 
