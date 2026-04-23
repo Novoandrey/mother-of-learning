@@ -6,6 +6,7 @@ import LedgerRow from './ledger-row'
 import TransactionFormSheet from './transaction-form-sheet'
 import {
   deleteTransaction,
+  deleteTransfer,
   loadLedgerPage,
 } from '@/app/actions/transactions'
 import type {
@@ -97,18 +98,34 @@ export default function LedgerListClient({
   }, [])
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      if (!confirm('Удалить эту транзакцию?')) return
-      setBusyId(id)
+    async (row: TransactionWithRelations) => {
+      const isTransfer =
+        row.kind === 'transfer' && !!row.transfer_group_id
+      const prompt = isTransfer
+        ? 'Удалить перевод? Обе стороны будут удалены.'
+        : 'Удалить эту транзакцию?'
+      if (!confirm(prompt)) return
+      setBusyId(row.id)
       try {
-        const res = await deleteTransaction(id)
+        const res = isTransfer
+          ? await deleteTransfer(row.transfer_group_id!)
+          : await deleteTransaction(row.id)
         if (!res.ok) {
           alert(res.error)
           return
         }
         setHiddenIds((prev) => {
           const next = new Set(prev)
-          next.add(id)
+          next.add(row.id)
+          // Hide the sibling leg too so there's no brief flash of the
+          // other side before `router.refresh()` lands.
+          if (isTransfer) {
+            for (const r of [...initialRows, ...appendedRows]) {
+              if (r.transfer_group_id === row.transfer_group_id) {
+                next.add(r.id)
+              }
+            }
+          }
           return next
         })
         router.refresh()
@@ -116,7 +133,7 @@ export default function LedgerListClient({
         setBusyId(null)
       }
     },
-    [router],
+    [appendedRows, initialRows, router],
   )
 
   const defaultLoopNumber = editing?.loop_number ?? 1

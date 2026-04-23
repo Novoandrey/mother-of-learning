@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import TransactionFormSheet from './transaction-form-sheet'
 import type { Category, TransactionWithRelations } from '@/lib/transactions'
 import { formatAmount } from '@/lib/transaction-format'
-import { deleteTransaction } from '@/app/actions/transactions'
+import { deleteTransaction, deleteTransfer } from '@/app/actions/transactions'
 
 type Props = {
   campaignId: string
@@ -60,11 +60,18 @@ export default function WalletBlockClient({
   }, [])
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      if (!confirm('Удалить эту транзакцию?')) return
-      setBusyId(id)
+    async (row: TransactionWithRelations) => {
+      const isTransfer =
+        row.kind === 'transfer' && !!row.transfer_group_id
+      const prompt = isTransfer
+        ? 'Удалить перевод? Обе стороны будут удалены.'
+        : 'Удалить эту транзакцию?'
+      if (!confirm(prompt)) return
+      setBusyId(row.id)
       try {
-        const res = await deleteTransaction(id)
+        const res = isTransfer
+          ? await deleteTransfer(row.transfer_group_id!)
+          : await deleteTransaction(row.id)
         if (!res.ok) {
           alert(res.error)
           return
@@ -131,7 +138,7 @@ function RecentList({
   canManage: boolean
   busyId: string | null
   onEdit: (tx: TransactionWithRelations) => void
-  onDelete: (id: string) => void
+  onDelete: (tx: TransactionWithRelations) => void
 }) {
   if (recent.length === 0) {
     return (
@@ -184,7 +191,7 @@ function RecentList({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onDelete(tx.id)}
+                  onClick={() => onDelete(tx)}
                   disabled={isBusy}
                   className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50"
                 >
