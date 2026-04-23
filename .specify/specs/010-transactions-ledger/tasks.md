@@ -326,7 +326,7 @@ edit/delete from the ledger (completes US4 acceptance scenarios
 
 - [x] **T039** [P1] Run lint + typecheck: `cd mat-ucheniya && npm run lint && npx tsc --noEmit`. Fix any errors.
 - [x] **T040** [P1] Run tests: `cd mat-ucheniya && npm run test`. All pure-util tests green.
-- [ ] **T041** [P1] Manual smoke walkthrough on mat-ucheniya production data:
+- [x] **T041** [P1] Manual smoke walkthrough on mat-ucheniya production data:
   - Create a money transaction from a PC page (mobile viewport in DevTools) — US1
   - Verify wallet block on PC page — US2
   - Open `/c/<slug>/accounting` and filter by PC and loop — US3
