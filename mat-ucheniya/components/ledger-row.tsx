@@ -12,7 +12,7 @@ type Props = {
   /** Viewer is owner/dm — enables edit/delete regardless of authorship. */
   canManage: boolean
   onEdit: (row: TransactionWithRelations) => void
-  onDelete: (id: string) => void
+  onDelete: (row: TransactionWithRelations) => void
   /** Disables edit/delete controls while an action for this id is in flight. */
   busy?: boolean
 }
@@ -137,7 +137,7 @@ export default function LedgerRow({
             </button>
             <button
               type="button"
-              onClick={() => onDelete(row.id)}
+              onClick={() => onDelete(row)}
               disabled={busy}
               className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50"
             >
