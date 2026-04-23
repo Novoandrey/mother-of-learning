@@ -78,7 +78,17 @@ export function NodeFormField({ fieldKey, value, onChange, typeSlug, loops = [] 
     return (
       <div>
         <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
-        <input type="number" min={1} value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} />
+        <input
+          type="number"
+          min={1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          // Blur on wheel: prevents accidentally changing the value while
+          // scrolling the page. `type=number` otherwise increments/decrements
+          // on mouse wheel when focused — a common usability gripe.
+          onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+          className={inputCls}
+        />
       </div>
     )
   }
