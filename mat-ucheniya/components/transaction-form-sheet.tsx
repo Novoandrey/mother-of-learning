@@ -14,6 +14,8 @@ type Props = {
   defaultSessionId: string | null
   categories?: Category[]
   editing?: TransactionWithRelations | null
+  /** Pre-select a tab on mount (create flow). Ignored in edit mode. */
+  initialKind?: 'income' | 'expense' | 'item' | 'transfer'
 }
 
 /**
@@ -36,6 +38,7 @@ export default function TransactionFormSheet({
   defaultSessionId,
   categories,
   editing,
+  initialKind,
 }: Props) {
   // Escape-to-close.
   useEffect(() => {
@@ -104,6 +107,7 @@ export default function TransactionFormSheet({
             defaultSessionId={defaultSessionId}
             categories={categories}
             editing={editing}
+            initialKind={initialKind}
             onSuccess={handleSuccess}
             onCancel={onClose}
           />
