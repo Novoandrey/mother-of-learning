@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 42 — spec-011 polish Slice A)
+> Last updated: 2026-04-24 (chat 43 — Slice B ship + filter collapsible + item ownership guard)
 
 ## В проде сейчас
 
@@ -48,6 +48,32 @@
   удалён. Data-layer: добавлено поле `counterparty: { nodeId, title } |
   null` в `TransactionWithRelations`, новый `hydrateCounterparties`
   (один доп. запрос по `transfer_group_id`). Схема БД не меняется.
+- **spec-011 polish Slice B (chat 42→43)**: stash page как табы над
+  ledger. Новый `<BalanceHero>` + `<BalanceHeroClient>` — только hero
+  card (без inline recent list). Новый `<StashPageTabs>` — «Предметы»
+  (`<InventoryGrid>`) / «Лента транзакций» (`<LedgerList>` с новым
+  prop `fixedActorNodeId` — override filter, hide actor chip, скрыть
+  «N персонажей» stat). Оба таба всегда смонтированы, переключение
+  CSS-only (сохраняет filter/scroll state). Stash page теперь:
+  Header → BalanceHero → StashPageTabs. Устраняет дубляж UX между
+  `/accounting` и `/accounting/stash` — внутри таба сразу красивые
+  ряды из Slice A. `<WalletBlock>` для PC-страниц не трогался.
+- **Ledger filter bar collapsible (chat 43)**: `components/ledger-filters.tsx`
+  переписан. Свёрнут по умолчанию — показывает только кнопку
+  «Фильтры (N)» + активные фильтры как removable chips + «Сбросить
+  всё». Клик по кнопке разворачивает полную multi-group панель.
+  URL по-прежнему single source of truth; `expanded` — local UI
+  state. Дополнительно: новый prop `currentLoopNumber` — маркер «●»
+  рядом с номером текущей петли в развёрнутом виде, подпись
+  «Петля №3 · текущая» в active-chip.
+- **Item ownership guard (chat 43, BUG-fix)**: `createItemTransfer`
+  теперь агрегирует `item_qty` по (sender, item_name, loop_number)
+  перед insert'ом и отклоняет перевод если `owned < qty`. Фиксит
+  случай когда PC «кладёт в общак» предмет, которого у него нет —
+  ранее создавалась пара легов (sender=−qty, recipient=+qty),
+  оставляя у PC «отрицательный инвентарь», невидимый в UI.
+  Ошибка: «У персонажа недостаточно «X» — есть N, нужно M. Сначала
+  запишите получение предмета отдельной транзакцией.»
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -70,29 +96,24 @@
 
 ## Следующий приоритет
 
-**Spec-011 polish Slice B — stash page как табы над ledger.**
-Slice A отгружен (см. выше). Slice B по
-`.specify/specs/011-common-stash/POLISH-PROPOSAL.md`:
-
-- Split `<WalletBlock>` → `<BalanceHero>` (только hero card +
-  «+ Транзакция») + существующий полный блок остаётся для PC-страниц.
-- `<LedgerList>` получает `fixedActorNodeId?: string` — когда задан,
-  скрыть actor-фильтр, подставить в `filters.pc` на сервере
-  (предикат уже ходит через `applyFilters` в `getLedgerPage`).
-- Новый `<StashPageTabs>` (client) с двумя табами: «Предметы» (существующий
-  `<InventoryGrid>`) / «Лента транзакций» (`<LedgerList>` с
-  `fixedActorNodeId={stash.nodeId}`). Slice A уже даёт красивые ряды
-  внутри этой ленты.
-- Stash page собирается: `<Header>` → `<BalanceHero>` → `<StashPageTabs>`.
-  Убирает дубляж UX между `/accounting` и `/accounting/stash`.
-
-**Также ждёт:** T034 hand-walkthrough US1-US8 из
+**T034 hand-walkthrough US1-US8** из
 `.specify/specs/011-common-stash/TESTPLAN.md` — пользователь ещё
-не прогнал. Можно совместить с визуальной проверкой Slice A и Slice B.
+не прогнал. Stash-пайп теперь весь стоит на ногах (Slice A+B + ownership
+guard), поэтому прогон должен поймать только мелочь. Можно совместить
+с визуальной проверкой фильтров (свёрнут/раскрыт, «текущая» метка).
+
+**IDEA-043 — collapse transfer pair в один ряд.** Сейчас один перевод
+(например «Мирияна → Общак, амулет ×2») выдаёт две строки в ledger'е:
+leg отправителя и leg получателя. После Slice A это читается как
+«Мирияна → Общак ×2» и «Общак → Мирияна ×2» — зеркальное дублирование
+запутывает. На per-actor view (PC-страница, stash tab) проблемы нет —
+фильтр `pc` отсекает sibling leg. Решение для общего `/accounting`:
+в `getLedgerPage` дедупать по `transfer_group_id`, оставляя sender leg
+(где знак отрицательный). Не P0, но стоит сделать пока контекст свежий.
 
 **Spec-016 Сборы** — записан только spec.md. Следующие фазы
 Clarify → Plan → Tasks → Implement. Оставлен в ожидании пока
-доделаем spec-011 polish.
+стабилизируем spec-011 UX.
 
 ### Параллельные кандидаты
 

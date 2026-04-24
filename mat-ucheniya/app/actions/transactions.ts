@@ -827,6 +827,42 @@ export async function createItemTransfer(
   const groupId = crypto.randomUUID()
   const itemName = input.itemName.trim()
 
+  // Ownership check — sender must actually own ≥ qty of this item in
+  // the current loop. Without this gate, "Положить в общак" (or any
+  // item transfer) can conjure items the sender never had — leaving a
+  // negative balance no UI surfaces. We aggregate `item_qty` across
+  // all approved `kind='item'` rows for this (actor, item, loop) and
+  // require the net to be ≥ requested qty.
+  //
+  // Balances wipe per loop (FR-015), so the scope is the current loop
+  // only. `item_name` match is exact — the form auto-completes from
+  // existing rows so case/whitespace drift is rare; if it bites we can
+  // loosen later.
+  const { data: senderLegs, error: ownErr } = await admin
+    .from('transactions')
+    .select('item_qty')
+    .eq('campaign_id', input.campaignId)
+    .eq('actor_pc_id', input.senderPcId)
+    .eq('kind', 'item')
+    .eq('item_name', itemName)
+    .eq('loop_number', input.loopNumber)
+    .eq('status', 'approved')
+
+  if (ownErr) {
+    return { ok: false, error: `Ошибка проверки инвентаря: ${ownErr.message}` }
+  }
+
+  const owned = ((senderLegs ?? []) as { item_qty: number }[]).reduce(
+    (s, r) => s + (r.item_qty ?? 0),
+    0,
+  )
+  if (owned < input.qty) {
+    return {
+      ok: false,
+      error: `У персонажа недостаточно «${itemName}» — есть ${owned}, нужно ${input.qty}. Сначала запишите получение предмета отдельной транзакцией.`,
+    }
+  }
+
   const baseRow = {
     campaign_id: input.campaignId,
     kind: 'item' as const,

@@ -11,6 +11,22 @@ type Props = {
   campaignSlug: string
   /** URL search params as a plain object — Next.js 16 page convention. */
   searchParams: Record<string, string | string[] | undefined>
+  /**
+   * When set, the feed is pinned to this actor — the `pc` URL filter
+   * is overridden, the actor chip group in the filter bar is hidden,
+   * and the "N персонажей" summary stat (always 1) is suppressed.
+   *
+   * Used by the stash page tab to show only stash-leg transactions
+   * without offering a way to broaden the selection — the tab view
+   * is intentionally scoped.
+   */
+  fixedActorNodeId?: string
+  /**
+   * Number of the loop with `status='current'`, if any — forwarded to
+   * `<LedgerFilters>` so the matching loop chip can be tagged "(текущая)".
+   * Caller (page) already has this fetched, so we avoid a duplicate query.
+   */
+  currentLoopNumber?: number | null
 }
 
 const PAGE_SIZE = 30
@@ -58,6 +74,8 @@ export default async function LedgerList({
   campaignId,
   campaignSlug,
   searchParams,
+  fixedActorNodeId,
+  currentLoopNumber = null,
 }: Props) {
   const user = await getCurrentUser()
   if (!user) return null
@@ -66,6 +84,10 @@ export default async function LedgerList({
 
   const canManage = membership.role === 'owner' || membership.role === 'dm'
   const filters = parseFilters(searchParams)
+  if (fixedActorNodeId) {
+    // Hard override — URL ?pc=… is ignored inside a pinned feed.
+    filters.pc = [fixedActorNodeId]
+  }
   const cursor = typeof searchParams.cursor === 'string' ? searchParams.cursor : null
 
   const admin = createAdminClient()
@@ -135,9 +157,11 @@ export default async function LedgerList({
         <span>
           <strong className="text-gray-900">{summary.count}</strong> транзакций
         </span>
-        <span>
-          <strong className="text-gray-900">{summary.distinctPcs}</strong> персонажей
-        </span>
+        {!fixedActorNodeId && (
+          <span>
+            <strong className="text-gray-900">{summary.distinctPcs}</strong> персонажей
+          </span>
+        )}
         <span>
           нетто:{' '}
           <strong className="text-gray-900">{netDisplay}</strong>
@@ -148,6 +172,8 @@ export default async function LedgerList({
         pcs={(pcs.data ?? []) as { id: string; title: string }[]}
         loops={loopNumbers}
         categories={categories}
+        hideActorFilter={!!fixedActorNodeId}
+        currentLoopNumber={currentLoopNumber}
       />
 
       <LedgerListClient
