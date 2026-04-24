@@ -38,6 +38,17 @@ type Props = {
   effectNames: string[]
   initialLogEntries: LogEntry[]
   initialEvents: EncounterEvent[]
+  /**
+   * When `false`, the viewer is a player (not DM/owner). RLS on
+   * `encounter_participants` / `encounters` / event tables only lets
+   * DMs and owners modify rows, so for players any write would be
+   * silently rejected. Rather than let optimistic local state drift
+   * out of sync with the DB — which produced the chat-44 bug where
+   * damage appeared in the target picker but vanished on reload — we
+   * gate the action surface on this flag and show a single toast
+   * explaining why the click did nothing.
+   */
+  canEdit: boolean
 }
 
 type RightTab = 'statblock' | 'catalog'
@@ -53,6 +64,7 @@ export function EncounterPageClient({
   effectNames,
   initialLogEntries,
   initialEvents,
+  canEdit,
 }: Props) {
   const [logEntries, setLogEntries] = useState(initialLogEntries)
   const [events, setEvents] = useState(initialEvents)
@@ -243,8 +255,20 @@ export function EncounterPageClient({
   // ── Action resolved → write events + apply damage ───────────────────
   // One event per target (hp_damage if damage > 0, else custom with hit/miss
   // note). Optional overall comment becomes an additional custom event.
-  // Damage is written to encounter_participants.current_hp directly; the
-  // grid picks up the change through participantsSnap / router.refresh.
+  //
+  // Player vs DM (fix for BUG-018, chat 44):
+  //   RLS on `encounter_participants` only allows DM/owner writes. Before
+  //   the fix, a player's click silently failed in the DB but the target
+  //   picker still read HP from stale cached snapshots, showing damage
+  //   that vanished on reload. We now gate on `canEdit` up-front and
+  //   show one toast instead of half-applying state.
+  //
+  // DM failure path:
+  //   If the DB write genuinely errors (network, constraint, RLS change),
+  //   we skip the local HP update — neither page-client snap nor grid
+  //   gets the mutation, so reload-vs-live stay consistent. Event log
+  //   still fires because the DM's action (roll) happened, just didn't
+  //   commit to HP.
   const handleActionResolved = useCallback(
     async (
       action: StatblockAction,
@@ -252,6 +276,16 @@ export function EncounterPageClient({
       result: ResolveResult,
     ) => {
       if (!active) return
+
+      if (!canEdit) {
+        // Player: no writes possible. Don't fire events, don't touch
+        // local state — otherwise optimistic-only mutations drift from
+        // DB, producing the BUG-018 "ghost damage" pattern.
+        window.alert(
+          'Применять урон и вести лог энкаунтера может только ДМ. Скажите ДМу результаты броска, он внесёт изменения.',
+        )
+        return
+      }
 
       // Self action (no targets): fire one custom event with comment or action name.
       if (targets.length === 0) {
@@ -281,12 +315,28 @@ export function EncounterPageClient({
           const max = fresh?.max_hp ?? target.max_hp
           const to = Math.max(0, from - pt.damage)
 
-          // Write HP in DB
-          try {
-            await s.from('encounter_participants').update({ current_hp: to }).eq('id', pt.id)
-          } catch (e) {
-            console.error('Failed to apply damage:', e)
+          // Write HP in DB first, THEN update local state — avoids
+          // "damage appeared then vanished" if the write is rejected.
+          const { error: updErr } = await s
+            .from('encounter_participants')
+            .update({ current_hp: to })
+            .eq('id', pt.id)
+
+          if (updErr) {
+            console.error('Failed to apply damage:', updErr)
+            window.alert(
+              `Не удалось записать урон «${target.display_name}»: ${updErr.message}. Перезагрузите страницу.`,
+            )
+            // Skip grid/snap update — keep both in sync with DB (old HP).
+            continue
           }
+
+          // Success: sync both stateful mirrors so the grid matches
+          // the picker without waiting for router.refresh.
+          setParticipantsSnap((ps) =>
+            ps.map((p) => (p.id === pt.id ? { ...p, current_hp: to } : p)),
+          )
+          gridRef.current?.setParticipantHp(pt.id, to)
 
           // Log as hp_damage event so it renders with − hp/max formatting.
           await handleAutoEvent({
@@ -326,16 +376,12 @@ export function EncounterPageClient({
         })
       }
 
-      // Refresh snapshot so HP bars update everywhere without reload.
-      setParticipantsSnap((ps) =>
-        ps.map((p) => {
-          const hit = result.perTarget.find((r) => r.id === p.id)
-          if (!hit || !hit.hit || hit.damage <= 0) return p
-          return { ...p, current_hp: Math.max(0, p.current_hp - hit.damage) }
-        }),
-      )
+      // Snap + grid already kept in sync inside the per-target loop —
+      // no trailing setParticipantsSnap call needed. Doing it twice
+      // when damage > max_hp resulted in a double-subtract (the HP
+      // floor at 0 saved us from visual bugs but masked the issue).
     },
-    [active, participantsSnap, handleAutoEvent, encounter.current_round],
+    [active, canEdit, participantsSnap, handleAutoEvent, encounter.current_round],
   )
 
   return (
@@ -356,6 +402,7 @@ export function EncounterPageClient({
           onActiveChange={done ? undefined : handleTurnChange}
           onInspect={done ? undefined : handleInspect}
           onParticipantsChange={setParticipantsSnap}
+          canEdit={canEdit}
         />
 
         <EncounterLog

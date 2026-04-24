@@ -65,6 +65,11 @@ type Props = {
   onActiveChange?: (participantId: string | null) => void
   onInspect?: (participantId: string) => void
   onParticipantsChange?: (participants: Participant[]) => void
+  /**
+   * DM/owner gate. Players see read-only grid; any click is turned
+   * into a single alert by `useParticipantActions`. See BUG-018.
+   */
+  canEdit: boolean
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -79,6 +84,15 @@ const ROLE_DOT_COLOR: Record<string, string> = {
 
 export type EncounterGridHandle = {
   addFromCatalogExternal: (nodeId: string, displayName: string, maxHp: number, qty: number) => void
+  /**
+   * Write a fresh HP value into the grid's local participants state.
+   * Used by the action resolver in `encounter-page-client` so a DM's
+   * damage application reflects in the grid immediately without
+   * round-tripping through DB + router.refresh. Without this, the
+   * grid's and the page-client's snapshots can drift — which was the
+   * chat-44 bug (damage visible only in the target picker).
+   */
+  setParticipantHp: (id: string, currentHp: number) => void
 }
 
 // Shared cell class — excel-like gridlines between cells.
@@ -102,6 +116,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
   onActiveChange,
   onInspect,
   onParticipantsChange,
+  canEdit,
 }, ref) {
   const [participants, setParticipants] = useState(initialParticipants)
   const [details, setDetails] = useState<Record<string, string>>(initial.details || {})
@@ -157,6 +172,7 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
     getCurrentRound,
     onAutoEvent,
     hpMethod,
+    canEdit,
   })
 
   const saveDetail = useCallback(async (key: string, value: string) => {
@@ -175,6 +191,11 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
 
   useImperativeHandle(ref, () => ({
     addFromCatalogExternal: actions.addFromCatalog,
+    setParticipantHp: (id: string, currentHp: number) => {
+      setParticipants((ps) =>
+        ps.map((p) => (p.id === id ? { ...p, current_hp: currentHp } : p)),
+      )
+    },
   }), [actions.addFromCatalog])
 
   // ── Render ──────────────────────────────────────────

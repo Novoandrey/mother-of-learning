@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 44 — transfer-pair collapse IDEA-043)
+> Last updated: 2026-04-24 (chat 45 — BUG-018 encounter role gate)
 
 ## В проде сейчас
 
@@ -84,6 +84,17 @@
   boundary-случаев). Totals `count` теперь «события», не «legs».
   Per-actor views (PC wallet, stash tab, любой `pc=…` filter) не
   затронуты — sibling leg там и так отсекался фильтром.
+- **BUG-018 encounter role gate (chat 45)**: до фикса игрок
+  кликал «Удар скимитаром», RLS режил write, но локальный
+  `participantsSnap` на page-client обновлялся. Grid рендерил свой
+  независимый `participants` state — asymmetry: в target-пикере
+  damage виден, в гриде нет, F5 сбрасывал. Фикс в 4 файлах:
+  страница энкаунтера читает membership, считает `canEdit` и
+  прокидывает в клиент. `handleActionResolved` делает ранний exit
+  с одним alert'ом для игрока, write-first/state-after для DM,
+  sync grid через новый imperative handle `setParticipantHp`. Хук
+  `useParticipantActions` для игрока возвращает noop-ы с
+  warn-once alert'ом — все 18 mutation-колбэков сразу disabled.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -106,14 +117,23 @@
 
 ## Следующий приоритет
 
-**T034 hand-walkthrough US1-US8** из
-`.specify/specs/011-common-stash/TESTPLAN.md`. Весь Slice A+B, filter
-collapse, ownership guard и transfer-pair collapse теперь в проде —
-прогон идёт по стабильной поверхности, должен поймать только мелочь.
-После прогона: правки по findings'ам → закрытие spec-011.
+**Spec-011 закрыта**. T034 hand-walkthrough пользователь прогнал
+(chat 45, «всё ок, буду делать доработки после spec-015»). Весь
+Slice A+B, filter collapse, ownership guard, transfer-pair collapse
+(IDEA-043) и BUG-018 encounter gate — в проде.
 
-**Spec-016 Сборы** — записан только spec.md. Следующие фазы
-Clarify → Plan → Tasks → Implement. Стартует после закрытия spec-011.
+**Следующее — Spec-012** из `.specify/memory/bookkeeping-roadmap.md`
+(следующая в серии 009-015). В новом чате: Specify → Clarify → Plan
+→ Tasks → Implement.
+
+**Параллельно** — spec-016 Сборы (Clarify → …) записан только
+spec.md. Пользователь выберет в новом чате spec-012 vs spec-016.
+
+### Последняя строка хвостов
+
+- IDEA-043 ✅ (chat 44) — collapsed-transfer-row в /accounting.
+- Bulk-edit ещё нет (часть старого IDEA-043) — может всплыть
+  отдельно если будет запрос.
 
 ### Параллельные кандидаты
 

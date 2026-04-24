@@ -21,31 +21,35 @@ Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
 
 ## 🔜 NEXT — баги и мелочёвка (chat 29)
 
-### BUG-018 [P1] Энкаунтер-трекер: урон не применяется к HP в grid'е, но виден в пикере цели до reload
+### BUG-018 [P1] ✅ DONE — Энкаунтер-трекер: урон не применяется к HP в grid'е, но виден в пикере цели до reload
 - **Открыто**: chat 44 (фидбек от игрока)
-- Репро: игрок атакует скимитаром, наносит 20 урона. В общей табличке
-  энкаунтера HP цели **не меняется**. При следующем ударе, когда
-  открывается выбор цели — там уже отображается уменьшенное HP (на
-  20 меньше). F5 → всё сбрасывается на первоначальное.
-- Гипотеза пользователя: связано с разделением прав DM/игрок.
-- Что это говорит о фактической природе бага:
-  - Damage-action видимо **не сохраняется** на сервере (иначе F5 бы
-    показал уменьшённое HP).
-  - Но **локальное state-дерево** пикера обновляется — то есть у
-    клиента есть optimistic update, который НЕ доходит до grid'а и
-    НЕ откатывается при неудавшемся save.
-  - Скорее всего RLS/проверка роли отбрасывает server action для
-    игрока, но клиент показывает «как будто прошло».
-- Что проверить:
-  - Server-side: есть ли в action проверка role? (DM-only?) Где?
-  - Client-side: почему grid и target-picker читают HP из разных
-    источников. Должен быть один source of truth после сервер-
-    рефреша.
-  - Должен ли игрок вообще применять damage, или это DM-only
-    операция? Если DM-only — показывать игроку disabled-кнопки
-    вместо тихого failure.
-- **Приоритет P1** — ломает основной боевой workflow, сеют у игрока
-  недоверие к UI.
+- **Сделано**: chat 45
+- Репро был: игрок атакует скимитаром, наносит 20 урона. В общей
+  табличке энкаунтера HP цели не меняется. При следующем ударе, когда
+  открывается выбор цели — там уже отображается уменьшенное HP. F5
+  сбрасывает всё.
+- **Корень**:
+  1. RLS на `encounter_participants` — modify только DM/owner (мигр. 024).
+  2. Клиентский write через browser Supabase client в
+     `encounter-page-client.tsx:handleActionResolved` молча падал для
+     игрока (try/catch глотал в console.error).
+  3. Локальный optimistic update применялся только к `participantsSnap`
+     (который читает target picker), но НЕ к `participants` в
+     `<EncounterGrid>` — это были два независимых стейта. Оттого и
+     асимметрия «в пикере видно, в гриде нет».
+- **Фикс** (4 файла):
+  - `app/c/[slug]/encounters/[id]/page.tsx` — читает `getMembership`,
+    считает `canEdit = role in ('owner','dm')`, прокидывает в клиент.
+  - `components/encounter/encounter-page-client.tsx` — prop `canEdit`,
+    ранний exit в `handleActionResolved` для игрока (один alert),
+    write-first / state-after для DM, grid sync через новый ref-метод
+    `setParticipantHp`.
+  - `components/encounter/encounter-grid.tsx` — prop `canEdit`, метод
+    `setParticipantHp` в `EncounterGridHandle`.
+  - `hooks/use-participant-actions.ts` — `canEdit` в Options, все 18
+    mutation-колбэков для игрока заменяются на noop с warn-once alert'ом.
+- Ссылка: `commit <sha> — fix(encounter): gate writes on DM role, sync
+  grid/snap — BUG-018`
 
 ### BUG-017 [P1] ✅ DONE — Скролл пикера участников обрезается, когда выбрано 6+
 - **Открыто и сделано**: chat 35 (после мёрджа spec-009 review-polish)

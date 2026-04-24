@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseHpInput } from '@/components/encounter/hp-cell'
 import type { TagEntry } from '@/components/encounter/tag-cell'
@@ -52,6 +52,13 @@ type Options = {
     turn?: string | null
   }) => void
   hpMethod: HpMethod
+  /**
+   * DM/owner writes only (RLS on encounter_participants, encounters,
+   * encounter_events, encounter_log). Players need gating at the UI
+   * layer — without it, optimistic state updates land locally but
+   * the DB rejects silently, which is the BUG-018 pattern.
+   */
+  canEdit: boolean
 }
 
 /**
@@ -71,8 +78,24 @@ export function useParticipantActions({
   getCurrentRound,
   onAutoEvent,
   hpMethod,
+  canEdit,
 }: Options) {
   const router = useRouter()
+
+  // Warn once per session — clicking a dozen grid cells shouldn't pop a
+  // dozen modals. One toast teaches the player who to bug (the DM) and
+  // we stay quiet after that.
+  const warnedRef = useRef(false)
+  const guard = useCallback(() => {
+    if (canEdit) return true
+    if (!warnedRef.current) {
+      warnedRef.current = true
+      window.alert(
+        'Изменять участников энкаунтера может только ДМ. Попросите ДМа внести изменения.',
+      )
+    }
+    return false
+  }, [canEdit])
 
   // Targets: if row is selected, apply to all selected; otherwise just that row
   const getTargets = useCallback((id: string) => {
@@ -424,10 +447,21 @@ export function useParticipantActions({
     } catch (e) { console.error(e) }
   }, [encounterId, router, catalogNodes, setParticipants, hpMethod])
 
-  return {
+  // If the viewer isn't a DM/owner, replace every mutation with a
+  // single guarded noop. One alert the first time a player clicks
+  // something; silence afterwards. Callsites stay unchanged.
+  const real = {
     onInit, onHp, onHpRaw, onMaxHp, onTempHp, onAc, onName, onRole,
     onDeathSaveTick, onDeathSavesReset,
     onConds, onEffects, onToggle, onDelete, onClone,
     endCombat, addManual, addFromCatalog,
   }
+  if (!canEdit) {
+    const blocked = async () => { guard() }
+    const gated = Object.fromEntries(
+      Object.keys(real).map((k) => [k, blocked]),
+    )
+    return gated as unknown as typeof real
+  }
+  return real
 }

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
+import { getMembership } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { EncounterPageClient } from '@/components/encounter/encounter-page-client'
 import Link from 'next/link'
@@ -34,6 +35,15 @@ export default async function EncounterPage({
   const { slug, id } = await params
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
+
+  // BUG-018 (chat 44): RLS on `encounter_participants` and friends is
+  // DM-only for writes. Players could previously click damage buttons;
+  // the server would reject silently, but optimistic client state made
+  // it look like the damage landed — only for it to evaporate on
+  // reload. Pass a role flag down so the client gates mutations at the
+  // UI layer (one toast, no drift) instead of letting them race RLS.
+  const membership = await getMembership(campaign.id)
+  const canEdit = membership?.role === 'owner' || membership?.role === 'dm'
 
   const supabase = await createClient()
 
@@ -153,6 +163,7 @@ export default async function EncounterPage({
         effectNames={effectNames}
         initialLogEntries={(logEntries ?? []) as unknown as import('@/lib/log-actions').LogEntry[]}
         initialEvents={(eventEntries ?? []) as unknown as import('@/lib/event-actions').EncounterEvent[]}
+        canEdit={canEdit}
       />
     </div>
   )
