@@ -109,47 +109,53 @@ export type { StashItemLeg } from './stash-aggregation';
  *
  * Wrapped in React `cache()`: the same `campaignId` within a single
  * server request hits the DB once.
+ *
+ * Implementation: two-step query. The naive
+ * `.select('id, type:node_types(...)').eq('node_types.slug','stash')`
+ * breaks because PostgREST treats the nested filter as an embed-only
+ * filter — the outer row isn't pruned, so `limit(1)` picks an arbitrary
+ * node in the campaign and our type-slug guard rejects it. Resolving
+ * the node_type id first is boring and correct.
  */
 export const getStashNode = cache(
   async (campaignId: string): Promise<StashMeta | null> => {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('nodes')
-      .select(
-        `
-        id,
-        title,
-        type:node_types!type_id ( slug, icon )
-      `,
-      )
+
+    // Step 1 — find the campaign's stash node_type id.
+    const { data: typeRow, error: typeErr } = await supabase
+      .from('node_types')
+      .select('id, icon')
       .eq('campaign_id', campaignId)
-      .eq('node_types.slug', 'stash')
+      .eq('slug', 'stash')
+      .maybeSingle();
+
+    if (typeErr) {
+      throw new Error(`getStashNode (type) failed: ${typeErr.message}`);
+    }
+    if (!typeRow) return null;
+
+    const typeId = (typeRow as { id: string; icon: string | null }).id;
+    const icon = (typeRow as { id: string; icon: string | null }).icon ?? '💰';
+
+    // Step 2 — find the single stash node of that type in this campaign.
+    const { data: nodeRow, error: nodeErr } = await supabase
+      .from('nodes')
+      .select('id, title')
+      .eq('campaign_id', campaignId)
+      .eq('type_id', typeId)
       .limit(1)
       .maybeSingle();
 
-    if (error) {
-      throw new Error(`getStashNode failed: ${error.message}`);
+    if (nodeErr) {
+      throw new Error(`getStashNode (node) failed: ${nodeErr.message}`);
     }
-    if (!data) return null;
+    if (!nodeRow) return null;
 
-    const row = data as unknown as {
-      id: string;
-      title: string;
-      type: { slug: string; icon: string | null } | { slug: string; icon: string | null }[] | null;
-    };
-    const type = unwrapOne(row.type);
-    if (!type || type.slug !== 'stash') {
-      // Defensive: the `.eq('node_types.slug', 'stash')` filter runs as
-      // a nested condition on the join. If the join returns an unrelated
-      // row (shouldn't happen but PostgREST can be lenient), treat it as
-      // "no stash".
-      return null;
-    }
-
+    const row = nodeRow as { id: string; title: string };
     return {
       nodeId: row.id,
       title: row.title,
-      icon: type.icon ?? '💰',
+      icon,
     };
   },
 );
