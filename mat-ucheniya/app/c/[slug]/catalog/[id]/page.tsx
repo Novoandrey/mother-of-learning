@@ -9,6 +9,10 @@ import { notFound, redirect } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
 import { CharacterFrontierCard } from '@/components/character-frontier-card'
 import WalletBlock from '@/components/wallet-block'
+import {
+  PcStarterConfigBlock,
+  type PcStarterConfigBlockMode,
+} from '@/components/pc-starter-config-block'
 import StashButtons from '@/components/stash-buttons'
 import { computeDefaultDayForTx } from '@/lib/transactions'
 import { getStashNode } from '@/lib/stash'
@@ -265,6 +269,21 @@ export default async function NodePage({
     const defaultDay = currentLoop
       ? await computeDefaultDayForTx(node.id, currentLoop.number, currentLoop.id)
       : 1
+
+    // Spec-012 T033: PC starter config block mode.
+    //   DM/owner → full editor
+    //   PC owner (player) → interactive loan flag + read-only summary
+    //   anyone else → hidden
+    const userOwnsPc =
+      !!ownerContext &&
+      ownerContext.owners.some((o) => o.user_id === user.id)
+    const starterMode: PcStarterConfigBlockMode =
+      membership.role === 'owner' || membership.role === 'dm'
+        ? 'dm'
+        : userOwnsPc
+          ? 'player'
+          : 'read-only'
+
     frontierCard = (
       <>
         <WalletBlock
@@ -289,6 +308,7 @@ export default async function NodePage({
             campaignSlug={slug}
           />
         )}
+        <PcStarterConfigBlock pcId={node.id} mode={starterMode} />
       </>
     )
   }

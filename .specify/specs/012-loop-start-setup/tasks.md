@@ -352,29 +352,29 @@ idempotent.
 **Purpose**: DM edits starter config per PC; PC owner flips their
 loan flag.
 
-- [ ] **T029** [P1] Create `mat-ucheniya/components/pc-starter-config-block.tsx` (server component that branches to variants):
+- [x] **T029** [P1] Create `mat-ucheniya/components/pc-starter-config-block.tsx` (server component that branches to variants):
   - Props: `{ pcId: string; campaignId: string; mode: 'dm' | 'player' | 'read-only' }`
   - Awaits `getPcStarterConfig(pcId)` (new single-row helper — add it to `lib/starter-setup.ts` if not already there as part of T013)
   - Branches to render the three variants per plan `## UI Components → DM-facing` and `## Player-facing`
   - For `mode='dm'`: embeds client components `<StartingCoinPickerClient>`, `<StartingItemsEditorClient>`, and a full-interactive `<LoanFlagToggleClient>`
   - For `mode='player'`: embeds only `<LoanFlagToggleClient>` (interactive) + a read-only summary of coins + items
   - For `mode='read-only'` (non-owner, non-DM): returns `null` (the block is hidden entirely)
-- [ ] **T030** [P] [P1] Create `mat-ucheniya/components/loan-flag-toggle-client.tsx`:
+- [x] **T030** [P] [P1] Create `mat-ucheniya/components/loan-flag-toggle-client.tsx`:
   - `'use client'`
   - Props: `{ pcId: string; initialValue: boolean; interactive: boolean }`
   - If not interactive: renders static "Берёт стартовый кредит: ✅ / ❌"
   - If interactive: toggle component with optimistic local state, calls `setPcTakesStartingLoan` on change, reverts on error (toast)
-- [ ] **T031** [P] [P1] Create `mat-ucheniya/components/starting-coin-picker-client.tsx`:
+- [x] **T031** [P] [P1] Create `mat-ucheniya/components/starting-coin-picker-client.tsx`:
   - `'use client'`
   - Props: `{ pcId: string; initialCoins: CoinSet }` — or generalize to take an update handler so the same component works for the campaign-level editor (stash seed)
   - 4-input (cp/sp/gp/pp); on save, calls `updatePcStarterConfig({ startingCoins })` or the campaign equivalent (inject via prop)
-- [ ] **T032** [P] [P1] Create `mat-ucheniya/components/starting-items-editor-client.tsx`:
+- [x] **T032** [P] [P1] Create `mat-ucheniya/components/starting-items-editor-client.tsx`:
   - `'use client'`
   - Props: `{ pcId: string; initialItems: StarterItem[]; onSave: (items) => Promise<void> }` — same generalization trick; stash seed reuses this
   - Editable list: add row (name + qty defaulting to 1), edit name/qty inline, remove row
   - Validation via `validateStarterItems` before calling `onSave`
   - Optimistic updates; revert on error
-- [ ] **T033** [P1] Mount `<PcStarterConfigBlock>` in `mat-ucheniya/app/c/[slug]/catalog/[id]/page.tsx`:
+- [x] **T033** [P1] Mount `<PcStarterConfigBlock>` in `mat-ucheniya/app/c/[slug]/catalog/[id]/page.tsx`:
   - Only when the node's `type.slug === 'character'`
   - Compute `mode` from membership + PC ownership:
     - `role in ['dm','owner']` → `'dm'`
