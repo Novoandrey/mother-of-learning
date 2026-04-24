@@ -11,17 +11,20 @@ ledger transactions generated from a source and reconcilable
 against the current state of that source" — and ships the
 first four concrete autogen wizards as the practical feature:
 starting money per PC, starting loan, stash seed, starting
-items per PC. Spec-013 (encounter loot distribution) is the
-expected second client of the same autogen layer — it will
-generate rows from an encounter's `loot_draft` and reconcile
-them on re-distribute, using the same marker, the same diff-
-apply logic, and no additional migration. The credit /
-starting-money / stash-seed / starting-items quartet is simply
-the first batch of wizards that ships inside this framework.
-Future specs (mid-loop rent, recurring income, class-based
-starter kits, quest rewards, auto-shopping runs) add new
-wizards on top of the same machinery without needing a new
-architectural layer.
+items per PC. All four are triggered by an **explicit
+"Применить стартовый сетап" action** on a newly created loop
+(never automatically on loop creation — see Clarifications/Q3)
+and dated to day 1 of that loop. Spec-013 (encounter loot
+distribution) is the expected second client of the same
+autogen layer — it will generate rows from an encounter's
+`loot_draft` and reconcile them on re-distribute, using the
+same marker, the same diff-apply logic, and no additional
+migration. The credit / starting-money / stash-seed /
+starting-items quartet is simply the first batch of wizards
+that ships inside this framework. Future specs (mid-loop rent,
+recurring income, class-based starter kits, quest rewards,
+auto-shopping runs) add new wizards on top of the same
+machinery without needing a new architectural layer.
 
 ## Context
 
@@ -139,63 +142,74 @@ added on top of this layer has to respect them:
 
 ## User Scenarios & Testing
 
-### User Story 1 — DM opens a new loop and sees pre-filled starting setup for every PC (Priority: P1)
+### User Story 1 — DM applies the starting setup to a fresh loop with one click (Priority: P1)
 
 At the end of a session the DM decides loop 4 is over; she
-creates loop 5 and marks it as current. Without any further
+creates loop 5 in the catalog. The new loop page opens with an
+unmissable banner: **"Стартовый сетап ещё не применён —
+[Применить]"**. She clicks Применить. Without any further
 action, every PC in the campaign — including the 23 who
 weren't at the final session of loop 4 — opens loop 5 with
 their starting wallet filled in (e.g. `100 gp` for most PCs, a
 different amount for any PC whose starter config was overridden)
 and their starting loan row present (for PCs whose "takes
 starting loan" flag is on). The stash page also shows its seeded
-contents, if any were configured.
+contents, if any were configured. The banner disappears; the
+loop is ready to play.
 
 **Why this priority**: this is the feature's whole point. If the
 DM still has to click 58 "generate starting transaction" buttons
 after flipping the loop to current, the framework has failed its
-goal of "loop rollover is cheap".
+goal of "loop rollover is cheap". The explicit apply-click is a
+deliberate safety choice (see Clarifications / Q3) — without it,
+prepping loops in advance is a minefield; with it, loop rollover
+is still ≤ 3 clicks total.
 
 **Independent Test**: with a configured campaign (starting money
-per PC, starting loan amount, stash seed), create and mark a new
-loop as current. Expect every PC's Wallet block to display the
-configured starting money on day 1, a `credit` row to appear in
-the ledger for every PC whose flag is on, and the stash page to
-reflect the seeded contents — all without the DM manually
-recording any transaction.
+per PC, starting loan amount, stash seed), create a new loop,
+open it, click "Применить" in the banner. Expect every PC's
+Wallet block to display the configured starting money on day 1,
+a `credit` row to appear in the ledger for every PC whose flag
+is on, and the stash page to reflect the seeded contents — all
+from a single DM action.
 
 **Acceptance Scenarios**:
 
 1. **Given** the campaign has 10 PCs, all with starting money
    `100 gp` and "takes starting loan" on, and a campaign-level
    starting loan amount of `200 gp`, **When** the DM creates
-   loop 5 and marks it as current, **Then** 20 transactions
-   exist for loop 5 on day 1 (10 starting-money rows + 10
-   starting-loan rows), each with its correct actor, amount,
-   category, and autogen marker.
+   loop 5 and clicks "Применить" in the banner, **Then** 20
+   transactions exist for loop 5 on day 1 (10 starting-money
+   rows + 10 starting-loan rows), each with its correct actor,
+   amount, category, and autogen marker, and the banner
+   disappears.
 2. **Given** the same campaign but with Lex's "takes starting
-   loan" flag flipped off, **When** loop 5 is created, **Then**
-   9 `credit` rows exist for loop 5 (not 10), Lex's wallet on
-   day 1 still shows his starting money, and no `credit` row
-   exists for Lex.
-3. **Given** the campaign has a stash seed of `50 gp + 5 arrows`,
-   **When** loop 5 is created, **Then** the stash page for
-   loop 5 shows a Wallet of `50 gp` and an item grid with a
-   single `arrows, qty: 5` row — all on day 1.
+   loan" flag flipped off, **When** the DM applies the setup,
+   **Then** 9 `credit` rows exist for loop 5 (not 10), Lex's
+   wallet on day 1 still shows his starting money, and no
+   `credit` row exists for Lex.
+3. **Given** the campaign has a stash seed of `50 gp + 5
+   arrows`, **When** the DM applies the setup, **Then** the
+   stash page for loop 5 shows a Wallet of `50 gp` and an item
+   grid with a single `arrows, qty: 5` row — all on day 1.
 4. **Given** the campaign has no starter config filled in
    (every PC's starting money is blank, stash seed is empty,
-   starting loan is 0), **When** loop 5 is created, **Then**
-   no transactions are generated and every wallet shows `0 gp`
-   on day 1. The system does not error or complain — "empty
-   config means empty setup" is a valid state.
-5. **Given** the DM creates loop 5 but does **not** mark it as
-   current (loop 4 is still current), **When** she looks at
-   loop 5's transactions, **Then** the setup has still been
-   generated (a loop exists, its day 1 is populated) — being
-   marked current is a *view* concept, not a trigger for
-   generation. The trigger is loop *creation*. This preserves
-   consistency with spec-010/011's "current loop is a lens,
-   not a data gate".
+   starting loan is 0), **When** the DM clicks "Применить",
+   **Then** zero transactions are generated, every wallet shows
+   `0 gp` on day 1, and the banner disappears (an explicit
+   "applied empty config" still counts as applied). No error
+   or warning.
+5. **Given** the DM creates loop 5 but does **not** click
+   "Применить" (she's prepping in advance, loop 4 is still
+   current), **When** she or a player navigates to loop 5's
+   page, **Then** no transactions have been generated, loop 5's
+   ledger is empty, and the DM still sees the banner. Players
+   see loop 5 as-is with no banner and no setup UI (FR-005b).
+6. **Given** the DM misclicks "New loop" in the catalog,
+   **When** she deletes the accidentally created loop within
+   seconds, **Then** zero ledger rows exist for the deleted
+   loop and the catalog returns to its prior state. "Silent
+   150-row insert on misclick" is structurally impossible.
 
 ---
 
@@ -288,17 +302,38 @@ untouched. Verify no regular gameplay transactions (e.g. a
    identical to the pre-rerun set (modulo the wizard
    marker's internal bookkeeping). No spurious diff appears in
    the ledger.
-5. **Given** the DM deleted a starter row manually before the
-   rerun (e.g. she manually deleted Marcus's starting-money
-   row for loop 5), **When** she reapplies, **Then** the row is
-   regenerated as per the current config. Manual deletions
-   of autogen-tagged rows are not "sticky" across reruns.
+5. **Given** the DM manually deleted Marcus's starting-money
+   row for loop 5 before the reapply, **When** she clicks
+   "Пересобрать сетап", **Then** a confirmation dialog opens
+   listing exactly one row: "Marcus, стартовые деньги, было:
+   удалено вручную, станет: +100 gp". On confirm, the row is
+   regenerated and the hand-touched flag on it is reset. On
+   cancel, the rerun aborts — the row stays deleted, no other
+   rows change.
 6. **Given** the DM attempts to reapply the setup for loop 5,
    **When** she has not changed anything but wants to force a
    refresh (e.g. a PC was added after loop 5 was created; see
    US4), **Then** the system runs the full reconciliation
    pipeline — missing rows are generated, obsolete rows are
-   removed, matching rows stay.
+   removed, matching rows stay — and since no rows were
+   hand-touched, the run proceeds without a confirmation
+   dialog.
+7. **Given** the DM hand-edited Marcus's starting-loan row
+   yesterday (changed the amount from `+200 gp` to `+150 gp`
+   because of a one-off narrative event), and today she clicks
+   "Пересобрать сетап" for an unrelated reason (a PC was
+   added — US4), **When** the reapply runs, **Then** a
+   confirmation dialog lists the hand-edited row: "Marcus,
+   стартовый кредит, вручную: +150 gp, из конфига: +200 gp".
+   The DM can confirm (row snaps back to +200) or cancel (the
+   entire run aborts; the new PC is not added either). There
+   is no "confirm just some of the rows" option — it's
+   all-or-nothing for the run.
+8. **Given** the confirmation dialog listed five hand-touched
+   rows, **When** the DM confirms and the run completes,
+   **Then** all five rows now match the config AND their
+   hand-touched flags are reset. A subsequent reapply with no
+   further hand-edits runs without a dialog.
 
 ---
 
@@ -506,31 +541,62 @@ ledger. Expect no transactions with `loop_number=6`.
   starting items list (default empty list of `{name, qty}`
   pairs). Absence or emptiness MUST be a valid state — the PC
   simply contributes no rows to the setup.
-- **FR-003**: The DM MUST be able to edit both the campaign-
-  level and PC-level starter configs from a DM-facing UI. The
-  player-facing UI (the PC page for a PC they own) MAY expose
-  the PC-level fields that narratively belong to the player
-  (e.g. "takes starting loan"); the exact permission split is
-  `plan.md`. The spec-level guarantee is "the DM can edit
-  everything; a player can at minimum flip their own
-  takes-starting-loan flag".
+- **FR-003**: The DM MUST be able to edit every field in both
+  the campaign-level and PC-level starter configs. A player
+  MUST be able to flip the **"takes starting loan"** boolean on
+  PCs they own (owner-writable), directly from their PC page;
+  every other PC-level field (starting money coins, starter
+  items list) and every campaign-level field (loan amount,
+  stash seed) MUST remain DM-only. The flag is the one
+  narrative choice owned by the character's author — "my
+  character doesn't borrow" — and the spec explicitly frames
+  it as player-owned to avoid per-loop ping-the-DM friction.
+  All other fields are balance-adjacent decisions owned by
+  the DM.
+- **FR-003a**: A flag edit by a player takes effect only on
+  the **next reapply** (FR-011) for loops where autogen rows
+  already exist. Spec-012 does NOT auto-propagate a flag flip
+  retroactively into already-applied loops. The DM reapplies
+  (or the player asks them to) when they want the change to
+  materialise. For loops where the setup has not yet been
+  applied at all (FR-005 / FR-005a), the new flag value is
+  simply read during the upcoming first apply.
 - **FR-004**: The starter configs MUST persist as part of the
   campaign / PC data model. They MUST NOT be hidden in a JSONB
   dump on an unrelated row; their semantic location is "next
   to the campaign config / the PC config", reachable by the
   graph. (Exact schema shape — `plan.md`.)
 
-**Autogen trigger: loop creation**
+**Autogen trigger: explicit DM action with "unapplied" banner**
 
-- **FR-005**: Creating a new loop node MUST automatically run
-  every spec-012 autogen wizard (starting money, starting
-  loan, stash seed, starting items) once against the new loop
-  as the source node, producing the appropriate transactions
-  dated to **day 1** of the new loop. The trigger is **loop
-  creation**, not "marking a loop as current".
+- **FR-005**: Creating a new loop node MUST NOT automatically
+  generate any spec-012 autogen rows. Loop creation is a pure
+  structural act (node appears in the catalog, loop_number is
+  assigned, `day_from/day_to` inherit defaults from spec-009);
+  the ledger is not touched. Rationale: prepping a loop in
+  advance of play — creating loop 6 while loop 5 is still
+  running, to schedule sessions — is a common mat-ucheniya
+  workflow. Pre-seeding the ledger for an unplayed loop causes
+  wallet confusion and looks like a bug; misclicks on the
+  catalog should not have silent 150-row side effects.
+- **FR-005a**: A loop page in DM mode MUST display a
+  persistent, unmissable banner ("Стартовый сетап ещё не
+  применён — [Применить]") for every loop that has **zero**
+  spec-012 autogen rows. The banner is the primary entrypoint
+  to the first apply. It disappears automatically the moment
+  at least one spec-012 autogen row exists for that loop. This
+  is the "DM can't forget to apply setup" safety net — without
+  it, option-C ("explicit apply") would regress to "party plays
+  session 1 of loop 6 with empty wallets because nobody
+  remembered".
+- **FR-005b**: Players MUST NOT see the banner or the apply
+  affordance. The apply action is a DM responsibility; a
+  player landing on the loop page during prep phase sees the
+  loop as-is (no banner, no setup UI, no generated rows yet).
 - **FR-006**: If the starter configs are empty (nothing to
-  generate), loop creation MUST succeed with zero generated
-  rows. Empty is not an error.
+  generate), apply / reapply MUST succeed with zero generated
+  rows and the banner MUST still clear (FR-005a) — "applied
+  with empty output" is a valid outcome, not an error.
 - **FR-007**: Rows produced by the wizards MUST be normal
   spec-010 transactions — with a `loop_number` equal to the new
   loop, `day_in_loop=1`, `session_id=NULL`, `status='approved'`,
@@ -576,8 +642,9 @@ ledger. Expect no transactions with `loop_number=6`.
 **Per-PC opt-out for the loan**
 
 - **FR-009**: A PC whose "takes starting loan" flag is `false`
-  MUST NOT produce a starting-loan row on loop creation or on
-  reapply. Their starting money and starting items rows are
+  MUST NOT produce a starting-loan row on apply or reapply
+  (FR-011) — the flag's sole effect is to skip that wizard for
+  that PC. Their starting money and starting items rows are
   produced as normal.
 - **FR-010**: The flag is a simple boolean. There is no
   per-PC loan amount override in this spec — if a PC takes a
@@ -586,20 +653,23 @@ ledger. Expect no transactions with `loop_number=6`.
   can do so without changing the autogen layer — it's a new
   column on the PC starter config, not a new wizard.)
 
-**Reapply**
+**Apply / Reapply**
 
-- **FR-011**: The DM MUST have an affordance ("Reapply
-  loop-start setup to loop N" or equivalent) that re-runs
-  every spec-012 wizard for an existing loop (i.e. every
-  wizard whose source is that loop). The reapply MUST be
-  idempotent per wizard: rerunning with unchanged config
-  produces the same final row set. Spec-012's reapply
-  affordance runs **only the four spec-012 wizards**; reapplying
-  does NOT re-run encounter-loot or any other future wizard
-  that happens to have rows in the same loop but a different
-  source node — those wizards have their own triggers and
-  their own reapply UI (spec-013 owns the encounter-loot
-  reapply UI).
+- **FR-011**: The DM MUST have a single loop-page affordance
+  that runs spec-012's four wizards against the current loop
+  as source. The **same code path** handles both the **first
+  apply** (no autogen rows exist yet — banner from FR-005a is
+  visible, button label reads "Применить стартовый сетап") and
+  every subsequent **reapply** (autogen rows already exist —
+  banner is hidden, button lives in the loop's setup-settings
+  section, label reads "Пересобрать сетап"). Behaviour is
+  identical: reconcile the ledger against the current config,
+  add missing rows, remove obsolete rows, update mismatched
+  rows. Idempotent per wizard — running with unchanged config
+  produces the same final row set. Runs **only the four
+  spec-012 wizards** (source = this loop); wizards with
+  different source nodes (spec-013 `encounter_loot`, future
+  wizards) have their own triggers and reapply UIs.
 - **FR-012**: The reapply MUST reconcile against the autogen
   marker (FR-008) and MUST NOT touch rows that were not
   produced by a matching `(wizard_key, source_node)` pair.
@@ -615,6 +685,39 @@ ledger. Expect no transactions with `loop_number=6`.
   gone from the ledger, not soft-hidden. The history of the
   rerun itself is not tracked by spec-012; the DM can recover
   from a mistake by re-adding to the config and reapplying.
+- **FR-013a**: Spec-012 MUST track, per autogen row, whether
+  that row has been **hand-edited or hand-deleted** after its
+  initial generation — i.e. mutated through any path other
+  than the apply/reapply action (FR-011). Edits via the normal
+  spec-010 transaction-edit form set the "hand-touched" flag;
+  deletion via the normal row-delete affordance MUST also be
+  detectable by the next reapply (the row is gone, but its
+  prior `(wizard_key, source_node)` should be identifiable as
+  "was here, got deleted by hand"). The exact storage —
+  a boolean column, an `edited_at` timestamp, a tombstone row,
+  a per-row version counter — is a `plan.md` decision.
+- **FR-013b**: Every apply and reapply run MUST first compute
+  the set of hand-touched rows it is about to **overwrite,
+  update, or re-create** (re-create applies to rows that were
+  hand-deleted). If that set is non-empty, the system MUST
+  present the DM with a **confirmation dialog** listing each
+  affected row with minimally: actor, current ledger value
+  (or "deleted by hand"), config-computed value, and the
+  wizard key that owns it. The run MUST NOT proceed until the
+  DM explicitly confirms. Cancelling the dialog aborts the
+  entire run — no rows are added, removed, or changed. If the
+  hand-touched set is empty, apply/reapply runs immediately
+  with no dialog.
+- **FR-013c**: A successful apply/reapply run MUST clear the
+  "hand-touched" flag on every row it produced or updated —
+  post-run, every autogen row in the loop is by definition
+  "freshly generated" until the next hand-edit flips the flag
+  back on. This rule is what makes the confirmation dialog
+  non-spammy across repeated reapplies.
+- **FR-013d**: Rows produced or updated by apply/reapply
+  itself — even when the DM confirmed the overwrite of a
+  hand-edit — MUST NOT be flagged as hand-touched on the
+  resulting row. Apply is the opposite of a hand-edit.
 - **FR-014**: If the prior run's rows include a row tagged
   with a matching `(wizard_key, source_node)` but the current
   config would not generate it (e.g. the actor is no longer in
@@ -681,13 +784,14 @@ ledger. Expect no transactions with `loop_number=6`.
 
 ### Non-Functional / Performance
 
-- **FR-022**: Creating a new loop in a campaign with 30 PCs and
-  a fully filled starter config (30 starting-money rows + up to
-  30 starting-loan rows + up to ~3 items × 30 PCs + a stash
-  seed of ~5 items) — i.e. ~150 generated rows — MUST complete
-  in ≤ 1 s wall-clock on the mat-ucheniya production baseline.
-  The generation MUST be a single server action, not a
-  client-side loop of 150 inserts.
+- **FR-022**: The **first apply** on a newly created loop in
+  a campaign with 30 PCs and a fully filled starter config
+  (30 starting-money rows + up to 30 starting-loan rows + up
+  to ~3 items × 30 PCs + a stash seed of ~5 items) — i.e.
+  ~150 generated rows — MUST complete in ≤ 1 s wall-clock on
+  the mat-ucheniya production baseline. The generation MUST
+  be a single server action, not a client-side loop of 150
+  inserts.
 - **FR-023**: Reapply MUST also be a single server action with
   the same latency budget. A rerun on the same 150-row loop
   MUST NOT produce more than one round trip per wizard (i.e.
@@ -730,19 +834,23 @@ ledger. Expect no transactions with `loop_number=6`.
 
 ### Measurable Outcomes
 
-- **SC-001**: Opening a new loop with a 29-PC campaign and a
-  filled starter config completes in one click plus the loop-
-  create confirmation — no additional "generate setup" button
-  press. The user sees wallets populated and the ledger
-  populated on the next page load.
+- **SC-001**: Spinning up a new loop with a 29-PC campaign
+  and a filled starter config is: (1) create loop node in the
+  catalog, (2) open the loop page, (3) click "Применить" in
+  the banner. Three clicks. The ledger and all wallets
+  populate for the new loop. Misclicking "create loop" and
+  deleting the node within seconds leaves zero ledger residue
+  (FR-005 guarantees no auto-gen on create).
 - **SC-002**: Time spent by the DM on "prepping a new loop"
   drops from the current estimate of 10–15 minutes of hand-
-  pencilling to under 30 seconds of "click new loop, review
-  generated rows". Qualitative, owner-reported, one pilot loop.
+  pencilling to under 30 seconds of "create loop, click
+  Применить, eyeball generated rows". Qualitative, owner-
+  reported, one pilot loop.
 - **SC-003**: Reapply on a 29-PC loop with ~150 autogen rows
-  completes in ≤ 1 s wall-clock and touches zero rows outside
-  the autogen marker (verified against a canary gameplay row
-  placed before the reapply).
+  and no hand-edits completes in ≤ 1 s wall-clock (no dialog
+  shown) and touches zero rows outside the autogen marker
+  (verified against a canary gameplay row placed before the
+  reapply).
 - **SC-004**: Flipping a single PC's "takes starting loan" flag
   off and reapplying removes exactly one row (that PC's
   `credit` row) and no others. Verified by row-count diff.
@@ -757,7 +865,7 @@ ledger. Expect no transactions with `loop_number=6`.
   credible (i.e. the marker is wizard-agnostic, the reconcile
   helper is parameterised on `(wizard_key, source_node)`, and
   no spec-012-specific assumption leaks into either).
-- **SC-006**: Zero HTTP 500 on loop create or reapply when the
+- **SC-006**: Zero HTTP 500 on apply / reapply when the
   starter config references a deleted PC node, a deleted
   stash node, or an unreachable campaign — same standard as
   spec-010 SC-005 and spec-011 SC-005.
@@ -802,9 +910,12 @@ ledger. Expect no transactions with `loop_number=6`.
 - **Autogen rows are editable and deletable under the same
   rules as any other row** (spec-010 FR-020). A DM can pencil
   a starter row to a different amount mid-loop without
-  reapplying; the edit stands until the next reapply, which
-  snaps it back to the config. This is a feature, not a bug —
-  it's the same mental model as "tweak a row, or reapply".
+  reapplying; the edit stands until the next reapply. The
+  next reapply will detect the hand-edit, list it in a
+  confirmation dialog (FR-013b), and wait for the DM's
+  explicit approval before snapping the row back to the
+  config. No silent overwrites — hand-edits are treated as
+  real signals, not noise to be ignored.
 - **No notification / audit trail of wizard runs beyond the
   transactions themselves.** Each rerun produces the new state;
   the history of config changes is not captured by spec-012.
@@ -822,12 +933,15 @@ ledger. Expect no transactions with `loop_number=6`.
   coded in, same as the four shipped here. Generalising to a
   user-configurable wizard DSL is explicitly a future-spec
   concern (if ever).
-- **Loop creation is the trigger; marking a loop current is not.**
-  This is consistent with the "current loop is a view lens,
-  not a data gate" rule of spec-010 / spec-011. The user can
-  create loop 6 for prep purposes, let the setup generate, and
-  only mark it current days later when the first session of
-  loop 6 starts.
+- **The trigger is the DM's explicit apply action, not loop
+  creation or "mark as current".** Loop creation is a pure
+  structural act — it adds a node, nothing else. "Mark as
+  current" is a view-lens flip (consistent with spec-010 /
+  spec-011). Autogen rows appear only after the DM clicks
+  "Применить стартовый сетап" on the loop page. The DM can
+  prep loop 6 in advance, leave the banner up for days, and
+  click Применить only when the first session of loop 6 is
+  about to start.
 - **Deleting a loop cascades its spec-012 autogen rows.** All
   four spec-012 wizards use the loop as their source node, so
   every autogen row they produce is cascaded through the
@@ -885,5 +999,54 @@ ledger. Expect no transactions with `loop_number=6`.
 
 ## Clarifications
 
-_(none yet — pending your answers)_
+### Round 1 — 2026-04-24
+
+**Q1 (FR-003). Permission split: can a player edit their own
+PC's "takes starting loan" flag, or is the entire starter config
+DM-only?**
+**A**: **Player owns the boolean flag on their own PCs; every-
+thing else is DM-only.** A player can flip "takes starting
+loan" directly from their PC page for any PC they own. All
+other starter-config fields — starting money coins, starter
+items list, the campaign-level starting loan amount, the stash
+seed — stay DM-only. Rationale: the flag is a narrative choice
+("my character doesn't borrow") owned by the character's author,
+not a balance question owned by the DM. Suppressing per-loop
+ping-the-DM friction for Lex's case is worth the extra
+permission layer. Flag edits take effect only on the next
+reapply (FR-003a) — no retroactive propagation into already-
+applied loops.
+
+**Q2 (FR-013, US3.5, Assumptions). What happens to autogen
+rows that have been hand-edited or hand-deleted when reapply
+runs?**
+**A**: **Reapply detects them and shows a confirmation dialog
+before overwriting.** Spec-012 tracks a "hand-touched" status
+per autogen row (flipped on by any edit/delete outside the
+apply/reapply path, reset after a successful apply/reapply).
+Before reapply runs, the system computes which hand-touched
+rows it's about to overwrite or re-create. If that set is
+non-empty, the DM sees a modal listing each row with old vs.
+new values and must explicitly confirm; cancelling aborts the
+entire run. If the set is empty, the run proceeds silently.
+Rationale: the "reapply is authoritative" model is preserved
+(final state always matches config), but the DM can't lose a
+hand-edit without seeing it. Exact storage of the flag (boolean
+column / timestamp / tombstone) is `plan.md`.
+
+**Q3 (FR-005, FR-011). Does loop creation automatically run the
+starter setup, or is it an explicit DM action?**
+**A**: **Explicit DM action, with an unmissable banner on the
+loop page.** Creating a loop node never produces autogen rows
+on its own. Any loop with zero spec-012 autogen rows displays
+a persistent DM-only banner ("Стартовый сетап ещё не применён —
+[Применить]") until the first apply. The apply and reapply
+actions share one code path; only the button label differs
+based on whether autogen rows already exist for the loop.
+Rationale: prepping loops in advance of play is a common
+mat-ucheniya workflow, and silently pre-seeding the ledger for
+an unplayed loop causes wallet confusion. Misclick-safety is a
+bonus. The banner prevents "DM forgot to apply setup" bugs —
+without it, option-C would regress to "party plays session 1
+with empty wallets".
 
