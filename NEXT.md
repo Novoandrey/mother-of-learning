@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 40 — spec-011 implementation + spec-016 draft)
+> Last updated: 2026-04-24 (chat 41 — stash bugfix + polish proposal)
 
 ## В проде сейчас
 
@@ -62,16 +62,36 @@
 
 ## Следующий приоритет
 
-**Spec-011 — hand-walkthrough и баги**. Реализация завершена
-(T001-T033 из `.specify/specs/011-common-stash/tasks.md`, включая
-миграции 035 и 036). Осталось:
-- T034: пройтись по US1-US8 руками на mat-ucheniya и отстрелять
-  баги в `backlog.md` как BUG-0NN.
+**Spec-011 polish — Slice A → Slice B.** После hand-walkthrough в
+chat 41 пользователь попросил редизайн рядов транзакций и унификацию
+stash-страницы с ledger-ом через табы. Полная схема правок в
+`.specify/specs/011-common-stash/POLISH-PROPOSAL.md`:
 
-**Spec-016 Real-money contribution pool (Сборы)** — отдельная идея,
-записана как draft spec.md в `.specify/specs/016-contribution-pool/`.
-IRL-деньги, реальная валюта (RUB/USD/EUR), автор ставит галочки
-«оплачено». Ждёт Clarify → Plan → Tasks → Implement.
+- **Slice A — редизайн ряда транзакции (`<TransactionRow>`)**:
+  цветовая индикация (+green / −red / ×gray), one-line layout,
+  сумма bold right-aligned, актор→контрагент для transfer, WCAG
+  AAA контрасты. Новый компонент заменяет ряды в `wallet-block-
+  client.tsx` и `ledger-list.tsx`. Открытый вопрос — нужно ли
+  расширить `TransactionWithRelations` полем `counterparty`.
+
+- **Slice B — stash page как табы над ledger'ом**: расщепить
+  `<WalletBlock>` на `<BalanceHero>` (только hero) + полный,
+  добавить `fixedActorNodeId` в `<LedgerList>`, собрать
+  `<StashPageTabs>` со вкладками «Предметы» / «Лента транзакций».
+  Stash-страница становится: header → BalanceHero → табы. Убирает
+  дубляж UX.
+
+Slice A даёт визуальный win сразу, Slice B пойдёт следом чтобы
+внутри новой ленты в табе сразу были красивые ряды. Начинать
+с A — быстрее и меньше структурного риска.
+
+**Также ждёт:** T034 hand-walkthrough US1-US8 из
+`.specify/specs/011-common-stash/TESTPLAN.md` — пользователь ещё
+не прогнал. Можно совместить с тестированием после Slice A.
+
+**Spec-016 Сборы** — записан только spec.md. Следующие фазы
+Clarify → Plan → Tasks → Implement. Оставлен в ожидании пока
+доделаем spec-011 polish.
 
 ### Параллельные кандидаты
 
