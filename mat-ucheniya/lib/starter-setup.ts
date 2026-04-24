@@ -142,15 +142,20 @@ export type UpdatePair = {
 // ─────────────────────────── Apply action ───────────────────────────
 
 /**
- * Shape returned from `applyLoopStartSetup(loopNodeId, opts)`. Two-
- * phase: the first call without `confirmed=true` can return
- * `needsConfirmation` if any hand-touched / hand-deleted rows would
- * be overwritten; the second call with `confirmed=true` executes the
- * diff unconditionally.
+ * Shape returned from `applyLoopStartSetup(loopNodeId, opts)`. Three
+ * arms:
+ *   - `{ ok: true, summary }` — reapply succeeded.
+ *   - `{ needsConfirmation, affected }` — two-phase: the first call
+ *     without `confirmed=true` reports any hand-touched / hand-deleted
+ *     rows that would be overwritten. Caller shows the dialog, gets
+ *     approval, then calls again with `confirmed=true`.
+ *   - `{ ok: false, error }` — auth failure, missing stash node for a
+ *     non-empty seed, RPC error, etc. Display as a toast.
  */
 export type ApplyResult =
   | { ok: true; summary: ApplySummary }
   | { needsConfirmation: true; affected: AffectedRow[] }
+  | { ok: false; error: string }
 
 export type ApplySummary = {
   insertedCount: number

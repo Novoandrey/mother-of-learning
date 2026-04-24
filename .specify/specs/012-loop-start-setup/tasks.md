@@ -210,19 +210,19 @@ action. Sequential: each depends on the types from Phase 2.
 **Purpose**: server actions for DM edits and the narrow player
 edit. Each wraps an auth gate + admin-client write.
 
-- [ ] **T018** [P1] Create `mat-ucheniya/app/actions/starter-setup.ts` with `updateCampaignStarterConfig(campaignId, patch)`:
+- [x] **T018** [P1] Create `mat-ucheniya/app/actions/starter-setup.ts` with `updateCampaignStarterConfig(campaignId, patch)`:
   - `'use server'` at top
   - Auth gate: `requireAuth()` + `getMembership(campaignId)` → role must be `'dm' | 'owner'`
   - Validate `patch.loanAmount` via `validateCoinSet` (if present); `patch.stashSeedCoins` same; `patch.stashSeedItems` via `validateStarterItems`
   - Admin-client UPDATE into `campaign_starter_configs`
   - `revalidatePath(\`/c/\${slug}/accounting/starter-setup\`)` (fetch slug from campaign row first)
   - Returns the updated `CampaignStarterConfig`
-- [ ] **T019** [P1] Add `updatePcStarterConfig(pcId, patch)` to same file:
+- [x] **T019** [P1] Add `updatePcStarterConfig(pcId, patch)` to same file:
   - Auth gate: requireAuth + look up PC's campaign + require DM role on that campaign
   - Validate `patch.startingCoins` + `patch.startingItems`
   - **Important**: reject any `patch` that includes `takesStartingLoan` (that's a separate action — T020). Return an error if caller passes it.
   - Admin-client UPDATE; revalidatePath the PC page
-- [ ] **T020** [P1] Add `setPcTakesStartingLoan(pcId, value)` to same file:
+- [x] **T020** [P1] Add `setPcTakesStartingLoan(pcId, value)` to same file:
   - Auth gate: requireAuth. Look up PC's campaign.
   - Allow if: `getMembership(campaignId).role` is `'dm' | 'owner'` **OR** the user owns this PC (check `node_pc_owners` or whatever ownership table — see existing `canUserEditPc` helper if present)
   - Reject otherwise
@@ -238,7 +238,7 @@ edit. Each wraps an auth gate + admin-client write.
 **Purpose**: `applyLoopStartSetup` — two-phase, diff-based,
 idempotent.
 
-- [ ] **T021** [P1] Add `applyLoopStartSetup(loopNodeId, opts)` to `mat-ucheniya/app/actions/starter-setup.ts`:
+- [x] **T021** [P1] Add `applyLoopStartSetup(loopNodeId, opts)` to `mat-ucheniya/app/actions/starter-setup.ts`:
   - Signature: `async function applyLoopStartSetup(loopNodeId: string, opts?: { confirmed?: boolean }): Promise<ApplyResult>`
   - Step 1 — auth: requireAuth; load loop node (including its campaign_id); require DM role on campaign
   - Step 2 — load config: `getCampaignStarterConfig` + `getPcStarterConfigsForCampaign` + `getStashNode` (existing from spec-011)
@@ -254,7 +254,7 @@ idempotent.
   - Step 11 — `revalidatePath(\`/c/\${slug}/loops\`)` + `revalidatePath(\`/c/\${slug}/accounting\`)`
   - Step 12 — return `{ ok: true, summary }`
   - Error paths: if the RPC throws (e.g. FK violation, connection drop) → rethrow as a user-friendly error
-- [ ] **T022** [P1] Write the RPC function in a follow-up migration snippet (append to `037_loop_start_setup.sql` or a separate file `037b_apply_rpc.sql` at DM preference; default: append). SQL:
+- [x] **T022** [P1] Write the RPC function in a follow-up migration snippet (append to `037_loop_start_setup.sql` or a separate file `037b_apply_rpc.sql` at DM preference; default: append). SQL:
   ```sql
   create or replace function apply_loop_start_setup(
     p_loop_node_id uuid,
@@ -295,7 +295,7 @@ idempotent.
   ```
   - **Call `present_files` after writing** if it's a separate migration file; if appended to `037`, just commit
   - Grant EXECUTE on the function to `authenticated` (the admin client bypasses RLS anyway but the function lives in the DB namespace)
-- [ ] **T023** [P1] User applies the RPC migration. Wait for confirmation before testing the apply action.
+- [x] **T023** [P1] User applies the RPC migration. Wait for confirmation before testing the apply action.
 
 **Checkpoint**: `applyLoopStartSetup` callable from Node; two-phase confirmation works; reapply is idempotent.
 
@@ -305,7 +305,7 @@ idempotent.
 
 **Purpose**: new PCs get a default `pc_starter_configs` row.
 
-- [ ] **T024** [P2] Find the existing PC-create server action (likely `lib/campaign-actions.ts` or `app/actions/node-actions.ts` — grep for `createPcNode` or similar). Add a post-create hook that inserts a default row into `pc_starter_configs`:
+- [x] **T024** [P2] Find the existing PC-create server action (likely `lib/campaign-actions.ts` or `app/actions/node-actions.ts` — grep for `createPcNode` or similar). Add a post-create hook that inserts a default row into `pc_starter_configs`:
   - If the existing code path doesn't have a clean extension point, create `mat-ucheniya/lib/seeds/pc-starter-config.ts` with `ensurePcStarterConfig(supabase, pcId)` — idempotent insert with `on conflict do nothing`
   - Call it from the PC-create flow right after the node is inserted
   - If `createPcNode` is wrapped in a transaction, include the starter-config insert in the same transaction
