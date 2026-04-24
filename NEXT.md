@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 38 — spec-010 UX fixes)
+> Last updated: 2026-04-24 (chat 39 — spec-011 specify/plan/tasks)
 
 ## В проде сейчас
 
@@ -50,9 +50,19 @@
 
 ## Следующий приоритет
 
-**Spec-011 Общий стах** — ближайший кандидат по roadmap'у
-(`.specify/memory/bookkeeping-roadmap.md`). Переиспользует
-transfer-примитив из spec-010 (два лега с `transfer_group_id`).
+**Spec-011 Общак — имплементация**. Артефакты spec-kit готовы
+и лежат в `.specify/specs/011-common-stash/`:
+- `spec.md` (887 строк) — WHAT: stash как "ещё один PC",
+  item-qty, expand-row, shortfall shortcut, universal wipe,
+  forward-compat с spec-015.
+- `plan.md` (995 строк) — HOW: миграция 035, createItemTransfer,
+  createExpenseWithStashShortfall, `<InventoryGrid>` generic,
+  `<StashButtons>`, `<ShortfallPrompt>`.
+- `tasks.md` (36 тасков, 13 фаз) — executable checklist.
+  Начинать implement с T001 (миграция).
+
+Миграция ещё не написана и не применена. Первая таска в
+следующем чате — T001 (создать `035_stash_and_item_qty.sql`).
 
 ### Параллельные кандидаты
 
