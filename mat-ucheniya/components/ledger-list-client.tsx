@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import LedgerRow from './ledger-row'
+import TransactionRow from './transaction-row'
 import TransactionFormSheet from './transaction-form-sheet'
 import {
   deleteTransaction,
@@ -150,12 +150,12 @@ export default function LedgerListClient({
       ) : (
         <ul className="flex flex-col gap-1.5">
           {rows.map((row) => (
-            <LedgerRow
+            <TransactionRow
               key={row.id}
-              row={row}
+              tx={row}
               campaignSlug={campaignSlug}
-              isAuthor={row.author_user_id === currentUserId}
-              canManage={canManage}
+              showActor={true}
+              canEdit={canManage || row.author_user_id === currentUserId}
               onEdit={openEdit}
               onDelete={handleDelete}
               busy={busyId === row.id}

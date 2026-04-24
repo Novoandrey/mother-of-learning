@@ -4,13 +4,13 @@ import { useCallback, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import TransactionFormSheet from './transaction-form-sheet'
+import TransactionRow from './transaction-row'
 import WalletBalance from './wallet-balance'
 import type {
   Category,
   TransactionWithRelations,
   Wallet,
 } from '@/lib/transactions'
-import { formatAmount } from '@/lib/transaction-format'
 import { deleteTransaction, deleteTransfer } from '@/app/actions/transactions'
 
 type Props = {
@@ -140,6 +140,7 @@ export default function WalletBlockClient({
       {/* Row 2: full-width recent list */}
       <RecentList
         recent={recent}
+        campaignSlug={campaignSlug}
         currentUserId={currentUserId}
         canManage={canManage}
         busyId={busyId}
@@ -175,6 +176,7 @@ export default function WalletBlockClient({
 
 function RecentList({
   recent,
+  campaignSlug,
   currentUserId,
   canManage,
   busyId,
@@ -182,6 +184,7 @@ function RecentList({
   onDelete,
 }: {
   recent: TransactionWithRelations[]
+  campaignSlug: string
   currentUserId: string
   canManage: boolean
   busyId: string | null
@@ -190,7 +193,7 @@ function RecentList({
 }) {
   if (recent.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
+      <div className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
         В этой петле пока нет транзакций
       </div>
     )
@@ -200,54 +203,17 @@ function RecentList({
     <ul className="flex w-full flex-col gap-1.5">
       {recent.map((tx) => {
         const canEditRow = canManage || tx.author_user_id === currentUserId
-        const isBusy = busyId === tx.id
         return (
-          <li
+          <TransactionRow
             key={tx.id}
-            className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2"
-          >
-            <div className="flex min-w-0 flex-col">
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm font-medium text-gray-900">
-                  {tx.kind === 'item'
-                    ? tx.item_name ?? '—'
-                    : formatAmount(tx.coins)}
-                </span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                  {tx.category_label}
-                </span>
-              </div>
-              {tx.comment && (
-                <span className="truncate text-xs text-gray-500">
-                  {tx.comment}
-                </span>
-              )}
-              <span className="text-xs text-gray-400">
-                день {tx.day_in_loop}
-                {tx.session_number != null && ` · сессия ${tx.session_number}`}
-              </span>
-            </div>
-            {canEditRow && (
-              <div className="flex flex-shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onEdit(tx)}
-                  disabled={isBusy}
-                  className="text-sm text-blue-600 hover:underline disabled:opacity-50"
-                >
-                  изм.
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDelete(tx)}
-                  disabled={isBusy}
-                  className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50"
-                >
-                  {isBusy ? '…' : 'уд.'}
-                </button>
-              </div>
-            )}
-          </li>
+            tx={tx}
+            campaignSlug={campaignSlug}
+            showActor={false}
+            canEdit={canEditRow}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            busy={busyId === tx.id}
+          />
         )
       })}
     </ul>

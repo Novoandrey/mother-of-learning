@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 41 — stash bugfix + polish proposal)
+> Last updated: 2026-04-24 (chat 42 — spec-011 polish Slice A)
 
 ## В проде сейчас
 
@@ -40,6 +40,14 @@
   компонент рендерится и для PC, и для stash. Forward-compat с
   spec-015: `InventoryGrid` параметризуется `keyFn` для будущего
   `itemNodeId`. Catalog роут stash-ноды редиректит на `/accounting/stash`.
+- **spec-011 polish Slice A (chat 42)**: универсальный
+  `<TransactionRow>` — one-line layout, цвета `emerald-700 / red-700 /
+  gray-700`, prefix `+/−/×`, WCAG AAA контрасты, day chip `д.N·с.M`,
+  actor → counterparty для переводов. Заменяет старые inline-вёрстки
+  в `wallet-block-client` и `ledger-list-client`. `ledger-row.tsx`
+  удалён. Data-layer: добавлено поле `counterparty: { nodeId, title } |
+  null` в `TransactionWithRelations`, новый `hydrateCounterparties`
+  (один доп. запрос по `transfer_group_id`). Схема БД не меняется.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -62,32 +70,25 @@
 
 ## Следующий приоритет
 
-**Spec-011 polish — Slice A → Slice B.** После hand-walkthrough в
-chat 41 пользователь попросил редизайн рядов транзакций и унификацию
-stash-страницы с ledger-ом через табы. Полная схема правок в
+**Spec-011 polish Slice B — stash page как табы над ledger.**
+Slice A отгружен (см. выше). Slice B по
 `.specify/specs/011-common-stash/POLISH-PROPOSAL.md`:
 
-- **Slice A — редизайн ряда транзакции (`<TransactionRow>`)**:
-  цветовая индикация (+green / −red / ×gray), one-line layout,
-  сумма bold right-aligned, актор→контрагент для transfer, WCAG
-  AAA контрасты. Новый компонент заменяет ряды в `wallet-block-
-  client.tsx` и `ledger-list.tsx`. Открытый вопрос — нужно ли
-  расширить `TransactionWithRelations` полем `counterparty`.
-
-- **Slice B — stash page как табы над ledger'ом**: расщепить
-  `<WalletBlock>` на `<BalanceHero>` (только hero) + полный,
-  добавить `fixedActorNodeId` в `<LedgerList>`, собрать
-  `<StashPageTabs>` со вкладками «Предметы» / «Лента транзакций».
-  Stash-страница становится: header → BalanceHero → табы. Убирает
-  дубляж UX.
-
-Slice A даёт визуальный win сразу, Slice B пойдёт следом чтобы
-внутри новой ленты в табе сразу были красивые ряды. Начинать
-с A — быстрее и меньше структурного риска.
+- Split `<WalletBlock>` → `<BalanceHero>` (только hero card +
+  «+ Транзакция») + существующий полный блок остаётся для PC-страниц.
+- `<LedgerList>` получает `fixedActorNodeId?: string` — когда задан,
+  скрыть actor-фильтр, подставить в `filters.pc` на сервере
+  (предикат уже ходит через `applyFilters` в `getLedgerPage`).
+- Новый `<StashPageTabs>` (client) с двумя табами: «Предметы» (существующий
+  `<InventoryGrid>`) / «Лента транзакций» (`<LedgerList>` с
+  `fixedActorNodeId={stash.nodeId}`). Slice A уже даёт красивые ряды
+  внутри этой ленты.
+- Stash page собирается: `<Header>` → `<BalanceHero>` → `<StashPageTabs>`.
+  Убирает дубляж UX между `/accounting` и `/accounting/stash`.
 
 **Также ждёт:** T034 hand-walkthrough US1-US8 из
 `.specify/specs/011-common-stash/TESTPLAN.md` — пользователь ещё
-не прогнал. Можно совместить с тестированием после Slice A.
+не прогнал. Можно совместить с визуальной проверкой Slice A и Slice B.
 
 **Spec-016 Сборы** — записан только spec.md. Следующие фазы
 Clarify → Plan → Tasks → Implement. Оставлен в ожидании пока

@@ -69,6 +69,16 @@ export type TransactionWithRelations = Transaction & {
   /** Resolved from `categories` via `(campaign_id, scope='transaction', slug)`. */
   category_label: string;
   author_display_name: string | null;
+  /**
+   * For transfer legs, the actor/node of the sibling leg — the other
+   * party in the transfer. `null` for non-transfer rows, for legs whose
+   * sibling is missing (data corruption — shouldn't happen), or for
+   * transfers whose sibling leg has a deleted `actor_pc` node.
+   *
+   * Populated by `hydrateCounterparties` in the read helpers below.
+   * Schema unchanged — counterparty is derived from `transfer_group_id`.
+   */
+  counterparty: { nodeId: string; title: string | null } | null;
 };
 
 /** Per-(pc, loop) wallet aggregate. */
@@ -283,6 +293,7 @@ function joinedToRelations(
   raw: TxJoinedRow,
   categoryLabels: Map<string, string>,
   authors: Map<string, string | null>,
+  counterparties: Map<string, { nodeId: string; title: string | null } | null>,
 ): TransactionWithRelations {
   const base = rawToTransaction(raw);
   const pc = unwrapOne(raw.actor_pc);
@@ -304,7 +315,69 @@ function joinedToRelations(
     author_display_name: base.author_user_id
       ? authors.get(base.author_user_id) ?? null
       : null,
+    counterparty: counterparties.get(base.id) ?? null,
   };
+}
+
+/**
+ * Resolve sibling-leg actors for transfer rows. One extra query on the
+ * already-fetched `transfer_group_id`s (no schema change).
+ *
+ * For each input row with a `transfer_group_id`, finds the other leg in
+ * the same group and returns its `actor_pc_id` + joined title. Rows
+ * without a group id or whose sibling has no `actor_pc_id` map to `null`.
+ *
+ * Cheap: pulls only `id, actor_pc_id, transfer_group_id` + one-field
+ * `nodes` join; scales with number of distinct groups on the page.
+ */
+async function hydrateCounterparties(
+  rows: Transaction[],
+): Promise<Map<string, { nodeId: string; title: string | null } | null>> {
+  const out = new Map<string, { nodeId: string; title: string | null } | null>();
+  const groupIds = [
+    ...new Set(
+      rows.map((r) => r.transfer_group_id).filter((v): v is string => !!v),
+    ),
+  ];
+  if (groupIds.length === 0) return out;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('id, actor_pc_id, transfer_group_id, actor_pc:nodes!actor_pc_id(title)')
+    .in('transfer_group_id', groupIds);
+
+  if (error) {
+    throw new Error(`hydrateCounterparties failed: ${error.message}`);
+  }
+
+  type Leg = {
+    id: string;
+    actor_pc_id: string | null;
+    transfer_group_id: string;
+    actor_pc: { title: string } | { title: string }[] | null;
+  };
+
+  const byGroup = new Map<string, Leg[]>();
+  for (const leg of (data ?? []) as unknown as Leg[]) {
+    const arr = byGroup.get(leg.transfer_group_id) ?? [];
+    arr.push(leg);
+    byGroup.set(leg.transfer_group_id, arr);
+  }
+
+  for (const row of rows) {
+    if (!row.transfer_group_id) continue;
+    const legs = byGroup.get(row.transfer_group_id) ?? [];
+    const sibling = legs.find((l) => l.id !== row.id);
+    if (!sibling || !sibling.actor_pc_id) {
+      out.set(row.id, null);
+      continue;
+    }
+    const title = unwrapOne(sibling.actor_pc)?.title ?? null;
+    out.set(row.id, { nodeId: sibling.actor_pc_id, title });
+  }
+
+  return out;
 }
 
 // ---------- Public queries ----------
@@ -391,11 +464,12 @@ export async function getRecentByPc(
   if (rows.length === 0) return [];
 
   const plain = rows.map(rawToTransaction);
-  const [labels, authors] = await Promise.all([
+  const [labels, authors, counterparties] = await Promise.all([
     hydrateCategoryLabels(rows[0].campaign_id, plain),
     hydrateAuthors(plain),
+    hydrateCounterparties(plain),
   ]);
-  return rows.map((r) => joinedToRelations(r, labels, authors));
+  return rows.map((r) => joinedToRelations(r, labels, authors, counterparties));
 }
 
 /**
@@ -421,11 +495,12 @@ export async function getTransactionsBySession(
   if (rows.length === 0) return [];
 
   const plain = rows.map(rawToTransaction);
-  const [labels, authors] = await Promise.all([
+  const [labels, authors, counterparties] = await Promise.all([
     hydrateCategoryLabels(rows[0].campaign_id, plain),
     hydrateAuthors(plain),
+    hydrateCounterparties(plain),
   ]);
-  return rows.map((r) => joinedToRelations(r, labels, authors));
+  return rows.map((r) => joinedToRelations(r, labels, authors, counterparties));
 }
 
 /** Single transaction by id, with joined relations. For the edit view. */
@@ -446,11 +521,12 @@ export async function getTransactionById(
 
   const raw = data as unknown as TxJoinedRow;
   const plain = rawToTransaction(raw);
-  const [labels, authors] = await Promise.all([
+  const [labels, authors, counterparties] = await Promise.all([
     hydrateCategoryLabels(raw.campaign_id, [plain]),
     hydrateAuthors([plain]),
+    hydrateCounterparties([plain]),
   ]);
-  return joinedToRelations(raw, labels, authors);
+  return joinedToRelations(raw, labels, authors, counterparties);
 }
 
 /**
@@ -478,11 +554,12 @@ export async function getTransferPair(
   if (rows.length !== 2) return null;
 
   const plain = rows.map(rawToTransaction);
-  const [labels, authors] = await Promise.all([
+  const [labels, authors, counterparties] = await Promise.all([
     hydrateCategoryLabels(rows[0].campaign_id, plain),
     hydrateAuthors(plain),
+    hydrateCounterparties(plain),
   ]);
-  const hydrated = rows.map((r) => joinedToRelations(r, labels, authors)) as [
+  const hydrated = rows.map((r) => joinedToRelations(r, labels, authors, counterparties)) as [
     TransactionWithRelations,
     TransactionWithRelations,
   ];
@@ -574,13 +651,18 @@ export async function getLedgerPage(
   const hasNext = rawRows.length > pageSize;
   const pageRows = hasNext ? rawRows.slice(0, pageSize) : rawRows;
   const plainPage = pageRows.map(rawToTransaction);
-  const [labels, authors] = pageRows.length
+  const [labels, authors, counterparties] = pageRows.length
     ? await Promise.all([
         hydrateCategoryLabels(campaignId, plainPage),
         hydrateAuthors(plainPage),
+        hydrateCounterparties(plainPage),
       ])
-    : [new Map<string, string>(), new Map<string, string | null>()];
-  const rows = pageRows.map((r) => joinedToRelations(r, labels, authors));
+    : [
+        new Map<string, string>(),
+        new Map<string, string | null>(),
+        new Map<string, { nodeId: string; title: string | null } | null>(),
+      ];
+  const rows = pageRows.map((r) => joinedToRelations(r, labels, authors, counterparties));
 
   const nextCursor: string | null = hasNext
     ? encodeCursor({
