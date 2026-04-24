@@ -5,18 +5,23 @@
 **Status**: Draft
 **Input**: Fourth spec in the Bookkeeping series (see
 `.specify/memory/bookkeeping-roadmap.md`). Builds on spec-010's
-ledger and spec-011's stash. Adds the first **per-loop
-automation**: when a new loop begins, the system automatically
-generates the transactions that make the loop "ready to play" —
-every PC gets their starting money, the PCs who take out loans
-get a `credit` row, and the stash gets its seed contents. The
-scope is deliberately framed as a **framework for start-of-loop
-automations**, not a single-shot "starting setup" feature — the
-credit / starting-money / stash-seed triplet is simply the first
-concrete automation that ships inside that framework. Future
-specs are expected to add more automations (recurring income,
-rent, class-based starter kits, auto-shopping runs) on top of
-the same machinery without needing a new architectural layer.
+ledger and spec-011's stash. Introduces a **general autogen
+layer** on top of the ledger — a primitive for "a set of
+ledger transactions generated from a source and reconcilable
+against the current state of that source" — and ships the
+first four concrete autogen wizards as the practical feature:
+starting money per PC, starting loan, stash seed, starting
+items per PC. Spec-013 (encounter loot distribution) is the
+expected second client of the same autogen layer — it will
+generate rows from an encounter's `loot_draft` and reconcile
+them on re-distribute, using the same marker, the same diff-
+apply logic, and no additional migration. The credit /
+starting-money / stash-seed / starting-items quartet is simply
+the first batch of wizards that ships inside this framework.
+Future specs (mid-loop rent, recurring income, class-based
+starter kits, quest rewards, auto-shopping runs) add new
+wizards on top of the same machinery without needing a new
+architectural layer.
 
 ## Context
 
@@ -38,81 +43,97 @@ wipeable-state perspective, constitution principle I) — the
 problem is that **any** non-empty starting state currently
 requires the DM to replay it by hand every 30 in-game days.
 
-This spec introduces the concept of a **loop-start automation**:
-a configurable instruction that says "when a loop begins,
-produce this set of ledger transactions". The automation runs
-once per loop per actor, produces normal spec-010 transactions
-dated to day 1, and is idempotent per loop (rerunning it doesn't
-double-spend). Spec-012 ships three concrete automations as a
-package:
+This spec introduces the concept of an **autogen wizard**: a
+piece of code that reads a **source node** (the thing being
+autogen'd *from*) and writes a deterministic set of ledger
+transactions as its output. The wizard is **reconcilable**: if
+the source node changes (the DM edits the starter config, or
+re-rolls the encounter loot), re-running the wizard replaces
+the prior output with the new output — no duplication, no
+orphan rows, no touching of anything outside its own output.
+The autogen layer is a generic primitive; spec-012 ships four
+concrete wizards that use it:
 
 - **Starting money** per PC — the coin amounts a PC begins
   the loop with. Configured per PC (because different classes
-  and backgrounds start with different amounts).
+  and backgrounds start with different amounts). Source node:
+  the loop.
 - **Starting loan** — a campaign-level default amount that every
   participating PC takes as a `credit` row. Each PC has a
   boolean flag "takes starting loan" (default on) — a PC whose
   player has decided their character doesn't borrow (Lex's
   narrative choice in mat-ucheniya) flips it off and skips the
-  credit row with no other consequence.
+  credit row with no other consequence. Source node: the loop.
 - **Stash seed** — the coin and item contents the stash begins
   the loop with. Configured at the campaign level. Default is
-  empty, which preserves spec-011's shipped behaviour.
+  empty, which preserves spec-011's shipped behaviour. Source
+  node: the loop.
+- **Starting items** per PC — a per-PC list of starter items,
+  materialised as `kind='item'` rows with `actor=PC` on day 1.
+  Per-PC rather than campaign-wide because a wizard's starting
+  spellbook and a fighter's starting longsword have nothing in
+  common; flattening them into a campaign default would be
+  useless. Source node: the loop.
 
-Additionally, spec-012 is explicit that a **fourth
-automation-shaped thing — starting items per PC — ships inside
-the same framework** (per-PC list of starter items, materialised
-as `kind='item'` rows with `actor=PC` on day 1). Items are
-per-PC rather than campaign-wide because a wizard's starting
-spellbook and a fighter's starting longsword have nothing in
-common; flattening them into a campaign default would be
-useless.
+Spec-013 (encounter loot distribution) is an **expected second
+batch of wizards** of the same shape, with the source node
+being an encounter rather than a loop. Spec-012 designs the
+autogen layer specifically so that spec-013 adds a new wizard
+key and a new UI trigger, nothing else — no schema change, no
+new marker, no duplicated reconcile logic. This dual-client
+framing is the reason the layer is generic rather than a
+single-purpose "loop-start" module.
 
 **Three architectural points are pinned at the spec level**
-because they shape every later decision — each later automation
-added on top of this framework has to respect them:
+because they shape every later decision — every later wizard
+added on top of this layer has to respect them:
 
-1. **Automations produce ordinary ledger transactions, not a
-   parallel shadow ledger.** Every row generated by a loop-start
-   automation is a normal spec-010 transaction — it shows up in
-   the ledger, it counts towards wallet aggregates, it is
+1. **Autogen wizards produce ordinary ledger transactions, not
+   a parallel shadow ledger.** Every row generated by a wizard
+   is a normal spec-010 transaction — it shows up in the
+   ledger, it counts towards wallet aggregates, it is
    filterable, editable, and deletable under the same rules as
-   any other row. The only distinguishing feature is a marker
-   that records **which automation generated this row on which
-   loop**, so the system can detect reruns and avoid
-   double-application. This marker is an **orthogonal property**
-   of a transaction (like `session_id` is in spec-010) — it
-   does not define a new `kind` and does not create a parallel
-   table. The exact shape of the marker is a `plan.md`
-   decision; the spec-level guarantee is "a row knows which
-   automation produced it, if any, and the system can identify
-   the set of rows belonging to a given automation run".
+   any other row. The only distinguishing feature is an
+   **autogen marker** that records which wizard generated the
+   row and from which source node, so the system can detect
+   reruns and avoid double-application. This marker is an
+   **orthogonal property** of a transaction (like `session_id`
+   is in spec-010) — it does not define a new `kind` and does
+   not create a parallel table. The exact shape of the marker
+   is a `plan.md` decision; the spec-level guarantee is "a row
+   knows which wizard produced it from which source, if any,
+   and the system can identify the set of rows belonging to a
+   given (wizard, source) pair".
 
-2. **Automations are idempotent per (loop, actor, automation).**
-   Running the same automation twice for the same (loop, actor)
-   pair must not produce duplicate rows. The expected behaviour
-   on rerun is "replace the prior run's rows with the current
-   config's rows" — deterministic, not additive. This means
-   editing a PC's starting-money amount and reapplying the
-   setup must not leave orphan rows from the old amount. The
+2. **Autogen wizards are idempotent per (wizard, source,
+   actor).** Running the same wizard twice against the same
+   source must not produce duplicate rows. The expected
+   behaviour on rerun is "replace the prior run's rows with
+   what the current source would produce now" — deterministic,
+   not additive. This means editing a PC's starting-money
+   amount and reapplying the loop-start setup must not leave
+   orphan rows from the old amount; it also means editing an
+   encounter's `loot_draft` and re-distributing (in spec-013)
+   must not leave orphan rows from the prior distribution. The
    exact reconciliation strategy (full delete+reinsert,
    update-in-place, diff-apply) is a `plan.md` decision; the
    spec-level guarantee is "no duplication on rerun, and the
    rerun cannot silently delete rows that aren't recognisably
-   part of this automation's prior output".
+   part of this (wizard, source) pair's prior output".
 
-3. **The framework must accept new automations without a
-   migration.** Adding a "rent auto-debit on day 15" automation
-   or a "class-based starter kit" automation in a future spec
-   must not require changing the transactions schema. The
-   marker introduced in point 1 carries enough information to
-   distinguish one automation from another — concretely, an
-   automation is identified by a short stable key (e.g.
-   `starting_money`, `starting_loan`, `stash_seed`,
-   `starting_items`, and future keys introduced by later
-   specs), and the transactions produced by that automation
-   carry the key. New automations in later specs pick new keys;
-   the schema does not change.
+3. **The autogen layer must accept new wizards without a
+   migration.** Adding a "rent auto-debit on day 15" wizard, a
+   "class-based starter kit" wizard, or the spec-013 encounter-
+   loot wizard must not require changing the transactions
+   schema. The marker introduced in point 1 carries enough
+   information to distinguish one wizard from another —
+   concretely, a wizard is identified by a short stable key
+   (`starting_money`, `starting_loan`, `stash_seed`,
+   `starting_items` in spec-012; `encounter_loot` expected in
+   spec-013; future keys in later specs) and a source-node
+   reference. New wizards in later specs pick new keys and
+   point at their own source nodes; the schema does not
+   change.
 
 ---
 
@@ -151,7 +172,7 @@ recording any transaction.
    loop 5 and marks it as current, **Then** 20 transactions
    exist for loop 5 on day 1 (10 starting-money rows + 10
    starting-loan rows), each with its correct actor, amount,
-   category, and automation marker.
+   category, and autogen marker.
 2. **Given** the same campaign but with Lex's "takes starting
    loan" flag flipped off, **When** loop 5 is created, **Then**
    9 `credit` rows exist for loop 5 (not 10), Lex's wallet on
@@ -191,7 +212,7 @@ day 1 shows `150 gp`; no `credit` row appears for Lex in loop 5.
 **Why this priority**: this is the single concrete per-PC
 override the mat-ucheniya campaign actually needs, and it's also
 the canonical example of the broader principle "a PC can opt out
-of an automation". Without it the framework is a one-size-fits-
+of a wizard". Without it the autogen layer is a one-size-fits-
 all sledgehammer, and Lex's player has to manually delete a row
 every single loop.
 
@@ -205,7 +226,7 @@ while every other PC with the flag on shows two rows.
 1. **Given** Lex's "takes starting loan" flag is off and his
    starting money is `150 gp`, **When** loop 5 is created,
    **Then** exactly one transaction exists for Lex on day 1 of
-   loop 5 — a `+150 gp` row with the automation marker for
+   loop 5 — a `+150 gp` row with the autogen marker for
    starting money.
 2. **Given** Lex's starting money is also set to `0` (he starts
    loop 5 with nothing), **When** loop 5 is created, **Then**
@@ -256,7 +277,7 @@ untouched. Verify no regular gameplay transactions (e.g. a
    on Marcus, day 7 of loop 5) and then reapplies the setup,
    **When** the rerun completes, **Then** the `-5 gp potion`
    row is untouched — reapplication only touches rows tagged
-   with an automation marker matching the rerun.
+   with an autogen marker matching the rerun.
 3. **Given** Lex's "takes starting loan" flag was on during the
    first run and is off when the DM reapplies, **When** the
    rerun completes, **Then** Lex's old `credit` row is deleted,
@@ -264,14 +285,14 @@ untouched. Verify no regular gameplay transactions (e.g. a
    affected. His wallet drops by the old credit amount.
 4. **Given** the DM reapplies while no config has changed, **When**
    the rerun completes, **Then** the final set of rows is
-   identical to the pre-rerun set (modulo the automation
+   identical to the pre-rerun set (modulo the wizard
    marker's internal bookkeeping). No spurious diff appears in
    the ledger.
 5. **Given** the DM deleted a starter row manually before the
    rerun (e.g. she manually deleted Marcus's starting-money
    row for loop 5), **When** she reapplies, **Then** the row is
    regenerated as per the current config. Manual deletions
-   of automation-tagged rows are not "sticky" across reruns.
+   of autogen-tagged rows are not "sticky" across reruns.
 6. **Given** the DM attempts to reapply the setup for loop 5,
    **When** she has not changed anything but wants to force a
    refresh (e.g. a PC was added after loop 5 was created; see
@@ -341,7 +362,7 @@ because the mat-ucheniya campaign uses starter kits and they
 are as tedious to replay by hand as the money rows. Also, items
 being part of the same framework is what makes the framework
 worth having — if items were out, the DM would be pencilling
-items every loop and the automation would only cover half the
+items every loop and the wizard would only cover half the
 work. Per spec-011, items in the stash are free-text rows; the
 same rule applies here — starter items are free-text strings
 with integer qty, no item catalog (spec-015 will change that
@@ -359,7 +380,7 @@ quantities.
    arrows: 20}`, **When** a new loop is created, **Then** two
    `kind='item'` transactions land on day 1 for that PC — one
    with `item_name=longsword, qty=1`, one with
-   `item_name=arrows, qty=20`. Each carries the automation
+   `item_name=arrows, qty=20`. Each carries the wizard
    marker for starting items.
 2. **Given** the stash seed is `{healing potion: 2, rope: 1}`,
    **When** a new loop is created, **Then** two `kind='item'`
@@ -384,17 +405,17 @@ quantities.
    reapply, **Then** the edit stands as a normal row edit. If
    she later reapplies, **Then** the row snaps back to the
    config value. This is the same "reruns are authoritative
-   over automation rows" rule as US3.
+   over autogen rows" rule as US3.
 
 ---
 
-### User Story 6 — Automation-generated rows look different in the ledger (Priority: P2)
+### User Story 6 — Autogen rows look different in the ledger (Priority: P2)
 
 When a player or DM browses the ledger, a row generated by a
-starting-setup automation is visibly distinguishable from a
+starting-setup wizard is visibly distinguishable from a
 row they typed in themselves — a small badge ("стартовый
 сетап" / "авто") or a subtly different tint. Clicking the badge
-opens a hint explaining which automation produced the row and
+opens a hint explaining which wizard produced the row and
 on which loop. The author of the row is the system (or the DM
 who created the loop; exact attribution is in Clarify).
 
@@ -417,13 +438,13 @@ identical to spec-010 / spec-011 rows.
    `/accounting`, **Then** every starter row is visibly tagged
    (badge / icon / tint) and every non-starter row is untagged.
 2. **Given** the user clicks the tag on a starter row, **When**
-   the hint opens, **Then** the hint says which automation
+   the hint opens, **Then** the hint says which wizard
    produced the row ("starting money", "starting loan",
    "stash seed", "starting items") and on which loop — no
    more detail needed at this level.
 3. **Given** filter bar is on the ledger page, **When** the
    user filters by "only show automated rows" or the
-   equivalent, **Then** the ledger shows only automation-tagged
+   equivalent, **Then** the ledger shows only autogen-tagged
    rows. (Or the equivalent negated filter "hide automated
    rows" — exact filter UX is `plan.md`.)
 
@@ -432,7 +453,7 @@ identical to spec-010 / spec-011 rows.
 ### User Story 7 — DM deletes a loop and all its setup rows go with it (Priority: P2)
 
 The DM created loop 6 by accident and wants to delete it before
-any sessions happen. She deletes loop 6. Every automation row
+any sessions happen. She deletes loop 6. Every autogen row
 generated for loop 6 — starter money, starter loans, starter
 items, stash seed — disappears with it. No orphaned day-1 rows
 linger in the ledger.
@@ -448,13 +469,13 @@ ledger. Expect no transactions with `loop_number=6`.
 
 **Acceptance Scenarios**:
 
-1. **Given** loop 6 has been set up with 60 automation rows,
+1. **Given** loop 6 has been set up with 60 autogen rows,
    **When** the DM deletes loop 6, **Then** those 60 rows are
    removed alongside the loop. Gameplay rows (if any) in loop
    6 — *which shouldn't exist yet, but hypothetically* — are
    governed by the same loop-delete cascade that spec-009 /
    spec-010 established; this story does not change that rule,
-   only confirms automation rows follow it.
+   only confirms autogen rows follow it.
 2. **Given** loop 6 has been set up and a gameplay transaction
    was logged (e.g. `-5 gp potion` on Marcus, day 3 of loop 6),
    **When** the DM tries to delete loop 6, **Then** the system
@@ -462,7 +483,7 @@ ledger. Expect no transactions with `loop_number=6`.
    and asks for confirmation — exact confirmation UX is
    `plan.md`. If confirmed, everything goes; if cancelled,
    nothing changes. (This rule predates spec-012 for gameplay
-   rows; spec-012 just confirms automation rows don't add a
+   rows; spec-012 just confirms autogen rows don't add a
    new warning layer — they are cascaded silently.)
 
 ---
@@ -478,7 +499,7 @@ ledger. Expect no transactions with `loop_number=6`.
   (default 0), stash seed coins (default empty), stash seed
   items (default empty list of `{name, qty}` pairs). Absence of
   the config or an empty config MUST be a valid state — it just
-  means "no automation applies at the campaign level".
+  means "no wizard applies at the campaign level".
 - **FR-002**: Every PC MUST have a **PC-level starter config**
   with at least these fields: starting money coins (default
   empty), "takes starting loan" boolean flag (default true),
@@ -499,17 +520,18 @@ ledger. Expect no transactions with `loop_number=6`.
   to the campaign config / the PC config", reachable by the
   graph. (Exact schema shape — `plan.md`.)
 
-**Automation trigger: loop creation**
+**Autogen trigger: loop creation**
 
 - **FR-005**: Creating a new loop node MUST automatically run
-  every spec-012 automation (starting money, starting loan,
-  stash seed, starting items) once, producing the appropriate
-  transactions dated to **day 1** of the new loop. The trigger
-  is **loop creation**, not "marking a loop as current".
+  every spec-012 autogen wizard (starting money, starting
+  loan, stash seed, starting items) once against the new loop
+  as the source node, producing the appropriate transactions
+  dated to **day 1** of the new loop. The trigger is **loop
+  creation**, not "marking a loop as current".
 - **FR-006**: If the starter configs are empty (nothing to
   generate), loop creation MUST succeed with zero generated
   rows. Empty is not an error.
-- **FR-007**: Rows produced by the automations MUST be normal
+- **FR-007**: Rows produced by the wizards MUST be normal
   spec-010 transactions — with a `loop_number` equal to the new
   loop, `day_in_loop=1`, `session_id=NULL`, `status='approved'`,
   and the appropriate `category` (`credit` for loans — consistent
@@ -517,14 +539,39 @@ ledger. Expect no transactions with `loop_number=6`.
   items — exact slug is `plan.md`, but it MUST be a category
   the campaign has either seeded or will auto-seed via
   spec-010's category machinery).
-- **FR-008**: Every row produced by an automation MUST carry an
-  **automation marker** that identifies (a) which automation
-  produced it (a short stable key: `starting_money`,
-  `starting_loan`, `stash_seed`, `starting_items`, and future
-  keys added by later specs), and (b) the loop in which it was
-  produced. The marker MUST be an orthogonal property of a
-  transaction — it does not replace `kind`, `category`, or any
-  existing column. Its exact schema shape is `plan.md`.
+
+**Autogen marker**
+
+- **FR-008**: Every row produced by an autogen wizard MUST
+  carry an **autogen marker** that identifies (a) a short
+  stable **wizard key** — one per wizard (`starting_money`,
+  `starting_loan`, `stash_seed`, `starting_items` in spec-012;
+  `encounter_loot` expected in spec-013; future keys in later
+  specs) — and (b) a **source-node reference** identifying the
+  node the row was generated from. For all four spec-012
+  wizards, the source node is the **loop**; for spec-013's
+  wizard it would be the **encounter**; later wizards point at
+  their own source nodes. The marker MUST be an orthogonal
+  property of a transaction — it does not replace `kind`,
+  `category`, `session_id`, or any existing column, and it does
+  not define a new `kind`. Its exact schema shape is `plan.md`
+  (one column, two columns, JSONB — all acceptable so long as
+  both facts are queryable).
+- **FR-008a**: The autogen marker space — the set of legal
+  wizard keys — MUST be open-ended. Adding a new wizard in a
+  future spec MUST NOT require a schema migration, a CHECK
+  constraint update, or any change to the transactions table
+  beyond seeding a new category if the wizard introduces one.
+  The marker column(s) MUST accept arbitrary stable-string
+  wizard keys; validation of "is this a known key" is an
+  application-layer concern, not a database concern.
+- **FR-008b**: A wizard's entire output for a given
+  `(wizard_key, source_node)` pair MUST be discoverable by a
+  single indexed query. Concretely, `plan.md` MUST specify an
+  index (or indexes) such that "fetch every row tagged with
+  wizard X for source Y" is O(output-size), not O(all-
+  transactions). This is the primitive spec-013's reconcile
+  will depend on.
 
 **Per-PC opt-out for the loan**
 
@@ -536,59 +583,78 @@ ledger. Expect no transactions with `loop_number=6`.
   per-PC loan amount override in this spec — if a PC takes a
   loan, it's the campaign's default amount; if a PC doesn't,
   it's zero. (A future spec that adds "per-PC loan amounts"
-  can do so without changing the framework — it's a new column
-  on the PC starter config, not a new automation.)
+  can do so without changing the autogen layer — it's a new
+  column on the PC starter config, not a new wizard.)
 
 **Reapply**
 
-- **FR-011**: The DM MUST have an affordance ("Reapply loop-start
-  setup to loop N" or equivalent) that re-runs every spec-012
-  automation for an existing loop. The reapply MUST be
-  idempotent at the per-automation level: rerunning with
-  unchanged config produces the same final row set.
-- **FR-012**: The reapply MUST reconcile against the automation
+- **FR-011**: The DM MUST have an affordance ("Reapply
+  loop-start setup to loop N" or equivalent) that re-runs
+  every spec-012 wizard for an existing loop (i.e. every
+  wizard whose source is that loop). The reapply MUST be
+  idempotent per wizard: rerunning with unchanged config
+  produces the same final row set. Spec-012's reapply
+  affordance runs **only the four spec-012 wizards**; reapplying
+  does NOT re-run encounter-loot or any other future wizard
+  that happens to have rows in the same loop but a different
+  source node — those wizards have their own triggers and
+  their own reapply UI (spec-013 owns the encounter-loot
+  reapply UI).
+- **FR-012**: The reapply MUST reconcile against the autogen
   marker (FR-008) and MUST NOT touch rows that were not
-  produced by a matching automation. Gameplay rows, manually
-  pencilled rows, rows imported from elsewhere — all untouched.
+  produced by a matching `(wizard_key, source_node)` pair.
+  Gameplay rows, manually pencilled rows, rows imported from
+  elsewhere, AND rows produced by other wizards (even in the
+  same loop) — all untouched.
 - **FR-013**: If a config change between the prior run and the
   rerun means some row is no longer needed (e.g. the starting
   loan was set to 0, or a PC's "takes starting loan" was
   flipped off, or a starter item was removed from the list),
-  the rerun MUST remove the corresponding automation-tagged
+  the rerun MUST remove the corresponding autogen-tagged
   row. "Remove" here is a data-level delete — the row is
   gone from the ledger, not soft-hidden. The history of the
   rerun itself is not tracked by spec-012; the DM can recover
   from a mistake by re-adding to the config and reapplying.
 - **FR-014**: If the prior run's rows include a row tagged
-  with the correct marker but the current config would not
-  generate it (e.g. the automation key is recognised but the
-  row's actor is no longer in the campaign — a deleted PC), the
-  rerun MUST leave the orphan row in place. Orphan rows from
-  deleted PCs are a spec-010 / spec-011 concern, not a spec-012
-  concern.
+  with a matching `(wizard_key, source_node)` but the current
+  config would not generate it (e.g. the actor is no longer in
+  the campaign — a deleted PC), the rerun MUST leave the
+  orphan row in place. Orphan rows from deleted PCs are a
+  spec-010 / spec-011 concern, not a spec-012 concern.
 
 **Visibility**
 
-- **FR-015**: Transactions tagged by an automation marker MUST
-  be **visibly distinct** in any ledger view (PC page, stash
+- **FR-015**: Transactions tagged by an autogen marker MUST be
+  **visibly distinct** in any ledger view (PC page, stash
   page, `/accounting`, session page). The exact visual — badge,
   icon, tint, row background — is `plan.md`. The spec-level
   guarantee is "a player scrolling the ledger can immediately
-  tell which rows are automation-generated".
+  tell which rows are autogenerated". The visual applies to
+  every wizard, not just spec-012's — spec-013's encounter-
+  loot rows will inherit the same visual treatment by virtue
+  of carrying an autogen marker.
 - **FR-016**: The filter bar on the ledger page MUST offer a
-  filter for automation rows — either "show only automated" or
-  "hide automated", or both. Exact filter UX is `plan.md`.
-- **FR-017**: The "auto" badge's hover / tap affordance MUST
-  surface the automation key and the loop. Exactly one line of
-  text is sufficient (e.g. "starting loan, loop 5").
+  filter for autogen rows — either "show only autogen" or
+  "hide autogen", or both. Exact filter UX is `plan.md`. When
+  spec-013 lands, the filter MAY be extended to allow
+  filtering by wizard key; that refinement is out of scope for
+  spec-012, which only needs the binary filter.
+- **FR-017**: The autogen badge's hover / tap affordance MUST
+  surface the wizard key and the source node. One line of text
+  is sufficient (e.g. "starting loan · loop 5"). For spec-013
+  it would read "encounter loot · <encounter title>". The
+  affordance is wizard-agnostic — it reads the marker, not a
+  per-spec lookup.
 
 **Author attribution**
 
-- **FR-018**: The author recorded on an automation-generated
-  row is the user who triggered the run — concretely, the user
-  who created the loop (US1) or the user who pressed "Reapply"
-  (US3). This keeps spec-010's "every row has an author"
-  invariant intact with no new concept.
+- **FR-018**: The author recorded on an autogen-generated
+  row is the user who triggered the run — concretely, the
+  user who created the loop (US1) or the user who pressed
+  "Reapply" (US3). This keeps spec-010's "every row has an
+  author" invariant intact with no new concept. Future wizards
+  in later specs follow the same rule with their own triggers
+  (e.g. the user who pressed "Distribute loot" in spec-013).
 - **FR-019**: On reapply, rows that are regenerated (because
   their config changed) MUST have their author updated to the
   user who pressed "Reapply". Rows that are untouched keep
@@ -598,13 +664,16 @@ ledger. Expect no transactions with `loop_number=6`.
 
 **Loop deletion**
 
-- **FR-020**: Deleting a loop MUST cascade-delete every
-  automation-tagged row belonging to that loop. The cascade
-  MUST follow whatever rule the project already has for
-  deleting a loop — spec-012 does not introduce a new
-  confirmation dialog or new cascade behaviour for automation
+- **FR-020**: Deleting a loop MUST cascade-delete every row
+  whose source node is that loop — which in spec-012 covers
+  every autogen row produced by the four spec-012 wizards.
+  The cascade MUST follow whatever rule the project already
+  has for deleting a loop; spec-012 does not introduce a new
+  confirmation dialog or new cascade behaviour for autogen
   rows specifically. They are ordinary rows from the cascade's
-  perspective.
+  perspective. When spec-013 lands, rows whose source is an
+  encounter do NOT belong to the loop cascade — they follow
+  an encounter-delete cascade defined by spec-013.
 - **FR-021**: Gameplay rows in a to-be-deleted loop follow the
   existing spec-010 / spec-011 cascade rules and any
   confirmation UX the project already provides; spec-012 does
@@ -621,27 +690,39 @@ ledger. Expect no transactions with `loop_number=6`.
   client-side loop of 150 inserts.
 - **FR-023**: Reapply MUST also be a single server action with
   the same latency budget. A rerun on the same 150-row loop
-  MUST NOT produce more than one round trip per automation
-  (i.e. ≤ 4 round trips total; ideally one).
+  MUST NOT produce more than one round trip per wizard (i.e.
+  ≤ 4 round trips total; ideally one).
 
 ---
 
 ## Key Entities
 
+- **Autogen wizard** (new concept, generic to the layer). A
+  piece of code identified by a short stable key (e.g.
+  `starting_money`) that reads a source node and deterministi-
+  cally produces a set of transactions. Spec-012 ships four
+  wizards (`starting_money`, `starting_loan`, `stash_seed`,
+  `starting_items`), all with the loop as their source node.
+  Spec-013 is expected to ship a fifth wizard
+  (`encounter_loot`) with the encounter as its source node.
+  Future specs add more keys.
 - **Campaign starter config** (new). A set of campaign-scoped
   fields: starting loan amount (scalar), stash seed coins
   (coin set), stash seed items (list of `{name, qty}`).
+  Consumed by the `starting_loan` and `stash_seed` wizards.
 - **PC starter config** (new). A set of PC-scoped fields:
   starting money coins (coin set), takes-starting-loan flag
-  (bool), starting items (list of `{name, qty}`).
-- **Automation marker** (new property on transactions). Records
-  which automation produced a row and in which loop. Orthogonal
-  to `kind` / `category` / `session_id`. Future specs add new
-  automations by picking new keys for this marker, not by
-  changing the schema.
+  (bool), starting items (list of `{name, qty}`). Consumed by
+  the `starting_money`, `starting_loan`, and `starting_items`
+  wizards.
+- **Autogen marker** (new property on transactions). Records
+  the `(wizard_key, source_node)` pair that produced a row.
+  Orthogonal to `kind` / `category` / `session_id`. Future
+  specs introduce new wizards by picking new keys and new
+  source nodes; the schema does not change.
 - **Transaction** (unchanged from spec-010 / spec-011). The
-  automation framework produces ordinary transactions that
-  happen to carry the marker above.
+  autogen layer produces ordinary transactions that happen to
+  carry the marker above.
 
 ---
 
@@ -658,19 +739,24 @@ ledger. Expect no transactions with `loop_number=6`.
   drops from the current estimate of 10–15 minutes of hand-
   pencilling to under 30 seconds of "click new loop, review
   generated rows". Qualitative, owner-reported, one pilot loop.
-- **SC-003**: Reapply on a 29-PC loop with ~150 automation rows
+- **SC-003**: Reapply on a 29-PC loop with ~150 autogen rows
   completes in ≤ 1 s wall-clock and touches zero rows outside
-  the automation marker (verified against a canary gameplay
-  row placed before the reapply).
+  the autogen marker (verified against a canary gameplay row
+  placed before the reapply).
 - **SC-004**: Flipping a single PC's "takes starting loan" flag
   off and reapplying removes exactly one row (that PC's
   `credit` row) and no others. Verified by row-count diff.
-- **SC-005**: The automation marker is usable by a later spec
-  to introduce a new automation key without a migration —
-  verified during spec-013 (encounter loot distribution) or
-  any subsequent spec that wants a framework hook. This is the
-  "architecture didn't paint us into a corner" check; it's only
-  verifiable at the time a second automation actually ships.
+- **SC-005**: Spec-013 adds its `encounter_loot` wizard by
+  introducing **one new wizard key and one new source-node
+  type (the encounter)** — no migration, no change to the
+  transactions table, no duplication of the reconcile logic
+  spec-012 ships. This is the "did the autogen layer actually
+  generalise, or is it a single-use module in disguise" check;
+  it is only verifiable once spec-013 actually lands, but the
+  spec-012 `plan.md` MUST be written such that this claim is
+  credible (i.e. the marker is wizard-agnostic, the reconcile
+  helper is parameterised on `(wizard_key, source_node)`, and
+  no spec-012-specific assumption leaks into either).
 - **SC-006**: Zero HTTP 500 on loop create or reapply when the
   starter config references a deleted PC node, a deleted
   stash node, or an unreachable campaign — same standard as
@@ -694,14 +780,14 @@ ledger. Expect no transactions with `loop_number=6`.
   items.** No item catalog, no `item_node_id` on starter rows.
   Spec-015 will eventually tie item names to item nodes
   globally; when that happens, starter items inherit the
-  improvement for free (the automation produces
+  improvement for free (the wizard produces
   `kind='item'` rows and spec-015 upgrades the grid on both
   sides of the stash ↔ PC symmetry).
 - **Starter transactions are dated day 1 of the loop, period.**
   No configurable "day N of the loop" for setup rows in this
-  spec. If a future automation wants "rent auto-debit on day
-  15", it's a different automation with its own config; the
-  starting-setup automations are always day 1.
+  spec. If a future wizard wants "rent auto-debit on day
+  15", it's a different wizard with its own config; the
+  starting-setup wizards are always day 1.
 - **Starter transactions have `session_id=NULL`.** Starter
   setup is **not** tied to a session — it's part of the
   loop's pre-session state. Consistent with spec-010's
@@ -710,16 +796,16 @@ ledger. Expect no transactions with `loop_number=6`.
 - **Starter transactions are `status='approved'` from the
   moment they are generated.** Spec-014 will later introduce
   approval flow; when it does, the rule "DM-authored rows are
-  auto-approved" already covers automation rows (the "author"
+  auto-approved" already covers autogen rows (the "author"
   is the DM triggering the run — FR-018). No spec-014-shaped
   change is needed here.
-- **Automation rows are editable and deletable under the same
+- **Autogen rows are editable and deletable under the same
   rules as any other row** (spec-010 FR-020). A DM can pencil
   a starter row to a different amount mid-loop without
   reapplying; the edit stands until the next reapply, which
   snaps it back to the config. This is a feature, not a bug —
   it's the same mental model as "tweak a row, or reapply".
-- **No notification / audit trail of automation runs beyond the
+- **No notification / audit trail of wizard runs beyond the
   transactions themselves.** Each rerun produces the new state;
   the history of config changes is not captured by spec-012.
   If a DM wants to know "what did I change last loop?", they
@@ -730,11 +816,11 @@ ledger. Expect no transactions with `loop_number=6`.
   as everywhere else in the project). Expected frequency of
   this collision: effectively zero in a solo-DM-per-campaign
   setup.
-- **No automation framework generalisation beyond what the first
-  four automations demand.** Spec-012 does not ship a "define
-  a new automation in the UI" tool. Future automations are
+- **No wizard framework generalisation beyond what the first
+  four wizards demand.** Spec-012 does not ship a "define
+  a new wizard in the UI" tool. Future wizards are
   coded in, same as the four shipped here. Generalising to a
-  user-configurable automation DSL is explicitly a future-spec
+  user-configurable wizard DSL is explicitly a future-spec
   concern (if ever).
 - **Loop creation is the trigger; marking a loop current is not.**
   This is consistent with the "current loop is a view lens,
@@ -742,11 +828,15 @@ ledger. Expect no transactions with `loop_number=6`.
   create loop 6 for prep purposes, let the setup generate, and
   only mark it current days later when the first session of
   loop 6 starts.
-- **Deleting a loop cascades through the existing loop-delete
-  path.** Spec-012 does not implement a new cascade; it simply
-  confirms the existing cascade is sufficient because its rows
-  live in `transactions` and follow the `loop_number` foreign
-  key the cascade already respects.
+- **Deleting a loop cascades its spec-012 autogen rows.** All
+  four spec-012 wizards use the loop as their source node, so
+  every autogen row they produce is cascaded through the
+  deletion of the loop node. Spec-012 does not introduce a new
+  cascade path or new confirmation UI — the cascade follows
+  whatever rule the project has for deleting a node and its
+  dependent rows. When spec-013 lands, encounter-sourced rows
+  cascade through encounter deletion instead, not loop
+  deletion — two sources, two cascades, same pattern.
 
 ---
 
@@ -758,8 +848,8 @@ ledger. Expect no transactions with `loop_number=6`.
   "Fighter gets longsword+20 arrows automatically because the
   class field says Fighter". The PC's starter items are typed
   in manually per PC in this spec; class-based templating is a
-  future automation.
-- **Mid-loop automations** — rent, upkeep, recurring income,
+  future wizard.
+- **Mid-loop wizards** — rent, upkeep, recurring income,
   downtime shopping. The framework is deliberately built to
   accept these in later specs; none of them ship here.
 - **A "preview the diff before reapply" modal.** The reapply
@@ -770,8 +860,8 @@ ledger. Expect no transactions with `loop_number=6`.
   per campaign; multi-stash is its own future spec and will
   carry its own starter-config semantics.
 - **History of config changes over time** (audit log).
-- **A UI for defining new automation keys** (automation DSL /
-  plugin system). New automations are added by future specs at
+- **A UI for defining new wizard keys** (wizard DSL /
+  plugin system). New wizards are added by future specs at
   the code level.
 - **Realtime propagation** of loop create / reapply to other
   browser tabs — polling / page reload is sufficient, same
@@ -782,7 +872,7 @@ ledger. Expect no transactions with `loop_number=6`.
 - **Campaign-level per-loop overrides** (e.g. "this loop only,
   everyone gets +50 gp as a Christmas bonus"). A DM who wants
   this can manually add a row after generation. If it becomes
-  a pattern, a future automation layer handles it.
+  a pattern, a future wizard layer handles it.
 - **Item fuzzy matching / autocomplete from prior loops'
   starter items.** Exact strings only, same as spec-011.
 - **Per-session starter top-ups** (e.g. "every session, the
