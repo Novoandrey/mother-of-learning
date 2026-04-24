@@ -78,6 +78,30 @@ concrete wizards that use it:
   common; flattening them into a campaign default would be
   useless. Source node: the loop.
 
+Starter items are stored today as minimal `{name, qty}` entries
+on the PC's starter config, and they materialise as
+`kind='item'` transactions with the PC as actor — the actor is
+simultaneously the item's **owner** and, implicitly, its
+location. This is deliberately bare-bones: a future spec is
+expected to add **location and equip metadata** to item
+transactions — a "carried / stored / equipped" marker, and
+optionally a location-node reference for items that live at
+the PC's house or in a world-level location distinct from the
+PC's person. When PCs themselves become graph-aware entities
+with "I'm at location X on day N" movement (a separate future
+spec), items will be able to live at location nodes
+independently of characters — locations hold items, characters
+walk between locations, and the same wipeable-state rule
+(constitution principle I) applies: when a new loop begins,
+every wipeable actor — PCs, the stash, location nodes — sees a
+fresh-zero view. Spec-012 does not introduce any of this; the
+starter-items wizard produces plain `kind='item'` rows that
+future migrations will gracefully extend with additional
+nullable columns. `plan.md` pins the column layout explicitly
+so none of those future additions require rewriting the
+wizard, the autogen marker, or the reconcile logic — see
+`plan.md § Forward-Compat Column Map`.
+
 Spec-013 (encounter loot distribution) is an **expected second
 batch of wizards** of the same shape, with the source node
 being an encounter rather than a loop. Spec-012 designs the
@@ -891,6 +915,32 @@ ledger. Expect no transactions with `loop_number=6`.
   improvement for free (the wizard produces
   `kind='item'` rows and spec-015 upgrades the grid on both
   sides of the stash ↔ PC symmetry).
+- **Starter items can carry any name, including unique
+  narrative items.** "Документы на дом", "Медальон отца",
+  "Долговая расписка барону" are valid starter-item names,
+  distinguished from stackables ("20 arrows") only by being
+  `qty = 1` with a distinctive string. Spec-012 adds no
+  "is this unique?" flag — the difference is purely in the
+  name. Spec-015 will later separate unique item-nodes from
+  generic names globally once the item catalog lands.
+- **Starter items are DM-edited in spec-012 by choice, not by
+  architectural constraint.** The per-PC starter config is
+  player-readable; spec-012 locks item writes to the DM for
+  operational simplicity. Once spec-014 ships the approval
+  flow, a future spec may let a player draft changes to their
+  own PC's starter items and submit them for DM approval — the
+  underlying data shape does not change, only the write
+  permission layer does.
+- **Item location and equip state are forward-compat, not
+  implemented.** Today the actor column on a `kind='item'` row
+  simultaneously answers "who owns it?" and "where is it?".
+  Tomorrow that pair of questions will split — a future spec
+  will add a location-node reference and a carried/stored/
+  equipped marker to item transactions. Spec-012's starter-
+  items rows will interpret those future columns as
+  `NULL = "lives at the actor"`, which is exactly today's
+  behaviour. `plan.md` must not lock in any column layout that
+  precludes this extension.
 - **Starter transactions are dated day 1 of the loop, period.**
   No configurable "day N of the loop" for setup rows in this
   spec. If a future wizard wants "rent auto-debit on day
@@ -994,6 +1044,28 @@ ledger. Expect no transactions with `loop_number=6`.
 - **An editor UI for the campaign constitution's "starting
   conditions" narrative text.** The starter config is data; a
   sibling human-readable document is out of scope.
+- **Item location and equip state on starter items.** Spec-012
+  stores a starter item as "the PC owns this on day 1 of this
+  loop", nothing more. Whether it's equipped, in the pack, at
+  the PC's house, or at a shared location node is a future-spec
+  concern. Spec-012's `plan.md` MUST design the transactions
+  column layout such that adding those columns later is a
+  single `ALTER TABLE ADD COLUMN ... NULL` away, with no data
+  migration and no wizard rewrite.
+- **PC movement between location nodes.** Spec-012 does not
+  introduce a "PC is at location X on day N" edge, a PC
+  position state, or any location-aware logic. Characters are
+  still just ledger actors. Future specs will add the graph
+  model for PC mobility; spec-012's starter-items transactions
+  remain correct without it because `actor_pc_id = PC` means
+  "PC owns this on day 1", which is the only requirement
+  today.
+- **Wipeable location nodes.** The constitution-I rule
+  ("every wipeable actor sees a fresh-zero view at loop
+  rollover") will extend to location nodes once those become
+  first-class ledger actors in a future spec. Spec-012 does
+  not introduce that extension — it stays as a documented
+  assumption, not a coded feature.
 
 ---
 
