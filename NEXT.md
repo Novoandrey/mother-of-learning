@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 43 — Slice B ship + filter collapsible + item ownership guard)
+> Last updated: 2026-04-24 (chat 44 — transfer-pair collapse IDEA-043)
 
 ## В проде сейчас
 
@@ -74,6 +74,16 @@
   оставляя у PC «отрицательный инвентарь», невидимый в UI.
   Ошибка: «У персонажа недостаточно «X» — есть N, нужно M. Сначала
   запишите получение предмета отдельной транзакцией.»
+- **Transfer-pair collapse — IDEA-043 (chat 44)**: в `/accounting`
+  каждый перевод рендерился двумя зеркальными рядами (sender leg +
+  recipient leg). Новый pure-хелпер `lib/transaction-dedup.ts`
+  (17 unit-тестов) — `dedupTransferPairs` оставляет канонический
+  sender leg (с отрицательным знаком), `countDistinctEvents` считает
+  пары как одно событие. Применён в `getLedgerPage` per-page +
+  в `ledger-list-client` при merge пагинации (для сглаживания
+  boundary-случаев). Totals `count` теперь «события», не «legs».
+  Per-actor views (PC wallet, stash tab, любой `pc=…` filter) не
+  затронуты — sibling leg там и так отсекался фильтром.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -97,23 +107,13 @@
 ## Следующий приоритет
 
 **T034 hand-walkthrough US1-US8** из
-`.specify/specs/011-common-stash/TESTPLAN.md` — пользователь ещё
-не прогнал. Stash-пайп теперь весь стоит на ногах (Slice A+B + ownership
-guard), поэтому прогон должен поймать только мелочь. Можно совместить
-с визуальной проверкой фильтров (свёрнут/раскрыт, «текущая» метка).
-
-**IDEA-043 — collapse transfer pair в один ряд.** Сейчас один перевод
-(например «Мирияна → Общак, амулет ×2») выдаёт две строки в ledger'е:
-leg отправителя и leg получателя. После Slice A это читается как
-«Мирияна → Общак ×2» и «Общак → Мирияна ×2» — зеркальное дублирование
-запутывает. На per-actor view (PC-страница, stash tab) проблемы нет —
-фильтр `pc` отсекает sibling leg. Решение для общего `/accounting`:
-в `getLedgerPage` дедупать по `transfer_group_id`, оставляя sender leg
-(где знак отрицательный). Не P0, но стоит сделать пока контекст свежий.
+`.specify/specs/011-common-stash/TESTPLAN.md`. Весь Slice A+B, filter
+collapse, ownership guard и transfer-pair collapse теперь в проде —
+прогон идёт по стабильной поверхности, должен поймать только мелочь.
+После прогона: правки по findings'ам → закрытие spec-011.
 
 **Spec-016 Сборы** — записан только spec.md. Следующие фазы
-Clarify → Plan → Tasks → Implement. Оставлен в ожидании пока
-стабилизируем spec-011 UX.
+Clarify → Plan → Tasks → Implement. Стартует после закрытия spec-011.
 
 ### Параллельные кандидаты
 
