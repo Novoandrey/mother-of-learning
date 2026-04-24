@@ -57,8 +57,8 @@ export default async function StashPage({
 
   if (!stash) {
     return (
-      <div className="mx-auto max-w-5xl">
-        <Header slug={slug} title="Общак" loopCaption={null} />
+      <div className="mx-auto max-w-4xl space-y-4">
+        <Header slug={slug} icon="💰" title="Общак" loopCaption={null} />
         <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center">
           <p className="text-sm text-gray-400">
             Нода общака не найдена. Проверьте, что миграция 035 применена.
@@ -81,27 +81,42 @@ export default async function StashPage({
     : []
 
   const loopCaption = currentLoop
-    ? `Петля ${currentLoop.number} · день ${currentLoop.length_days ?? '–'}`
+    ? `Петля ${currentLoop.number}`
     : 'Нет текущей петли'
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <Header slug={slug} title={`${stash.icon} ${stash.title}`} loopCaption={loopCaption} />
+    <div className="mx-auto max-w-4xl space-y-6">
+      <Header
+        slug={slug}
+        icon={stash.icon}
+        title={stash.title}
+        loopCaption={loopCaption}
+      />
 
-      {/* Wallet + recent transactions block — reuses the PC component. */}
-      <div className="mb-6">
-        <WalletBlock
-          actorNodeId={stash.nodeId}
-          campaignId={campaign.id}
-          campaignSlug={slug}
-        />
-      </div>
+      {/* Hero: balance + "+ Транзакция" + recent list, stacked vertically.
+          Uses the shared WalletBlock with a stash-appropriate heading so
+          the card doesn't read as a PC-specific "Кошелёк". */}
+      <WalletBlock
+        actorNodeId={stash.nodeId}
+        campaignId={campaign.id}
+        campaignSlug={slug}
+        heading="Баланс общака"
+      />
 
-      {/* Items inventory. Per-loop aggregate; empty when no current loop. */}
+      {/* Inventory — the stash's primary purpose. Given its own card with
+          a title row and item count badge so the UX tells you at a glance
+          how much stuff is stored. */}
       <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Предметы в общаке
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-base font-semibold text-gray-900">
+              Предметы в общаке
+            </h2>
+            {items.length > 0 && (
+              <span className="text-xs text-gray-400">
+                {items.length} {plural(items.length, 'позиция', 'позиции', 'позиций')}
+              </span>
+            )}
           </div>
           <Link
             href={`/c/${slug}/accounting?pc=${stash.nodeId}`}
@@ -114,7 +129,7 @@ export default async function StashPage({
           items={items}
           emptyMessage={
             currentLoop
-              ? 'В этой петле в общаке пока нет предметов'
+              ? 'В этой петле в общаке пока нет предметов. Любой персонаж может положить — кнопка «Положить в Общак» на его странице или в шапке бухгалтерии.'
               : 'Нет текущей петли — предметы не отображаются'
           }
         />
@@ -123,22 +138,41 @@ export default async function StashPage({
   )
 }
 
+/**
+ * Russian plural form (1 / 2-4 / 5+). Used for the "N позиций" chip so
+ * it reads naturally without unconditionally defaulting to a 5+ form.
+ */
+function plural(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few
+  return many
+}
+
 function Header({
   slug,
+  icon,
   title,
   loopCaption,
 }: {
   slug: string
+  icon: string
   title: string
   loopCaption: string | null
 }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        {loopCaption && (
-          <p className="text-sm text-gray-500">{loopCaption}</p>
-        )}
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl leading-none" aria-hidden="true">
+          {icon}
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          {loopCaption && (
+            <p className="text-sm text-gray-500">{loopCaption}</p>
+          )}
+        </div>
       </div>
       <Link
         href={`/c/${slug}/accounting`}

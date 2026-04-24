@@ -4,14 +4,25 @@ import { useCallback, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import TransactionFormSheet from './transaction-form-sheet'
-import type { Category, TransactionWithRelations } from '@/lib/transactions'
+import WalletBalance from './wallet-balance'
+import type {
+  Category,
+  TransactionWithRelations,
+  Wallet,
+} from '@/lib/transactions'
 import { formatAmount } from '@/lib/transaction-format'
 import { deleteTransaction, deleteTransfer } from '@/app/actions/transactions'
 
 type Props = {
+  /** Section heading — "Кошелёк" for PCs, "Баланс общака" for the stash. */
+  heading: string
+  wallet: Wallet
+  walletCaption: string
+  /** Render the "нет текущей петли — показан lifetime итог" note. */
+  showLifetimeFallback: boolean
+
   campaignId: string
   campaignSlug: string
-  /** The node whose recent rows + "+ Transaction" CTA this block wraps. */
   actorNodeId: string
   currentUserId: string
   /** Viewer is campaign owner or DM — can edit/delete any row. */
@@ -26,11 +37,22 @@ type Props = {
 }
 
 /**
- * Client side of the wallet block: "+ Transaction" button,
- * recent rows with edit/delete affordances, and the sheet wrapper
- * that hosts the form for both create and edit flows.
+ * Balance + "+ Транзакция" button + recent activity list + sheet host.
+ *
+ * Layout: vertical stacking.
+ *   Row 1: heading + balance (left) · "+ Транзакция" (right)
+ *   Row 2: recent list, full width
+ *   Row 3: "Все транзакции →" link, right-aligned
+ *
+ * Reused on both the PC catalog detail page and the stash page. The
+ * `heading` + `wallet`/`walletCaption` props make the same client
+ * component serve both without page-specific branching.
  */
 export default function WalletBlockClient({
+  heading,
+  wallet,
+  walletCaption,
+  showLifetimeFallback,
   campaignId,
   campaignSlug,
   actorNodeId,
@@ -89,15 +111,33 @@ export default function WalletBlockClient({
   )
 
   return (
-    <div className="flex flex-col items-end gap-3">
-      <button
-        type="button"
-        onClick={openCreate}
-        className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-      >
-        + Транзакция
-      </button>
+    <div className="flex flex-col gap-4">
+      {/* Row 1: heading + balance (left) · action button (right) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            {heading}
+          </div>
+          <div className="mt-1">
+            <WalletBalance wallet={wallet} caption={walletCaption} />
+          </div>
+          {showLifetimeFallback && (
+            <p className="mt-2 text-xs text-gray-400">
+              Текущая петля не определена — показан итог за всю историю.
+              Создайте активную петлю, чтобы вести учёт по текущему циклу.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="flex-shrink-0 self-start rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+        >
+          + Транзакция
+        </button>
+      </div>
 
+      {/* Row 2: full-width recent list */}
       <RecentList
         recent={recent}
         currentUserId={currentUserId}
@@ -107,12 +147,15 @@ export default function WalletBlockClient({
         onDelete={handleDelete}
       />
 
-      <Link
-        href={`/c/${campaignSlug}/accounting?pc=${actorNodeId}`}
-        className="text-sm text-blue-600 hover:underline"
-      >
-        Все транзакции →
-      </Link>
+      {/* Row 3: "Все транзакции" link, right-aligned */}
+      <div className="flex justify-end">
+        <Link
+          href={`/c/${campaignSlug}/accounting?pc=${actorNodeId}`}
+          className="text-sm text-blue-600 hover:underline"
+        >
+          Все транзакции →
+        </Link>
+      </div>
 
       <TransactionFormSheet
         open={sheetOpen}
@@ -154,7 +197,7 @@ function RecentList({
   }
 
   return (
-    <ul className="flex w-full max-w-md flex-col gap-1.5">
+    <ul className="flex w-full flex-col gap-1.5">
       {recent.map((tx) => {
         const canEditRow = canManage || tx.author_user_id === currentUserId
         const isBusy = busyId === tx.id
