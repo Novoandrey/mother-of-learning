@@ -318,12 +318,12 @@ idempotent.
 
 **Purpose**: the DM's first-apply affordance on the loop page.
 
-- [ ] **T025** [P1] Create `mat-ucheniya/components/loop-start-setup-banner.tsx` (server component):
+- [x] **T025** [P1] Create `mat-ucheniya/components/loop-start-setup-banner.tsx` (server component):
   - Props: `{ loopNodeId: string; campaignSlug: string; campaignId: string }`
   - Internal: awaits `getMembership(campaignId)` and `getLoopSetupStatus(loopNodeId)`
   - Returns `null` if role not in `['dm','owner']` OR `hasAutogenRows === true`
   - Otherwise renders the banner markup per plan `## UI Components → DM-facing`, embedding `<ApplyStarterSetupButton>` client component
-- [ ] **T026** [P1] Create `mat-ucheniya/components/apply-starter-setup-button-client.tsx`:
+- [x] **T026** [P1] Create `mat-ucheniya/components/apply-starter-setup-button-client.tsx`:
   - `'use client'`
   - Props: `{ loopNodeId: string }`
   - Local state: `loading`, `confirmData: AffectedRow[] | null`, `error: string | null`
@@ -332,13 +332,13 @@ idempotent.
     - If `ok` → toast success, `router.refresh()`
     - If thrown → show error toast
   - Renders `<button>Применить</button>` + `<ApplyConfirmDialog>` when `confirmData !== null`
-- [ ] **T027** [P1] Create `mat-ucheniya/components/apply-confirm-dialog.tsx`:
+- [x] **T027** [P1] Create `mat-ucheniya/components/apply-confirm-dialog.tsx`:
   - `'use client'`
   - Props: `{ affected: AffectedRow[]; onConfirm: () => void; onCancel: () => void }`
   - Renders a modal with a table: actor title | wizard label (localized: «Стартовые деньги», «Стартовый кредит», etc) | current value | станет
   - Two buttons: "Подтвердить и пересобрать" (primary) + "Отмена"
   - Accessibility: esc/backdrop cancels; focus traps; `<button>` semantics
-- [ ] **T028** [P1] Mount the banner in `mat-ucheniya/app/c/[slug]/loops/page.tsx`:
+- [x] **T028** [P1] Mount the banner in `mat-ucheniya/app/c/[slug]/loops/page.tsx`:
   - Import `<LoopStartSetupBanner>`
   - Render it in the right pane, immediately above `<LoopProgressBar>`, when `currentLoop` is set. Pass `loopNodeId = currentLoop.nodeId`, `campaignSlug = slug`, `campaignId = campaign.id`.
   - If `currentLoop.nodeId` isn't currently in the `loops` query shape (spec-009's shape might only carry `number`, not `id`), extend the `getLoops` query to include the underlying node id.
