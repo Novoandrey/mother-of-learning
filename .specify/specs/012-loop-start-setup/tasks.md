@@ -390,7 +390,7 @@ loan flag.
 
 **Purpose**: DM's central place to edit loan amount + stash seed.
 
-- [ ] **T034** [P1] Create `mat-ucheniya/app/c/[slug]/accounting/starter-setup/page.tsx`:
+- [x] **T034** [P1] Create `mat-ucheniya/app/c/[slug]/accounting/starter-setup/page.tsx`:
   - `export const dynamic = 'force-dynamic'`
   - Auth: requireAuth + getMembership → role must be dm/owner (redirect otherwise)
   - Load: `getCampaignStarterConfig(campaignId)`
@@ -399,7 +399,7 @@ loan flag.
     2. Общак — стартовые монеты (same component, different handler)
     3. Общак — стартовые предметы (reuses `<StartingItemsEditorClient>`)
   - Page title and breadcrumb: Campaign → Бухгалтерия → Стартовый сетап
-- [ ] **T035** [P2] Add a nav link "Стартовый сетап" to the accounting section. Find the existing accounting nav (likely in `components/accounting-nav.tsx` or a subnav inside `app/c/[slug]/accounting/layout.tsx`); add an entry pointing at `./starter-setup`. DM-only visibility.
+- [x] **T035** [P2] Add a nav link "Стартовый сетап" to the accounting section. Find the existing accounting nav (likely in `components/accounting-nav.tsx` or a subnav inside `app/c/[slug]/accounting/layout.tsx`); add an entry pointing at `./starter-setup`. DM-only visibility.
 
 **Checkpoint**: `/c/[slug]/accounting/starter-setup` opens for DM; edits save and revalidate; non-DM gets a 403 / redirect.
 

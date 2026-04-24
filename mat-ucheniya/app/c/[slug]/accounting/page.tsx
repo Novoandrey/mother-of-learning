@@ -110,6 +110,14 @@ export default async function AccountingPage({
                 {stashNode.icon} Общак →
               </Link>
             )}
+            {(membership.role === 'dm' || membership.role === 'owner') && (
+              <Link
+                href={`/c/${slug}/accounting/starter-setup`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Стартовый сетап
+              </Link>
+            )}
             <Link
               href={`/c/${slug}/accounting/settings/categories`}
               className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"

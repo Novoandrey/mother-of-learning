@@ -56,6 +56,8 @@ function parseFilters(
     kind: asArray(sp.kind).filter(
       (k): k is TransactionKind => k === 'money' || k === 'item' || k === 'transfer',
     ),
+    autogen:
+      sp.autogen === 'only' ? 'only' : sp.autogen === 'none' ? 'none' : undefined,
   }
 }
 
