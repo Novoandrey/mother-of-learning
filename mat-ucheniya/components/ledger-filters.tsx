@@ -63,6 +63,13 @@ export default function LedgerFilters({
       dayTo: params.get('dayTo') ?? '',
       category: params.getAll('category'),
       kind: params.getAll('kind') as TransactionKind[],
+      // Spec-012 T038 — autogen filter. Three states: 'all' (default,
+      // absent from URL), 'only' (only autogen rows), 'none' (only
+      // manual rows). URL value 'only' | 'none'; anything else → 'all'.
+      autogen:
+        (params.get('autogen') === 'only' && 'only') ||
+        (params.get('autogen') === 'none' && 'none') ||
+        'all',
     }),
     [params],
   )
@@ -164,6 +171,16 @@ export default function LedgerFilters({
         onRemove: () => toggleMulti('kind', kind),
       })
     }
+    if (state.autogen !== 'all') {
+      out.push({
+        key: 'autogen',
+        label:
+          state.autogen === 'only'
+            ? 'только автоген'
+            : 'без автогена',
+        onRemove: () => setScalar('autogen', ''),
+      })
+    }
     return out
   }, [
     hideActorFilter,
@@ -173,6 +190,7 @@ export default function LedgerFilters({
     state.dayTo,
     state.category,
     state.kind,
+    state.autogen,
     pcs,
     categories,
     currentLoopNumber,
@@ -273,6 +291,27 @@ export default function LedgerFilters({
               {k.label}
             </Chip>
           ))}
+        </ChipRow>
+      </FilterGroup>
+
+      <FilterGroup label="Автоген">
+        <ChipRow>
+          <Chip
+            active={state.autogen === 'only'}
+            onClick={() =>
+              setScalar('autogen', state.autogen === 'only' ? '' : 'only')
+            }
+          >
+            Только автоген
+          </Chip>
+          <Chip
+            active={state.autogen === 'none'}
+            onClick={() =>
+              setScalar('autogen', state.autogen === 'none' ? '' : 'none')
+            }
+          >
+            Без автогена
+          </Chip>
         </ChipRow>
       </FilterGroup>
     </div>

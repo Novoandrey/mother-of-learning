@@ -150,6 +150,13 @@ export type LedgerFilters = {
   dayTo?: number;
   category?: string[];
   kind?: TransactionKind[];
+  /**
+   * Spec-012 T039 — autogen rows filter.
+   *   'only' → rows where `autogen_wizard_key IS NOT NULL`
+   *   'none' → rows where `autogen_wizard_key IS NULL`
+   *   undefined → no filter (default)
+   */
+  autogen?: 'only' | 'none';
 };
 
 export type LedgerPage = {
@@ -632,7 +639,7 @@ export async function getLedgerPage(
 ): Promise<LedgerPage> {
   const supabase = await createClient();
 
-  const applyFilters = <T extends { eq: (...a: unknown[]) => T; in: (...a: unknown[]) => T; gte: (...a: unknown[]) => T; lte: (...a: unknown[]) => T }>(q: T): T => {
+  const applyFilters = <T extends { eq: (...a: unknown[]) => T; in: (...a: unknown[]) => T; gte: (...a: unknown[]) => T; lte: (...a: unknown[]) => T; not: (...a: unknown[]) => T; is: (...a: unknown[]) => T }>(q: T): T => {
     let out = q.eq('campaign_id', campaignId);
     if (filters.pc?.length) out = out.in('actor_pc_id', filters.pc);
     if (filters.loop?.length) out = out.in('loop_number', filters.loop);
@@ -640,6 +647,11 @@ export async function getLedgerPage(
     if (filters.dayTo !== undefined) out = out.lte('day_in_loop', filters.dayTo);
     if (filters.category?.length) out = out.in('category_slug', filters.category);
     if (filters.kind?.length) out = out.in('kind', filters.kind);
+    if (filters.autogen === 'only') {
+      out = out.not('autogen_wizard_key', 'is', null);
+    } else if (filters.autogen === 'none') {
+      out = out.is('autogen_wizard_key', null);
+    }
     return out;
   };
 

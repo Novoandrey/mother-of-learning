@@ -3,8 +3,10 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { TransactionWithRelations } from '@/lib/transactions'
+import type { WizardKey } from '@/lib/starter-setup'
 import { formatAmount } from '@/lib/transaction-format'
 import { aggregateGp } from '@/lib/transaction-resolver'
+import { AutogenBadgeClient } from './autogen-badge-client'
 
 type Props = {
   tx: TransactionWithRelations
@@ -22,6 +24,13 @@ type Props = {
   onDelete: (tx: TransactionWithRelations) => void
   /** Disables edit/delete controls while an action is in flight. */
   busy?: boolean
+  /**
+   * Spec-012 T037 — autogen badge data. Set when the row was produced
+   * by an autogen wizard (loop start setup in spec-012; encounter loot
+   * in spec-013). Displays a compact ⚙-icon before the day chip with
+   * a tooltip showing wizard label + source title.
+   */
+  autogen?: { wizardKey: WizardKey; sourceTitle: string } | null
 }
 
 const MINUS_SIGN = '\u2212' // U+2212, typographic minus
@@ -52,6 +61,7 @@ export default function TransactionRow({
   onEdit,
   onDelete,
   busy,
+  autogen,
 }: Props) {
   const dayChip = renderDayChip(tx)
   const { mainText, amountText, amountClass } = renderBody(tx)
@@ -61,6 +71,13 @@ export default function TransactionRow({
     <li className="group flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2 hover:border-gray-300 sm:gap-3 sm:px-3">
       {/* Left: day chip + (mobile-wrap) actor + main text + category */}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+        {autogen && (
+          <AutogenBadgeClient
+            wizardKey={autogen.wizardKey}
+            sourceTitle={autogen.sourceTitle}
+          />
+        )}
+
         <span className="inline-flex shrink-0 items-center rounded bg-gray-50 px-1.5 py-0.5 font-mono text-xs text-gray-700">
           {dayChip}
         </span>
