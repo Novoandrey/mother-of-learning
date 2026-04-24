@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 45 — BUG-018 encounter role gate)
+> Last updated: 2026-04-24 (chat 46 — spec-012 plan + Phases 1-4 implement)
 
 ## В проде сейчас
 
@@ -95,6 +95,17 @@
   sync grid через новый imperative handle `setParticipantHp`. Хук
   `useParticipantActions` для игрока возвращает noop-ы с
   warn-once alert'ом — все 18 mutation-колбэков сразу disabled.
+- **spec-012 Loop start setup, Phases 1-4 (chat 46)** — _в процессе,
+  не в проде UI_. Autogen layer (миграция 037): 3 новые таблицы
+  (`campaign_starter_configs`, `pc_starter_configs`,
+  `autogen_tombstones`), 3 колонки на `transactions`
+  (`autogen_wizard_key`, `autogen_source_node_id`,
+  `autogen_hand_touched`), partial index, 2 trigger'а с
+  session-local guard'ом `spec012.applying`. Pure helpers
+  (`lib/starter-setup-{resolver,diff,affected,validation}.ts`) +
+  55 vitest-тестов. Read queries в `lib/starter-setup.ts`.
+  Следующее — Phases 5-12 (write actions, apply + RPC migration,
+  UI). См. chat 46 chatlog.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -113,27 +124,52 @@
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `036_item_qty_signed.sql`
+**Последняя применённая миграция:** `037_loop_start_setup.sql`
 
 ## Следующий приоритет
 
-**Spec-011 закрыта**. T034 hand-walkthrough пользователь прогнал
-(chat 45, «всё ок, буду делать доработки после spec-015»). Весь
-Slice A+B, filter collapse, ownership guard, transfer-pair collapse
-(IDEA-043) и BUG-018 encounter gate — в проде.
+**Spec-012 Loop start setup** — specify + clarify + plan + tasks
+закрыты в chat 46, implement в процессе. **Phases 1-4 done**
+(миграция 037, типы, pure helpers с 55 vitest-тестами,
+read queries). В проде через сессионную паузу после Phase 12.
 
-**Следующее — Spec-012** из `.specify/memory/bookkeeping-roadmap.md`
-(следующая в серии 009-015). В новом чате: Specify → Clarify → Plan
-→ Tasks → Implement.
+**Осталось 30 из 47 задач:**
 
-**Параллельно** — spec-016 Сборы (Clarify → …) записан только
-spec.md. Пользователь выберет в новом чате spec-012 vs spec-016.
+- **Phase 5** (T018–T020): config write actions в
+  `app/actions/starter-setup.ts` — `updateCampaignStarterConfig`,
+  `updatePcStarterConfig`, `setPcTakesStartingLoan`.
+- **Phase 6** (T021–T023): apply action two-phase + RPC-миграция 038
+  (`apply_loop_start_setup` в DB-функции). Пользователь применяет
+  RPC в конце.
+- **Phase 7** (T024): hook `pc_starter_configs` default-row в
+  PC-create flow.
+- **Phase 8** (T025–T028): banner + confirm dialog + mount на
+  `/loops`.
+- **Phase 9** (T029–T033): PC starter config block (DM / player
+  варианты).
+- **Phase 10** (T034–T035): `/c/[slug]/accounting/starter-setup`
+  страница.
+- **Phase 11** (T036–T040): P2 — autogen badge + filter chip на
+  ledger.
+- **Phase 12** (T041–T047): close-out (lint, test, build,
+  walkthrough, NEXT, chatlog, commit).
+
+Правило: **по 3 фазы за раз**, останавливаемся перед применением
+миграции (это Phase 6 / T023).
+
+**Следующий чат начинает с Phase 5.**
+
+**Spec-016 «Сборы»** — только spec.md. Отложена до закрытия
+spec-012 или параллельно в отдельном чате (если решишь).
 
 ### Последняя строка хвостов
 
 - IDEA-043 ✅ (chat 44) — collapsed-transfer-row в /accounting.
 - Bulk-edit ещё нет (часть старого IDEA-043) — может всплыть
   отдельно если будет запрос.
+- **IDEA-054 EPIC** — 🗺️ PC↔Location граф, item_location, wipeable
+  локации. Закреплена в backlog'е; forward-compat column map в
+  spec-012 plan.md готова принять её будущие миграции.
 
 ### Параллельные кандидаты
 
