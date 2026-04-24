@@ -39,6 +39,9 @@ export type Transaction = {
   /** Signed per-denom amount. All zeros for `kind='item'`. */
   coins: CoinSet;
   item_name: string | null;
+  /** Integer ≥ 1 (CHECK in migration 035). Semantically unused for
+   * `kind='money'` / `'transfer'` — defaulted to 1 at write time. */
+  item_qty: number;
   category_slug: string;
   comment: string;
   loop_number: number;
@@ -157,6 +160,7 @@ type TxRawRow = {
   amount_gp: number;
   amount_pp: number;
   item_name: string | null;
+  item_qty: number;
   category_slug: string;
   comment: string;
   loop_number: number;
@@ -182,6 +186,7 @@ function rawToTransaction(raw: TxRawRow): Transaction {
       pp: raw.amount_pp,
     },
     item_name: raw.item_name,
+    item_qty: raw.item_qty,
     category_slug: raw.category_slug,
     comment: raw.comment,
     loop_number: raw.loop_number,
@@ -212,7 +217,7 @@ type TxJoinedRow = TxRawRow & {
 const JOIN_SELECT = `
   id, campaign_id, actor_pc_id, kind,
   amount_cp, amount_sp, amount_gp, amount_pp,
-  item_name, category_slug, comment,
+  item_name, item_qty, category_slug, comment,
   loop_number, day_in_loop, session_id,
   transfer_group_id, status, author_user_id,
   created_at, updated_at,

@@ -33,6 +33,7 @@ import {
   validateAmountSign,
   validateDayInLoop,
   validateCoinSet,
+  validateItemQty,
 } from '@/lib/transaction-validation'
 import { getWallet } from '@/lib/transactions'
 
@@ -54,6 +55,8 @@ export type CreateTransactionInput = {
   perDenomOverride?: CoinSet
   /** Required non-empty for `kind='item'`; forbidden otherwise. */
   itemName?: string
+  /** Integer ≥ 1 for `kind='item'`; default 1. Ignored for `kind='money'`. */
+  itemQty?: number
   categorySlug: string
   comment: string
   loopNumber: number
@@ -182,6 +185,13 @@ export async function createTransaction(
     // coins stays all-zero; DB CHECK enforces this.
   }
 
+  // --- Item qty (applies to item kind; money rows store default 1) ---
+  const itemQty = input.kind === 'item' ? input.itemQty ?? 1 : 1
+  if (input.kind === 'item') {
+    const qtyErr = validateItemQty(itemQty)
+    if (qtyErr) return { ok: false, error: qtyErr }
+  }
+
   // --- Authorisation ---
   const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
@@ -206,6 +216,7 @@ export async function createTransaction(
       amount_gp: coins.gp,
       amount_pp: coins.pp,
       item_name: itemName,
+      item_qty: itemQty,
       category_slug: input.categorySlug,
       comment: input.comment,
       loop_number: input.loopNumber,
@@ -301,6 +312,11 @@ export async function updateTransaction(
       }
       patch.item_name = input.itemName.trim()
     }
+    if (input.itemQty !== undefined) {
+      const qtyErr = validateItemQty(input.itemQty)
+      if (qtyErr) return { ok: false, error: qtyErr }
+      patch.item_qty = input.itemQty
+    }
     // When switching money → item, zero amounts and enforce item_name presence.
     if (patch.kind === 'item') {
       patch.amount_cp = 0
@@ -312,6 +328,10 @@ export async function updateTransaction(
           ok: false,
           error: 'При смене типа на «предмет» укажите его название',
         }
+      }
+      // Ensure item_qty is set when switching in, default 1 if absent.
+      if (patch.item_qty === undefined) {
+        patch.item_qty = input.itemQty ?? 1
       }
     }
   } else {
@@ -366,6 +386,39 @@ export async function updateTransaction(
 
   if (updateErr) {
     return { ok: false, error: `Не удалось обновить: ${updateErr.message}` }
+  }
+
+  // Transfer-pair atomicity for item legs: when editing one leg of a
+  // paired item transfer (both legs share `transfer_group_id`), mirror
+  // item_name + item_qty to the sibling. Qty mirrors by sign — if this
+  // leg's new qty is +N the sibling becomes -N (Phase 5 convention,
+  // mig 036). Untouched if the row has no transfer_group_id.
+  if (
+    row.kind === 'item' &&
+    row.transfer_group_id &&
+    (patch.item_name !== undefined || patch.item_qty !== undefined)
+  ) {
+    const siblingPatch: Record<string, unknown> = {}
+    if (patch.item_name !== undefined) siblingPatch.item_name = patch.item_name
+    if (patch.item_qty !== undefined) {
+      siblingPatch.item_qty = -Number(patch.item_qty)
+    }
+
+    const { error: siblingErr } = await admin
+      .from('transactions')
+      .update(siblingPatch)
+      .eq('transfer_group_id', row.transfer_group_id)
+      .neq('id', id)
+
+    if (siblingErr) {
+      // The primary update already landed; surface the sibling failure
+      // so the caller can retry — but don't roll back. Same last-write-
+      // wins stance as `updateTransfer`.
+      return {
+        ok: false,
+        error: `Основная нога обновлена, но парная упала: ${siblingErr.message}`,
+      }
+    }
   }
 
   return { ok: true }
@@ -467,7 +520,7 @@ export async function loadLedgerPage(
 
 import crypto from 'node:crypto'
 import type { TransferInput } from '@/lib/transactions'
-import { validateTransfer } from '@/lib/transaction-validation'
+import { validateTransfer, validateItemTransfer } from '@/lib/transaction-validation'
 import { getTransferPair } from '@/lib/transactions'
 
 export async function createTransfer(
@@ -700,4 +753,114 @@ export async function deleteTransfer(groupId: string): Promise<ActionResult> {
     return { ok: false, error: `Не удалось удалить: ${error.message}` }
   }
   return { ok: true }
+}
+
+// ============================================================================
+// createItemTransfer (spec-011, Phase 5)
+// ============================================================================
+//
+// Item sibling of `createTransfer`. Two rows with `kind='item'`, shared
+// `transfer_group_id`, same `item_name`. Sign encodes direction
+// (mig 036):
+//   - sender leg:    item_qty = -qty  (lost `qty` units)
+//   - recipient leg: item_qty = +qty  (gained `qty` units)
+//
+// Coin amounts are all zero (same CHECK as spec-010 items). `transfer`
+// category by default ("loot" is the usual fit for stash deposits;
+// caller overrides via `categorySlug`).
+
+export type ItemTransferInput = {
+  campaignId: string
+  senderPcId: string
+  recipientPcId: string
+  itemName: string
+  /** Positive integer. Direction is encoded by the writer, not the caller. */
+  qty: number
+  categorySlug: string
+  comment: string
+  loopNumber: number
+  dayInLoop: number
+  sessionId?: string | null
+}
+
+export async function createItemTransfer(
+  input: ItemTransferInput,
+): Promise<ActionResult<{ groupId: string }>> {
+  if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
+  if (!input.senderPcId) return { ok: false, error: 'Не выбран отправитель' }
+  if (!input.recipientPcId) return { ok: false, error: 'Не выбран получатель' }
+  if (!input.categorySlug) return { ok: false, error: 'Не выбрана категория' }
+
+  // Self-transfer / cross-loop rejection (same-loop enforced by
+  // passing `loopNumber` for both sides).
+  const txErr = validateTransfer(
+    input.senderPcId,
+    input.recipientPcId,
+    input.loopNumber,
+    input.loopNumber,
+  )
+  if (txErr) return { ok: false, error: txErr }
+
+  const dayErr = validateDayInLoop(input.dayInLoop, 365)
+  if (dayErr) return { ok: false, error: dayErr }
+
+  const itemErr = validateItemTransfer({
+    itemName: input.itemName,
+    qty: input.qty,
+  })
+  if (itemErr) return { ok: false, error: itemErr }
+
+  const auth = await resolveAuth(input.campaignId)
+  if (!auth.ok) return auth
+
+  if (auth.role === 'player') {
+    const ownsSender = await isPcOwner(input.senderPcId, auth.userId)
+    if (!ownsSender) {
+      return {
+        ok: false,
+        error: 'Перевод предмета может начать только владелец персонажа-отправителя',
+      }
+    }
+  }
+
+  const admin = createAdminClient()
+  const groupId = crypto.randomUUID()
+  const itemName = input.itemName.trim()
+
+  const baseRow = {
+    campaign_id: input.campaignId,
+    kind: 'item' as const,
+    amount_cp: 0,
+    amount_sp: 0,
+    amount_gp: 0,
+    amount_pp: 0,
+    item_name: itemName,
+    category_slug: input.categorySlug,
+    comment: input.comment,
+    loop_number: input.loopNumber,
+    day_in_loop: input.dayInLoop,
+    session_id: input.sessionId ?? null,
+    transfer_group_id: groupId,
+    status: 'approved' as const,
+    author_user_id: auth.userId,
+  }
+
+  const { error } = await admin.from('transactions').insert([
+    {
+      ...baseRow,
+      actor_pc_id: input.senderPcId,
+      item_qty: -input.qty,
+    },
+    {
+      ...baseRow,
+      actor_pc_id: input.recipientPcId,
+      item_qty: input.qty,
+    },
+  ])
+
+  if (error) {
+    return { ok: false, error: `Не удалось сохранить: ${error.message}` }
+  }
+
+  return { ok: true, groupId }
 }

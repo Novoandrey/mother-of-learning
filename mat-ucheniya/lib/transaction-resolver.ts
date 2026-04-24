@@ -102,3 +102,50 @@ export function signedCoinsToStored(negate: boolean, coins: CoinSet): CoinSet {
     { cp: 0, sp: 0, gp: 0, pp: 0 } as CoinSet,
   );
 }
+
+// ============================================================================
+// Stash shortfall math — spec-011
+// ============================================================================
+
+export type ShortfallResult = {
+  /** `max(0, |expenseGp| − walletGp)` — how much the wallet is short. */
+  shortfall: number;
+  /** `min(shortfall, stashGp)` — how much the stash can actually cover. */
+  toBorrow: number;
+  /** `shortfall − toBorrow` — what's still missing after stash top-up. */
+  remainderNegative: number;
+};
+
+/**
+ * Decide how much to borrow from the stash to cover an expense.
+ *
+ *   shortfall         = max(0, |expenseGp| − walletGp)
+ *   toBorrow          = min(shortfall, stashGp)
+ *   remainderNegative = shortfall − toBorrow
+ *
+ * Semantics:
+ *   - `shortfall = 0` → wallet covers the expense on its own; UI should
+ *     not render the shortfall prompt (FR-008).
+ *   - `stashGp = 0`  → `toBorrow = 0`, full shortfall falls through to
+ *     the user as "PC wallet will go negative" (spec-010 baseline).
+ *   - Partial cover (stash poor): `toBorrow = stashGp`, remainder still
+ *     surfaces as a PC-side negative-wallet warning.
+ *
+ * `expenseGp` may be passed signed (e.g. `-5`) or as a magnitude (`5`) —
+ * we take the absolute value so callers don't have to normalize first.
+ *
+ * Pure; no I/O, no side effects. Inputs and outputs are plain numbers
+ * in GP-equivalent with cp-precision (2 decimals); higher precision is
+ * outside the ledger's contract.
+ */
+export function computeShortfall(
+  walletGp: number,
+  expenseGp: number,
+  stashGp: number,
+): ShortfallResult {
+  const expenseMag = Math.abs(expenseGp);
+  const shortfall = Math.max(0, expenseMag - walletGp);
+  const toBorrow = Math.min(shortfall, Math.max(0, stashGp));
+  const remainderNegative = shortfall - toBorrow;
+  return { shortfall, toBorrow, remainderNegative };
+}

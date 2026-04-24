@@ -17,10 +17,11 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { seedCampaignSrd, type SeedResult } from '@/lib/seeds/dnd5e-srd'
 import { seedCampaignCategories, type CategoriesSeedResult } from '@/lib/seeds/categories'
+import { ensureCampaignStash, type EnsureStashResult } from '@/lib/seeds/stash'
 import { invalidateSidebar } from '@/lib/sidebar-cache'
 
 export type InitializeCampaignResult =
-  | { ok: true; seed: SeedResult; categories: CategoriesSeedResult }
+  | { ok: true; seed: SeedResult; categories: CategoriesSeedResult; stash: EnsureStashResult }
   | { ok: false; error: string }
 
 /**
@@ -69,11 +70,14 @@ export async function initializeCampaignFromTemplate(
     // Spec-010 transaction categories — idempotent, safe to call
     // every time alongside the SRD seed.
     const categories = await seedCampaignCategories(supabase, campaignId)
+    // Spec-011 — one stash ("Общак") node per campaign. Idempotent;
+    // no-op if the campaign already has one (e.g. seeded by mig 035).
+    const stash = await ensureCampaignStash(supabase, campaignId)
     // Seeding inserts node_types + nodes — both live in the sidebar cache.
     // Drop the cache so the freshly seeded campaign shows full content
     // immediately instead of waiting for the 60s TTL.
     invalidateSidebar(campaignId)
-    return { ok: true, seed, categories }
+    return { ok: true, seed, categories, stash }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Неизвестная ошибка сидинга'
     return { ok: false, error: message }

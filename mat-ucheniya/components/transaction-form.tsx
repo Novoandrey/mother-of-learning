@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AmountInput, { type AmountInputValue } from './amount-input'
 import TransferRecipientPicker from './transfer-recipient-picker'
+import ShortfallPrompt from './shortfall-prompt'
 import {
   createTransaction,
   createTransfer,
@@ -12,6 +13,14 @@ import {
   updateTransfer,
   type CreateTransactionInput,
 } from '@/app/actions/transactions'
+import {
+  putMoneyIntoStash,
+  takeMoneyFromStash,
+  putItemIntoStash,
+  takeItemFromStash,
+  getStashAggregate,
+  createExpenseWithStashShortfall,
+} from '@/app/actions/stash'
 import type {
   Category,
   CoinSet,
@@ -19,7 +28,9 @@ import type {
   TransferInput,
 } from '@/lib/transactions'
 import { aggregateGp } from '@/lib/transaction-resolver'
-import { validateTransfer } from '@/lib/transaction-validation'
+import { validateTransfer, validateItemQty } from '@/lib/transaction-validation'
+
+export type StashPinnedDirection = 'put-into-stash' | 'take-from-stash'
 
 type Props = {
   campaignId: string
@@ -32,38 +43,44 @@ type Props = {
   editing?: TransactionWithRelations | null
   /** Pre-select a tab in create mode. Ignored when `editing` is set. */
   initialKind?: FormKind
+  /**
+   * When set, lock the form to a stash-pinned flow (spec-011 T025):
+   *   - Hide transfer tab + recipient picker.
+   *   - Show a direction chip (→ Общак / ← Общак).
+   *   - Save dispatches to putMoney/takeMoney/putItem/takeItem actions.
+   */
+  initialTransferDirection?: StashPinnedDirection | null
+  /**
+   * Current wallet aggregate in gp. Used by the shortfall prompt
+   * (T026) to decide whether the typed expense overdraws. Optional —
+   * callers that don't pass it simply disable the prompt (the user
+   * can still save; the row goes negative per spec-010 baseline).
+   */
+  currentWalletGp?: number
   onSuccess?: () => void
   onCancel?: () => void
 }
 
 /**
  * Form-level kind. `income` and `expense` collapse onto the DB's
- * `kind='money'` with + / − sign; `transfer` stays its own kind.
- *
- * `item` was removed from the UI (chat 37) — it comes back with
- * spec-015 (items-as-nodes). Legacy item rows still render in the
- * ledger and stay editable through the server action, just not via
- * this form.
+ * `kind='money'` with + / − sign; `transfer` is its own kind; `item`
+ * lands via spec-011 and is only selectable when the form is in
+ * stash-pinned mode (put/take against the общак).
  */
-type FormKind = 'income' | 'expense' | 'transfer'
+type FormKind = 'income' | 'expense' | 'transfer' | 'item'
 
 const TAB_LABELS: Record<FormKind, string> = {
   income: 'Доход',
   expense: 'Расход',
   transfer: 'Перевод',
+  item: 'Предмет',
 }
 
-/**
- * Auto-assigned category slug per form kind. Mirrors the seed in
- * migration 034 — every new campaign has these 3 slugs. `seedCampaign-
- * Categories` guarantees it going forward. If a DM soft-deleted one
- * of them via /settings/categories, the row still writes cleanly —
- * `category_slug` has no FK on `categories.slug` by design.
- */
 const AUTO_CATEGORY: Record<FormKind, string> = {
   income: 'income',
   expense: 'expense',
   transfer: 'transfer',
+  item: 'loot',
 }
 
 function seedFromEditing(tx: TransactionWithRelations): {
@@ -89,9 +106,8 @@ function seedFromEditing(tx: TransactionWithRelations): {
   }
   if (tx.kind === 'item') {
     // Legacy item row — we no longer edit these through this form
-    // (item mode was removed chat 37). Fall through to `expense`
-    // as a safe default so users aren't stuck; they can delete and
-    // re-create if they want to change the kind.
+    // (item mode was removed chat 37, re-added for stash-pinned in
+    // spec-011). Fall through to `expense` as a safe default.
     return { kind: 'expense', amount: { mode: 'gp', amount: 0 } }
   }
   // money
@@ -112,13 +128,24 @@ function seedFromEditing(tx: TransactionWithRelations): {
 }
 
 /**
- * Transaction form — mobile-first. Three tabs:
- *   Доход (green) / Расход (red) / Перевод (blue)
+ * Magnitude aggregate in gp from the `AmountInput` value shape. Used
+ * client-side to compute shortfall inline without hitting the server.
+ */
+function amountMagnitudeGp(v: AmountInputValue): number {
+  if (v.mode === 'gp') return Math.max(0, v.amount)
+  return Math.abs(aggregateGp(v.coins))
+}
+
+/**
+ * Transaction form — mobile-first. Two personalities:
  *
- * Sign is carried by the tab choice; `AmountInput` is magnitude-
- * only. Category picker is hidden (IDEA-050) — slug is auto-
- * assigned from kind; users who need category filters use the
- * /settings/categories editor and the ledger filter bar.
+ *   1. Normal mode — three tabs: Доход / Расход / Перевод. Standard
+ *      spec-010 flow. Expense kind wires in the spec-011 shortfall
+ *      prompt when the amount would overdraw the wallet.
+ *   2. Stash-pinned mode (`initialTransferDirection` set) — tabs
+ *      replaced with Деньги / Предмет. The recipient is always the
+ *      stash; a chip shows the direction. Save dispatches to the
+ *      `app/actions/stash.ts` wrappers.
  */
 export default function TransactionForm({
   campaignId,
@@ -128,6 +155,8 @@ export default function TransactionForm({
   defaultSessionId,
   editing,
   initialKind,
+  initialTransferDirection,
+  currentWalletGp,
   onSuccess,
   onCancel,
 }: Props) {
@@ -136,26 +165,28 @@ export default function TransactionForm({
   const editingTransferGroupId = editing?.transfer_group_id ?? null
   const editingKindLocked = editing?.kind === 'transfer'
 
+  const stashPinned = !!initialTransferDirection && !editing
+  // In stash-pinned mode the "Деньги" tab maps to income for take-from
+  // and expense for put-into — the sign is fixed by the direction, the
+  // user only enters a magnitude.
+  const stashMoneyKind: 'income' | 'expense' =
+    initialTransferDirection === 'take-from-stash' ? 'income' : 'expense'
+
   const seed = editing ? seedFromEditing(editing) : null
 
   const [kind, setKind] = useState<FormKind>(
-    seed?.kind ?? initialKind ?? 'expense',
+    seed?.kind ?? (stashPinned ? stashMoneyKind : initialKind ?? 'expense'),
   )
   const [amount, setAmount] = useState<AmountInputValue>(
     seed?.amount ?? { mode: 'gp', amount: 0 },
   )
   const [recipientPcId, setRecipientPcId] = useState<string | null>(null)
   const [comment, setComment] = useState<string>(editing?.comment ?? '')
-  // Loop is context — never editable in this form. If the DM needs to
-  // record something in a past/future loop, that flow belongs in a
-  // dedicated bulk-edit tool (IDEA-043), not the per-tx sheet.
+  // Item-specific state (spec-011).
+  const [itemName, setItemName] = useState<string>('')
+  const [itemQty, setItemQty] = useState<number>(1)
+
   const loopNumber: number = editing?.loop_number ?? defaultLoopNumber
-  // Day is stored as the raw input string so the user can clear the
-  // field and type a new number — a plain `useState<number>` rejects
-  // the intermediate empty state and freezes the cursor. We normalise
-  // to a valid number on blur and again at submit: empty/<1 → 1, >30
-  // → 30 (30 matches the current loop-length default; revisit once
-  // loops carry variable length_days all the way down to the form).
   const initialDay: number = editing?.day_in_loop ?? defaultDayInLoop
   const [dayInLoopText, setDayInLoopText] = useState<string>(
     String(initialDay),
@@ -172,6 +203,71 @@ export default function TransactionForm({
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // ------ Shortfall prompt state (T026) ------
+  const expenseMagGp = useMemo(() => {
+    if (kind !== 'expense') return 0
+    if (stashPinned) return 0 // dispatches to stash wrapper, not the overdraw path
+    return amountMagnitudeGp(amount)
+  }, [amount, kind, stashPinned])
+
+  const walletGp = currentWalletGp ?? null
+  const shortfallGp = useMemo(() => {
+    if (walletGp === null) return 0
+    if (expenseMagGp <= 0) return 0
+    return Math.max(0, expenseMagGp - walletGp)
+  }, [expenseMagGp, walletGp])
+
+  const [stashGp, setStashGp] = useState<number | null>(null)
+  const [stashFetched, setStashFetched] = useState(false)
+  // `'unresolved'` = prompt was dismissed or never offered;
+  // `'accept'` = user opted for stash cover on submit;
+  // `'decline'` = user opted to go negative.
+  const [shortfallChoice, setShortfallChoice] = useState<
+    'unresolved' | 'accept' | 'decline'
+  >('unresolved')
+
+  // Lazily fetch stash aggregate once shortfall > 0. Memoized by
+  // (campaignId, loopNumber) — cleared when either changes.
+  useEffect(() => {
+    if (shortfallGp <= 0) return
+    if (stashFetched) return
+    let cancelled = false
+    ;(async () => {
+      const res = await getStashAggregate(campaignId, loopNumber)
+      if (cancelled) return
+      if (res.ok) setStashGp(res.aggregateGp)
+      setStashFetched(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [shortfallGp, stashFetched, campaignId, loopNumber])
+
+  // Reset memoization when the actor or loop changes.
+  useEffect(() => {
+    setStashGp(null)
+    setStashFetched(false)
+    setShortfallChoice('unresolved')
+  }, [actorPcId, loopNumber])
+
+  // When the user lowers the amount back below wallet, clear any
+  // previous choice so the prompt won't stealthily apply on save.
+  useEffect(() => {
+    if (shortfallGp <= 0 && shortfallChoice !== 'unresolved') {
+      setShortfallChoice('unresolved')
+    }
+  }, [shortfallGp, shortfallChoice])
+
+  const showShortfallPrompt =
+    !stashPinned &&
+    kind === 'expense' &&
+    !editing &&
+    shortfallGp > 0 &&
+    stashFetched &&
+    shortfallChoice === 'unresolved'
+
+  // ------ Handlers ------
 
   const handleKindChange = useCallback((next: FormKind) => {
     setKind(next)
@@ -205,7 +301,90 @@ export default function TransactionForm({
 
     setSubmitting(true)
     try {
+      // --- Stash-pinned branch (spec-011) ---
+      if (stashPinned) {
+        const direction = initialTransferDirection!
+
+        if (kind === 'item') {
+          const qtyErr = validateItemQty(itemQty)
+          if (qtyErr) {
+            setError(qtyErr)
+            return
+          }
+          if (!itemName.trim()) {
+            setError('Укажите название предмета')
+            return
+          }
+          const fn = direction === 'put-into-stash' ? putItemIntoStash : takeItemFromStash
+          const res = await fn({
+            campaignId,
+            actorPcId,
+            itemName: itemName.trim(),
+            qty: itemQty,
+            comment,
+            loopNumber,
+            dayInLoop,
+            sessionId,
+          })
+          if (!res.ok) {
+            setError(res.error)
+            return
+          }
+        } else {
+          const absAmount =
+            amount.mode === 'gp' ? amount.amount : amountMagnitudeGp(amount)
+          if (!absAmount || absAmount <= 0) {
+            setError('Сумма должна быть больше нуля')
+            return
+          }
+          const fn = direction === 'put-into-stash' ? putMoneyIntoStash : takeMoneyFromStash
+          const res = await fn({
+            campaignId,
+            actorPcId,
+            amountGp: absAmount,
+            comment,
+            loopNumber,
+            dayInLoop,
+            sessionId,
+          })
+          if (!res.ok) {
+            setError(res.error)
+            return
+          }
+        }
+        router.refresh()
+        onSuccess?.()
+        return
+      }
+
+      // --- Normal mode ---
       if (kind === 'income' || kind === 'expense') {
+        // Shortfall shortcut (T026): expense + user accepted stash cover.
+        if (
+          kind === 'expense' &&
+          shortfallChoice === 'accept' &&
+          amount.mode === 'gp' &&
+          amount.amount > 0
+        ) {
+          const res = await createExpenseWithStashShortfall({
+            campaignId,
+            actorPcId,
+            amountGp: amount.amount,
+            categorySlug,
+            comment,
+            loopNumber,
+            dayInLoop,
+            sessionId,
+          })
+          if (!res.ok) {
+            setError(res.error)
+            return
+          }
+          router.refresh()
+          onSuccess?.()
+          return
+        }
+
         const sign: 1 | -1 = kind === 'income' ? 1 : -1
         const { signedGp, perDenomOverride } = applyMoneySign(amount, sign)
 
@@ -237,6 +416,12 @@ export default function TransactionForm({
           setError(res.error)
           return
         }
+      } else if (kind === 'item') {
+        // Item kind in normal mode isn't wired — spec-011 restricts
+        // item entry to stash-pinned mode. If we ever surface an
+        // item-only tab outside stash flows, route it here.
+        setError('Предметы пока создаются только через «Положить/Взять из Общака»')
+        return
       } else {
         // transfer
         if (!editingTransferGroupId && !recipientPcId) {
@@ -315,12 +500,17 @@ export default function TransactionForm({
     dayInLoop,
     editingId,
     editingTransferGroupId,
+    initialTransferDirection,
+    itemName,
+    itemQty,
     kind,
     loopNumber,
     onSuccess,
     recipientPcId,
     router,
     sessionId,
+    shortfallChoice,
+    stashPinned,
   ])
 
   const handleTransferDelete = useCallback(async () => {
@@ -344,44 +534,126 @@ export default function TransactionForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Kind switcher — coloured active states mirror the coloured
-          entry-point buttons on /accounting. */}
-      <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
-        {(['income', 'expense', 'transfer'] as const).map((k) => {
-          const isActive = kind === k
-          const locked = editingKindLocked && k !== 'transfer'
-          const activeClass = (() => {
-            if (!isActive) return ''
-            if (k === 'income') return 'bg-emerald-600 text-white shadow-sm'
-            if (k === 'expense') return 'bg-red-600 text-white shadow-sm'
-            return 'bg-blue-600 text-white shadow-sm'
-          })()
-          return (
-            <button
-              key={k}
-              type="button"
-              onClick={() => !locked && handleKindChange(k)}
-              disabled={locked || busy}
-              className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? activeClass
-                  : locked
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              aria-pressed={isActive}
-            >
-              {TAB_LABELS[k]}
-            </button>
-          )
-        })}
-      </div>
+      {/* Stash direction chip (stash-pinned mode only). */}
+      {stashPinned && (
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-gray-900 px-3 py-1 text-sm font-medium text-white">
+            {initialTransferDirection === 'put-into-stash' ? '→ Общак' : '← Общак'}
+          </span>
+          <span className="text-xs text-gray-500">
+            {initialTransferDirection === 'put-into-stash'
+              ? 'Вы кладёте в общак'
+              : 'Вы берёте из общака'}
+          </span>
+        </div>
+      )}
 
-      {/* Slot 1: amount (magnitude only) */}
-      <AmountInput value={amount} onChange={setAmount} />
+      {/* Kind switcher. Two-tab in stash-pinned (money + item), three-
+          tab in normal mode. Transfer tab disabled in stash-pinned —
+          stash transfers aren't PC↔PC. */}
+      {stashPinned ? (
+        <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+          {([stashMoneyKind, 'item'] as const).map((k) => {
+            const isActive = kind === k
+            const activeClass = (() => {
+              if (!isActive) return ''
+              if (k === 'income') return 'bg-emerald-600 text-white shadow-sm'
+              if (k === 'expense') return 'bg-red-600 text-white shadow-sm'
+              return 'bg-blue-600 text-white shadow-sm'
+            })()
+            const label = k === 'item' ? 'Предмет' : 'Деньги'
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => handleKindChange(k)}
+                disabled={busy}
+                className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                  isActive ? activeClass : 'text-gray-500 hover:text-gray-700'
+                }`}
+                aria-pressed={isActive}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+          {(['income', 'expense', 'transfer'] as const).map((k) => {
+            const isActive = kind === k
+            const locked = editingKindLocked && k !== 'transfer'
+            const activeClass = (() => {
+              if (!isActive) return ''
+              if (k === 'income') return 'bg-emerald-600 text-white shadow-sm'
+              if (k === 'expense') return 'bg-red-600 text-white shadow-sm'
+              return 'bg-blue-600 text-white shadow-sm'
+            })()
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => !locked && handleKindChange(k)}
+                disabled={locked || busy}
+                className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? activeClass
+                    : locked
+                    ? 'text-gray-400 cursor-not-allowed'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+                aria-pressed={isActive}
+              >
+                {TAB_LABELS[k]}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
-      {/* Slot 1a (transfer + create only): recipient picker */}
-      {kind === 'transfer' && !editingTransferGroupId && (
+      {/* Item inputs (kind='item' only) */}
+      {kind === 'item' ? (
+        <>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Предмет
+            </label>
+            <input
+              type="text"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="Название предмета"
+              disabled={busy}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Количество
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              step="1"
+              value={itemQty}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                if (Number.isFinite(n) && n >= 1) setItemQty(Math.trunc(n))
+                else if (e.target.value === '') setItemQty(1)
+              }}
+              disabled={busy}
+              className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
+          </div>
+        </>
+      ) : (
+        /* Money/transfer amount input */
+        <AmountInput value={amount} onChange={setAmount} />
+      )}
+
+      {/* Recipient picker — transfer in normal mode only. */}
+      {kind === 'transfer' && !editingTransferGroupId && !stashPinned && (
         <TransferRecipientPicker
           campaignId={campaignId}
           excludeId={actorPcId}
@@ -391,7 +663,31 @@ export default function TransactionForm({
         />
       )}
 
-      {/* Slot 2: comment (free-form; category is auto-assigned per kind). */}
+      {/* Shortfall prompt (T026) — normal mode expense only. */}
+      {showShortfallPrompt && stashGp !== null && (
+        <ShortfallPrompt
+          shortfallGp={shortfallGp}
+          stashGp={stashGp}
+          onAcceptBorrow={() => setShortfallChoice('accept')}
+          onDeclineBorrow={() => setShortfallChoice('decline')}
+        />
+      )}
+      {/* Reminder chip once the user made a choice but hasn't submitted. */}
+      {!showShortfallPrompt && shortfallGp > 0 && shortfallChoice !== 'unresolved' && (
+        <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          {shortfallChoice === 'accept'
+            ? 'При сохранении недостающее возьмём из общака.'
+            : 'Сохранение оставит кошелёк в минусе.'}{' '}
+          <button
+            type="button"
+            onClick={() => setShortfallChoice('unresolved')}
+            className="underline hover:no-underline"
+          >
+            изменить
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-1">
         <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
           Комментарий
@@ -406,11 +702,6 @@ export default function TransactionForm({
         />
       </div>
 
-      {/* Temporal context. Loop is read-only (it's campaign state,
-          changed via the loops page); day is an inline number input so
-          the user can nudge it without expanding anything. Session is
-          auto-attached from the frontier — explicit override ships
-          with IDEA-045/TECH-009. */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
         <span>Петля {loopNumber}</span>
         <span aria-hidden="true">·</span>
@@ -442,7 +733,12 @@ export default function TransactionForm({
         <button
           type="button"
           onClick={submit}
-          disabled={busy}
+          disabled={busy || showShortfallPrompt}
+          title={
+            showShortfallPrompt
+              ? 'Сначала ответьте на вопрос о нехватке средств'
+              : undefined
+          }
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
           {submitting ? 'Сохраняю…' : editingId ? 'Сохранить' : 'Создать'}

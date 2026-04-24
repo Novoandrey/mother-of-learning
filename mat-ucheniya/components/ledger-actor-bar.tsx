@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import TransactionFormSheet from './transaction-form-sheet'
+import StashButtons from './stash-buttons'
 import type { Category, TransactionWithRelations } from '@/lib/transactions'
 import type { CampaignPC } from '@/app/actions/characters'
+import type { StashMeta } from '@/lib/stash'
 
 type Props = {
   campaignId: string
   availablePcs: CampaignPC[]
+  /** spec-011: stash node for this campaign. `null` → seeder hasn't run. */
+  stashNode?: StashMeta | null
   categories: Category[]
   defaultLoopNumber: number
   /**
@@ -17,30 +21,35 @@ type Props = {
    * a round-trip. Missing key → `1` fallback.
    */
   defaultDayByPcId: Record<string, number>
+  /**
+   * spec-011: current-loop number for stash operations. When `null`
+   * the stash-pinned put/take buttons render as disabled with a hint.
+   */
+  currentLoopNumber?: number | null
 }
 
 /**
  * Ledger-page create bar.
  *
- * Persisted single-select of the "acting" PC (localStorage keyed by
- * campaign id) + two coloured action buttons: Доход / Расход.
+ * Persisted single-select of the "acting" actor — PCs **and** the
+ * campaign's stash (Общак) when one exists. Behaviour:
  *
- * Pressing a button opens `TransactionFormSheet` with `initialKind`
- * set so the user doesn't have to pick a tab again.
+ *   - PC selected → показываем [+ Доход] [− Расход] [Перевод →]
+ *     + [Положить в Общак] [Взять из Общака] (spec-011 StashButtons).
+ *   - Stash selected → только три основных кнопки, без StashButtons
+ *     (перевод stash↔stash бессмыслен; перевод stash→PC делается
+ *     обычной кнопкой «Перевод →»).
  *
- * Общий стах (IDEA-046 / spec-011) will later land here as the
- * first option in the PC dropdown — it's a disabled stub for now
- * so the UI telegraphs the intent.
- *
- * Item and Transfer live inside the form's 4-tab switcher — the
- * bar stays focused on the 90% path (cash in/out for a single PC).
+ * Selection persists in localStorage keyed by campaign id.
  */
 export default function LedgerActorBar({
   campaignId,
   availablePcs,
+  stashNode,
   categories,
   defaultLoopNumber,
   defaultDayByPcId,
+  currentLoopNumber,
 }: Props) {
   const storageKey = `mol:accounting-actor-pc:${campaignId}`
 
@@ -49,22 +58,48 @@ export default function LedgerActorBar({
   const [actorPcId, setActorPcId] = useState<string | null>(null)
   const [hydrated, setHydrated] = useState(false)
 
+  // All selectable actors, stash first. Built once; dropdown reuses.
+  const actors = useMemo(() => {
+    const list: Array<{ id: string; label: string; isStash: boolean }> = []
+    if (stashNode) {
+      list.push({
+        id: stashNode.nodeId,
+        label: `${stashNode.icon ?? '💰'} ${stashNode.title}`,
+        isStash: true,
+      })
+    }
+    for (const pc of availablePcs) {
+      list.push({
+        id: pc.id,
+        label: pc.owner_display_name
+          ? `${pc.title} — ${pc.owner_display_name}`
+          : pc.title,
+        isStash: false,
+      })
+    }
+    return list
+  }, [availablePcs, stashNode])
+
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(storageKey)
-      if (saved && availablePcs.some((pc) => pc.id === saved)) {
+      if (saved && actors.some((a) => a.id === saved)) {
         setActorPcId(saved)
-      } else if (availablePcs.length > 0) {
-        setActorPcId(availablePcs[0].id)
+      } else if (actors.length > 0) {
+        // Prefer first PC over stash for the default selection — most
+        // common flow is "I'm entering a transaction for my PC".
+        const firstPc = actors.find((a) => !a.isStash)
+        setActorPcId(firstPc?.id ?? actors[0].id)
       }
     } catch {
-      // localStorage disabled (private mode, etc.) — fall back to
-      // the first available PC without persistence.
-      if (availablePcs.length > 0) setActorPcId(availablePcs[0].id)
+      if (actors.length > 0) {
+        const firstPc = actors.find((a) => !a.isStash)
+        setActorPcId(firstPc?.id ?? actors[0].id)
+      }
     } finally {
       setHydrated(true)
     }
-  }, [availablePcs, storageKey])
+  }, [actors, storageKey])
 
   const handleActorChange = useCallback(
     (next: string) => {
@@ -96,22 +131,23 @@ export default function LedgerActorBar({
     setInitialKind(null)
   }, [])
 
-  const selectedPc = useMemo(
-    () => availablePcs.find((pc) => pc.id === actorPcId) ?? null,
-    [availablePcs, actorPcId],
+  const selectedActor = useMemo(
+    () => actors.find((a) => a.id === actorPcId) ?? null,
+    [actors, actorPcId],
   )
+  const selectedIsStash = selectedActor?.isStash ?? false
 
-  if (availablePcs.length === 0) {
+  if (actors.length === 0) {
     return null
   }
 
-  const buttonsDisabled = !hydrated || !selectedPc
+  const buttonsDisabled = !hydrated || !selectedActor
 
   return (
     <div className="flex flex-wrap items-end gap-2">
       <label className="flex flex-col gap-1">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Персонаж
+          Актор
         </span>
         <select
           value={actorPcId ?? ''}
@@ -119,18 +155,9 @@ export default function LedgerActorBar({
           disabled={!hydrated}
           className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
         >
-          {/*
-            Планируемый общий стах (IDEA-046 / spec-011) появится здесь
-            первой строкой с id='stash' и отключит ownership-проверку.
-            Пока — disabled-плейсхолдер, чтобы UI говорил о намерении.
-          */}
-          <option value="__stash__" disabled>
-            Общий стах (скоро)
-          </option>
-          {availablePcs.map((pc) => (
-            <option key={pc.id} value={pc.id}>
-              {pc.title}
-              {pc.owner_display_name ? ` — ${pc.owner_display_name}` : ''}
+          {actors.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
             </option>
           ))}
         </select>
@@ -161,14 +188,27 @@ export default function LedgerActorBar({
         Перевод →
       </button>
 
-      {selectedPc && initialKind && (
+      {/* StashButtons — only for PC actors. Stash-as-actor path can use
+          the regular Transfer button to move money to a PC. */}
+      {selectedActor && !selectedIsStash && stashNode && (
+        <StashButtons
+          campaignId={campaignId}
+          actorPcId={selectedActor.id}
+          currentLoopNumber={currentLoopNumber ?? null}
+          defaultDay={defaultDayByPcId[selectedActor.id] ?? 1}
+          defaultSessionId={null}
+          categories={categories}
+        />
+      )}
+
+      {selectedActor && initialKind && (
         <TransactionFormSheet
           open={sheetOpen}
           onClose={closeSheet}
           campaignId={campaignId}
-          actorPcId={selectedPc.id}
+          actorPcId={selectedActor.id}
           defaultLoopNumber={defaultLoopNumber}
-          defaultDayInLoop={defaultDayByPcId[selectedPc.id] ?? 1}
+          defaultDayInLoop={defaultDayByPcId[selectedActor.id] ?? 1}
           defaultSessionId={null}
           categories={categories}
           editing={null}

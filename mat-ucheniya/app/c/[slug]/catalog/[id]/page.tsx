@@ -9,6 +9,9 @@ import { notFound, redirect } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
 import { CharacterFrontierCard } from '@/components/character-frontier-card'
 import WalletBlock from '@/components/wallet-block'
+import StashButtons from '@/components/stash-buttons'
+import { computeDefaultDayForTx } from '@/lib/transactions'
+import { getStashNode } from '@/lib/stash'
 import type { OwnerContext } from '@/components/node-owner-section'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -81,6 +84,10 @@ export default async function NodePage({
   // catalog access so there's exactly one canonical URL per session and
   // no duplicate-view confusion. (Edit links still point at
   // /catalog/[id]/edit — the generic form handles session editing too.)
+  //
+  // Stash (spec-011) has the same pattern: a purpose-built page under
+  // /accounting/stash renders wallet + inventory; the catalog route
+  // is kept as a discoverable URL but redirects to the canonical view.
   {
     const typeRaw = (node as { type?: unknown }).type
     const earlyTypeSlug = Array.isArray(typeRaw)
@@ -88,6 +95,9 @@ export default async function NodePage({
       : (typeRaw as { slug?: string } | null)?.slug
     if (earlyTypeSlug === 'session') {
       redirect(`/c/${slug}/sessions/${id}`)
+    }
+    if (earlyTypeSlug === 'stash') {
+      redirect(`/c/${slug}/accounting/stash`)
     }
   }
 
@@ -243,16 +253,34 @@ export default async function NodePage({
   // loop with status='current' exists. Silent no-op otherwise.
   // Spec-010 US2: for PCs, show the wallet block above the frontier
   // card — balance + recent activity + "+ Transaction" CTA.
+  // Spec-011 T032: for PCs, also show the stash put/take buttons next
+  // to the wallet block — one tap into / out of Общак without picking
+  // a recipient.
   let frontierCard: React.ReactNode = null
   if (typeSlug === 'character') {
-    const currentLoop = await getCurrentLoop(campaign.id)
+    const [currentLoop, stashNode] = await Promise.all([
+      getCurrentLoop(campaign.id),
+      getStashNode(campaign.id),
+    ])
+    const defaultDay = currentLoop
+      ? await computeDefaultDayForTx(node.id, currentLoop.number, currentLoop.id)
+      : 1
     frontierCard = (
       <>
         <WalletBlock
-          pcId={node.id}
+          actorNodeId={node.id}
           campaignId={campaign.id}
           campaignSlug={slug}
         />
+        {stashNode && (
+          <StashButtons
+            campaignId={campaign.id}
+            actorPcId={node.id}
+            currentLoopNumber={currentLoop?.number ?? null}
+            defaultDay={defaultDay}
+            defaultSessionId={null}
+          />
+        )}
         {currentLoop && (
           <CharacterFrontierCard
             characterId={node.id}
