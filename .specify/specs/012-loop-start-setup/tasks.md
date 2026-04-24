@@ -65,7 +65,7 @@ then-created. One `ALTER TABLE transactions ADD COLUMN
 autogen_hand_touched boolean NOT NULL DEFAULT false` backfills
 every existing row to `false`.
 
-- [ ] **T001** [P1] Write `mat-ucheniya/supabase/migrations/037_loop_start_setup.sql`:
+- [x] **T001** [P1] Write `mat-ucheniya/supabase/migrations/037_loop_start_setup.sql`:
   - Wrap everything in `begin; ... commit;`
   - **1. `campaign_starter_configs`**: table with all columns per plan `## Data Model`; seed one row per existing campaign with `insert ... select ... where not exists`; RLS `csc_select` (`is_member`) + `csc_modify` (`is_dm_or_owner`)
   - **2. `pc_starter_configs`**: table per plan; seed one row per existing PC (join `nodes` × `node_types` where `slug='character'`); RLS `pcsc_select` + `pcsc_modify` via sub-`exists` against PC's campaign
