@@ -7,6 +7,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { LoopProgressBar } from '@/components/loop-progress-bar'
+import { LoopStartSetupBanner } from '@/components/loop-start-setup-banner'
 
 export async function generateMetadata({
   params,
@@ -147,6 +148,16 @@ export default async function LoopsPage({
                 </div>
               )}
             </div>
+
+            {/* Spec-012 T028: DM-only starter-setup apply banner.
+                Self-gating — returns null for non-DM or when the loop
+                already has autogen rows. Sits above the progress bar
+                so the "Применить" CTA is the first actionable element. */}
+            <LoopStartSetupBanner
+              loopNodeId={currentLoop.id}
+              campaignSlug={slug}
+              campaignId={campaign.id}
+            />
 
             {/* Progress bar (spec-009 T017). Sits between the loop header
                 and the sessions list. Hidden for length_days <= 0, which
