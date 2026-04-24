@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 46 — spec-012 plan + Phases 1-4 implement)
+> Last updated: 2026-04-25 (chat 47 — spec-012 Phases 5-11 implement)
 
 ## В проде сейчас
 
@@ -95,17 +95,24 @@
   sync grid через новый imperative handle `setParticipantHp`. Хук
   `useParticipantActions` для игрока возвращает noop-ы с
   warn-once alert'ом — все 18 mutation-колбэков сразу disabled.
-- **spec-012 Loop start setup, Phases 1-4 (chat 46)** — _в процессе,
-  не в проде UI_. Autogen layer (миграция 037): 3 новые таблицы
-  (`campaign_starter_configs`, `pc_starter_configs`,
-  `autogen_tombstones`), 3 колонки на `transactions`
-  (`autogen_wizard_key`, `autogen_source_node_id`,
-  `autogen_hand_touched`), partial index, 2 trigger'а с
-  session-local guard'ом `spec012.applying`. Pure helpers
-  (`lib/starter-setup-{resolver,diff,affected,validation}.ts`) +
-  55 vitest-тестов. Read queries в `lib/starter-setup.ts`.
-  Следующее — Phases 5-12 (write actions, apply + RPC migration,
-  UI). См. chat 46 chatlog.
+- **spec-012 Loop start setup, Phases 1-11 (chat 46-47)** — _в проде
+  без T040 badge hydration и Phase 12 close-out_. Миграции 037+038:
+  3 таблицы, 3 колонки на `transactions`, 2 триггера с
+  `spec012.applying` guard'ом, RPC `apply_loop_start_setup` (security
+  definer). Phase 5-7: `app/actions/starter-setup.ts` с
+  `updateCampaignStarterConfig` / `updatePcStarterConfig` /
+  `setPcTakesStartingLoan` / `applyLoopStartSetup` + `ensurePcStarterConfig`
+  hook в use-node-form.ts. Phase 8: баннер «Стартовый сетап не
+  применён» на `/loops` (DM-only, self-gating) + modal с таблицей
+  hand-touched рядов. Phase 9: PC starter config block на
+  `/catalog/[pcId]` (три режима — dm / player / read-only).
+  Phase 10: `/accounting/starter-setup` DM-only editor для
+  campaign-level loan + stash seed. Phase 11: optional `autogen`
+  prop на `<TransactionRow>` + URL filter `?autogen=only|none` в
+  ledger (Postgres `.not is null` / `.is null`). Pure helpers
+  `lib/starter-setup-{resolver,diff,affected,validation}.ts` со
+  своими vitest-тестами из chat 46. Следующее — T040 badge
+  hydration + Phase 12 close-out.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -124,40 +131,42 @@
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `037_loop_start_setup.sql`
+**Последняя применённая миграция:** `038_apply_starter_setup_rpc.sql`
 
 ## Следующий приоритет
 
-**Spec-012 Loop start setup** — specify + clarify + plan + tasks
-закрыты в chat 46, implement в процессе. **Phases 1-4 done**
-(миграция 037, типы, pure helpers с 55 vitest-тестами,
-read queries). В проде через сессионную паузу после Phase 12.
+**Spec-012 Loop start setup** — Phases 1-11 закрыты (chats 46-47),
+остались **T040 badge hydration** + **Phase 12 close-out**.
 
-**Осталось 30 из 47 задач:**
+**Осталось 8 из 47 задач:**
 
-- **Phase 5** (T018–T020): config write actions в
-  `app/actions/starter-setup.ts` — `updateCampaignStarterConfig`,
-  `updatePcStarterConfig`, `setPcTakesStartingLoan`.
-- **Phase 6** (T021–T023): apply action two-phase + RPC-миграция 038
-  (`apply_loop_start_setup` в DB-функции). Пользователь применяет
-  RPC в конце.
-- **Phase 7** (T024): hook `pc_starter_configs` default-row в
-  PC-create flow.
-- **Phase 8** (T025–T028): banner + confirm dialog + mount на
-  `/loops`.
-- **Phase 9** (T029–T033): PC starter config block (DM / player
-  варианты).
-- **Phase 10** (T034–T035): `/c/[slug]/accounting/starter-setup`
-  страница.
-- **Phase 11** (T036–T040): P2 — autogen badge + filter chip на
-  ledger.
-- **Phase 12** (T041–T047): close-out (lint, test, build,
-  walkthrough, NEXT, chatlog, commit).
+- **T040** [P2] — плумбинг autogen title map в ledger:
+  - В `ledger-list.tsx` после page.rows собрать уникальные
+    `autogen_source_node_id` → admin-query `nodes.id, title` →
+    `Map<string, string>`. Передать в `<LedgerListClient>` новым
+    prop'ом `autogenSourceTitles`.
+  - В `ledger-list-client.tsx` — принять проп, для каждого row
+    с `row.autogen` сконструировать `{wizardKey, sourceTitle}` и
+    прокинуть в `<TransactionRow autogen={...}>`.
+  - Для appended страниц (loadLedgerPage) — либо расширить server
+    action, либо скипать title в tooltip для appended (мелкая
+    косметика). Выбор: скипать. Просто и дешево.
+- **Phase 12 close-out (T041-T047):**
+  - T041 lint + typecheck. Сейчас два pre-existing test errors из
+    Phase 3 (chat 46): `starter-setup-diff.test.ts(5,3)` — CoinSet
+    не re-exported, и `starter-setup-affected.test.ts(275,11)` —
+    test fixture несовместим с DesiredRow. Починить или принять
+    как known tech debt.
+  - T042 vitest run всех тестов (55+ из Phase 3 + 2 сломанных)
+  - T043 `next build` чистый
+  - T044 manual walkthrough по 10 Acceptance Scenarios из spec.md —
+    работа пользователя в проде
+  - T045 обновить NEXT.md → spec-012 в полный «в проде» (убрать
+    «без T040»)
+  - T046 chatlog для chat 48
+  - T047 финальный коммит
 
-Правило: **по 3 фазы за раз**, останавливаемся перед применением
-миграции (это Phase 6 / T023).
-
-**Следующий чат начинает с Phase 5.**
+**Следующий чат начинает с T040, потом Phase 12.**
 
 **Spec-016 «Сборы»** — только spec.md. Отложена до закрытия
 spec-012 или параллельно в отдельном чате (если решишь).
