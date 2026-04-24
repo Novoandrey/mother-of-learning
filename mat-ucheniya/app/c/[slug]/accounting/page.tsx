@@ -101,12 +101,22 @@ export default async function AccountingPage({
               Транзакции кампании: монеты, предметы, переводы.
             </p>
           </div>
-          <Link
-            href={`/c/${slug}/accounting/settings/categories`}
-            className="flex-shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            Категории
-          </Link>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {stashNode && (
+              <Link
+                href={`/c/${slug}/accounting/stash`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                {stashNode.icon} Общак →
+              </Link>
+            )}
+            <Link
+              href={`/c/${slug}/accounting/settings/categories`}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Категории
+            </Link>
+          </div>
         </div>
 
         {availablePcs.length > 0 && (
