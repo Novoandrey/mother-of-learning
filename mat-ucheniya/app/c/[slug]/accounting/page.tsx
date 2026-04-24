@@ -136,6 +136,7 @@ export default async function AccountingPage({
         campaignId={campaign.id}
         campaignSlug={slug}
         searchParams={resolvedSearch}
+        currentLoopNumber={currentLoop?.number ?? null}
       />
     </div>
   )

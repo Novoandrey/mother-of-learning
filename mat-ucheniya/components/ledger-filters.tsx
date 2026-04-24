@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { Category, TransactionKind } from '@/lib/transactions'
 
@@ -10,6 +10,18 @@ type Props = {
   /** All loop numbers in the campaign, ascending. */
   loops: number[]
   categories: Category[]
+  /**
+   * When `true`, the "Персонажи" chip group is hidden — used on feeds
+   * pinned to a single actor (e.g. the stash page tab) where letting
+   * the user broaden selection would contradict the page scope.
+   */
+  hideActorFilter?: boolean
+  /**
+   * Number of the loop currently marked `status='current'`, if any.
+   * Used to tag the matching loop chip as "(текущая)" so the user
+   * doesn't have to remember which number that is.
+   */
+  currentLoopNumber?: number | null
 }
 
 const KIND_OPTIONS: { value: TransactionKind; label: string }[] = [
@@ -21,15 +33,22 @@ const KIND_OPTIONS: { value: TransactionKind; label: string }[] = [
 /**
  * Ledger filter bar — URL-synced.
  *
- * Desktop-primary: inline controls in a responsive flex row.
- * On mobile, the whole bar collapses behind a "Фильтры" button to
- * avoid swallowing the feed below.
+ * Design: a single-line collapsed header that shows only a
+ * "Фильтры (N)" toggle plus currently-active filters as removable
+ * chips. The full multi-group picker panel expands underneath on
+ * demand. Rationale: the earlier always-open design dominated the
+ * page even when no filter was set. Now the ledger breathes.
  *
- * Every filter change pushes through `router.push` with a rebuilt
- * `?pc=…&loop=…` query — shareable links and browser history
- * work out of the box.
+ * URL is still the single source of truth — the `expanded` flag is
+ * local UI state, nothing else is.
  */
-export default function LedgerFilters({ pcs, loops, categories }: Props) {
+export default function LedgerFilters({
+  pcs,
+  loops,
+  categories,
+  hideActorFilter = false,
+  currentLoopNumber = null,
+}: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -48,7 +67,7 @@ export default function LedgerFilters({ pcs, loops, categories }: Props) {
     [params],
   )
 
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   const updateParam = useCallback(
     (mutate: (next: URLSearchParams) => void) => {
@@ -63,53 +82,125 @@ export default function LedgerFilters({ pcs, loops, categories }: Props) {
     [params, pathname, router],
   )
 
-  const toggleMulti = (key: string, value: string) => {
-    updateParam((next) => {
-      const all = next.getAll(key)
-      next.delete(key)
-      const already = all.includes(value)
-      const out = already ? all.filter((v) => v !== value) : [...all, value]
-      for (const v of out) next.append(key, v)
-    })
-  }
+  const toggleMulti = useCallback(
+    (key: string, value: string) => {
+      updateParam((next) => {
+        const all = next.getAll(key)
+        next.delete(key)
+        const already = all.includes(value)
+        const out = already ? all.filter((v) => v !== value) : [...all, value]
+        for (const v of out) next.append(key, v)
+      })
+    },
+    [updateParam],
+  )
 
-  const setScalar = (key: string, value: string) => {
-    updateParam((next) => {
-      if (value === '') next.delete(key)
-      else next.set(key, value)
-    })
-  }
+  const setScalar = useCallback(
+    (key: string, value: string) => {
+      updateParam((next) => {
+        if (value === '') next.delete(key)
+        else next.set(key, value)
+      })
+    },
+    [updateParam],
+  )
 
   const clearAll = useCallback(() => {
     router.push(pathname)
   }, [pathname, router])
 
-  const hasAny =
-    state.pc.length > 0 ||
-    state.loop.length > 0 ||
-    state.dayFrom !== '' ||
-    state.dayTo !== '' ||
-    state.category.length > 0 ||
-    state.kind.length > 0
+  // ----- Active chips (for the collapsed header) -----
+  //
+  // Each chip resolves its id to a human label via the lookup arrays.
+  // When a lookup returns nothing (orphan id lingering in the URL), we
+  // fall back to the raw id so the user can still dismiss it.
+  const activeChips = useMemo(() => {
+    const out: { key: string; label: string; onRemove: () => void }[] = []
+    if (!hideActorFilter) {
+      for (const pcId of state.pc) {
+        const pc = pcs.find((p) => p.id === pcId)
+        out.push({
+          key: `pc:${pcId}`,
+          label: pc?.title ?? pcId,
+          onRemove: () => toggleMulti('pc', pcId),
+        })
+      }
+    }
+    for (const n of state.loop) {
+      const suffix = n === currentLoopNumber ? ' · текущая' : ''
+      out.push({
+        key: `loop:${n}`,
+        label: `Петля №${n}${suffix}`,
+        onRemove: () => toggleMulti('loop', String(n)),
+      })
+    }
+    if (state.dayFrom !== '') {
+      out.push({
+        key: 'dayFrom',
+        label: `день от ${state.dayFrom}`,
+        onRemove: () => setScalar('dayFrom', ''),
+      })
+    }
+    if (state.dayTo !== '') {
+      out.push({
+        key: 'dayTo',
+        label: `день до ${state.dayTo}`,
+        onRemove: () => setScalar('dayTo', ''),
+      })
+    }
+    for (const slug of state.category) {
+      const cat = categories.find((c) => c.slug === slug)
+      out.push({
+        key: `cat:${slug}`,
+        label: cat?.label ?? slug,
+        onRemove: () => toggleMulti('category', slug),
+      })
+    }
+    for (const kind of state.kind) {
+      const opt = KIND_OPTIONS.find((o) => o.value === kind)
+      out.push({
+        key: `kind:${kind}`,
+        label: opt?.label ?? kind,
+        onRemove: () => toggleMulti('kind', kind),
+      })
+    }
+    return out
+  }, [
+    hideActorFilter,
+    state.pc,
+    state.loop,
+    state.dayFrom,
+    state.dayTo,
+    state.category,
+    state.kind,
+    pcs,
+    categories,
+    currentLoopNumber,
+    toggleMulti,
+    setScalar,
+  ])
 
-  const content = (
-    <div className="flex flex-col gap-3">
-      {/* PCs */}
-      <FilterGroup label="Персонажи">
-        <ChipRow>
-          {pcs.map((pc) => (
-            <Chip
-              key={pc.id}
-              active={state.pc.includes(pc.id)}
-              onClick={() => toggleMulti('pc', pc.id)}
-            >
-              {pc.title}
-            </Chip>
-          ))}
-        </ChipRow>
-      </FilterGroup>
+  const hasAny = activeChips.length > 0
 
-      {/* Loops */}
+  // ----- Expanded picker panel -----
+  const panel = (
+    <div className="flex flex-col gap-3 border-t border-gray-100 pt-3">
+      {!hideActorFilter && (
+        <FilterGroup label="Персонажи">
+          <ChipRow>
+            {pcs.map((pc) => (
+              <Chip
+                key={pc.id}
+                active={state.pc.includes(pc.id)}
+                onClick={() => toggleMulti('pc', pc.id)}
+              >
+                {pc.title}
+              </Chip>
+            ))}
+          </ChipRow>
+        </FilterGroup>
+      )}
+
       <FilterGroup label="Петля">
         <ChipRow>
           {loops.map((n) => (
@@ -119,12 +210,20 @@ export default function LedgerFilters({ pcs, loops, categories }: Props) {
               onClick={() => toggleMulti('loop', String(n))}
             >
               №{n}
+              {n === currentLoopNumber && (
+                <span
+                  className="ml-1 text-[10px] opacity-70"
+                  aria-label="текущая петля"
+                  title="Текущая петля"
+                >
+                  ●
+                </span>
+              )}
             </Chip>
           ))}
         </ChipRow>
       </FilterGroup>
 
-      {/* Day range */}
       <FilterGroup label="День в петле">
         <div className="flex items-center gap-2">
           <input
@@ -149,7 +248,6 @@ export default function LedgerFilters({ pcs, loops, categories }: Props) {
         </div>
       </FilterGroup>
 
-      {/* Categories */}
       <FilterGroup label="Категория">
         <ChipRow>
           {categories.map((c) => (
@@ -164,7 +262,6 @@ export default function LedgerFilters({ pcs, loops, categories }: Props) {
         </ChipRow>
       </FilterGroup>
 
-      {/* Kind */}
       <FilterGroup label="Тип">
         <ChipRow>
           {KIND_OPTIONS.map((k) => (
@@ -178,54 +275,67 @@ export default function LedgerFilters({ pcs, loops, categories }: Props) {
           ))}
         </ChipRow>
       </FilterGroup>
-
-      {hasAny && (
-        <button
-          type="button"
-          onClick={clearAll}
-          className="self-start text-sm text-blue-600 hover:underline"
-        >
-          Сбросить фильтры
-        </button>
-      )}
     </div>
   )
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      {/* Mobile-collapsed trigger */}
-      <button
-        type="button"
-        onClick={() => setMobileOpen((v) => !v)}
-        className="flex w-full items-center justify-between text-sm font-medium text-gray-700 md:hidden"
-      >
-        <span>Фильтры{hasAny && ' •'}</span>
-        <span className="text-gray-400">{mobileOpen ? '▾' : '▸'}</span>
-      </button>
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      {/* Collapsed header: toggle + active-filter chips + clear-all */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors"
+        >
+          <span className="text-gray-500">{expanded ? '▾' : '▸'}</span>
+          <span>Фильтры</span>
+          {hasAny && (
+            <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-semibold text-blue-800">
+              {activeChips.length}
+            </span>
+          )}
+        </button>
 
-      <div
-        className={`${
-          mobileOpen ? 'block' : 'hidden'
-        } pt-3 md:block md:pt-0`}
-      >
-        {content}
+        {activeChips.map((chip) => (
+          <span
+            key={chip.key}
+            className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-800"
+          >
+            {chip.label}
+            <button
+              type="button"
+              onClick={chip.onRemove}
+              aria-label={`Убрать фильтр: ${chip.label}`}
+              className="ml-0.5 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-800 focus:outline-none focus:ring-1 focus:ring-gray-400"
+            >
+              <span className="inline-block h-4 w-4 text-center leading-4">×</span>
+            </button>
+          </span>
+        ))}
+
+        {hasAny && (
+          <button
+            type="button"
+            onClick={clearAll}
+            className="text-xs text-blue-700 hover:underline"
+          >
+            Сбросить всё
+          </button>
+        )}
       </div>
+
+      {expanded && <div className="mt-3">{panel}</div>}
     </div>
   )
 }
 
 // ─────────── local presentation helpers ───────────
 
-function FilterGroup({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function FilterGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-3">
-      <span className="min-w-[9rem] text-xs font-semibold uppercase tracking-wide text-gray-400">
+      <span className="min-w-[9rem] text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
       <div className="flex-1">{children}</div>
@@ -233,7 +343,7 @@ function FilterGroup({
   )
 }
 
-function ChipRow({ children }: { children: React.ReactNode }) {
+function ChipRow({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap gap-1.5">{children}</div>
 }
 
@@ -244,17 +354,17 @@ function Chip({
 }: {
   active: boolean
   onClick: () => void
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+      className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium transition-colors ${
         active
           ? 'bg-gray-900 text-white'
-          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
       }`}
     >
       {children}
