@@ -79,7 +79,7 @@ every existing row to `false`.
   - **7. Seed categories**: `insert into categories (campaign_id, scope, slug, label, sort_order)` two rows per campaign — `starting_money / Стартовые деньги / 15` and `starting_items / Стартовые предметы / 25` — `on conflict (campaign_id, scope, slug) do nothing`
   - Header comment explains: spec-012 scope; rollback sequence (`drop trigger / drop function / drop index / alter table drop column / drop table`); forward-compat note about spec-015's `item_node_id` and IDEA-054's `item_location_node_id` / `carried_state` being added later with no backfill
   - **Call `present_files` after writing** (project rule)
-- [ ] **T002** [P1] User applies migration 037 in Supabase. Wait for confirmation before Phase 2. (No sidebar invalidation needed — no `nodes`/`node_types` changes.)
+- [x] **T002** [P1] User applies migration 037 in Supabase. Wait for confirmation before Phase 2. (No sidebar invalidation needed — no `nodes`/`node_types` changes.)
 
 **Checkpoint**: the three new tables exist with seeds; `transactions` has 3 new columns + partial index; two triggers installed; 2 new categories per campaign.
 
@@ -90,7 +90,7 @@ every existing row to `false`.
 **Purpose**: Canonical type definitions used by every follow-up
 file. Pure — no imports of `@/lib/supabase`.
 
-- [ ] **T003** [P] [P1] Create `mat-ucheniya/lib/starter-setup.ts` (types only — helpers and queries come later):
+- [x] **T003** [P] [P1] Create `mat-ucheniya/lib/starter-setup.ts` (types only — helpers and queries come later):
   - Export `StarterItem = { name: string; qty: number }`
   - Export `CampaignStarterConfig = { campaignId, loanAmount: CoinSet, stashSeedCoins: CoinSet, stashSeedItems: StarterItem[], updatedAt }`
   - Export `PcStarterConfig = { pcId, takesStartingLoan: boolean, startingCoins: CoinSet, startingItems: StarterItem[], updatedAt }`
@@ -100,7 +100,7 @@ file. Pure — no imports of `@/lib/supabase`.
   - Export `DesiredRow`, `ExistingAutogenRow`, `Tombstone`, `RowDiff` (internal types used by resolver/diff; exported so helpers can import)
   - Re-import `CoinSet` from `lib/transactions.ts`
   - No implementations — types only
-- [ ] **T004** [P] [P1] Extend `mat-ucheniya/lib/transactions.ts`:
+- [x] **T004** [P] [P1] Extend `mat-ucheniya/lib/transactions.ts`:
   - Add optional `autogen: AutogenMarker | null` to `Transaction` and `TransactionWithRelations` types (imported from `./starter-setup`)
   - Update `mapTransactionRow` (or equivalent) to populate `autogen` from the three new DB columns (`autogen_wizard_key`, `autogen_source_node_id`, `autogen_hand_touched`)
   - Every existing `.select(...)` call in query helpers needs the three new columns added to the projection — list of files to touch, carry out each:
@@ -118,7 +118,7 @@ file. Pure — no imports of `@/lib/supabase`.
 **Purpose**: vitest-covered pure functions — no I/O, no
 Supabase, no React.
 
-- [ ] **T005** [P] [P1] Create `mat-ucheniya/lib/starter-setup-resolver.ts`:
+- [x] **T005** [P] [P1] Create `mat-ucheniya/lib/starter-setup-resolver.ts`:
   - Export `canonicalKey(wizardKey: WizardKey, row: { actorPcId: string; itemName?: string | null }): string`
     - For `starting_money` / `starting_loan` / `stash_seed`: `${wizardKey}:${actorPcId}`
     - For `starting_items`: `${wizardKey}:${actorPcId}:${itemName}`
@@ -128,7 +128,7 @@ Supabase, no React.
     - Every `DesiredRow` includes `category_slug` (`starting_money`, `credit`, `starting_items` — for stash_seed wizard, picks one of `starting_money`/`starting_items` per row), amounts, `canonicalKey`
     - Rows returned in deterministic order (sort by canonical key) so snapshot tests are stable
   - Pure, no async, no `@/lib/supabase` imports
-- [ ] **T006** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-resolver.test.ts`:
+- [x] **T006** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-resolver.test.ts`:
   - `canonicalKey` — stable across inputs; distinct keys for distinct rows
   - `resolveDesiredRowSet` with empty campaign cfg + empty PC cfgs → empty
   - Full cfg (10 PCs all takingLoan, 100 gp starting, 200 gp loan) → 20 rows
@@ -136,39 +136,39 @@ Supabase, no React.
   - One PC with zero starting coins → no money row (but loan row still present if flag on)
   - One PC with 3 starter items → 3 item rows
   - Stash seed with 50 gp + 2 items → 3 rows total for stash actor
-- [ ] **T007** [P] [P1] Create `mat-ucheniya/lib/starter-setup-diff.ts`:
+- [x] **T007** [P] [P1] Create `mat-ucheniya/lib/starter-setup-diff.ts`:
   - Export `diffRowSets(desired: DesiredRow[], existing: ExistingAutogenRow[]): RowDiff`
   - `RowDiff = { toInsert: DesiredRow[]; toUpdate: UpdatePair[]; toDelete: ExistingAutogenRow[]; unchanged: ExistingAutogenRow[] }` where `UpdatePair = { existing: ExistingAutogenRow; desired: DesiredRow }`
   - Match by `canonicalKey(wizardKey, row)`
   - For `toUpdate`: only include if amount/qty/category/comment actually differs (no-op updates don't count)
   - Pure
-- [ ] **T008** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-diff.test.ts`:
+- [x] **T008** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-diff.test.ts`:
   - No changes → `{ toInsert: [], toUpdate: [], toDelete: [], unchanged: [...] }`
   - Config amount changed → one `UpdatePair`, rest unchanged
   - PC added → `toInsert` has new rows, rest unchanged
   - PC removed from desired (e.g. `takesStartingLoan` flipped off) → `toDelete` has the credit row
   - Item name changed (`arrows` → `bolts`) → one delete (`arrows`) + one insert (`bolts`)
   - Orphan row (existing has an actor_pc_id not in desired) → stays in `unchanged` (FR-014 — orphans from deleted PCs aren't touched)
-- [ ] **T009** [P] [P1] Create `mat-ucheniya/lib/starter-setup-affected.ts`:
+- [x] **T009** [P] [P1] Create `mat-ucheniya/lib/starter-setup-affected.ts`:
   - Export `identifyAffectedRows(diff: RowDiff, tombstones: Tombstone[]): AffectedRow[]`
   - For every `UpdatePair` in `diff.toUpdate` where `existing.autogenHandTouched === true` → add entry with `reason: 'hand_edited'`, current = formatted existing amount, config = formatted desired amount
   - For every `toDelete` where `existing.autogenHandTouched === true` → add entry with `reason: 'hand_edited'`, current = formatted existing, config = `null` (will be deleted)
   - For every tombstone whose `canonicalKey` matches a `DesiredRow` in `diff.toInsert` → add entry with `reason: 'hand_deleted'`, current = `null`, config = formatted desired
   - Tombstones that don't match any insert are ignored (the DM hand-deleted AND the config agrees it shouldn't exist)
   - Pure
-- [ ] **T010** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-affected.test.ts`:
+- [x] **T010** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-affected.test.ts`:
   - Clean diff (no hand-touches, no tombstones) → `[]`
   - Hand-touched row in `toUpdate` → returned with `hand_edited`
   - Hand-touched row staying untouched (in `unchanged`) → NOT returned
   - Tombstone with matching desired insert → returned with `hand_deleted`
   - Tombstone with no matching desired insert → NOT returned
   - Multiple affected rows → returned in a stable order (sort by actor title)
-- [ ] **T011** [P] [P1] Create `mat-ucheniya/lib/starter-setup-validation.ts`:
+- [x] **T011** [P] [P1] Create `mat-ucheniya/lib/starter-setup-validation.ts`:
   - Export `validateCoinSet(c: unknown): { ok: true; value: CoinSet } | { ok: false; error: string }` — integers, non-negative
   - Export `validateStarterItems(items: unknown): { ok: true; value: StarterItem[] } | { ok: false; error: string }` — array, each `{name: non-empty string, qty: integer >= 1}`
   - Export `isKnownWizardKey(s: unknown): s is WizardKey`
   - Pure
-- [ ] **T012** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-validation.test.ts`:
+- [x] **T012** [P] [P1] Create `mat-ucheniya/lib/__tests__/starter-setup-validation.test.ts`:
   - Valid / invalid `validateCoinSet` inputs (negative amounts, strings, missing fields, non-integers)
   - Valid / invalid `validateStarterItems` (empty name, qty=0, qty=-1, non-integer qty, non-array)
   - `isKnownWizardKey` accepts the four spec-012 keys, rejects `'encounter_loot'` (not yet!) and arbitrary strings
@@ -182,22 +182,22 @@ Supabase, no React.
 **Purpose**: DB-read helpers used by UI and by the apply
 action. Sequential: each depends on the types from Phase 2.
 
-- [ ] **T013** [P1] Add `getCampaignStarterConfig(campaignId)` to `mat-ucheniya/lib/starter-setup.ts`:
+- [x] **T013** [P1] Add `getCampaignStarterConfig(campaignId)` to `mat-ucheniya/lib/starter-setup.ts`:
   - Single `select` from `campaign_starter_configs` where `campaign_id = $1`
   - Returns `CampaignStarterConfig`; if row missing (defensive — shouldn't happen post-migration), return a default-zeroed config rather than throwing
   - Server-side only; uses user-context supabase client
-- [ ] **T014** [P1] Add `getPcStarterConfigsForCampaign(campaignId)` to `mat-ucheniya/lib/starter-setup.ts`:
+- [x] **T014** [P1] Add `getPcStarterConfigsForCampaign(campaignId)` to `mat-ucheniya/lib/starter-setup.ts`:
   - Join `pc_starter_configs` × `nodes` × `node_types` filtered by `nodes.campaign_id = $1` AND `node_types.slug = 'character'`
   - Returns `Array<PcStarterConfig & { pcTitle: string }>`
   - Used by both the apply action and the campaign config page
-- [ ] **T015** [P1] Add `getLoopSetupStatus(loopNodeId)` to `mat-ucheniya/lib/starter-setup.ts`:
+- [x] **T015** [P1] Add `getLoopSetupStatus(loopNodeId)` to `mat-ucheniya/lib/starter-setup.ts`:
   - `select 1 from transactions where autogen_source_node_id = $1 and autogen_wizard_key in ('starting_money','starting_loan','stash_seed','starting_items') limit 1`
   - Returns `{ hasAutogenRows: boolean }`
   - Feeds the banner's "show / hide" decision
-- [ ] **T016** [P1] Add `getExistingAutogenRows(loopNodeId)` to `mat-ucheniya/lib/starter-setup.ts`:
+- [x] **T016** [P1] Add `getExistingAutogenRows(loopNodeId)` to `mat-ucheniya/lib/starter-setup.ts`:
   - `select * from transactions where autogen_source_node_id = $1 and autogen_wizard_key in (spec-012 keys)`
   - Maps to `ExistingAutogenRow[]` (with coin amounts, item name, item qty, hand_touched flag)
-- [ ] **T017** [P1] Add `getTombstones(loopNodeId)` to `mat-ucheniya/lib/starter-setup.ts`:
+- [x] **T017** [P1] Add `getTombstones(loopNodeId)` to `mat-ucheniya/lib/starter-setup.ts`:
   - `select * from autogen_tombstones where autogen_source_node_id = $1 and autogen_wizard_key in (spec-012 keys)`
   - Maps to `Tombstone[]`
 

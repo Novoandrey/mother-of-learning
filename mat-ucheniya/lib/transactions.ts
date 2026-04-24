@@ -9,6 +9,8 @@
  * will flatten/unflatten between the two shapes.
  */
 
+import type { AutogenMarker } from './starter-setup';
+
 /** Signed per-denomination coin balance. Keys match the SQL columns. */
 export type CoinSet = {
   cp: number;
@@ -53,6 +55,13 @@ export type Transaction = {
   author_user_id: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Spec-012 autogen marker. Non-null for rows produced by an
+   * autogen wizard (loop-start wizards in spec-012;
+   * encounter-loot in spec-013; more later). See
+   * `./starter-setup.ts` for the `AutogenMarker` shape.
+   */
+  autogen: AutogenMarker | null;
 };
 
 /**
@@ -182,6 +191,9 @@ type TxRawRow = {
   author_user_id: string | null;
   created_at: string;
   updated_at: string;
+  autogen_wizard_key: string | null;
+  autogen_source_node_id: string | null;
+  autogen_hand_touched: boolean;
 };
 
 function rawToTransaction(raw: TxRawRow): Transaction {
@@ -208,6 +220,18 @@ function rawToTransaction(raw: TxRawRow): Transaction {
     author_user_id: raw.author_user_id,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
+    autogen:
+      raw.autogen_wizard_key && raw.autogen_source_node_id
+        ? {
+            // Open-ended at the DB layer; narrowed here via cast. Unknown
+            // keys (from a future wizard this build doesn't recognize) will
+            // still hydrate — consumers use the label map in
+            // `AutogenBadge` for display and fall back to the raw key.
+            wizardKey: raw.autogen_wizard_key as AutogenMarker['wizardKey'],
+            sourceNodeId: raw.autogen_source_node_id,
+            handTouched: raw.autogen_hand_touched,
+          }
+        : null,
   };
 }
 
@@ -232,6 +256,7 @@ const JOIN_SELECT = `
   loop_number, day_in_loop, session_id,
   transfer_group_id, status, author_user_id,
   created_at, updated_at,
+  autogen_wizard_key, autogen_source_node_id, autogen_hand_touched,
   actor_pc:nodes!actor_pc_id(title),
   session:nodes!session_id(title, fields)
 `;
