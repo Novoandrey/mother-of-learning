@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { invalidateSidebarAction } from '@/app/actions/cache'
+import { ensurePcStarterConfig } from '@/lib/seeds/pc-starter-config'
 import {
   NUMBER_FIELDS,
   HIDDEN_FIELDS,
@@ -296,6 +297,13 @@ export function useNodeForm({
           }, { onConflict: 'source_id,target_id,type_id' })
         }
       }
+    }
+
+    // Spec-012 T024: ensure a default pc_starter_configs row exists for
+    // every new character node. Idempotent (PK on pc_id + on conflict
+    // do nothing); non-fatal on transient errors.
+    if (!isEdit && selectedType.slug === 'character') {
+      await ensurePcStarterConfig(supabase, id)
     }
 
     // Title/type may have changed and the node may be brand new.
