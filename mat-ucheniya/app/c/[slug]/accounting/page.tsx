@@ -9,6 +9,7 @@ import { getCurrentLoop } from '@/lib/loops'
 import { listCategories } from '@/lib/categories'
 import { computeDefaultDayForTx } from '@/lib/transactions'
 import { getCampaignPCs } from '@/app/actions/characters'
+import { getStashNode } from '@/lib/stash'
 import { createAdminClient } from '@/lib/supabase/admin'
 import LedgerList from '@/components/ledger-list'
 import LedgerActorBar from '@/components/ledger-actor-bar'
@@ -47,12 +48,13 @@ export default async function AccountingPage({
   // Prep for the create-transaction CTA:
   //   • DM/owner — any PC.
   //   • Player — only PCs they own (node_pc_owners).
-  // Also prefetch categories + current loop so the form sheet doesn't
-  // re-query them on open.
-  const [allPcs, categories, currentLoop] = await Promise.all([
+  // Also prefetch categories + current loop + stash node so the form
+  // sheet doesn't re-query them on open.
+  const [allPcs, categories, currentLoop, stashNode] = await Promise.all([
     getCampaignPCs(campaign.id),
     listCategories(campaign.id, 'transaction'),
     getCurrentLoop(campaign.id),
+    getStashNode(campaign.id),
   ])
 
   let availablePcs = allPcs
@@ -111,9 +113,11 @@ export default async function AccountingPage({
           <LedgerActorBar
             campaignId={campaign.id}
             availablePcs={availablePcs}
+            stashNode={stashNode}
             categories={categories}
             defaultLoopNumber={defaultLoopNumber}
             defaultDayByPcId={defaultDayByPcId}
+            currentLoopNumber={currentLoop?.number ?? null}
           />
         )}
       </div>

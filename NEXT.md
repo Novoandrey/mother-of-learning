@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-24 (chat 39 — spec-011 specify/plan/tasks)
+> Last updated: 2026-04-24 (chat 40 — spec-011 implementation + spec-016 draft)
 
 ## В проде сейчас
 
@@ -28,6 +28,18 @@
   без expand. `amount-input` per-denom panel без синего wrapper'а.
   Accounting page prefetchит `defaultDayByPcId` для всех
   доступных PC параллельно.
+- **spec-011 Common stash / Общак (chat 40)**: миграции `035`+`036`.
+  Новая нода type='stash' на кампанию, page `/c/[slug]/accounting/stash`
+  (wallet + items grid + recent). `<StashButtons>` на PC-странице и
+  в ledger actor bar — put/take одним тапом. Shortfall prompt в форме
+  расхода (rich/poor/empty modes), lazy `getStashAggregate`. Item-
+  трансферы через `createItemTransfer` с подписанным `item_qty`
+  (sender=−qty, recipient=+qty) — миграция 036 релаксит CHECK до `<> 0`.
+  `aggregateStashLegs` (pure, 9 тестов), `computeShortfall` (pure, 7
+  тестов). Wallet-block переименован `pcId`→`actorNodeId` — тот же
+  компонент рендерится и для PC, и для stash. Forward-compat с
+  spec-015: `InventoryGrid` параметризуется `keyFn` для будущего
+  `itemNodeId`. Catalog роут stash-ноды редиректит на `/accounting/stash`.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
@@ -46,23 +58,20 @@
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `034_transactions_ledger.sql`
+**Последняя применённая миграция:** `036_item_qty_signed.sql`
 
 ## Следующий приоритет
 
-**Spec-011 Общак — имплементация**. Артефакты spec-kit готовы
-и лежат в `.specify/specs/011-common-stash/`:
-- `spec.md` (887 строк) — WHAT: stash как "ещё один PC",
-  item-qty, expand-row, shortfall shortcut, universal wipe,
-  forward-compat с spec-015.
-- `plan.md` (995 строк) — HOW: миграция 035, createItemTransfer,
-  createExpenseWithStashShortfall, `<InventoryGrid>` generic,
-  `<StashButtons>`, `<ShortfallPrompt>`.
-- `tasks.md` (36 тасков, 13 фаз) — executable checklist.
-  Начинать implement с T001 (миграция).
+**Spec-011 — hand-walkthrough и баги**. Реализация завершена
+(T001-T033 из `.specify/specs/011-common-stash/tasks.md`, включая
+миграции 035 и 036). Осталось:
+- T034: пройтись по US1-US8 руками на mat-ucheniya и отстрелять
+  баги в `backlog.md` как BUG-0NN.
 
-Миграция ещё не написана и не применена. Первая таска в
-следующем чате — T001 (создать `035_stash_and_item_qty.sql`).
+**Spec-016 Real-money contribution pool (Сборы)** — отдельная идея,
+записана как draft spec.md в `.specify/specs/016-contribution-pool/`.
+IRL-деньги, реальная валюта (RUB/USD/EUR), автор ставит галочки
+«оплачено». Ждёт Clarify → Plan → Tasks → Implement.
 
 ### Параллельные кандидаты
 

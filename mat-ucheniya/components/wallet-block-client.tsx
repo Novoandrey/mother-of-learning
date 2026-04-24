@@ -11,13 +11,16 @@ import { deleteTransaction, deleteTransfer } from '@/app/actions/transactions'
 type Props = {
   campaignId: string
   campaignSlug: string
-  pcId: string
+  /** The node whose recent rows + "+ Transaction" CTA this block wraps. */
+  actorNodeId: string
   currentUserId: string
   /** Viewer is campaign owner or DM — can edit/delete any row. */
   canManage: boolean
   defaultLoopNumber: number
   defaultDayInLoop: number
   defaultSessionId: string | null
+  /** Current wallet aggregate — fed into the transaction form for shortfall prompt. */
+  currentWalletGp?: number
   categories: Category[]
   recent: TransactionWithRelations[]
 }
@@ -30,12 +33,13 @@ type Props = {
 export default function WalletBlockClient({
   campaignId,
   campaignSlug,
-  pcId,
+  actorNodeId,
   currentUserId,
   canManage,
   defaultLoopNumber,
   defaultDayInLoop,
   defaultSessionId,
+  currentWalletGp,
   categories,
   recent,
 }: Props) {
@@ -104,7 +108,7 @@ export default function WalletBlockClient({
       />
 
       <Link
-        href={`/c/${campaignSlug}/accounting?pc=${pcId}`}
+        href={`/c/${campaignSlug}/accounting?pc=${actorNodeId}`}
         className="text-sm text-blue-600 hover:underline"
       >
         Все транзакции →
@@ -114,10 +118,11 @@ export default function WalletBlockClient({
         open={sheetOpen}
         onClose={closeSheet}
         campaignId={campaignId}
-        actorPcId={pcId}
+        actorPcId={actorNodeId}
         defaultLoopNumber={defaultLoopNumber}
         defaultDayInLoop={defaultDayInLoop}
         defaultSessionId={defaultSessionId}
+        currentWalletGp={currentWalletGp}
         categories={categories}
         editing={editing}
       />

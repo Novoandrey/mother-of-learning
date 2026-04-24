@@ -104,3 +104,42 @@ export function validateCoinSet(coins: CoinSet): ValidationError | null {
   }
   return null;
 }
+
+// ============================================================================
+// Item-transfer validators — spec-011
+// ============================================================================
+
+/**
+ * `item_qty` must be a positive integer. Mirrors the DB CHECK from
+ * migration 035 (`item_qty >= 1`). Rejects non-integers, NaN,
+ * negative, and zero. Used by the UI for inline feedback before
+ * submitting the form.
+ */
+export function validateItemQty(qty: number): ValidationError | null {
+  if (typeof qty !== 'number' || !Number.isFinite(qty)) {
+    return 'Количество должно быть числом';
+  }
+  if (!Number.isInteger(qty)) {
+    return 'Количество должно быть целым числом';
+  }
+  if (qty < 1) {
+    return 'Количество должно быть не меньше 1';
+  }
+  return null;
+}
+
+/**
+ * Pre-flight validator for item transfer inputs. Rejects empty /
+ * whitespace-only item names; delegates qty checks to `validateItemQty`.
+ * Server-side validation in `createItemTransfer` reruns this with the
+ * exact same rule set to keep client and server in lockstep.
+ */
+export function validateItemTransfer(input: {
+  itemName: string;
+  qty: number;
+}): ValidationError | null {
+  if (!input.itemName || input.itemName.trim().length === 0) {
+    return 'Укажите название предмета';
+  }
+  return validateItemQty(input.qty);
+}

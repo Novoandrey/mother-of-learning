@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect } from 'react'
-import TransactionForm from './transaction-form'
+import TransactionForm, { type StashPinnedDirection } from './transaction-form'
 import type { Category, TransactionWithRelations } from '@/lib/transactions'
 
 type Props = {
@@ -16,6 +16,10 @@ type Props = {
   editing?: TransactionWithRelations | null
   /** Pre-select a tab on mount (create flow). Ignored in edit mode. */
   initialKind?: 'income' | 'expense' | 'transfer'
+  /** spec-011: pin the form to a put-into / take-from-stash flow. */
+  initialTransferDirection?: StashPinnedDirection | null
+  /** spec-011: current wallet gp — feeds the shortfall prompt. */
+  currentWalletGp?: number
 }
 
 /**
@@ -39,6 +43,8 @@ export default function TransactionFormSheet({
   categories,
   editing,
   initialKind,
+  initialTransferDirection,
+  currentWalletGp,
 }: Props) {
   // Escape-to-close.
   useEffect(() => {
@@ -108,6 +114,8 @@ export default function TransactionFormSheet({
             categories={categories}
             editing={editing}
             initialKind={initialKind}
+            initialTransferDirection={initialTransferDirection}
+            currentWalletGp={currentWalletGp}
             onSuccess={handleSuccess}
             onCancel={onClose}
           />
