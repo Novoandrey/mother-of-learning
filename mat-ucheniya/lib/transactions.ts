@@ -130,6 +130,7 @@ export type TransferInput = {
 import { createClient } from '@/lib/supabase/server';
 import { unwrapOne } from '@/lib/supabase/joins';
 import { aggregateGp } from './transaction-resolver';
+import { countDistinctEvents, dedupTransferPairs } from './transaction-dedup';
 
 // ---------- Filters & page type ----------
 
@@ -662,7 +663,14 @@ export async function getLedgerPage(
         new Map<string, string | null>(),
         new Map<string, { nodeId: string; title: string | null } | null>(),
       ];
-  const rows = pageRows.map((r) => joinedToRelations(r, labels, authors, counterparties));
+  const hydratedRows = pageRows.map((r) =>
+    joinedToRelations(r, labels, authors, counterparties),
+  );
+  // Collapse transfer pairs down to their sender leg (IDEA-043). Runs
+  // per-page here; `ledger-list-client` re-runs it after merging
+  // paginated batches to smooth the rare boundary case where two legs
+  // of the same transfer straddle the cursor.
+  const rows = dedupTransferPairs(hydratedRows);
 
   const nextCursor: string | null = hasNext
     ? encodeCursor({
@@ -672,13 +680,15 @@ export async function getLedgerPage(
     : null;
 
   // ---- Totals query ----
-  // Separate SELECT so filter predicate stays identical. We only
-  // need the 4 amount columns + actor_pc_id + kind (to skip items
-  // from the monetary sum).
+  // Separate SELECT so filter predicate stays identical. We only need
+  // the amount columns + actor_pc_id + kind + transfer_group_id. The
+  // transfer_group_id lets `countDistinctEvents` count one per pair.
   let totalsQ = supabase
     .from('transactions')
+    .select(
+      'id, transfer_group_id, actor_pc_id, kind, amount_cp, amount_sp, amount_gp, amount_pp',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .select('actor_pc_id, kind, amount_cp, amount_sp, amount_gp, amount_pp') as any;
+    ) as any;
   totalsQ = applyFilters(totalsQ);
 
   const { data: totalsData, error: totalsErr } = await totalsQ;
@@ -687,6 +697,8 @@ export async function getLedgerPage(
   }
 
   const totalRows = (totalsData ?? []) as {
+    id: string;
+    transfer_group_id: string | null;
     actor_pc_id: string | null;
     kind: TransactionKind;
     amount_cp: number;
@@ -712,7 +724,9 @@ export async function getLedgerPage(
   return {
     rows,
     totals: {
-      count: totalRows.length,
+      // "Events" — transfer pairs count once, standalone rows count
+      // individually. Keeps the summary aligned with the deduped feed.
+      count: countDistinctEvents(totalRows),
       distinctPcs: pcs.size,
       netAggregateGp,
     },

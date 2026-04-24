@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import TransactionRow from './transaction-row'
 import TransactionFormSheet from './transaction-form-sheet'
+import { dedupTransferPairs } from '@/lib/transaction-dedup'
 import {
   deleteTransaction,
   deleteTransfer,
@@ -65,9 +66,12 @@ export default function LedgerListClient({
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const rows = useMemo(() => {
-    const combined = [...initialRows, ...appendedRows]
-    if (hiddenIds.size === 0) return combined
-    return combined.filter((r) => !hiddenIds.has(r.id))
+    // Each individual page is already deduped server-side, but when two
+    // legs of the same transfer straddle a page boundary we need to
+    // dedup again across the merged list. Pure, idempotent.
+    const merged = dedupTransferPairs([...initialRows, ...appendedRows])
+    if (hiddenIds.size === 0) return merged
+    return merged.filter((r) => !hiddenIds.has(r.id))
   }, [initialRows, appendedRows, hiddenIds])
 
   const loadMore = useCallback(async () => {
