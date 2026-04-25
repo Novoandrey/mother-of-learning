@@ -10,6 +10,7 @@ const WIZARD_LABEL: Record<WizardKey, string> = {
   starting_loan: 'Стартовый кредит',
   stash_seed: 'Общак',
   starting_items: 'Стартовые предметы',
+  encounter_loot: 'Лут энкаунтера',
 }
 
 const REASON_LABEL: Record<AffectedRow['reason'], string> = {

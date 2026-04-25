@@ -5,6 +5,8 @@ import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { EncounterPageClient } from '@/components/encounter/encounter-page-client'
+import { EncounterLootPanel } from '@/components/encounter-loot-panel'
+import { EncounterLootSummaryReadOnly } from '@/components/encounter-loot-summary-read-only'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -165,6 +167,22 @@ export default async function EncounterPage({
         initialEvents={(eventEntries ?? []) as unknown as import('@/lib/event-actions').EncounterEvent[]}
         canEdit={canEdit}
       />
+
+      {/* Spec-013: encounter loot — DM panel for editors, read-only
+          summary for players. Hidden when status='active'. */}
+      {canEdit ? (
+        <EncounterLootPanel
+          encounterId={encounter.id}
+          campaignId={campaign.id}
+          status={encounter.status}
+        />
+      ) : (
+        <EncounterLootSummaryReadOnly
+          encounterId={encounter.id}
+          campaignSlug={slug}
+          status={encounter.status}
+        />
+      )}
     </div>
   )
 }

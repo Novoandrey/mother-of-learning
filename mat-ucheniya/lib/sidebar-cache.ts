@@ -53,17 +53,32 @@ export const getSidebarData = (campaignId: string) =>
         title: string
         type: { slug: string } | { slug: string }[] | null
       }
-      const nodes = ((nodesRes.data ?? []) as NodeRow[]).map((n) => {
-        const t = Array.isArray(n.type) ? n.type[0] : n.type
-        return {
-          id: n.id,
-          title: n.title,
-          type_slug: t?.slug ?? '',
-        }
-      })
+      // Filter encounter mirror nodes (spec-013): they exist as nodes
+      // for the autogen badge / ledger source-id linkage but should
+      // never appear in the sidebar — the encounter is navigated to
+      // via the Encounters list, not the catalog.
+      const nodes = ((nodesRes.data ?? []) as NodeRow[])
+        .filter((n) => {
+          const t = Array.isArray(n.type) ? n.type[0] : n.type
+          return t?.slug !== 'encounter'
+        })
+        .map((n) => {
+          const t = Array.isArray(n.type) ? n.type[0] : n.type
+          return {
+            id: n.id,
+            title: n.title,
+            type_slug: t?.slug ?? '',
+          }
+        })
+
+      // Filter encounter node_type from the type list too — there's
+      // no group to render for it.
+      const nodeTypes = (
+        (typesRes.data ?? []) as SidebarDataset['nodeTypes']
+      ).filter((t) => t.slug !== 'encounter')
 
       return {
-        nodeTypes: (typesRes.data ?? []) as SidebarDataset['nodeTypes'],
+        nodeTypes,
         nodes,
       }
     },
