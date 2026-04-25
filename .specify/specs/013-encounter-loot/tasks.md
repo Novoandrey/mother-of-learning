@@ -126,50 +126,40 @@ A task is `[x]` only when its acceptance check passes:
 
 ## Phase 4 — Pure helpers (parallelisable)
 
-- [ ] **T005** [P] [P1] Create types module
+- [x] **T005** [P] [P1] Create types module
   (file: `mat-ucheniya/lib/encounter-loot-types.ts`)
-  - Export: `LootLineId`, `CoinLine`, `ItemLine`, `LootLine`
-    discriminated union, `LootDraft`, `DesiredRow`
-  - Per plan.md `## Data Model § encounter_loot_drafts`
-- [ ] **T006** [P] [P1] Create coin-split helper + tests
+  - Exports: `LootLineId`, `CoinLine`, `ItemLine`, `LootLine`
+    discriminated union, `LootDraft`, `EncounterLootDesiredRow`.
+- [x] **T006** [P] [P1] Create coin-split helper + tests
   (files: `mat-ucheniya/lib/coin-split.ts`,
   `mat-ucheniya/lib/__tests__/coin-split.test.ts`)
-  - `splitCoinsEvenly(totals, recipientCount)` per plan.md
-  - Floor-cp + remainder distribution + greedy denomination
-    output
-  - Tests: 0/1/2/3/4 recipients × various totals; 31gp/3 case
-    explicitly; zero-amount case; pp-only case
-  - Target: ≥ 8 tests
-- [ ] **T007** [P] [P1] Create resolver + tests
+  - 14 tests (target was 8): 0/1/2/3/4 recipients × various
+    totals; 31gp/3 case; zero-amount; pp-only; cp-only odd; total-
+    preservation invariant; greedy denominations.
+- [x] **T007** [P] [P1] Create resolver + tests
   (files: `mat-ucheniya/lib/encounter-loot-resolver.ts`,
   `mat-ucheniya/lib/__tests__/encounter-loot-resolver.test.ts`)
-  - `resolveEncounterLootDesiredRows({draft, participantPcIds,
-    stashNodeId})` per plan.md
-  - Expand each line according to recipient_mode → DesiredRow[]
-  - Merge by content key `(actor_pc_id, kind, item_name | null)`
-  - Drop zero-result rows after merge
-  - Tests per plan.md `## Testing`: empty draft, single coin
-    line PC/stash/split, uneven split, mixed, merge-by-key for
-    coins and items, zero-after-merge drops
-  - Target: ≥ 12 tests
-- [ ] **T008** [P] [P1] Create validation module + tests
+  - 15 tests (target was 12): empty draft, pc/stash/split single
+    lines, uneven split, mixed PC+stash+split, merge by key for
+    coins and items, items-different-recipients, coin+item to
+    same PC (different kind kept), split with 0 participants,
+    null recipient_pc_id silent drop, zero-amount drops.
+- [x] **T008** [P] [P1] Create validation module + tests
   (files: `mat-ucheniya/lib/encounter-loot-validation.ts`,
   `mat-ucheniya/lib/__tests__/encounter-loot-validation.test.ts`)
-  - Zod schemas: `coinLineSchema`, `itemLineSchema`,
-    `lootDraftSchema`
-  - `validateLootDraft(draft, encounter, participants)` —
-    cross-line invariants per plan.md
-  - Tests: each per-line invariant, each cross-line invariant,
-    happy path
-  - Target: ≥ 10 tests
-- [ ] **T009** [P] [P1] Register `encounter_loot` wizard key
-  (file: `mat-ucheniya/lib/starter-setup.ts` — modify
-  `isKnownWizardKey`)
-  - Add `'encounter_loot'` to the legal keys list
-  - Update the existing test
-    `lib/__tests__/starter-setup-validation.test.ts` line ~120
-    that asserts `isKnownWizardKey('encounter_loot')` returns
-    `false` → flip to `true`
+  - 35 tests (target was 10). Hand-rolled validators (no zod —
+    matches existing codebase convention; spec-012's
+    `starter-setup-validation.ts` uses same `{ok,value/error}`
+    shape). Three entry points: `validateLootLine`,
+    `validateLootDraftPatch`, `validateLootDraftReady`.
+- [x] **T009** [P] [P1] Register `encounter_loot` wizard key
+  (files: `mat-ucheniya/lib/starter-setup.ts`,
+  `mat-ucheniya/lib/starter-setup-validation.ts`,
+  `mat-ucheniya/lib/__tests__/starter-setup-validation.test.ts`)
+  - Widened `WizardKey` union + `KNOWN_WIZARD_KEYS` Set + flipped
+    test from `.toBe(false)` to `.toBe(true)`.
+
+**Phase 4 result**: 199/199 vitest (135 baseline + 64 new), lint 0/0.
 
 ---
 

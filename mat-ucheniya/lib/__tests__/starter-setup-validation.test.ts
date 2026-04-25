@@ -114,10 +114,8 @@ describe('isKnownWizardKey', () => {
     expect(isKnownWizardKey('starting_items')).toBe(true)
   })
 
-  it('rejects spec-013 key (not yet shipped at app layer)', () => {
-    // spec-013 will widen the WizardKey union AND this helper's set.
-    // Until then, encounter_loot is not a known key.
-    expect(isKnownWizardKey('encounter_loot')).toBe(false)
+  it('accepts spec-013 encounter_loot key', () => {
+    expect(isKnownWizardKey('encounter_loot')).toBe(true)
   })
 
   it('rejects arbitrary strings', () => {

@@ -85,6 +85,7 @@ const KNOWN_WIZARD_KEYS = new Set<WizardKey>([
   'starting_loan',
   'stash_seed',
   'starting_items',
+  'encounter_loot', // spec-013
 ])
 
 export function isKnownWizardKey(s: unknown): s is WizardKey {
