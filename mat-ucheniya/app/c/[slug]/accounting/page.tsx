@@ -145,6 +145,7 @@ export default async function AccountingPage({
             defaultLoopNumber={defaultLoopNumber}
             defaultDayByPcId={defaultDayByPcId}
             currentLoopNumber={currentLoop?.number ?? null}
+            isPlayer={membership.role === 'player'}
           />
         )}
       </div>
