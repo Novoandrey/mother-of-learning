@@ -85,6 +85,15 @@ export function dedupTransferPairs<
     coins: CoinSet;
     item_qty: number;
     transfer_group_id: string | null;
+    /**
+     * Spec-014 FR-004: both legs of a transfer share status by
+     * construction. Defensive: we group by (transfer_group_id, status)
+     * so that a hypothetical mixed-status pair (data corruption) is
+     * NOT collapsed and surfaces as two rows. The status field is
+     * optional in the type bound to keep this helper usable from older
+     * call sites that don't carry status.
+     */
+    status?: 'pending' | 'approved' | 'rejected';
   },
 >(rows: T[]): T[] {
   const byGroup = new Map<string, T>();
@@ -94,9 +103,13 @@ export function dedupTransferPairs<
       out.push(row);
       continue;
     }
-    const existing = byGroup.get(row.transfer_group_id);
+    // Defensive: separate buckets per (group, status). Mixed-status
+    // pairs shouldn't exist (server actions enforce both legs share
+    // status), but if one ever shows up we don't silently collapse it.
+    const groupKey = `${row.transfer_group_id}|${row.status ?? 'approved'}`;
+    const existing = byGroup.get(groupKey);
     if (!existing) {
-      byGroup.set(row.transfer_group_id, row);
+      byGroup.set(groupKey, row);
       out.push(row);
       continue;
     }
@@ -104,7 +117,7 @@ export function dedupTransferPairs<
     if (isSenderLeg(row) && !isSenderLeg(existing)) {
       const idx = out.indexOf(existing);
       if (idx !== -1) out.splice(idx, 1);
-      byGroup.set(row.transfer_group_id, row);
+      byGroup.set(groupKey, row);
       out.push(row);
     }
     // Otherwise: existing leg wins (either it's already sender, or both

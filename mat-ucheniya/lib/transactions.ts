@@ -152,6 +152,8 @@ export type TransferInput = {
   loopNumber: number;
   dayInLoop: number;
   sessionId?: string | null;
+  /** Spec-014: batch_id shared across both legs (FR-004). */
+  batchId?: string;
 };
 
 // ============================================================================
@@ -291,12 +293,12 @@ function rawToTransaction(raw: TxRawRow): Transaction {
  * `category` is resolved via a separate in-memory map since there's no FK
  * on `category_slug` (by design — see plan).
  */
-type TxJoinedRow = TxRawRow & {
+export type TxJoinedRow = TxRawRow & {
   actor_pc: { title: string } | { title: string }[] | null;
   session: { title: string; fields: Record<string, unknown> | null } | { title: string; fields: Record<string, unknown> | null }[] | null;
 };
 
-const JOIN_SELECT = `
+export const JOIN_SELECT = `
   id, campaign_id, actor_pc_id, kind,
   amount_cp, amount_sp, amount_gp, amount_pp,
   item_name, item_qty, category_slug, comment,
@@ -310,7 +312,7 @@ const JOIN_SELECT = `
   session:nodes!session_id(title, fields)
 `;
 
-async function hydrateCategoryLabels(
+export async function hydrateCategoryLabels(
   campaignId: string,
   rows: Transaction[],
 ): Promise<Map<string, string>> {
@@ -341,7 +343,7 @@ async function hydrateCategoryLabels(
  * `transactions.author_user_id` points at `auth.users(id)`, not at
  * `user_profiles` — PostgREST can't embed a two-hop relation.
  */
-async function hydrateAuthors(
+export async function hydrateAuthors(
   rows: Transaction[],
 ): Promise<Map<string, string | null>> {
   const ids = [...new Set(rows.map((r) => r.author_user_id).filter((v): v is string => !!v))];
@@ -395,6 +397,27 @@ function joinedToRelations(
 }
 
 /**
+ * Hydrate a batch of joined raw rows into `TransactionWithRelations[]`,
+ * doing all three lookup queries (categories, authors, counterparties)
+ * in parallel. Returns `[]` for empty input.
+ *
+ * Used by ledger feed, recent-by-pc, and the spec-014 approval queries.
+ */
+export async function hydrateTxJoinedRows(
+  campaignId: string,
+  rows: TxJoinedRow[],
+): Promise<TransactionWithRelations[]> {
+  if (rows.length === 0) return [];
+  const plain = rows.map(rawToTransaction);
+  const [labels, authors, counterparties] = await Promise.all([
+    hydrateCategoryLabels(campaignId, plain),
+    hydrateAuthors(plain),
+    hydrateCounterparties(plain),
+  ]);
+  return rows.map((r) => joinedToRelations(r, labels, authors, counterparties));
+}
+
+/**
  * Resolve sibling-leg actors for transfer rows. One extra query on the
  * already-fetched `transfer_group_id`s (no schema change).
  *
@@ -405,7 +428,7 @@ function joinedToRelations(
  * Cheap: pulls only `id, actor_pc_id, transfer_group_id` + one-field
  * `nodes` join; scales with number of distinct groups on the page.
  */
-async function hydrateCounterparties(
+export async function hydrateCounterparties(
   rows: Transaction[],
 ): Promise<Map<string, { nodeId: string; title: string | null } | null>> {
   const out = new Map<string, { nodeId: string; title: string | null } | null>();

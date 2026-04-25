@@ -6,6 +6,7 @@ import { CampaignSidebarAside } from '@/components/campaign-sidebar-aside'
 import { UserMenu } from '@/components/user-menu'
 import { getMembership, requireAuth } from '@/lib/auth'
 import { getSidebarData } from '@/lib/sidebar-cache'
+import { getPendingCount } from '@/lib/approval-queries'
 
 export default async function CampaignLayout({
   children,
@@ -29,11 +30,14 @@ export default async function CampaignLayout({
   // independent. Run them together. getSidebarData is wrapped in
   // unstable_cache with tag 'sidebar:<campaignId>' and 60s revalidate,
   // so repeat navigations inside the same campaign are essentially free.
-  const [membership, sidebar] = await Promise.all([
+  const [membership, sidebar, pendingCount] = await Promise.all([
     getMembership(campaign.id),
     getSidebarData(campaign.id),
+    getPendingCount(campaign.id),
   ])
   if (!membership) redirect('/')
+
+  const isDM = membership.role === 'dm' || membership.role === 'owner'
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
@@ -59,7 +63,11 @@ export default async function CampaignLayout({
       </header>
 
       {/* Tabs */}
-      <NavTabs campaignSlug={slug} />
+      <NavTabs
+        campaignSlug={slug}
+        accountingPendingCount={pendingCount}
+        showAccountingBadge={isDM}
+      />
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">
