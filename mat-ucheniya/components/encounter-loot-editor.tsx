@@ -23,7 +23,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   applyEncounterLoot,
-  setAllToStashShortcut,
   updateEncounterLootDraft,
 } from '@/app/actions/encounter-loot'
 import { ApplyConfirmDialog } from '@/components/apply-confirm-dialog'
@@ -48,7 +47,9 @@ function newCoinLine(): CoinLine {
     sp: 0,
     gp: 0,
     pp: 0,
-    recipient_mode: 'split_evenly',
+    // Default to stash. The actual recipient is picked in the
+    // distribute dialog when the DM is ready to hand out rewards.
+    recipient_mode: 'stash',
     recipient_pc_id: null,
   }
 }
@@ -159,13 +160,35 @@ export function EncounterLootEditor({
     updateLines([...lines, newItemLine()])
   }
 
-  // ─────────── apply ───────────
+  // ─────────── distribute (modal) ───────────
 
-  async function handleApply(confirmed: boolean) {
+  // The distribute modal owns its own draft of recipient_mode /
+  // recipient_pc_id. On confirm we persist updated lines AND fire
+  // applyEncounterLoot in one go.
+  const [distributeOpen, setDistributeOpen] = useState(false)
+
+  async function handleDistributeConfirm(
+    distributedLines: LootLine[],
+    confirmed: boolean,
+  ) {
     setPending(true)
     setError(null)
     setInfo(null)
     try {
+      // 1. Persist the recipient choices (and any other line edits the
+      // dialog made) before applying — apply reads from the draft.
+      const upd = await updateEncounterLootDraft(encounterId, {
+        lines: distributedLines,
+      })
+      if (!upd.ok) {
+        setError(upd.error)
+        return
+      }
+      // Mirror the saved version into local state so the line list
+      // updates immediately after the dialog closes.
+      setLines(distributedLines)
+
+      // 2. Apply.
       const r = await applyEncounterLoot(encounterId, { confirmed })
       if ('needsConfirmation' in r) {
         setConfirmAffected(r.affected)
@@ -174,37 +197,11 @@ export function EncounterLootEditor({
       if (r.ok) {
         setInfo(`Лут распределён · ${r.rowsAffected} строк`)
         setConfirmAffected(null)
-        // Trigger a soft refresh to update the summary display.
-        // revalidatePath happens server-side; the encounter page
-        // refetches on next navigation. Simplest UX: full reload.
+        setDistributeOpen(false)
         window.location.reload()
         return
       }
       setError(r.error)
-    } finally {
-      setPending(false)
-    }
-  }
-
-  async function handleAllToStash() {
-    setPending(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await setAllToStashShortcut(encounterId)
-      if (r.ok) {
-        setInfo(`${r.updatedLines} строк переадресовано в общак`)
-        // Re-fetch lines optimistically by rewriting locally.
-        setLines((ls) =>
-          ls.map((l) => ({
-            ...l,
-            recipient_mode: 'stash',
-            recipient_pc_id: null,
-          })) as LootLine[],
-        )
-      } else {
-        setError(r.error)
-      }
     } finally {
       setPending(false)
     }
@@ -261,8 +258,6 @@ export function EncounterLootEditor({
             <CoinLineRow
               key={line.id}
               line={line}
-              participants={participants}
-              stashAvailable={stashAvailable}
               onChange={(patch) => updateLine(line.id, patch)}
               onRemove={() => removeLine(line.id)}
             />
@@ -270,8 +265,6 @@ export function EncounterLootEditor({
             <ItemLineRow
               key={line.id}
               line={line}
-              participants={participants}
-              stashAvailable={stashAvailable}
               onChange={(patch) => updateLine(line.id, patch)}
               onRemove={() => removeLine(line.id)}
             />
@@ -279,7 +272,7 @@ export function EncounterLootEditor({
         )}
       </ul>
 
-      {/* Add buttons + shortcut */}
+      {/* Add buttons */}
       <div className="flex flex-wrap gap-2 text-sm">
         <button
           type="button"
@@ -295,19 +288,9 @@ export function EncounterLootEditor({
         >
           + предмет
         </button>
-        {hasLines && stashAvailable && (
-          <button
-            type="button"
-            onClick={handleAllToStash}
-            disabled={pending}
-            className="rounded border border-gray-300 bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50 ml-auto"
-          >
-            Всё в общак
-          </button>
-        )}
       </div>
 
-      {/* Apply */}
+      {/* Distribute */}
       <div className="flex items-center justify-between border-t border-gray-100 pt-3">
         <div className="text-xs">
           {error && <span className="text-red-700">{error}</span>}
@@ -315,19 +298,32 @@ export function EncounterLootEditor({
         </div>
         <button
           type="button"
-          onClick={() => handleApply(false)}
-          disabled={!canApply}
+          onClick={() => setDistributeOpen(true)}
+          disabled={!canApply || !hasLines}
           className="rounded bg-emerald-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {summary.rowCount > 0 ? 'Пересобрать' : 'Применить'}
+          {summary.rowCount > 0 ? 'Перераспределить' : 'Распределить'}
         </button>
       </div>
+
+      {distributeOpen && (
+        <DistributeDialog
+          lines={lines}
+          participants={participants}
+          stashAvailable={stashAvailable}
+          pending={pending}
+          onCancel={() => setDistributeOpen(false)}
+          onConfirm={(distributedLines) =>
+            handleDistributeConfirm(distributedLines, false)
+          }
+        />
+      )}
 
       {confirmAffected !== null && (
         <ApplyConfirmDialog
           affected={confirmAffected}
           onCancel={() => setConfirmAffected(null)}
-          onConfirm={() => handleApply(true)}
+          onConfirm={() => handleDistributeConfirm(lines, true)}
           pending={pending}
         />
       )}
@@ -339,43 +335,15 @@ export function EncounterLootEditor({
 
 function CoinLineRow({
   line,
-  participants,
-  stashAvailable,
   onChange,
   onRemove,
 }: {
   line: CoinLine
-  participants: PanelParticipant[]
-  stashAvailable: boolean
   onChange: (patch: Partial<CoinLine>) => void
   onRemove: () => void
 }) {
-  // Live preview for split_evenly: show what each participant will
-  // get after the floor-cp + remainder rule.
-  const preview = useMemo(() => {
-    if (line.recipient_mode !== 'split_evenly') return null
-    if (participants.length === 0) return 'нет участников — строка не применится'
-    const splits = splitCoinsEvenly(
-      { cp: line.cp, sp: line.sp, gp: line.gp, pp: line.pp },
-      participants.length,
-    )
-    if (splits.length === 0) return null
-    const first = splits[0]
-    const last = splits[splits.length - 1]
-    const same = splits.every(
-      (s) => s.cp === first.cp && s.sp === first.sp && s.gp === first.gp && s.pp === first.pp,
-    )
-    if (same) {
-      return `по ${formatCoins(first)} каждому из ${participants.length}`
-    }
-    // Show first share + who gets the remainder.
-    const remainderCp = totalCp(first) - totalCp(last)
-    const firstName = participants[0]?.title ?? '?'
-    return `${formatCoins(last)} каждому, ещё +${remainderCp} cp → ${firstName}`
-  }, [line, participants])
-
   return (
-    <li className="rounded border border-gray-200 bg-gray-50 p-2 space-y-2">
+    <li className="rounded border border-gray-200 bg-gray-50 p-2">
       <div className="flex items-center gap-2 text-sm">
         <span className="font-medium text-gray-700 w-16">Монеты</span>
         <DenomInput label="cp" value={line.cp} onChange={(v) => onChange({ cp: v })} />
@@ -391,23 +359,6 @@ function CoinLineRow({
           ×
         </button>
       </div>
-      <div className="flex items-center gap-2 text-sm flex-wrap">
-        <span className="text-gray-600">Кому:</span>
-        <RecipientPicker
-          mode={line.recipient_mode}
-          pcId={line.recipient_pc_id}
-          participants={participants}
-          stashAvailable={stashAvailable}
-          allowSplit={true}
-          onChange={(mode, pcId) =>
-            onChange({
-              recipient_mode: mode as CoinLine['recipient_mode'],
-              recipient_pc_id: pcId,
-            })
-          }
-        />
-        {preview && <span className="text-xs text-gray-500">· {preview}</span>}
-      </div>
     </li>
   )
 }
@@ -416,19 +367,15 @@ function CoinLineRow({
 
 function ItemLineRow({
   line,
-  participants,
-  stashAvailable,
   onChange,
   onRemove,
 }: {
   line: ItemLine
-  participants: PanelParticipant[]
-  stashAvailable: boolean
   onChange: (patch: Partial<ItemLine>) => void
   onRemove: () => void
 }) {
   return (
-    <li className="rounded border border-gray-200 bg-gray-50 p-2 space-y-2">
+    <li className="rounded border border-gray-200 bg-gray-50 p-2">
       <div className="flex items-center gap-2 text-sm">
         <span className="font-medium text-gray-700 w-16">Предмет</span>
         <input
@@ -454,22 +401,6 @@ function ItemLineRow({
         >
           ×
         </button>
-      </div>
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-gray-600">Кому:</span>
-        <RecipientPicker
-          mode={line.recipient_mode}
-          pcId={line.recipient_pc_id}
-          participants={participants}
-          stashAvailable={stashAvailable}
-          allowSplit={false}
-          onChange={(mode, pcId) =>
-            onChange({
-              recipient_mode: mode as ItemLine['recipient_mode'],
-              recipient_pc_id: pcId,
-            })
-          }
-        />
       </div>
     </li>
   )
@@ -550,5 +481,242 @@ function RecipientPicker({
         </option>
       ))}
     </select>
+  )
+}
+
+// ─────────────────────────── distribute dialog ───────────────────────────
+
+/**
+ * Modal that turns a flat list of loot lines (content) into per-line
+ * recipient choices (distribution). Editor stays focused on
+ * "what dropped"; this dialog is the explicit "now hand it out" step.
+ *
+ * Local state owns a copy of the lines so DM can play with options
+ * without tripping the editor's debounced auto-save. On confirm we
+ * emit the modified list upstream — the editor persists + applies in
+ * one transaction.
+ */
+function DistributeDialog({
+  lines: initialLines,
+  participants,
+  stashAvailable,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  lines: LootLine[]
+  participants: PanelParticipant[]
+  stashAvailable: boolean
+  pending: boolean
+  onCancel: () => void
+  onConfirm: (distributedLines: LootLine[]) => void
+}) {
+  const [localLines, setLocalLines] = useState<LootLine[]>(() =>
+    initialLines.map((l) => ({ ...l })),
+  )
+
+  // Esc closes (but never while a request is in flight).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !pending) onCancel()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCancel, pending])
+
+  function patchLine(id: string, patch: Partial<LootLine>) {
+    setLocalLines((ls) =>
+      ls.map((l) => (l.id === id ? ({ ...l, ...patch } as LootLine) : l)),
+    )
+  }
+
+  function presetAllToStash() {
+    setLocalLines((ls) =>
+      ls.map((l) => ({ ...l, recipient_mode: 'stash', recipient_pc_id: null })) as LootLine[],
+    )
+  }
+
+  function presetAllSplit() {
+    setLocalLines((ls) =>
+      ls.map((l) =>
+        l.kind === 'coin'
+          ? ({ ...l, recipient_mode: 'split_evenly', recipient_pc_id: null } as LootLine)
+          : l,
+      ),
+    )
+  }
+
+  // Validity gate for the apply button. Each line must have a
+  // resolvable recipient given current participants/stash.
+  const invalidReasons = useMemo(() => {
+    const reasons: string[] = []
+    for (const l of localLines) {
+      if (l.recipient_mode === 'pc' && !l.recipient_pc_id) {
+        reasons.push('Не выбран получатель для одной из строк')
+        break
+      }
+      if (l.recipient_mode === 'stash' && !stashAvailable) {
+        reasons.push('Нет общака в кампании')
+        break
+      }
+      if (l.recipient_mode === 'split_evenly' && participants.length === 0) {
+        reasons.push('Нет участников для деления')
+        break
+      }
+    }
+    return reasons
+  }, [localLines, participants.length, stashAvailable])
+
+  const hasCoinLines = localLines.some((l) => l.kind === 'coin')
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      style={{ background: 'rgba(17,24,39,0.45)' }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !pending) onCancel()
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Распределение лута"
+    >
+      <div
+        className="w-[640px] max-w-[95vw] overflow-hidden rounded-lg bg-white shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-gray-900">
+              Распределить лут
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Выбери получателя для каждой строки.
+            </p>
+          </div>
+        </div>
+
+        {/* Presets */}
+        <div className="flex flex-wrap gap-2 border-b border-gray-100 bg-gray-50 px-5 py-2 text-sm">
+          {stashAvailable && (
+            <button
+              type="button"
+              onClick={presetAllToStash}
+              disabled={pending}
+              className="rounded border border-gray-300 bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Всё в общак
+            </button>
+          )}
+          {hasCoinLines && participants.length > 0 && (
+            <button
+              type="button"
+              onClick={presetAllSplit}
+              disabled={pending}
+              className="rounded border border-gray-300 bg-white px-3 py-1 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Все монеты — поровну
+            </button>
+          )}
+        </div>
+
+        {/* Lines */}
+        <div className="max-h-[55vh] overflow-y-auto px-5 py-3 space-y-2">
+          {localLines.map((l) => (
+            <DistributeLineRow
+              key={l.id}
+              line={l}
+              participants={participants}
+              stashAvailable={stashAvailable}
+              onChange={(patch) => patchLine(l.id, patch)}
+            />
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-5 py-3">
+          <div className="text-xs text-amber-700">
+            {invalidReasons[0]}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={pending}
+              className="rounded border border-gray-300 bg-white px-4 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(localLines)}
+              disabled={pending || invalidReasons.length > 0}
+              className="rounded bg-emerald-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Применить ({localLines.length})
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DistributeLineRow({
+  line,
+  participants,
+  stashAvailable,
+  onChange,
+}: {
+  line: LootLine
+  participants: PanelParticipant[]
+  stashAvailable: boolean
+  onChange: (patch: Partial<LootLine>) => void
+}) {
+  // Live split preview for coin lines in split_evenly mode.
+  const splitPreview = useMemo(() => {
+    if (line.kind !== 'coin' || line.recipient_mode !== 'split_evenly') return null
+    if (participants.length === 0) return 'нет участников'
+    const splits = splitCoinsEvenly(
+      { cp: line.cp, sp: line.sp, gp: line.gp, pp: line.pp },
+      participants.length,
+    )
+    if (splits.length === 0) return null
+    const first = splits[0]
+    const last = splits[splits.length - 1]
+    const same = splits.every(
+      (s) => s.cp === first.cp && s.sp === first.sp && s.gp === first.gp && s.pp === first.pp,
+    )
+    if (same) return `по ${formatCoins(first)} каждому`
+    const remainderCp = totalCp(first) - totalCp(last)
+    const firstName = participants[0]?.title ?? '?'
+    return `${formatCoins(last)} каждому, +${remainderCp} cp → ${firstName}`
+  }, [line, participants])
+
+  const summary =
+    line.kind === 'coin'
+      ? formatCoins(line) || '0'
+      : `${line.name || '(без названия)'} × ${line.qty}`
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+      <span className="font-medium text-gray-700 min-w-[120px]">{summary}</span>
+      <RecipientPicker
+        mode={line.recipient_mode}
+        pcId={line.recipient_pc_id}
+        participants={participants}
+        stashAvailable={stashAvailable}
+        allowSplit={line.kind === 'coin'}
+        onChange={(mode, pcId) =>
+          onChange({
+            recipient_mode: mode,
+            recipient_pc_id: pcId,
+          } as Partial<LootLine>)
+        }
+      />
+      {splitPreview && (
+        <span className="text-xs text-gray-500">· {splitPreview}</span>
+      )}
+    </div>
   )
 }
