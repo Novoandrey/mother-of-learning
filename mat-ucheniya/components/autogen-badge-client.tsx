@@ -27,7 +27,12 @@ export function AutogenBadgeClient({
   wizardKey: WizardKey
   sourceTitle: string
 }) {
-  const tip = `${WIZARD_LABEL[wizardKey]} · ${sourceTitle}`
+  // Empty `sourceTitle` happens for appended pages (the server map only
+  // covers the first page). Keep the tooltip clean — drop the separator
+  // and the empty tail rather than rendering "Стартовые деньги · ".
+  const tip = sourceTitle
+    ? `${WIZARD_LABEL[wizardKey]} · ${sourceTitle}`
+    : WIZARD_LABEL[wizardKey]
   return (
     <span
       title={tip}

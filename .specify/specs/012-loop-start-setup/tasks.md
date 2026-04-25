@@ -420,7 +420,7 @@ loan flag.
   - URL-driven: `?autogen=only` etc.
   - When state ≠ `all`, render as an active chip in collapsed-filters view
 - [ ] **T039** [P2] Extend `mat-ucheniya/lib/transactions.ts` `getLedgerPage` (or equivalent) to accept the `autogen` filter and append the appropriate `WHERE autogen_wizard_key IS [NOT] NULL` clause. Uses the new partial index.
-- [ ] **T040** [P2] Hydrate the `autogen` prop for every row in `transaction-list-client.tsx` (or wherever rows are mapped from query results). Needs the `sourceTitle` — a tiny join (`getNodeTitleById`) or precompute the map in the server component once per page.
+- [x] **T040** [P2] Hydrate the `autogen` prop for every row in `transaction-list-client.tsx` (or wherever rows are mapped from query results). Needs the `sourceTitle` — a tiny join (`getNodeTitleById`) or precompute the map in the server component once per page.
 
 **Checkpoint**: autogen rows render with a badge; filter chip toggles visibility; tooltip shows wizard + source.
 
