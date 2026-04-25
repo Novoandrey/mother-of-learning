@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 
 export default async function NewSessionPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ loop?: string }>

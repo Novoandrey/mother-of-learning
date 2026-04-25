@@ -18,11 +18,10 @@ type Chronicle = {
 type Props = {
   nodeId: string
   campaignId: string
-  campaignSlug: string
   initialChronicles: Chronicle[]
 }
 
-export function Chronicles({ nodeId, campaignId, campaignSlug, initialChronicles }: Props) {
+export function Chronicles({ nodeId, campaignId, initialChronicles }: Props) {
   const [chronicles, setChronicles] = useState(initialChronicles)
   const [showForm, setShowForm] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)

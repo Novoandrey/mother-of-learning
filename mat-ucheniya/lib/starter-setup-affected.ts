@@ -21,8 +21,6 @@
 
 import type {
   AffectedRow,
-  DesiredRow,
-  ExistingAutogenRow,
   RowDiff,
   Tombstone,
 } from './starter-setup'

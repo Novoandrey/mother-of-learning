@@ -253,7 +253,6 @@ export default async function SessionDetailPage({
       <MarkdownContent
         nodeId={session.id}
         initialContent={session.content}
-        campaignSlug={slug}
       />
 
       {/* Spec-010 phase 13 (stretch): transactions attached to this session. */}
@@ -317,7 +316,6 @@ export default async function SessionDetailPage({
       <Chronicles
         nodeId={session.id}
         campaignId={campaign.id}
-        campaignSlug={slug}
         initialChronicles={chronicles}
       />
 

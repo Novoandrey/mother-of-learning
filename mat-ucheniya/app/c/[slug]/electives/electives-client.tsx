@@ -68,7 +68,6 @@ export function ElectivesClient({
     return m
   }, [edges])
 
-  const pcMap = useMemo(() => new Map(pcs.map((p) => [p.id, p])), [pcs])
   const electiveMap = useMemo(() => new Map(electives.map((e) => [e.id, e])), [electives])
 
   const kinds = useMemo(() => {

@@ -428,7 +428,7 @@ loan flag.
 
 ## Phase 12: Close-out
 
-- [ ] **T041** [P1] Run `npm run lint` in `mat-ucheniya/`. Fix every warning.
+- [x] **T041** [P1] Run `npm run lint` in `mat-ucheniya/`. Fix every warning.
 - [ ] **T042** [P1] Run `npm run test` in `mat-ucheniya/`. All new vitest specs (T006, T008, T010, T012) pass. Re-run after fixing anything.
 - [ ] **T043** [P1] Run `npm run build` in `mat-ucheniya/`. Fix every type error. Zero regressions.
 - [ ] **T044** [P1] Manual walkthrough against `spec.md` Acceptance Scenarios:

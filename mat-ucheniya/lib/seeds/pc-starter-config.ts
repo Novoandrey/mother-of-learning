@@ -39,7 +39,6 @@ export async function ensurePcStarterConfig(
     // Non-fatal: log for diagnostics but don't block the PC-create
     // flow. The defensive default in getPcStarterConfigsForCampaign
     // handles the missing row gracefully.
-    // eslint-disable-next-line no-console
     console.warn('[ensurePcStarterConfig] insert failed:', error.message)
   }
 }

@@ -9,9 +9,9 @@ type EdgeType = { id: string; slug: string; label: string }
 type SearchResult = { id: string; title: string }
 
 export function CreateEdgeForm({
-  sourceId, campaignId, campaignSlug, onDone,
+  sourceId, campaignId, onDone,
 }: {
-  sourceId: string; campaignId: string; campaignSlug: string; onDone: () => void
+  sourceId: string; campaignId: string; onDone: () => void
 }) {
   const supabase = createClient()
   const router = useRouter()
