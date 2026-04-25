@@ -2,7 +2,8 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-25 (chat 52 — spec-014 Phase 3-9 + smoke scripts)
+> Last updated: 2026-04-25 (chat 53 — spec-014 close-out, smoke-script
+> fixes; spec-014 в проде happy-flow подтверждён)
 
 ## В проде сейчас
 
@@ -156,6 +157,85 @@
   `check-encounter-mirror-triggers.sql` (5+5 проверок каждый,
   обёрнуты в BEGIN...ROLLBACK) — запускаются через Supabase
   Dashboard. 199/199 vitest, lint 0/0, next build clean.
+- **spec-014 Approval flow (chat 51-53)** — _полностью в проде_.
+  Миграция 042: 6 колонок на `transactions` (`batch_id`,
+  `approved_by_user_id`, `approved_at`, `rejected_by_user_id`,
+  `rejected_at`, `rejection_comment`), 3 partial index'а
+  (`idx_tx_pending` / `idx_tx_batch` / `idx_tx_author_pending`),
+  CHECK `transactions_approval_consistency` (per-status field
+  bleed protection — approved_at обязателен; approved_by_user_id
+  может быть NULL из-за `on delete set null` на FK), backfill
+  существующих рядов. Plus табличка `accounting_player_state`
+  (user_id, campaign_id, last_seen_acted_at) с self-only RLS для
+  FR-027 toast. Серверные actions:
+  `app/actions/transactions.ts` — все три create-action'а
+  (createTransaction / createTransfer / createItemTransfer)
+  выбирают status по роли (player → pending, иначе approved),
+  заполняют audit при auto-approve, auto-генерят `batch_id` для
+  player'а (single-row → batch of 1, иначе groupRowsByBatch
+  отбросил бы). `submitBatch` wrapper для multi-row submit с
+  best-effort rollback. Status-gate в update/delete ('Можно
+  править только pending-заявки'). `app/actions/approval.ts`
+  (~440 строк) — approveRow/rejectRow с transfer-pair atomic,
+  approveBatch/rejectBatch с partial-success counts,
+  withdrawRow/withdrawBatch (author-only hard-delete). Все
+  gated на `(status='pending' AND updated_at = expected)` для
+  FR-028 optimistic concurrency; rowcount=0 → `{stale: true}`.
+  Read-side: `lib/approval-queries.ts` —
+  getPendingCount / getPendingBatches / getBatchById +
+  getRecentDMActionSummary / markDMActionsSeen. Pure helpers
+  `lib/approval.ts` — `groupRowsByBatch` / `summarizeBatch` /
+  `validateBatchRowInputs` / `isStaleError` (~40 unit-тестов).
+  UI: `transaction-row.tsx` status-aware (amber border-left +
+  «⏳ Ждёт DM» pending; gray + strike + «✗ Отклонено» rejected
+  с inline rejection_comment chip); `<AccountingSubNav>` (Лента
+  / Очередь + secondary actions с usePathname highlight); page
+  `/c/[slug]/accounting/queue` + `<QueueList>` server +
+  `<QueueBatchCard>` client (collapsed/expanded, summary-line,
+  status-чипы, per-row + batch DM/player actions, inline
+  reject-comment, useTransition + router.refresh, stale
+  handling); count badge на «Бухгалтерия» tab в `nav-tabs.tsx`
+  (DM-only, > 0); `<DMActionToast>` для player на /accounting
+  с auto-dismiss 8с. Multi-row form: `<BatchTransactionForm>`
+  + sheet (~440 строк суммарно) — отдельный focused компонент
+  рядом с существующей 770-строчной `<TransactionForm>` (не
+  трогается, чтобы не сломать stash-pinned mode / edit /
+  shortfall prompt). Кнопка «📋 Подать пачку» в
+  `<LedgerActorBar>` видна только player'у. `dedupTransferPairs`
+  defensive: group key теперь `(transfer_group_id, status)`.
+  SQL smoke `scripts/check-rls-014.sql` (6 кейсов) +
+  `check-approval-constraints-014.sql` (8 кейсов) —
+  оба прошли в проде через Supabase Dashboard. Миграция 039: 1 mirror-node infra (encounter node_type +
+  encounters.node_id + 3 триггера create/sync/delete) + 1 таблица
+  `encounter_loot_drafts` + RLS. T004 (carve-out): извлёк
+  `computeAutogenDiff` + `applyAutogenDiff` из spec-012 в
+  `lib/autogen-reconcile.ts` — обе спеки используют общий reconcile
+  core. Phase 4 pure helpers: `lib/encounter-loot-types.ts`,
+  `lib/coin-split.ts` (floor-cp + remainder + greedy denominations,
+  14 тестов), `lib/encounter-loot-resolver.ts` (15 тестов),
+  `lib/encounter-loot-validation.ts` (35 тестов hand-rolled —
+  следует codebase-конвенции, без zod). Phase 5 actions
+  (`app/actions/encounter-loot.ts`): `getEncounterLootDraft`
+  (lazy-create через upsert), `updateEncounterLootDraft`,
+  `setAllToStashShortcut`, `applyEncounterLoot` (полный reconcile с
+  bridge encounter-loot → spec-012 DesiredRow shape, two-phase
+  confirm, ручная очистка encounter_loot tombstones — RPC хардкодит
+  spec-012 keys). Phase 6 UI: `<EncounterLootSummaryReadOnly>` для
+  игроков (3 состояния, link на `/accounting?autogen=only&source=...`),
+  `<EncounterLootPanel>` server frame (DM-only, hides on active
+  status), `<EncounterLootEditor>` client island (consolidated:
+  day picker + coin/item rows + recipient picker single-select +
+  live split preview + debounced save 300ms + apply + confirm
+  dialog + «Всё в общак»). Mounted на encounter page. Phase 7
+  filters: encounter mirrors отрезаны из sidebar
+  (`lib/sidebar-cache.ts`), catalog grid + chip
+  (`app/c/[slug]/catalog/page.tsx`), edge-creation typeahead
+  (`components/create-edge-form.tsx`). T023: `encounter_loot:
+  'Лут энкаунтера'` добавлен в оба `Record<WizardKey, string>`
+  map'а. SQL smoke-скрипты `check-rls-013.sql` +
+  `check-encounter-mirror-triggers.sql` (5+5 проверок каждый,
+  обёрнуты в BEGIN...ROLLBACK) — запускаются через Supabase
+  Dashboard. 199/199 vitest, lint 0/0, next build clean.
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
 - **Факультативы**: миграция `029`
@@ -177,115 +257,72 @@
 
 ## Следующий приоритет
 
-**Spec-014 Approval flow — В РАБОТЕ.** Phase 1–9 + smoke scripts +
-T020/T021 (multi-row batch form) закоммичены. Migration 042 в проде.
-Тесты НЕ прогонялись локально; проверка через Vercel auto-deploy
-и smoke SQL.
+**Spec-015 Item catalog integration** — старт. Spec/plan/tasks ещё
+нет, нужен phase **Specify**.
 
-**Сделано в chat 52:**
-- **Phase 3** (T007–T013) — `createTransaction` / `createTransfer`
-  / `createItemTransfer` принимают `batchId?`; status выбирается
-  по роли (player → pending, иначе approved); audit-поля
-  заполняются при auto-approve. Auto-генерация `batch_id` для
-  player'а (single-row → batch of 1) — иначе `groupRowsByBatch`
-  отбросил бы запись из очереди. `submitBatch` wrapper-action
-  для multi-row submission. Status-gate `'Можно править только
-  pending-заявки'` в `updateTransaction` / `deleteTransaction`.
-  Defensive `.eq('status','approved')` в `loadExistingAutogenRows`.
-- **Phase 4** (T014–T016) — `app/actions/approval.ts` (~440 строк):
-  `approveRow` / `rejectRow` (transfer-pair atomic via
-  `transfer_group_id`), `approveBatch` / `rejectBatch` (per-row
-  gated, partial-success counts), `withdrawRow` / `withdrawBatch`
-  (author-only, hard-delete с `expected_updated_at` gate).
-  Возвращают `{ ok: false, stale: true }` при rowcount=0.
-- **Phase 5** (T017–T019) — `lib/approval-queries.ts`:
-  `getPendingCount` через `idx_tx_pending`, `getPendingBatches`
-  (heads → full rows, role-filtered), `getBatchById`. Exported
-  helpers `JOIN_SELECT`, `TxJoinedRow`, `hydrateTxJoinedRows`,
-  `hydrateCategoryLabels` / `hydrateAuthors` /
-  `hydrateCounterparties` из `lib/transactions.ts` для переиспользования.
-  Plus `getRecentDMActionSummary` + `markDMActionsSeen` для FR-027.
-- **Phase 6** (T020/T021) — `<BatchTransactionForm>` +
-  `<BatchTransactionFormSheet>`. Отдельный focus-компонент
-  (existing 770-строчная `transaction-form.tsx` не трогалась).
-  Поддерживает income/expense/transfer/item × N рядов,
-  `+ Добавить ряд` affordance, `× удалить` per row (когда ≥ 2),
-  client-side validation, submit через `submitBatch`. Sheet
-  открывается из новой кнопки «📋 Подать пачку» в
-  `<LedgerActorBar>`, видимой только player'у. Submit label
-  «Отправить заявку» (1 ряд) / «Отправить N заявок».
-- **Phase 7** (T022, T023) — `transaction-row.tsx` status-aware:
-  amber border-left + «⏳ Ждёт DM» для pending; gray + strikethrough
-  + «✗ Отклонено» + чип с `rejection_comment` для rejected.
-  `dedupTransferPairs` теперь группирует по `(transfer_group_id, status)`
-  — defensive вне-FR-004 mixed-status pair НЕ коллапсится. Два новых
-  vitest теста.
-- **Phase 8** (T024–T030) — `<AccountingSubNav>` (Лента / Очередь
-  + secondary actions, highlight через `usePathname`); page
-  `/c/[slug]/accounting/queue`; `<QueueList>` server +
-  `<QueueBatchCard>` client (collapsed/expanded, summary-line,
-  status-чипы, per-row + batch actions для DM, withdraw для author,
-  inline reject-comment, `useTransition` + `router.refresh()`,
-  обработка stale).
-- **Phase 9** (T031–T033) — count badge на `Бухгалтерия` tab
-  (`nav-tabs.tsx` + layout добавляет `getPendingCount` в Promise.all,
-  visible только DM/owner). `<DMActionToast>` для player на
-  /accounting (auto-dismiss 8с, mark-as-seen в server-pass).
-- **Phase 10** (T034, T035) — `scripts/check-rls-014.sql` (6 RLS
-  кейсов) + `scripts/check-approval-constraints-014.sql` (8 CHECK
-  кейсов), оба в `BEGIN…ROLLBACK`. Запускать через Supabase
-  Dashboard.
+Контекст из `bookkeeping-roadmap.md`:
+- Предмет как нода типа `item`. `transactions.item_node_id`
+  (nullable). Таймлайн владения = query по transactions с этим
+  `item_node_id`.
+- Каталог предметов как app-слой поверх нод-данных. Поля: цена в
+  GP, вес в фунтах, описание, ссылка на источник (book / page /
+  URL), категория (weapon/armor/consumable/magic-item/wondrous/
+  tool/...), редкость (для магических). DM-only на запись, всем
+  на чтение.
+- Каталог покрывает и обычные предметы (longsword, rope, rations),
+  не только магические — для дедупа (typeahead вместо ноды-дублей
+  «Longsword» / «long sword» / «Длинный меч»).
+- SRD-импорт как первичный сид: ~300 предметов из SRD 5e + ~100
+  магических. (Раньше было заявлено как опциональный spec-016 —
+  теперь часть spec-015.)
+- Связь с spec-013 (encounter loot): после spec-015 item-поля в
+  loot draft получают опциональный `item_node_id`; backfill
+  существующих item-транзакций по name → item_node_id —
+  post-spec-015 миграция.
 
-**ОТЛОЖЕНО (proper close-out):**
-- T036–T039 — manual walkthrough Acceptance Scenarios (DM only).
-- T040 — `npm run lint` + `tsc --noEmit` + vitest. Делать через
-  Vercel CI или локально по желанию.
-- T041–T044 — close-out final.
-
-**Pickup в следующем чате:**
+**Pickup для нового чата:**
 1. Свежий клон.
-2. Проверить Vercel build на последнем коммите.
-3. Прогнать оба SQL smoke-script'а через Supabase Dashboard.
-4. Manual walkthrough AS1–AS9, AS13–AS16 (DM-only).
-5. После — commit close-out (T040–T044).
+2. Прочитать `.specify/memory/bookkeeping-roadmap.md` → секцию
+   spec-015.
+3. Прочитать backlog'и TECH-011 (категории keep/kill — связано
+   с item-классификацией) и TECH про `actor_pc_id`→`actor_node_id`.
+4. Запустить **Specify** phase: `.specify/specs/015-*/spec.md`
+   (название кампании в slug-папке: пример выше — `015-item-
+   catalog-integration` или короче). Прислать spec.md, дождаться
+   ok.
 
-Чек-лист в `.specify/specs/014-approval-flow/tasks.md`. Сделано:
-T001–T035 (35 из 44). Осталось: T036–T044 (manual walkthrough +
-final close-out).
+### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 
-**Ключевые решения spec-014** (для контекста, чтобы не перечитывать
-spec.md и plan.md):
-- Player → `status='pending'`, DM/owner → `status='approved'` сразу.
-- Multi-row форма (player only), submit-as-batch с общим `batch_id`.
-- Withdraw = hard-delete (нет нового статуса). Edit-in-place.
-- Очередь — таб «Очередь» в `/c/[slug]/accounting`, role-filtered.
-- Pending видны всем, не учитываются в балансах. Rejected тоже видны
-  всем, навсегда.
-- Concurrent edit detection — через `WHERE updated_at = ?` gate.
-- DM-бейдж в nav-tabs; player-toast при заходе на /accounting.
+- **UX полишинг** — будет приходить инкрементально по запросу
+  пользователя. Все механизмы в порядке: pending/approved/rejected
+  rendering, queue tab, badge, toast, multi-row form, withdraw,
+  approve/reject, transfer-pair atomic.
+- **T038/T039** — manual walkthrough для autogen-не-затронут (DM-
+  direct + autogen reapply игнорирует pending) и concurrent edit
+  staleness. Не блокеры — happy flow проверен, эти scenarios
+  затронут только edge cases.
+- **Bulk-actions** — UI showed только per-row + per-batch.
+  «Reject several batches» / «Approve everything from PCs X+Y» —
+  не в спеке (см. plan.md «Out of scope»). Если возникнет —
+  заводить отдельный backlog item.
 
-**После spec-014** — IDEA-055 (DM rename/delete на encounter page,
-~30 мин), потом по бэклогу.
+### Кандидаты после spec-015
 
-**После spec-013** — IDEA-055 (DM controls на encounter page —
-rename + delete кнопки, ~30 минут), потом основные кандидаты:
-- **Spec-016 «Сборы»** — spec.md есть, ждёт Clarify.
-- **Spec-017 карта мира** — заявлена в backlog, отдельная
-  фундаментальная фича (5-7 дней).
-- **Spec-020 правила/хомрулы** — заявлена в backlog, средняя
-  по размеру.
-
-**Заявлены в backlog (entries есть, spec.md нет):** 017 (карта),
-018 (encounter rework), 019 (DM sandbox), 020 (правила/хомрулы),
-021 (DM session control), 022 (movement timeline), 023 (часы/
-проекты), 024+ (character-sheet/mobile epic). IDEA-055 (DM
-encounter controls) — новая в chat 50.
+Из backlog'а (entries есть, spec.md нет):
+- **spec-016 «Сборы»** — spec.md есть, ждёт Clarify.
+- **spec-017 карта мира** — фундаментальная (5-7 дней).
+- **spec-020 правила/хомрулы** — средняя.
+- **spec-018** (encounter rework), **spec-019** (DM sandbox),
+  **spec-021** (DM session control), **spec-022** (movement
+  timeline), **spec-023** (часы/проекты), **spec-024+**
+  (character-sheet/mobile epic).
+- **IDEA-055** (DM rename/delete на encounter page, ~30 мин) —
+  новая в chat 50.
 
 **Параллельный долг (мелкие):**
-- T044 manual walkthrough — 10 Acceptance Scenarios из spec-012
-  spec.md в проде. Я (Claude) автоматизировать не могу, проверка
-  вручную DM'ом.
-- IDEA-055 DM rename/delete кнопки (после spec-013).
+- T044 spec-012 manual walkthrough — 10 Acceptance Scenarios.
+  Я (Claude) автоматизировать не могу, проверка вручную DM'ом.
+- IDEA-055 DM rename/delete кнопки.
 
 ### Последняя строка хвостов
 
