@@ -26,6 +26,14 @@ type Props = {
   initialNextCursor: string | null
   filters: LedgerFilters
   pageSize: number
+  /**
+   * Spec-012 T040 — wizard `sourceNodeId` → title map for the badge
+   * tooltip. Built server-side once per page from `initialRows`.
+   * Rows fetched later via `loadLedgerPage` (appended pages) won't be
+   * in this map; the badge falls back to a wizard-only tooltip — a
+   * deliberate small cosmetic compromise to keep the action thin.
+   */
+  autogenSourceTitles: Record<string, string>
 }
 
 /**
@@ -50,6 +58,7 @@ export default function LedgerListClient({
   initialNextCursor,
   filters,
   pageSize,
+  autogenSourceTitles,
 }: Props) {
   const router = useRouter()
 
@@ -153,18 +162,32 @@ export default function LedgerListClient({
         </div>
       ) : (
         <ul className="flex flex-col gap-1.5">
-          {rows.map((row) => (
-            <TransactionRow
-              key={row.id}
-              tx={row}
-              campaignSlug={campaignSlug}
-              showActor={true}
-              canEdit={canManage || row.author_user_id === currentUserId}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-              busy={busyId === row.id}
-            />
-          ))}
+          {rows.map((row) => {
+            // Spec-012 T040 — hydrate the badge from the page-level title
+            // map. Appended pages don't ship a fresh map, so we fall back
+            // to an empty string and let `<AutogenBadgeClient>` render a
+            // wizard-only tooltip in that case.
+            const autogen = row.autogen
+              ? {
+                  wizardKey: row.autogen.wizardKey,
+                  sourceTitle:
+                    autogenSourceTitles[row.autogen.sourceNodeId] ?? '',
+                }
+              : null
+            return (
+              <TransactionRow
+                key={row.id}
+                tx={row}
+                campaignSlug={campaignSlug}
+                showActor={true}
+                canEdit={canManage || row.author_user_id === currentUserId}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                busy={busyId === row.id}
+                autogen={autogen}
+              />
+            )
+          })}
         </ul>
       )}
 

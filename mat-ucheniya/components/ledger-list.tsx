@@ -115,7 +115,19 @@ export default async function LedgerList({
     ])
 
   // Hydrate PCs + loop numbers via the fetched type ids.
-  const [pcs, loopsData] = await Promise.all([
+  // Plus — spec-012 T040 — autogen source titles for the rows on this page.
+  // For each row produced by an autogen wizard we need the title of the
+  // source node (the loop, encounter, etc.) to surface in the badge tooltip.
+  // Single batched IN-query, no per-row fetch.
+  const autogenSourceIds = Array.from(
+    new Set(
+      page.rows
+        .map((r) => r.autogen?.sourceNodeId)
+        .filter((id): id is string => !!id),
+    ),
+  )
+
+  const [pcs, loopsData, autogenSourcesRes] = await Promise.all([
     pcsRes.data
       ? admin
           .from('nodes')
@@ -131,7 +143,19 @@ export default async function LedgerList({
           .eq('campaign_id', campaignId)
           .eq('type_id', (loopsRes.data as { id: string }).id)
       : Promise.resolve({ data: [] as { fields: Record<string, unknown> | null }[] }),
+    autogenSourceIds.length > 0
+      ? admin
+          .from('nodes')
+          .select('id, title')
+          .in('id', autogenSourceIds)
+      : Promise.resolve({ data: [] as { id: string; title: string }[] }),
   ])
+
+  const autogenSourceTitles: Record<string, string> = Object.fromEntries(
+    ((autogenSourcesRes.data ?? []) as { id: string; title: string }[]).map(
+      (n) => [n.id, n.title],
+    ),
+  )
 
   const loopNumbers = ((loopsData.data ?? []) as {
     fields: Record<string, unknown> | null
@@ -189,6 +213,7 @@ export default async function LedgerList({
         initialNextCursor={page.nextCursor}
         filters={filters}
         pageSize={PAGE_SIZE}
+        autogenSourceTitles={autogenSourceTitles}
       />
     </div>
   )
