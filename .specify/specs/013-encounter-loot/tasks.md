@@ -214,12 +214,12 @@ A task is `[x]` only when its acceptance check passes:
 
 ## Phase 6 — UI
 
-- [ ] **T015** [P1] `<EncounterLootSummaryReadOnly>` component
+- [x] **T015** [P1] `<EncounterLootSummaryReadOnly>` component
   (file: `mat-ucheniya/components/encounter-loot-summary-read-only.tsx`)
   - Server component, renders three states
   - Reads `getEncounterLootSummary` (T011)
   - Link to `/accounting?autogen=only&source=<mirrorNodeId>`
-- [ ] **T016** [P1] `<EncounterLootPanel>` server frame
+- [x] **T016** [P1] `<EncounterLootPanel>` server frame
   (file: `mat-ucheniya/components/encounter-loot-panel.tsx`)
   - DM-only render guard (server-side role check)
   - Hides itself when `encounter.status === 'active'`
@@ -228,30 +228,30 @@ A task is `[x]` only when its acceptance check passes:
   - Renders header + day picker (when needed) + line list +
     apply button + «Всё в общак» shortcut
   - Mounts client island `<EncounterLootLineEditor>`
-- [ ] **T017** [P1] `<EncounterLootLineEditor>` client island
+- [x] **T017** [P1] `<EncounterLootLineEditor>` client island
   (file: `mat-ucheniya/components/encounter-loot-line-editor.tsx`)
   - State: local `lines: LootLine[]` mirroring server
   - Optimistic update on edit; debounced call to T012
     `updateEncounterLootDraft`
   - Renders `<CoinLineRow>` and `<ItemLineRow>` per line
   - "Add coin line" / "Add item line" buttons
-- [ ] **T018** [P2] `<CoinLineRow>` component
+- [x] **T018** [P2] `<CoinLineRow>` component
   (file: `mat-ucheniya/components/encounter-loot-coin-line-row.tsx`)
   - Amount inputs (cp/sp/gp/pp like spec-010 `<AmountInput>`)
   - Recipient picker: PC dropdown / «В общак» / «Поровну»
   - When `'split_evenly'`: live preview "по ~7.5 gp каждому ·
     остаток 1 cp → Mirian (init 18)"
   - Reuses `<AmountInput>` from spec-010 (`mat-ucheniya/components/amount-input.tsx`)
-- [ ] **T019** [P2] `<ItemLineRow>` component
+- [x] **T019** [P2] `<ItemLineRow>` component
   (file: `mat-ucheniya/components/encounter-loot-item-line-row.tsx`)
   - Free-text name input + qty input
   - Recipient picker: PC dropdown / «В общак»
-- [ ] **T020** [P2] Day picker in panel header
+- [x] **T020** [P2] Day picker in panel header
   (file: `mat-ucheniya/components/encounter-loot-panel.tsx`)
   - Two number inputs (loop + day) shown when
     `draft.loop_number === null || draft.day_in_loop === null`
   - Apply button disabled until both filled
-- [ ] **T021** [P1] Apply button + confirm dialog wiring
+- [x] **T021** [P1] Apply button + confirm dialog wiring
   (files: `mat-ucheniya/components/encounter-loot-panel.tsx`,
   reuses `mat-ucheniya/components/apply-confirm-dialog.tsx`)
   - Adapter for spec-012's `<ApplyConfirmDialog>`:
@@ -259,15 +259,15 @@ A task is `[x]` only when its acceptance check passes:
     - Body label: «Затронутые ручные правки и удаления»
     - On confirm: re-call T014 with `{confirmed: true}`
   - Toast on success: «Лут распределён · N строк»
-- [ ] **T022** [P2] «Всё в общак» button wiring
+- [x] **T022** [P2] «Всё в общак» button wiring
   (file: `mat-ucheniya/components/encounter-loot-panel.tsx`)
   - Calls T013 action
   - Toast «N строк переадресовано в общак»
   - No undo (per plan Open Questions decision)
-- [ ] **T023** [P1] Register `encounter_loot` in autogen badge label map
+- [x] **T023** [P1] Register `encounter_loot` in autogen badge label map
   (file: `mat-ucheniya/components/transaction-row.tsx`)
   - Add `encounter_loot: 'Лут энкаунтера'` to `WIZARD_LABELS`
-- [ ] **T024** [P1] Mount panel + read-only summary on encounter page
+- [x] **T024** [P1] Mount panel + read-only summary on encounter page
   (file: `mat-ucheniya/app/c/[slug]/encounter/[encounterId]/page.tsx`
   or wherever the encounter page server component lives)
   - DM branch: `<EncounterLootPanel>`
@@ -278,18 +278,18 @@ A task is `[x]` only when its acceptance check passes:
 
 ## Phase 7 — Cross-cutting filters
 
-- [ ] **T025** [P] [P1] Filter encounter mirrors from sidebar
+- [x] **T025** [P] [P1] Filter encounter mirrors from sidebar
   (file: `mat-ucheniya/lib/sidebar/sidebar-data.ts`)
   - Add `and node_types.slug != 'encounter'` to the sidebar
     tree query
   - Verify locally: an existing encounter's mirror does NOT
     appear in sidebar
-- [ ] **T026** [P] [P1] Filter encounter mirrors from catalog grid
+- [x] **T026** [P] [P1] Filter encounter mirrors from catalog grid
   (files: catalog page server queries — find via
   `grep -rn "node_types" mat-ucheniya/app/c/`)
   - Add the same filter clause
   - Verify locally: catalog grid does NOT list mirrors
-- [ ] **T027** [P] [P1] Filter encounter mirrors from node typeaheads
+- [x] **T027** [P] [P1] Filter encounter mirrors from node typeaheads
   (file: `mat-ucheniya/lib/queries/node-typeahead.ts` or
   equivalent — find via grep)
   - Add the filter clause
