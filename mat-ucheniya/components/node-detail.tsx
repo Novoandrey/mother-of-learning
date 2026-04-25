@@ -373,13 +373,11 @@ export function NodeDetail({
       <MarkdownContent
         nodeId={node.id}
         initialContent={node.content || ''}
-        campaignSlug={campaignSlug}
       />
 
       <Chronicles
         nodeId={node.id}
         campaignId={campaignId}
-        campaignSlug={campaignSlug}
         initialChronicles={chronicles}
       />
 
@@ -400,7 +398,6 @@ export function NodeDetail({
             <CreateEdgeForm
               sourceId={node.id}
               campaignId={campaignId}
-              campaignSlug={campaignSlug}
               onDone={() => setShowEdgeForm(false)}
             />
           </div>

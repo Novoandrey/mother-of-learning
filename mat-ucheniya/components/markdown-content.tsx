@@ -7,10 +7,9 @@ import remarkGfm from 'remark-gfm'
 type Props = {
   nodeId: string
   initialContent: string
-  campaignSlug: string
 }
 
-export function MarkdownContent({ nodeId, initialContent, campaignSlug }: Props) {
+export function MarkdownContent({ nodeId, initialContent }: Props) {
   const [content, setContent] = useState(initialContent)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(initialContent)

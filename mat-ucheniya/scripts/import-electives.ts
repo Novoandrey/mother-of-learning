@@ -25,7 +25,7 @@
  *   - Ребро has_elective уникально по (source, target, type) — ON CONFLICT DO NOTHING.
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { invalidateSidebarRemote } from './lib/invalidate-sidebar-remote'
