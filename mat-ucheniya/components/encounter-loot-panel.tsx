@@ -45,14 +45,14 @@ export async function EncounterLootPanel({
 
   if (!draft || !summary) {
     return (
-      <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <section className="rounded-lg border border-red-200 bg-red-50 px-3 py-4 text-sm text-red-800">
         Не удалось загрузить данные лута. Попробуйте обновить страницу.
       </section>
     )
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+    <section className="rounded-lg border border-gray-200 bg-white px-3 py-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-gray-900">
           Распределение лута
