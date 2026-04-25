@@ -55,6 +55,7 @@ declare
   v_approved_id    uuid;
   v_pass_count     int := 0;
   v_fail_count     int := 0;
+  v_fail_log       text := '';
   v_visible_count  int;
   v_wallet_count   int;
   v_affected       int;
@@ -268,7 +269,7 @@ begin
   if v_fail_count = 0 then
     raise notice '✓ All PASS (% tests)', v_pass_count;
   else
-    raise exception 'FAIL: % passed, % failed', v_pass_count, v_fail_count;
+    raise exception 'FAIL: % passed, % failed | %', v_pass_count, v_fail_count, v_fail_log;
   end if;
 end $$;
 

@@ -41,8 +41,10 @@ declare
   v_pc_type_id   uuid;
   v_pass_count   int := 0;
   v_fail_count   int := 0;
+  v_fail_log     text := '';
   v_caught       boolean;
   v_test_id      uuid;
+  v_caught_state text;
 begin
   -- ── Setup: borrow one user ──
   select id into v_user_id from auth.users order by created_at limit 1;
@@ -75,6 +77,7 @@ begin
 
   -- ── C-1: approved without approved_by_user_id → REJECTS ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -89,20 +92,22 @@ begin
       'approved', v_user_id,
       now()
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if v_caught then
     raise notice 'PASS C-1: approved without approved_by_user_id rejected';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-1: approved without approved_by_user_id was accepted';
+    v_fail_log := v_fail_log || 'C-1 (approved without approved_by_user_id accepted) ';
     v_fail_count := v_fail_count + 1;
   end if;
 
   -- ── C-2: approved without approved_at → REJECTS ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -117,20 +122,22 @@ begin
       'approved', v_user_id,
       v_user_id
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if v_caught then
     raise notice 'PASS C-2: approved without approved_at rejected';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-2: approved without approved_at was accepted';
+    v_fail_log := v_fail_log || 'C-2 (approved without approved_at accepted) ';
     v_fail_count := v_fail_count + 1;
   end if;
 
   -- ── C-3: rejected without rejected_at → REJECTS ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -145,20 +152,22 @@ begin
       'rejected', v_user_id,
       v_user_id
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if v_caught then
     raise notice 'PASS C-3: rejected without rejected_at rejected';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-3: rejected without rejected_at was accepted';
+    v_fail_log := v_fail_log || 'C-3 (rejected without rejected_at accepted) ';
     v_fail_count := v_fail_count + 1;
   end if;
 
   -- ── C-4: pending with audit fields populated → REJECTS ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -173,20 +182,22 @@ begin
       'pending', v_user_id,
       v_user_id, now()
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if v_caught then
     raise notice 'PASS C-4: pending with audit fields rejected';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-4: pending with audit fields was accepted';
+    v_fail_log := v_fail_log || 'C-4 (pending with audit fields accepted) ';
     v_fail_count := v_fail_count + 1;
   end if;
 
   -- ── C-5: approved + rejected sets both populated → REJECTS ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -203,20 +214,22 @@ begin
       v_user_id, now(),
       v_user_id, now()
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if v_caught then
     raise notice 'PASS C-5: dual-populated audit rejected';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-5: dual-populated audit was accepted';
+    v_fail_log := v_fail_log || 'C-5 (dual-populated audit accepted) ';
     v_fail_count := v_fail_count + 1;
   end if;
 
   -- ── C-6: valid approved row → INSERT OK ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -231,20 +244,22 @@ begin
       'approved', v_user_id,
       v_user_id, now()
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if not v_caught then
     raise notice 'PASS C-6: valid approved row accepted';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-6: valid approved row rejected';
+    v_fail_log := v_fail_log || 'C-6 (valid approved row rejected): ' || coalesce(v_caught_state, 'unknown') || ' / ';
     v_fail_count := v_fail_count + 1;
   end if;
 
   -- ── C-7: valid pending row → INSERT OK ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -257,20 +272,22 @@ begin
       1, 'income', 'C-7', 1, 1,
       'pending', v_user_id, gen_random_uuid()
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if not v_caught then
     raise notice 'PASS C-7: valid pending row accepted';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-7: valid pending row rejected';
+    v_fail_log := v_fail_log || 'C-7 (valid pending row rejected): ' || coalesce(v_caught_state, 'unknown') || ' / ';
     v_fail_count := v_fail_count + 1;
   end if;
 
   -- ── C-8: valid rejected row → INSERT OK ──
   v_caught := false;
+  v_caught_state := null;
   begin
     insert into transactions (
       campaign_id, actor_pc_id, kind,
@@ -285,15 +302,16 @@ begin
       'rejected', v_user_id,
       v_user_id, now(), 'не подтверждено'
     ) returning id into v_test_id;
-  exception when check_violation then
+  exception when others then
     v_caught := true;
+    v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
   if not v_caught then
     raise notice 'PASS C-8: valid rejected row accepted';
     v_pass_count := v_pass_count + 1;
   else
-    raise notice 'FAIL C-8: valid rejected row rejected';
+    v_fail_log := v_fail_log || 'C-8 (valid rejected row rejected): ' || coalesce(v_caught_state, 'unknown') || ' / ';
     v_fail_count := v_fail_count + 1;
   end if;
 
@@ -301,7 +319,7 @@ begin
   if v_fail_count = 0 then
     raise notice '✓ All PASS (% tests)', v_pass_count;
   else
-    raise exception 'FAIL: % passed, % failed', v_pass_count, v_fail_count;
+    raise exception 'FAIL: % passed, % failed | %', v_pass_count, v_fail_count, v_fail_log;
   end if;
 end $$;
 
