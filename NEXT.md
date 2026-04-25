@@ -2,8 +2,8 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-25 (chat 53 — spec-014 close-out, smoke-script
-> fixes; spec-014 в проде happy-flow подтверждён)
+> Last updated: 2026-04-26 (chat 54 — spec-015 Specify+Clarify;
+> spec.md status Clarified, ждёт Plan)
 
 ## В проде сейчас
 
@@ -257,39 +257,67 @@
 
 ## Следующий приоритет
 
-**Spec-015 Item catalog integration** — старт. Spec/plan/tasks ещё
-нет, нужен phase **Specify**.
+**Spec-015 Item catalog integration** — Specify+Clarify завершены
+в chat 54. spec.md (1357 строк, 38 FR, 11 SC, 7 user stories,
+8 clarifications) лежит в `.specify/specs/015-item-catalog/`.
+Status: **Clarified**. Следующий шаг — **Plan phase** в новом
+чате.
 
-Контекст из `bookkeeping-roadmap.md`:
-- Предмет как нода типа `item`. `transactions.item_node_id`
-  (nullable). Таймлайн владения = query по transactions с этим
-  `item_node_id`.
-- Каталог предметов как app-слой поверх нод-данных. Поля: цена в
-  GP, вес в фунтах, описание, ссылка на источник (book / page /
-  URL), категория (weapon/armor/consumable/magic-item/wondrous/
-  tool/...), редкость (для магических). DM-only на запись, всем
-  на чтение.
-- Каталог покрывает и обычные предметы (longsword, rope, rations),
-  не только магические — для дедупа (typeahead вместо ноды-дублей
-  «Longsword» / «long sword» / «Длинный меч»).
-- SRD-импорт как первичный сид: ~300 предметов из SRD 5e + ~100
-  магических. (Раньше было заявлено как опциональный spec-016 —
-  теперь часть spec-015.)
-- Связь с spec-013 (encounter loot): после spec-015 item-поля в
-  loot draft получают опциональный `item_node_id`; backfill
-  существующих item-транзакций по name → item_node_id —
-  post-spec-015 миграция.
+Ключевые архитектурные решения (закреплены в § Context и §
+Clarifications):
+- **Item-нода = Образец (Платонов слепок)**, транзакции =
+  instances. Сам Образец редактируется редко и deliberate
+  (FR-030).
+- **Гибридное хранилище** (Q1=C): hot fields колонками
+  (category, rarity, price_gp, weight_lb, slot, source,
+  availability), cold (description, srd_slug, source detail) в
+  JSONB. Plan решает: на `nodes` напрямую vs side table
+  `item_attributes`.
+- **Inventory = temporal slice (loop, day) — день это picker, не
+  gate** (Q8). Ничего не блочить; default через
+  `computeDefaultDayForTx` (existing helper из spec-010); URL
+  encodes `?loop=N&day=M`.
+- **Categories через `categories(scope='item')`** (Q2=A),
+  TECH-011 closes as "keep".
+- **SRD seed ~400 items с английским `srd_slug` + русским
+  `nodes.title`** (Q3=A).
+- **Backfill strict by title OR srd_slug** (Q4=B), zero
+  false-positive риска благодаря двум ключам.
+- **Slot field** (Q6 user-clarified): ring/cloak/amulet/boots/
+  gloves/headwear/belt/body/shield/1-handed/2-handed/versatile/
+  ranged. DM-configurable value list per-campaign.
+- **DM-configurable value lists per-campaign**: category
+  (existing), slot, source, availability — единый паттерн
+  (FR-005a/b/c/d) с settings page.
+- **URL**: `/c/[slug]/items` primary, `/catalog?type=item` alias
+  (Q6=A).
+- **Item history**: только linked rows (Q7=A).
 
-**Pickup для нового чата:**
+**Out of scope (зафиксировано):** location inventory (IDEA-054 —
+deprioritised, "не факт что понадобятся"), spell-as-item
+(IDEA-029 — отдельная спека), item identification mechanics,
+attunement / equipped / charges, marketplace simulation, bulk
+relinking, fuzzy backfill.
+
+**Pickup для нового чата (Plan phase):**
 1. Свежий клон.
-2. Прочитать `.specify/memory/bookkeeping-roadmap.md` → секцию
-   spec-015.
-3. Прочитать backlog'и TECH-011 (категории keep/kill — связано
-   с item-классификацией) и TECH про `actor_pc_id`→`actor_node_id`.
-4. Запустить **Specify** phase: `.specify/specs/015-*/spec.md`
-   (название кампании в slug-папке: пример выше — `015-item-
-   catalog-integration` или короче). Прислать spec.md, дождаться
-   ok.
+2. Прочитать `.specify/specs/015-item-catalog/spec.md`
+   полностью — особенно § Context (5 pinned points), §
+   Clarifications (8 Qs), FR-002/004/005a-d/023/030.
+3. Инспектировать wallet block в проде: какой default helper
+   она использует для day chip → inventory tab дёрнет тот же.
+4. Решить placement hot columns (`nodes` vs side table).
+5. Спроектировать settings page для 4 value lists.
+6. Найти SRD items dataset (en+ru ~400 items) — существующий
+   parser для статблоков в `mat-ucheniya/scripts/` ориентир, но
+   items — другой dataset.
+7. Создать `.specify/specs/015-item-catalog/plan.md`. Дождаться
+   ok, потом tasks.md, потом implement.
+
+**Альтернативная очередность (если 015 не в приоритете):**
+- **Spec-016 «Сборы»** — spec.md есть, ждёт Clarify.
+- **Spec-017 карта мира** — заявлена в backlog (5-7 дней).
+- **IDEA-055** — DM rename/delete на encounter page (~30 мин).
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 
