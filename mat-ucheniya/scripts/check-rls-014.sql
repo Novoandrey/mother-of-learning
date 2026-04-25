@@ -98,10 +98,10 @@ begin
       returning id into v_pc_type_id;
     end if;
 
-    insert into nodes (campaign_id, node_type_id, title)
+    insert into nodes (campaign_id, type_id, title)
     values (v_campaign_id, v_pc_type_id, 'pc-A')
     returning id into v_pc_a_id;
-    insert into nodes (campaign_id, node_type_id, title)
+    insert into nodes (campaign_id, type_id, title)
     values (v_campaign_id, v_pc_type_id, 'pc-B')
     returning id into v_pc_b_id;
   end;
