@@ -67,7 +67,7 @@
 
 ## Phase 3 — Write-side server actions
 
-- [ ] **T007 [P1]** Modify `createTransaction` in
+- [x] **T007 [P1]** Modify `createTransaction` in
   `app/actions/transactions.ts`: accept optional `batchId?: string`
   param; compute `status` from `auth.role` (player → `pending`,
   else `approved`); when `status === 'approved'`, populate
@@ -76,28 +76,28 @@
   beyond the new audit fields.
   *(file: `mat-ucheniya/app/actions/transactions.ts`, depends on T002, T004)*
 
-- [ ] **T008 [P1]** Same treatment for `createTransfer`. Both legs
+- [x] **T008 [P1]** Same treatment for `createTransfer`. Both legs
   share `batch_id` and `status` (FR-004). Audit fields apply only
   when status is `approved`.
   *(depends on T007)*
 
-- [ ] **T009 [P1]** Same treatment for `createItemTransfer`.
+- [x] **T009 [P1]** Same treatment for `createItemTransfer`.
   Includes the same ownership-guard from chat 43 (BUG-fix); no
   change to that logic, only to the status / batch / audit fields.
   *(depends on T008)*
 
-- [ ] **T010 [P1]** Add status gate to `updateTransaction` in
+- [x] **T010 [P1]** Add status gate to `updateTransaction` in
   `app/actions/transactions.ts`: if `auth.role === 'player'` and
   `row.status !== 'pending'`, return error
   `'Можно править только pending-заявки'` (FR-005). DM path
   unchanged.
   *(depends on T007)*
 
-- [ ] **T011 [P1]** Add equivalent status gate to
+- [x] **T011 [P1]** Add equivalent status gate to
   `deleteTransaction`. Player can delete only their own pending.
   *(depends on T010)*
 
-- [ ] **T012 [P1]** Add `submitBatch` action to
+- [x] **T012 [P1]** Add `submitBatch` action to
   `app/actions/transactions.ts`. Generates a single
   `batchId = crypto.randomUUID()`; iterates input rows; dispatches
   to `createTransaction` / `createTransfer` / `createItemTransfer`
@@ -108,7 +108,7 @@
   (FR-008 atomicity).
   *(depends on T009)*
 
-- [ ] **T013 [P1]** Audit `lib/autogen-reconcile.ts` (and any
+- [x] **T013 [P1]** Audit `lib/autogen-reconcile.ts` (and any
   ledger-aggregate helpers in `lib/transactions.ts` /
   `lib/stash.ts`) for explicit `eq('status', 'approved')`. Add
   the filter where missing (FR-012: pending invisible to
@@ -120,7 +120,7 @@
 
 ## Phase 4 — Approval server actions
 
-- [ ] **T014 [P1]** Create `app/actions/approval.ts` with
+- [x] **T014 [P1]** Create `app/actions/approval.ts` with
   `approveRow({ rowId, expectedUpdatedAt })` and
   `rejectRow({ rowId, expectedUpdatedAt, comment? })`. Both DM-
   only (`auth.role` check via `resolveAuth`). UPDATE gated on
@@ -131,7 +131,7 @@
   `/c/[slug]/accounting/queue`.
   *(file: `mat-ucheniya/app/actions/approval.ts`, depends on T002, T004)*
 
-- [ ] **T015 [P1]** Add `approveBatch({ batchId,
+- [x] **T015 [P1]** Add `approveBatch({ batchId,
   expectedUpdatedAtByRowId })` and `rejectBatch({ batchId,
   expectedUpdatedAtByRowId, comment? })`. Per-row gated UPDATE
   inside a single Postgres transaction. Return aggregate
@@ -139,7 +139,7 @@
   staleness — honest counts). Same `revalidatePath` pattern.
   *(depends on T014)*
 
-- [ ] **T016 [P1]** Add `withdrawRow({ rowId, expectedUpdatedAt })`
+- [x] **T016 [P1]** Add `withdrawRow({ rowId, expectedUpdatedAt })`
   and `withdrawBatch({ batchId, expectedUpdatedAtByRowId })`.
   Player-only or row-author; DELETE gated by author + status +
   updated_at. For transfer rows, deletes both legs (lookup by
@@ -150,13 +150,13 @@
 
 ## Phase 5 — Read-side queries
 
-- [ ] **T017 [P1] [P]** Add `getPendingCount(campaignId)` to
+- [x] **T017 [P1] [P]** Add `getPendingCount(campaignId)` to
   `lib/transactions.ts` (or new `lib/approval-queries.ts` —
   decide on file location during implementation). Cheap COUNT on
   the `idx_tx_pending` partial index. Returns number.
   *(depends on T002)*
 
-- [ ] **T018 [P1] [P]** Add `getPendingBatches(campaignId, role,
+- [x] **T018 [P1] [P]** Add `getPendingBatches(campaignId, role,
   userId)` returning `PendingBatch[]`. Role-filtered: DM/owner →
   all pending in campaign; player → only batches where
   `author_user_id = userId`. Reuses
@@ -165,7 +165,7 @@
   newest-batch-first by earliest row's `created_at`.
   *(depends on T017)*
 
-- [ ] **T019 [P2] [P]** Add `getBatchById(batchId, campaignId)`
+- [x] **T019 [P2] [P]** Add `getBatchById(batchId, campaignId)`
   returning a single `PendingBatch | null`. Used by player's
   "see what happened to my batch" follow-up after the toast.
   *(depends on T018)*
@@ -195,7 +195,7 @@
 
 ## Phase 7 — Pending / rejected rendering
 
-- [ ] **T022 [P1]** Modify `components/transaction-row.tsx` to
+- [x] **T022 [P1]** Modify `components/transaction-row.tsx` to
   render status-aware: `pending` → amber border-left + "⏳ Ждёт
   DM" badge; `rejected` → muted gray-500 text + strikethrough on
   amount + "✗ Отклонено" badge + optional `rejection_comment`
@@ -204,7 +204,7 @@
   spec-012 (same slot).
   *(file: `mat-ucheniya/components/transaction-row.tsx`, depends on T004)*
 
-- [ ] **T023 [P2]** Verify `dedupTransferPairs` in
+- [x] **T023 [P2]** Verify `dedupTransferPairs` in
   `lib/transaction-dedup.ts` handles mixed-status pairs
   correctly. Per FR-004 both legs share status — but defensive:
   add a unit test that confirms approved+pending pair (which
@@ -216,7 +216,7 @@
 
 ## Phase 8 — Queue tab + sub-nav
 
-- [ ] **T024 [P1]** Create `components/accounting-sub-nav.tsx`.
+- [x] **T024 [P1]** Create `components/accounting-sub-nav.tsx`.
   Lightweight client component, two primary tabs (Лента /
   Очередь) + the existing secondary actions (Стартовый сетап
   for DM, Категории, Общак). Очередь tab shows count badge for
@@ -224,13 +224,13 @@
   `usePathname`.
   *(file: `mat-ucheniya/components/accounting-sub-nav.tsx`)*
 
-- [ ] **T025 [P1]** Mount `<AccountingSubNav>` on
+- [x] **T025 [P1]** Mount `<AccountingSubNav>` on
   `/accounting/page.tsx`, replacing the current header's link
   cluster. Verify the existing Стартовый сетап / Категории /
   Общак buttons still work and are role-gated as before.
   *(file: `mat-ucheniya/app/c/[slug]/accounting/page.tsx`, depends on T024)*
 
-- [ ] **T026 [P1]** Create `app/c/[slug]/accounting/queue/page.tsx`.
+- [x] **T026 [P1]** Create `app/c/[slug]/accounting/queue/page.tsx`.
   Server component. Fetches `getPendingBatches(campaignId, role,
   userId)`. Renders `<AccountingSubNav>` + `<QueueList
   batches={...} role={...} />`. Empty state: "Очередь пуста"
@@ -238,12 +238,12 @@
   *(file: `mat-ucheniya/app/c/[slug]/accounting/queue/page.tsx`,
   depends on T018, T024)*
 
-- [ ] **T027 [P1]** Create `components/queue-list.tsx` (server).
+- [x] **T027 [P1]** Create `components/queue-list.tsx` (server).
   Iterates `batches` and renders one `<QueueBatchCard>` per
   batch.
   *(file: `mat-ucheniya/components/queue-list.tsx`, depends on T026)*
 
-- [ ] **T028 [P1]** Create `components/queue-batch-card.tsx`
+- [x] **T028 [P1]** Create `components/queue-batch-card.tsx`
   (client). Collapsed view: author + submittedAt + row count +
   summary line (`summarizeBatch`). Expanded view: per-row
   `<TransactionRow>` list with role-appropriate action buttons.
@@ -251,14 +251,14 @@
   *(file: `mat-ucheniya/components/queue-batch-card.tsx`,
   depends on T027, T022, T005)*
 
-- [ ] **T029 [P1]** Wire DM batch-level actions in
+- [x] **T029 [P1]** Wire DM batch-level actions in
   `<QueueBatchCard>`: "Одобрить всё" → calls `approveBatch`;
   "Отклонить всё" → opens comment popover, calls `rejectBatch`.
   Per-row "Одобрить" / "Отклонить" buttons too. On stale error
   → toast + `router.refresh()`.
   *(depends on T028, T015)*
 
-- [ ] **T030 [P1]** Wire player-level actions in
+- [x] **T030 [P1]** Wire player-level actions in
   `<QueueBatchCard>`: "Отозвать всю пачку" → `withdrawBatch`;
   per-row "Отозвать" → `withdrawRow`; "Править" → opens
   inline single-row form using the existing
@@ -270,7 +270,7 @@
 
 ## Phase 9 — In-app signals
 
-- [ ] **T031 [P2]** Add count badge to `components/nav-tabs.tsx`
+- [x] **T031 [P2]** Add count badge to `components/nav-tabs.tsx`
   on the "Бухгалтерия" tab. Server-fetch `getPendingCount` per
   campaign; render `· N` suffix when N > 0; visible to DM/owner
   only (FR-026). Cache for short TTL via Next 16 server-side
@@ -278,7 +278,7 @@
   on every approve/reject/submit/withdraw via `revalidateTag`.
   *(file: `mat-ucheniya/components/nav-tabs.tsx`, depends on T017)*
 
-- [ ] **T032 [P2]** Create `components/dm-action-toast.tsx`. On
+- [x] **T032 [P2]** Create `components/dm-action-toast.tsx`. On
   /accounting load, server checks: for the current user's
   authored batches, find max(`approved_at`, `rejected_at`) of
   their rows; compare to `accounting_player_state.last_seen_acted_at`
@@ -287,7 +287,7 @@
   now() in same render path (idempotent upsert).
   *(file: `mat-ucheniya/components/dm-action-toast.tsx`, depends on T002, T018)*
 
-- [ ] **T033 [P2]** Mount `<DMActionToast>` on /accounting page
+- [x] **T033 [P2]** Mount `<DMActionToast>` on /accounting page
   (player only — gated by role). Hidden for DM (no self-toast).
   *(file: `mat-ucheniya/app/c/[slug]/accounting/page.tsx`, depends on T032)*
 
@@ -295,7 +295,7 @@
 
 ## Phase 10 — SQL smoke scripts
 
-- [ ] **T034 [P3] [P]** Create `scripts/check-rls-014.sql` —
+- [x] **T034 [P3] [P]** Create `scripts/check-rls-014.sql` —
   5 cases wrapped in `BEGIN...ROLLBACK`: (1) player A sees own
   pending; (2) player A does NOT see player B's pending via
   ledger select (per FR-015 they DO see — adjust assertion to
@@ -304,7 +304,7 @@
   pending.
   *(file: `mat-ucheniya/scripts/check-rls-014.sql`)*
 
-- [ ] **T035 [P3] [P]** Create `scripts/check-approval-constraints-014.sql`
+- [x] **T035 [P3] [P]** Create `scripts/check-approval-constraints-014.sql`
   — 5 cases: (1) approved row without `approved_by_user_id` →
   CHECK rejects; (2) rejected row without `rejected_at` → rejects;
   (3) row with both approved+rejected fields → rejects; (4)

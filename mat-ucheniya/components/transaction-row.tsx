@@ -67,10 +67,46 @@ export default function TransactionRow({
   const { mainText, amountText, amountClass } = renderBody(tx)
   const actorBit = renderActorBit(tx, campaignSlug, showActor)
 
+  // Spec-014 status-aware framing.
+  //   - pending → amber border-left + "⏳ Ждёт DM" badge
+  //   - rejected → muted gray + strikethrough on amount + "✗ Отклонено" badge
+  //   - approved → existing rendering (default)
+  const isPending = tx.status === 'pending'
+  const isRejected = tx.status === 'rejected'
+  const containerClass = isPending
+    ? 'group flex items-center justify-between gap-2 rounded-md border border-gray-200 border-l-4 border-l-amber-400 bg-amber-50/30 px-2.5 py-2 hover:border-gray-300 sm:gap-3 sm:px-3'
+    : isRejected
+      ? 'group flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 hover:border-gray-300 sm:gap-3 sm:px-3 opacity-75'
+      : 'group flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2 hover:border-gray-300 sm:gap-3 sm:px-3'
+
+  // Mute amount for rejected (strikethrough); approved/pending keep
+  // the colour from `renderBody` (so the player still sees the +/− at
+  // a glance while their row is in queue).
+  const amountFinalClass = isRejected
+    ? `${amountClass} line-through opacity-60`
+    : amountClass
+
   return (
-    <li className="group flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2 hover:border-gray-300 sm:gap-3 sm:px-3">
+    <li className={containerClass}>
       {/* Left: day chip + (mobile-wrap) actor + main text + category */}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+        {isPending && (
+          <span
+            className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+            title="Ждёт одобрения мастера"
+          >
+            ⏳ Ждёт DM
+          </span>
+        )}
+        {isRejected && (
+          <span
+            className="inline-flex shrink-0 items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
+            title={tx.rejection_comment ?? 'Отклонено мастером'}
+          >
+            ✗ Отклонено
+          </span>
+        )}
+
         {autogen && (
           <AutogenBadgeClient
             wizardKey={autogen.wizardKey}
@@ -88,9 +124,22 @@ export default function TransactionRow({
           </span>
         )}
 
-        <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+        <span
+          className={`min-w-0 flex-1 truncate text-sm ${
+            isRejected ? 'text-gray-500' : 'text-gray-900'
+          }`}
+        >
           {mainText}
         </span>
+
+        {isRejected && tx.rejection_comment && (
+          <span
+            className="hidden shrink-0 truncate rounded-full bg-red-50 px-2 py-0.5 text-xs italic text-red-700 sm:inline-flex"
+            title={tx.rejection_comment}
+          >
+            «{tx.rejection_comment}»
+          </span>
+        )}
 
         <span className="hidden shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 sm:inline-flex">
           {tx.category_label}
@@ -100,7 +149,7 @@ export default function TransactionRow({
       {/* Right: amount + actions */}
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <span
-          className={`shrink-0 text-right text-sm font-semibold tabular-nums ${amountClass}`}
+          className={`shrink-0 text-right text-sm font-semibold tabular-nums ${amountFinalClass}`}
         >
           {amountText}
         </span>

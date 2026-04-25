@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-25 (chat 51 — spec-014 Specify/Plan/Tasks + Migration 042 + Phase 2)
+> Last updated: 2026-04-25 (chat 52 — spec-014 Phase 3-9 + smoke scripts)
 
 ## В проде сейчас
 
@@ -177,22 +177,85 @@
 
 ## Следующий приоритет
 
-**Spec-014 Approval flow — В РАБОТЕ.** Specify/Clarify/Plan/Tasks
-готовы. Migration 042 накачена в прод. Phase 2 (T004–T006) — типы +
-pure helpers + ~40 тестов закоммичены, **но тесты не прогнаны
-локально** (npm-install корраптил node_modules в конце сессии).
+**Spec-014 Approval flow — В РАБОТЕ.** Phase 1–9 + smoke scripts
+закоммичены (T001–T035, кроме T020/T021). Migration 042 в проде.
+Тесты НЕ прогонялись локально (npm install был корраптнут);
+проверка через Vercel auto-deploy и smoke SQL.
 
-**Pickup для следующего чата:**
-1. Свежий клон (по AGENTS.md).
-2. `cd mat-ucheniya && rm -rf node_modules .next && npm install`.
-3. `npx vitest run lib/__tests__/approval.test.ts` — пофиксить
-   если что-то падает. Вероятность зелёного — высокая, helpers
-   простые.
-4. Продолжить с **T007** (`createTransaction` status-decision
-   по роли + `batch_id` + audit поля при auto-approve).
+**Сделано в chat 52:**
+- **Phase 3** (T007–T013) — `createTransaction` / `createTransfer`
+  / `createItemTransfer` принимают `batchId?`; status выбирается
+  по роли (player → pending, иначе approved); audit-поля
+  заполняются при auto-approve. Auto-генерация `batch_id` для
+  player'а (single-row → batch of 1) — иначе `groupRowsByBatch`
+  отбросил бы запись из очереди. `submitBatch` wrapper-action
+  для multi-row submission. Status-gate `'Можно править только
+  pending-заявки'` в `updateTransaction` / `deleteTransaction`.
+  Defensive `.eq('status','approved')` в `loadExistingAutogenRows`.
+- **Phase 4** (T014–T016) — `app/actions/approval.ts` (~440 строк):
+  `approveRow` / `rejectRow` (transfer-pair atomic via
+  `transfer_group_id`), `approveBatch` / `rejectBatch` (per-row
+  gated, partial-success counts), `withdrawRow` / `withdrawBatch`
+  (author-only, hard-delete с `expected_updated_at` gate).
+  Возвращают `{ ok: false, stale: true }` при rowcount=0.
+- **Phase 5** (T017–T019) — `lib/approval-queries.ts`:
+  `getPendingCount` через `idx_tx_pending`, `getPendingBatches`
+  (heads → full rows, role-filtered), `getBatchById`. Exported
+  helpers `JOIN_SELECT`, `TxJoinedRow`, `hydrateTxJoinedRows`,
+  `hydrateCategoryLabels` / `hydrateAuthors` /
+  `hydrateCounterparties` из `lib/transactions.ts` для переиспользования.
+  Plus `getRecentDMActionSummary` + `markDMActionsSeen` для FR-027.
+- **Phase 7** (T022, T023) — `transaction-row.tsx` status-aware:
+  amber border-left + «⏳ Ждёт DM» для pending; gray + strikethrough
+  + «✗ Отклонено» + чип с `rejection_comment` для rejected.
+  `dedupTransferPairs` теперь группирует по `(transfer_group_id, status)`
+  — defensive вне-FR-004 mixed-status pair НЕ коллапсится. Два новых
+  vitest теста.
+- **Phase 8** (T024–T030) — `<AccountingSubNav>` (Лента / Очередь
+  + secondary actions, highlight через `usePathname`); page
+  `/c/[slug]/accounting/queue`; `<QueueList>` server +
+  `<QueueBatchCard>` client (collapsed/expanded, summary-line,
+  status-чипы, per-row + batch actions для DM, withdraw для author,
+  inline reject-comment, `useTransition` + `router.refresh()`,
+  обработка stale).
+- **Phase 9** (T031–T033) — count badge на `Бухгалтерия` tab
+  (`nav-tabs.tsx` + layout добавляет `getPendingCount` в Promise.all,
+  visible только DM/owner). `<DMActionToast>` для player на
+  /accounting (auto-dismiss 8с, mark-as-seen в server-pass).
+- **Phase 10** (T034, T035) — `scripts/check-rls-014.sql` (6 RLS
+  кейсов) + `scripts/check-approval-constraints-014.sql` (8 CHECK
+  кейсов), оба в `BEGIN…ROLLBACK`. Запускать через Supabase
+  Dashboard.
+
+**ОТЛОЖЕНО на следующий чат (T020/T021 — multi-row form):**
+Существующая `components/transaction-form.tsx` (770 строк, stash-pinned
+modes, transfer recipient picker, shortfall prompt) — single-row.
+Игрок может подавать только **по одной** заявке через текущий UI,
+каждая становится отдельной «пачкой из 1». Это закрывает AS1–AS6,
+AS15 (withdraw row), AS16 (partial). НЕ закрывает AS13 (3-row
+batch submission в одном клике) и `«Отозвать всю пачку»` имеет
+смысл только для batch-of-1.
+
+Минимальная реализация на следующий чат:
+- `<PlayerBatchForm>` — отдельный простой компонент (money/item/transfer
+  × N rows) на `/accounting`.
+- ИЛИ — рефактор `transaction-form.tsx` lifting state в `rows: BatchRowState[]`.
+
+**ОТЛОЖЕНО (proper close-out):**
+- T036–T039 — manual walkthrough Acceptance Scenarios (DM only).
+- T040 — `npm run lint` + `tsc --noEmit` + vitest. Делать после
+  T020/T021 либо параллельно через Vercel CI.
+- T041–T044 — close-out final.
+
+**Pickup в следующем чате:**
+1. Свежий клон.
+2. `cd mat-ucheniya && rm -rf node_modules .next && npm install` — Vercel build уже валидировал.
+3. Implement T020/T021 (см. выше — два варианта).
+4. После — T036–T044.
 
 Чек-лист в `.specify/specs/014-approval-flow/tasks.md`. Сделано:
-T001–T006. Осталось: T007–T044 (38 задач), оценка 3 рабочих дня.
+T001–T019, T022–T035 (29 из 44). Осталось: T020, T021, T036–T044
+(15 задач).
 
 **Ключевые решения spec-014** (для контекста, чтобы не перечитывать
 spec.md и plan.md):

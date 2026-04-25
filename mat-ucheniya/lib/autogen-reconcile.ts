@@ -270,6 +270,11 @@ async function loadExistingAutogenRows(
     )
     .eq('autogen_source_node_id', sourceNodeId)
     .in('autogen_wizard_key', wizardKeys as string[])
+    // Spec-014: pending/rejected rows must not participate in reconcile.
+    // Autogen always writes `approved` (DM-only path), so this is a
+    // defensive belt-and-braces filter — any pending/rejected row tagged
+    // with autogen markers (legacy data, manual SQL, etc.) is ignored.
+    .eq('status', 'approved')
 
   if (error) {
     throw new Error(`loadExistingAutogenRows failed: ${error.message}`)

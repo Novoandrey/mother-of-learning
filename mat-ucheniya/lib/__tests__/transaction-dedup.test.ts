@@ -255,6 +255,62 @@ describe('dedupTransferPairs', () => {
     ];
     expect(dedupTransferPairs(rows).map((r) => r.id)).toEqual(['a-send', 'b-send']);
   });
+
+  // Spec-014 T023: defensive check — both legs of a transfer share status by
+  // construction (server actions enforce). If a mismatched-status pair ever
+  // shows up (data corruption / manual SQL), we MUST NOT collapse — both
+  // rows should stay visible so the operator can spot the inconsistency.
+  it('does not collapse pair with different statuses', () => {
+    type StatusRow = Row & { status: 'pending' | 'approved' | 'rejected' };
+    const rows: StatusRow[] = [
+      {
+        ...row({
+          id: 'send',
+          kind: 'transfer',
+          coins: { cp: 0, sp: 0, gp: -5, pp: 0 },
+          transfer_group_id: 'g1',
+        }),
+        status: 'approved',
+      },
+      {
+        ...row({
+          id: 'recv',
+          kind: 'transfer',
+          coins: { cp: 0, sp: 0, gp: 5, pp: 0 },
+          transfer_group_id: 'g1',
+        }),
+        status: 'pending',
+      },
+    ];
+    const result = dedupTransferPairs(rows);
+    expect(result.map((r) => r.id).sort()).toEqual(['recv', 'send']);
+  });
+
+  it('still collapses pair when both legs share status', () => {
+    type StatusRow = Row & { status: 'pending' | 'approved' | 'rejected' };
+    const rows: StatusRow[] = [
+      {
+        ...row({
+          id: 'send',
+          kind: 'transfer',
+          coins: { cp: 0, sp: 0, gp: -5, pp: 0 },
+          transfer_group_id: 'g1',
+        }),
+        status: 'pending',
+      },
+      {
+        ...row({
+          id: 'recv',
+          kind: 'transfer',
+          coins: { cp: 0, sp: 0, gp: 5, pp: 0 },
+          transfer_group_id: 'g1',
+        }),
+        status: 'pending',
+      },
+    ];
+    const result = dedupTransferPairs(rows);
+    expect(result.map((r) => r.id)).toEqual(['send']);
+  });
 });
 
 describe('countDistinctEvents', () => {

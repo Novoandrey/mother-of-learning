@@ -1,18 +1,24 @@
 export const dynamic = 'force-dynamic'
 
 import { notFound, redirect } from 'next/navigation'
-import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth } from '@/lib/auth'
 import { getCurrentLoop } from '@/lib/loops'
 import { listCategories } from '@/lib/categories'
 import { computeDefaultDayForTx } from '@/lib/transactions'
+import {
+  getPendingCount,
+  getRecentDMActionSummary,
+  markDMActionsSeen,
+} from '@/lib/approval-queries'
 import { getCampaignPCs } from '@/app/actions/characters'
 import { getStashNode } from '@/lib/stash'
 import { createAdminClient } from '@/lib/supabase/admin'
 import LedgerList from '@/components/ledger-list'
 import LedgerActorBar from '@/components/ledger-actor-bar'
+import AccountingSubNav from '@/components/accounting-sub-nav'
+import DMActionToast from '@/components/dm-action-toast'
 
 export async function generateMetadata({
   params,
@@ -50,11 +56,12 @@ export default async function AccountingPage({
   //   • Player — only PCs they own (node_pc_owners).
   // Also prefetch categories + current loop + stash node so the form
   // sheet doesn't re-query them on open.
-  const [allPcs, categories, currentLoop, stashNode] = await Promise.all([
+  const [allPcs, categories, currentLoop, stashNode, pendingCount] = await Promise.all([
     getCampaignPCs(campaign.id),
     listCategories(campaign.id, 'transaction'),
     getCurrentLoop(campaign.id),
     getStashNode(campaign.id),
+    getPendingCount(campaign.id),
   ])
 
   let availablePcs = allPcs
@@ -71,6 +78,20 @@ export default async function AccountingPage({
   }
 
   const defaultLoopNumber = currentLoop?.number ?? 1
+
+  // Spec-014 FR-027 — player only: surface "DM acted on your batches"
+  // since last visit. Fired once per cutoff (we mark-as-seen below);
+  // hidden for DM (no self-toast).
+  let dmActionSummary: { approved: number; rejected: number } | null = null
+  if (membership.role === 'player') {
+    const summary = await getRecentDMActionSummary(user.id, campaign.id)
+    if (summary) {
+      dmActionSummary = { approved: summary.approved, rejected: summary.rejected }
+      // Idempotent — safe to call even if the player refreshes; the
+      // next call returns null because cutoff has advanced.
+      await markDMActionsSeen(user.id, campaign.id, summary.cutoff)
+    }
+  }
 
   // Prefetch default day per available PC so `LedgerActorBar` has a
   // sensible pre-fill the moment the user picks an actor. Without this
@@ -93,39 +114,27 @@ export default async function AccountingPage({
 
   return (
     <div className="mx-auto max-w-5xl">
+      {dmActionSummary && (
+        <DMActionToast
+          approved={dmActionSummary.approved}
+          rejected={dmActionSummary.rejected}
+          campaignSlug={slug}
+        />
+      )}
       <div className="mb-4 flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Бухгалтерия</h1>
-            <p className="text-sm text-gray-500">
-              Транзакции кампании: монеты, предметы, переводы.
-            </p>
-          </div>
-          <div className="flex flex-shrink-0 items-center gap-2">
-            {stashNode && (
-              <Link
-                href={`/c/${slug}/accounting/stash`}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                {stashNode.icon} Общак →
-              </Link>
-            )}
-            {(membership.role === 'dm' || membership.role === 'owner') && (
-              <Link
-                href={`/c/${slug}/accounting/starter-setup`}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                Стартовый сетап
-              </Link>
-            )}
-            <Link
-              href={`/c/${slug}/accounting/settings/categories`}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              Категории
-            </Link>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Бухгалтерия</h1>
+          <p className="text-sm text-gray-500">
+            Транзакции кампании: монеты, предметы, переводы.
+          </p>
         </div>
+
+        <AccountingSubNav
+          campaignSlug={slug}
+          isDM={membership.role === 'dm' || membership.role === 'owner'}
+          hasStash={!!stashNode}
+          pendingCount={pendingCount}
+        />
 
         {availablePcs.length > 0 && (
           <LedgerActorBar

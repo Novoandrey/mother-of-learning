@@ -20,7 +20,23 @@ const TABS: Tab[] = [
   { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️' },
 ]
 
-export function NavTabs({ campaignSlug }: { campaignSlug: string }) {
+type Props = {
+  campaignSlug: string
+  /**
+   * Spec-014 T031 — pending-row count for the queue badge on the
+   * Бухгалтерия tab. Only shown when `showAccountingBadge` is true
+   * (DM/owner) and the value is > 0.
+   */
+  accountingPendingCount?: number
+  /** Whether to render the queue badge on the Бухгалтерия tab. */
+  showAccountingBadge?: boolean
+}
+
+export function NavTabs({
+  campaignSlug,
+  accountingPendingCount = 0,
+  showAccountingBadge = false,
+}: Props) {
   const pathname = usePathname()
 
   return (
@@ -28,6 +44,8 @@ export function NavTabs({ campaignSlug }: { campaignSlug: string }) {
       {TABS.map((tab) => {
         const href = `/c/${campaignSlug}/${tab.href}`
         const isActive = pathname.startsWith(href)
+        const showBadge =
+          tab.key === 'accounting' && showAccountingBadge && accountingPendingCount > 0
 
         return (
           <Link
@@ -41,6 +59,14 @@ export function NavTabs({ campaignSlug }: { campaignSlug: string }) {
           >
             <span className="text-xs">{tab.icon}</span>
             {tab.label}
+            {showBadge && (
+              <span
+                className="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-800"
+                aria-label={`${accountingPendingCount} ожидающих заявок`}
+              >
+                {accountingPendingCount}
+              </span>
+            )}
             {/* Active indicator — tab underline */}
             {isActive && (
               <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-blue-600" />

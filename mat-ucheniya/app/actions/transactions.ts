@@ -22,6 +22,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getMembership } from '@/lib/auth'
+import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
 import {
   resolveSpend,
@@ -62,6 +63,12 @@ export type CreateTransactionInput = {
   loopNumber: number
   dayInLoop: number
   sessionId?: string | null
+  /**
+   * Spec-014 batch grouping. When set, the row is tagged with this
+   * batch_id (player-authored multi-row submissions). DM-direct calls
+   * leave it undefined → null on the row.
+   */
+  batchId?: string
 }
 
 export type UpdateTransactionInput = Partial<
@@ -205,6 +212,14 @@ export async function createTransaction(
 
   // --- Write ---
   const admin = createAdminClient()
+  // Spec-014: player → pending; DM/owner → approved (auto-approve).
+  const status = auth.role === 'player' ? 'pending' : 'approved'
+  const nowIso = new Date().toISOString()
+  // Player submissions always get a batch_id (single-row → batch of 1)
+  // so they appear in the queue. DM/owner direct writes leave it null.
+  const batchId =
+    input.batchId ??
+    (auth.role === 'player' ? crypto.randomUUID() : null)
   const { data, error } = await admin
     .from('transactions')
     .insert({
@@ -223,8 +238,11 @@ export async function createTransaction(
       day_in_loop: input.dayInLoop,
       session_id: input.sessionId ?? null,
       transfer_group_id: null,
-      status: 'approved',
+      status,
       author_user_id: auth.userId,
+      batch_id: batchId,
+      approved_by_user_id: status === 'approved' ? auth.userId : null,
+      approved_at: status === 'approved' ? nowIso : null,
     })
     .select('id')
     .single()
@@ -252,7 +270,7 @@ export async function updateTransaction(
   const { data: existing, error: loadErr } = await admin
     .from('transactions')
     .select(
-      'id, campaign_id, actor_pc_id, kind, author_user_id, loop_number, transfer_group_id',
+      'id, campaign_id, actor_pc_id, kind, author_user_id, loop_number, transfer_group_id, status',
     )
     .eq('id', id)
     .maybeSingle()
@@ -268,6 +286,7 @@ export async function updateTransaction(
     author_user_id: string | null
     loop_number: number
     transfer_group_id: string | null
+    status: 'pending' | 'approved' | 'rejected'
   }
 
   if (row.kind === 'transfer') {
@@ -279,6 +298,11 @@ export async function updateTransaction(
 
   if (auth.role === 'player' && row.author_user_id !== auth.userId) {
     return { ok: false, error: 'Можно редактировать только собственные транзакции' }
+  }
+
+  // Spec-014: player can edit only their pending rows. DM/owner unrestricted.
+  if (auth.role === 'player' && row.status !== 'pending') {
+    return { ok: false, error: 'Можно править только pending-заявки' }
   }
 
   // Build the patch. Ignore attempts to switch kind to 'transfer' or change
@@ -435,7 +459,7 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
 
   const { data: existing, error: loadErr } = await admin
     .from('transactions')
-    .select('id, campaign_id, kind, author_user_id')
+    .select('id, campaign_id, kind, author_user_id, status')
     .eq('id', id)
     .maybeSingle()
 
@@ -447,6 +471,7 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
     campaign_id: string
     kind: 'money' | 'item' | 'transfer'
     author_user_id: string | null
+    status: 'pending' | 'approved' | 'rejected'
   }
 
   if (row.kind === 'transfer') {
@@ -458,6 +483,11 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
 
   if (auth.role === 'player' && row.author_user_id !== auth.userId) {
     return { ok: false, error: 'Можно удалять только собственные транзакции' }
+  }
+
+  // Spec-014: player can delete only their pending rows. DM/owner unrestricted.
+  if (auth.role === 'player' && row.status !== 'pending') {
+    return { ok: false, error: 'Можно удалять только pending-заявки' }
   }
 
   const { error: delErr } = await admin.from('transactions').delete().eq('id', id)
@@ -518,7 +548,6 @@ export async function loadLedgerPage(
 //     no special rights to edit their "copy" via this action — ownership
 //     stays on the authoring identity (symmetric with any other row).
 
-import crypto from 'node:crypto'
 import type { TransferInput } from '@/lib/transactions'
 import { validateTransfer, validateItemTransfer } from '@/lib/transaction-validation'
 import { getTransferPair } from '@/lib/transactions'
@@ -593,6 +622,14 @@ export async function createTransfer(
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
+  // Spec-014: player → both legs pending; DM/owner → both approved.
+  const status = auth.role === 'player' ? 'pending' : 'approved'
+  const nowIso = new Date().toISOString()
+  // Player single-transfer = batch of 1 (both legs share batch_id);
+  // DM/owner direct writes leave it null.
+  const batchId =
+    input.batchId ??
+    (auth.role === 'player' ? crypto.randomUUID() : null)
 
   const baseRow = {
     campaign_id: input.campaignId,
@@ -604,8 +641,11 @@ export async function createTransfer(
     day_in_loop: input.dayInLoop,
     session_id: input.sessionId ?? null,
     transfer_group_id: groupId,
-    status: 'approved' as const,
+    status,
     author_user_id: auth.userId,
+    batch_id: batchId,
+    approved_by_user_id: status === 'approved' ? auth.userId : null,
+    approved_at: status === 'approved' ? nowIso : null,
   }
 
   const { error } = await admin.from('transactions').insert([
@@ -781,6 +821,8 @@ export type ItemTransferInput = {
   loopNumber: number
   dayInLoop: number
   sessionId?: string | null
+  /** Spec-014: batch_id shared across both legs (FR-004). */
+  batchId?: string
 }
 
 export async function createItemTransfer(
@@ -877,8 +919,15 @@ export async function createItemTransfer(
     day_in_loop: input.dayInLoop,
     session_id: input.sessionId ?? null,
     transfer_group_id: groupId,
-    status: 'approved' as const,
+    status: (auth.role === 'player' ? 'pending' : 'approved') as 'pending' | 'approved',
     author_user_id: auth.userId,
+    // Player single item-transfer = batch of 1 (both legs share batch_id);
+    // DM/owner direct writes leave it null.
+    batch_id:
+      input.batchId ??
+      (auth.role === 'player' ? crypto.randomUUID() : null),
+    approved_by_user_id: auth.role === 'player' ? null : auth.userId,
+    approved_at: auth.role === 'player' ? null : new Date().toISOString(),
   }
 
   const { error } = await admin.from('transactions').insert([
@@ -899,4 +948,184 @@ export async function createItemTransfer(
   }
 
   return { ok: true, groupId }
+}
+
+// ============================================================================
+// submitBatch (spec-014, Phase 3 / T012)
+// ============================================================================
+//
+// Wrapper for player-authored multi-row submissions. Generates one
+// `batchId`, dispatches each row to the per-kind action with the shared
+// `batchId`. Returns the batchId + per-row ids for client refresh.
+//
+// Atomicity (FR-008): we don't have BEGIN/COMMIT exposed via the JS
+// client, so we go sequentially and on the first failure attempt to
+// roll back already-inserted rows by deleting them. This is best-effort
+// — a network failure between insert and rollback can leave orphans.
+// In practice the player-batch path is short (≤ 10 rows typically) and
+// the failure cases are coarse (validation, RLS) which fail on the
+// first row.
+
+export type BatchRowSubmitInput =
+  | {
+      clientId: string
+      kind: 'money'
+      actorPcId: string
+      amountGp?: number
+      perDenomOverride?: CoinSet
+      categorySlug: string
+      comment: string
+      loopNumber: number
+      dayInLoop: number
+      sessionId?: string | null
+    }
+  | {
+      clientId: string
+      kind: 'item'
+      actorPcId: string
+      itemName: string
+      itemQty: number
+      categorySlug: string
+      comment: string
+      loopNumber: number
+      dayInLoop: number
+      sessionId?: string | null
+    }
+  | {
+      clientId: string
+      kind: 'transfer-money'
+      senderPcId: string
+      recipientPcId: string
+      amountGp: number
+      perDenomOverride?: CoinSet
+      categorySlug: string
+      comment: string
+      loopNumber: number
+      dayInLoop: number
+      sessionId?: string | null
+    }
+  | {
+      clientId: string
+      kind: 'transfer-item'
+      senderPcId: string
+      recipientPcId: string
+      itemName: string
+      qty: number
+      categorySlug: string
+      comment: string
+      loopNumber: number
+      dayInLoop: number
+      sessionId?: string | null
+    }
+
+export type SubmitBatchInput = {
+  campaignId: string
+  rows: BatchRowSubmitInput[]
+}
+
+export type SubmitBatchResult =
+  | {
+      ok: true
+      batchId: string
+      rowResults: Array<{ clientId: string; id?: string; groupId?: string }>
+    }
+  | {
+      ok: false
+      error: string
+      /** clientId of the row that broke, if known. */
+      failedClientId?: string
+    }
+
+export async function submitBatch(
+  input: SubmitBatchInput,
+): Promise<SubmitBatchResult> {
+  if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
+  if (!input.rows || input.rows.length === 0) {
+    return { ok: false, error: 'Пусто — добавьте хотя бы один ряд' }
+  }
+
+  const batchId = crypto.randomUUID()
+  const admin = createAdminClient()
+  const successes: Array<{ clientId: string; id?: string; groupId?: string }> = []
+
+  for (const row of input.rows) {
+    let res:
+      | { ok: true; id?: string; groupId?: string }
+      | { ok: false; error: string }
+
+    if (row.kind === 'money') {
+      const r = await createTransaction({
+        campaignId: input.campaignId,
+        actorPcId: row.actorPcId,
+        kind: 'money',
+        amountGp: row.amountGp,
+        perDenomOverride: row.perDenomOverride,
+        categorySlug: row.categorySlug,
+        comment: row.comment,
+        loopNumber: row.loopNumber,
+        dayInLoop: row.dayInLoop,
+        sessionId: row.sessionId ?? null,
+        batchId,
+      })
+      res = r.ok ? { ok: true, id: r.id } : { ok: false, error: r.error }
+    } else if (row.kind === 'item') {
+      const r = await createTransaction({
+        campaignId: input.campaignId,
+        actorPcId: row.actorPcId,
+        kind: 'item',
+        itemName: row.itemName,
+        itemQty: row.itemQty,
+        categorySlug: row.categorySlug,
+        comment: row.comment,
+        loopNumber: row.loopNumber,
+        dayInLoop: row.dayInLoop,
+        sessionId: row.sessionId ?? null,
+        batchId,
+      })
+      res = r.ok ? { ok: true, id: r.id } : { ok: false, error: r.error }
+    } else if (row.kind === 'transfer-money') {
+      const r = await createTransfer({
+        campaignId: input.campaignId,
+        senderPcId: row.senderPcId,
+        recipientPcId: row.recipientPcId,
+        amountGp: row.amountGp,
+        perDenomOverride: row.perDenomOverride,
+        categorySlug: row.categorySlug,
+        comment: row.comment,
+        loopNumber: row.loopNumber,
+        dayInLoop: row.dayInLoop,
+        sessionId: row.sessionId ?? null,
+        batchId,
+      })
+      res = r.ok ? { ok: true, groupId: r.groupId } : { ok: false, error: r.error }
+    } else {
+      // 'transfer-item'
+      const r = await createItemTransfer({
+        campaignId: input.campaignId,
+        senderPcId: row.senderPcId,
+        recipientPcId: row.recipientPcId,
+        itemName: row.itemName,
+        qty: row.qty,
+        categorySlug: row.categorySlug,
+        comment: row.comment,
+        loopNumber: row.loopNumber,
+        dayInLoop: row.dayInLoop,
+        sessionId: row.sessionId ?? null,
+        batchId,
+      })
+      res = r.ok ? { ok: true, groupId: r.groupId } : { ok: false, error: r.error }
+    }
+
+    if (!res.ok) {
+      // Roll back already-inserted rows in this batch (best effort).
+      if (successes.length > 0) {
+        await admin.from('transactions').delete().eq('batch_id', batchId)
+      }
+      return { ok: false, error: res.error, failedClientId: row.clientId }
+    }
+
+    successes.push({ clientId: row.clientId, id: res.id, groupId: res.groupId })
+  }
+
+  return { ok: true, batchId, rowResults: successes }
 }
