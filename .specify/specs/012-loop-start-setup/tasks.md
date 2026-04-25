@@ -440,11 +440,11 @@ loan flag.
   - US6 (autogen badge + filter chip)
   - US7 (loop delete cascades autogen rows)
   - Record any gaps in `open_questions` of plan.md, to revisit
-- [ ] **T045** [P1] Update `NEXT.md`:
+- [x] **T045** [P1] Update `NEXT.md`:
   - Move "spec-012 Loop start setup" from "Следующий приоритет" to "В проде сейчас"
   - Next priority → spec-013 (encounter loot distribution; fifth autogen wizard)
   - Note the `autogen_*` columns and triggers as shared infrastructure
-- [ ] **T046** [P1] Add `chatlog/YYYY-MM-DD-chatNN-spec-012-implement.md` per `chatlog/README.md` template
+- [x] **T046** [P1] Add `chatlog/YYYY-MM-DD-chatNN-spec-012-implement.md` per `chatlog/README.md` template
 - [ ] **T047** [P1] Commit + push:
   - Descriptive commit messages per phase (single squash OK if preferred)
   - Push to `main`
