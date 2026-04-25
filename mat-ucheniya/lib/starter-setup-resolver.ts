@@ -39,11 +39,13 @@ export function canonicalKey(
   wizardKey: WizardKey,
   row: { actorPcId: string; itemName?: string | null },
 ): string {
-  if (wizardKey === 'starting_items') {
-    // Normalize item name: trim, lowercase. Matching is case-insensitive
-    // to avoid "Longsword" vs "longsword" creating duplicate diff rows.
+  if (wizardKey === 'starting_items' || wizardKey === 'encounter_loot') {
+    // Item-bearing wizards: actor + item name disambiguates.
+    // For encounter_loot money rows, itemName is null → key is
+    // `encounter_loot:{actor}:` which is fine: at most one money
+    // row per actor (the resolver merges them into one bucket).
     const name = (row.itemName ?? '').trim().toLowerCase()
-    return `starting_items:${row.actorPcId}:${name}`
+    return `${wizardKey}:${row.actorPcId}:${name}`
   }
   return `${wizardKey}:${row.actorPcId}`
 }

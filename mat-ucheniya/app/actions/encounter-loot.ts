@@ -144,6 +144,8 @@ function rowToDraft(
     lines: unknown
     loop_number: number | null
     day_in_loop: number | null
+    money_distribution_mode: string | null
+    money_distribution_pc_id: string | null
     updated_by: string | null
     created_at: string
     updated_at: string
@@ -153,11 +155,27 @@ function rowToDraft(
   // path; writes always validate. Defence: if shape is wrong, fall
   // back to empty array so the panel still renders.
   const lines = Array.isArray(row.lines) ? (row.lines as LootLine[]) : []
+
+  // Reassemble money_distribution from the two columns. Defaults to
+  // 'stash' if either column is missing (e.g. a draft created before
+  // migration 040 — shouldn't happen in practice given the column
+  // default, but defence in depth).
+  const mode = row.money_distribution_mode
+  let money_distribution: LootDraft['money_distribution']
+  if (mode === 'pc' && row.money_distribution_pc_id) {
+    money_distribution = { mode: 'pc', pc_id: row.money_distribution_pc_id }
+  } else if (mode === 'split_evenly') {
+    money_distribution = { mode: 'split_evenly', pc_id: null }
+  } else {
+    money_distribution = { mode: 'stash', pc_id: null }
+  }
+
   return {
     encounter_id: row.encounter_id,
     lines,
     loop_number: row.loop_number,
     day_in_loop: row.day_in_loop,
+    money_distribution,
     updated_by: row.updated_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -182,7 +200,7 @@ export async function getEncounterLootDraft(
   const { data, error } = await supabase
     .from('encounter_loot_drafts')
     .select(
-      'encounter_id, lines, loop_number, day_in_loop, updated_by, created_at, updated_at',
+      'encounter_id, lines, loop_number, day_in_loop, money_distribution_mode, money_distribution_pc_id, updated_by, created_at, updated_at',
     )
     .eq('encounter_id', encounterId)
     .maybeSingle()
@@ -222,7 +240,7 @@ export async function getEncounterLootDraft(
   const { data: data2, error: err2 } = await supabase
     .from('encounter_loot_drafts')
     .select(
-      'encounter_id, lines, loop_number, day_in_loop, updated_by, created_at, updated_at',
+      'encounter_id, lines, loop_number, day_in_loop, money_distribution_mode, money_distribution_pc_id, updated_by, created_at, updated_at',
     )
     .eq('encounter_id', encounterId)
     .maybeSingle()
@@ -264,6 +282,10 @@ export async function updateEncounterLootDraft(
   if (v.lines !== undefined) updates.lines = v.lines
   if (v.loop_number !== undefined) updates.loop_number = v.loop_number
   if (v.day_in_loop !== undefined) updates.day_in_loop = v.day_in_loop
+  if (v.money_distribution !== undefined) {
+    updates.money_distribution_mode = v.money_distribution.mode
+    updates.money_distribution_pc_id = v.money_distribution.pc_id
+  }
 
   const { error } = await admin
     .from('encounter_loot_drafts')
@@ -293,79 +315,6 @@ async function ensureDraftRow(encounterId: string): Promise<void> {
       },
       { onConflict: 'encounter_id', ignoreDuplicates: true },
     )
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// T013 — setAllToStashShortcut
-// ═══════════════════════════════════════════════════════════════════
-
-export async function setAllToStashShortcut(
-  encounterId: string,
-): Promise<LootActionResult<{ updatedLines: number }>> {
-  const access = await resolveEncounterAccess(encounterId, 'dm')
-  if (!access.ok) return { ok: false, error: access.error }
-
-  await ensureDraftRow(encounterId)
-
-  const admin = createAdminClient()
-  const { data, error: readErr } = await admin
-    .from('encounter_loot_drafts')
-    .select('lines')
-    .eq('encounter_id', encounterId)
-    .maybeSingle()
-
-  if (readErr) {
-    return { ok: false, error: `Ошибка чтения черновика: ${readErr.message}` }
-  }
-  const lines = ((data as { lines: unknown } | null)?.lines ?? []) as LootLine[]
-  if (!Array.isArray(lines)) {
-    return { ok: false, error: 'Черновик повреждён' }
-  }
-
-  let touched = 0
-  const rewritten: LootLine[] = lines.map((line) => {
-    if (line.kind === 'coin') {
-      // split_evenly + pc → both become stash. Already-stash lines
-      // are left alone for the count.
-      if (line.recipient_mode === 'stash' && line.recipient_pc_id === null) {
-        return line
-      }
-      touched += 1
-      return {
-        ...line,
-        recipient_mode: 'stash',
-        recipient_pc_id: null,
-      }
-    }
-    // item line
-    if (line.recipient_mode === 'stash' && line.recipient_pc_id === null) {
-      return line
-    }
-    touched += 1
-    return {
-      ...line,
-      recipient_mode: 'stash',
-      recipient_pc_id: null,
-    }
-  })
-
-  if (touched === 0) {
-    return { ok: true, updatedLines: 0 }
-  }
-
-  const { error: writeErr } = await admin
-    .from('encounter_loot_drafts')
-    .update({ lines: rewritten, updated_by: access.userId })
-    .eq('encounter_id', encounterId)
-
-  if (writeErr) {
-    return { ok: false, error: `Ошибка сохранения: ${writeErr.message}` }
-  }
-
-  revalidatePath(
-    `/c/${access.access.campaignSlug}/encounters/${encounterId}`,
-  )
-  return { ok: true, updatedLines: touched }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -447,10 +396,20 @@ export async function applyEncounterLoot(
   // ── Step 4: stash node id (may be null if campaign hasn't been seeded) ──
   const stash = await getStashNode(campaignId)
   const stashNodeId = stash?.nodeId ?? ''
-  // Defence: if any line uses stash and stash is missing, fail loudly.
-  const needsStash = draft.lines.some(
-    (l) => l.recipient_mode === 'stash',
+  // Defence: stash is needed when (a) money_distribution=stash and there's
+  // any money, or (b) any item line targets stash. Fail loudly if missing.
+  const totalMoneyCp = draft.lines.reduce((sum, l) => {
+    if (l.kind === 'coin') {
+      return sum + l.cp + 10 * l.sp + 100 * l.gp + 1000 * l.pp
+    }
+    return sum
+  }, 0)
+  const moneyNeedsStash =
+    draft.money_distribution.mode === 'stash' && totalMoneyCp > 0
+  const itemNeedsStash = draft.lines.some(
+    (l) => l.kind === 'item' && l.recipient_mode === 'stash',
   )
+  const needsStash = moneyNeedsStash || itemNeedsStash
   if (needsStash && !stashNodeId) {
     return {
       ok: false,

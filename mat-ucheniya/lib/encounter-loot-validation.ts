@@ -97,34 +97,22 @@ function validateCoinLine(obj: Record<string, unknown>): ValidateResult<CoinLine
     }
   }
 
-  const mode = obj.recipient_mode
-  if (mode !== 'pc' && mode !== 'stash' && mode !== 'split_evenly') {
-    return {
-      ok: false,
-      error: `Неизвестный recipient_mode: ${JSON.stringify(mode)}`,
+  // Optional comment — free-text label like «Тела пауков».
+  let comment: string | undefined
+  if (obj.comment != null) {
+    if (typeof obj.comment !== 'string') {
+      return { ok: false, error: 'comment должен быть строкой' }
     }
+    if (obj.comment.length > 200) {
+      return { ok: false, error: 'comment слишком длинный (макс 200)' }
+    }
+    const trimmed = obj.comment.trim()
+    comment = trimmed === '' ? undefined : trimmed
   }
 
-  let recipientPcId: string | null
-  if (mode === 'pc') {
-    if (!looksLikeUuid(obj.recipient_pc_id)) {
-      return {
-        ok: false,
-        error: 'Для recipient_mode=pc нужен валидный recipient_pc_id (uuid)',
-      }
-    }
-    recipientPcId = obj.recipient_pc_id as string
-  } else {
-    // stash / split_evenly: recipient_pc_id must be null.
-    if (obj.recipient_pc_id != null) {
-      return {
-        ok: false,
-        error:
-          'recipient_pc_id должен быть null при recipient_mode=stash/split_evenly',
-      }
-    }
-    recipientPcId = null
-  }
+  // chat-50 polish: legacy `recipient_mode` / `recipient_pc_id` fields
+  // are silently ignored if present (forwards-compat for old drafts).
+  // Distribution is now a draft-level setting.
 
   return {
     ok: true,
@@ -135,8 +123,7 @@ function validateCoinLine(obj: Record<string, unknown>): ValidateResult<CoinLine
       sp,
       gp,
       pp,
-      recipient_mode: mode,
-      recipient_pc_id: recipientPcId,
+      ...(comment !== undefined ? { comment } : {}),
     },
   }
 }
@@ -206,12 +193,46 @@ export type LootDraftPatch = {
   lines?: unknown
   loop_number?: unknown
   day_in_loop?: unknown
+  money_distribution?: unknown
 }
 
 export type ValidatedLootDraftPatch = {
   lines?: LootLine[]
   loop_number?: number | null
   day_in_loop?: number | null
+  money_distribution?: import('./encounter-loot-types').MoneyDistribution
+}
+
+function validateMoneyDistribution(
+  input: unknown,
+): ValidateResult<import('./encounter-loot-types').MoneyDistribution> {
+  if (!input || typeof input !== 'object') {
+    return { ok: false, error: 'money_distribution должно быть объектом' }
+  }
+  const obj = input as Record<string, unknown>
+  const mode = obj.mode
+  if (mode === 'stash' || mode === 'split_evenly') {
+    if (obj.pc_id != null) {
+      return {
+        ok: false,
+        error: `pc_id должен быть null при mode=${mode}`,
+      }
+    }
+    return { ok: true, value: { mode, pc_id: null } }
+  }
+  if (mode === 'pc') {
+    if (!looksLikeUuid(obj.pc_id)) {
+      return {
+        ok: false,
+        error: 'Для money_distribution.mode=pc нужен валидный pc_id (uuid)',
+      }
+    }
+    return { ok: true, value: { mode, pc_id: obj.pc_id as string } }
+  }
+  return {
+    ok: false,
+    error: `Неизвестный money_distribution.mode: ${JSON.stringify(mode)}`,
+  }
 }
 
 export function validateLootDraftPatch(
@@ -267,6 +288,12 @@ export function validateLootDraftPatch(
     } else {
       out.day_in_loop = v
     }
+  }
+
+  if ('money_distribution' in obj) {
+    const r = validateMoneyDistribution(obj.money_distribution)
+    if (!r.ok) return r
+    out.money_distribution = r.value
   }
 
   return { ok: true, value: out }

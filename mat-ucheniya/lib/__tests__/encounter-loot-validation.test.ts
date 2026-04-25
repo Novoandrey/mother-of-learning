@@ -95,7 +95,10 @@ describe('validateLootLine', () => {
     if (!r.ok) expect(r.error).toMatch(/ненулевой/)
   })
 
-  it('rejects coin line with mode=pc but recipient_pc_id=null', () => {
+  it('chat-50: legacy coin recipient_mode/pc_id silently ignored on read', () => {
+    // Old drafts (pre-chat-50) had recipient_mode + recipient_pc_id
+    // on coin lines. The new validator silently drops those — value
+    // has only the new shape (denoms + optional comment).
     const r = validateLootLine({
       id: 'line-1',
       kind: 'coin',
@@ -104,23 +107,29 @@ describe('validateLootLine', () => {
       gp: 5,
       pp: 0,
       recipient_mode: 'pc',
-      recipient_pc_id: null,
+      recipient_pc_id: 'not-even-a-uuid',
     })
-    expect(r.ok).toBe(false)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value).not.toHaveProperty('recipient_mode')
+      expect(r.value).not.toHaveProperty('recipient_pc_id')
+    }
   })
 
-  it('rejects coin line with mode=stash but recipient_pc_id set', () => {
+  it('chat-50: coin line accepts optional comment', () => {
     const r = validateLootLine({
       id: 'line-1',
       kind: 'coin',
       cp: 0,
       sp: 0,
-      gp: 5,
+      gp: 30,
       pp: 0,
-      recipient_mode: 'stash',
-      recipient_pc_id: PC1,
+      comment: 'Тела пауков',
     })
-    expect(r.ok).toBe(false)
+    expect(r.ok).toBe(true)
+    if (r.ok && r.value.kind === 'coin') {
+      expect(r.value.comment).toBe('Тела пауков')
+    }
   })
 
   it('rejects item line with split_evenly recipient (only coins allowed)', () => {
@@ -220,7 +229,9 @@ describe('validateLootLine', () => {
     expect(r.ok).toBe(false)
   })
 
-  it('rejects mode=pc with garbage recipient_pc_id', () => {
+  it('chat-50: garbage in legacy recipient_pc_id is ignored, not an error', () => {
+    // The new validator doesn't read these fields at all, so any
+    // garbage in them passes through (we drop them on the way out).
     const r = validateLootLine({
       id: 'line-1',
       kind: 'coin',
@@ -231,7 +242,7 @@ describe('validateLootLine', () => {
       recipient_mode: 'pc',
       recipient_pc_id: 'not-a-uuid',
     })
-    expect(r.ok).toBe(false)
+    expect(r.ok).toBe(true)
   })
 })
 
@@ -361,6 +372,7 @@ describe('validateLootDraftReady', () => {
       lines: [],
       loop_number: 3,
       day_in_loop: 5,
+      money_distribution: { mode: 'stash', pc_id: null },
       updated_by: null,
       created_at: '2026-04-25T00:00:00Z',
       updated_at: '2026-04-25T00:00:00Z',
@@ -400,8 +412,6 @@ describe('validateLootDraftReady', () => {
             sp: 0,
             gp: 5,
             pp: 0,
-            recipient_mode: 'pc',
-            recipient_pc_id: PC1,
           },
         ],
       }),
