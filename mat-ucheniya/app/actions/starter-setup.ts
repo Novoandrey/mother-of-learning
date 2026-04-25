@@ -38,17 +38,14 @@ import {
 } from '@/lib/starter-setup-validation'
 import {
   getCampaignStarterConfig,
-  getExistingAutogenRows,
   getPcStarterConfigsForCampaign,
-  getTombstones,
+  SPEC_012_WIZARD_KEYS,
 } from '@/lib/starter-setup'
 import { resolveDesiredRowSet } from '@/lib/starter-setup-resolver'
-import { diffRowSets } from '@/lib/starter-setup-diff'
-import { identifyAffectedRows } from '@/lib/starter-setup-affected'
+import { applyAutogenDiff, computeAutogenDiff } from '@/lib/autogen-reconcile'
 import { getStashNode } from '@/lib/stash'
 import type {
   ApplyResult,
-  ApplySummary,
   CampaignStarterConfig,
   StarterItem,
 } from '@/lib/starter-setup'
@@ -565,53 +562,24 @@ export async function applyLoopStartSetup(
     })),
   })
 
-  // ─── Step 4 + 5: load existing rows and tombstones ───
-  const existing = await getExistingAutogenRows(loopNodeId)
-  const tombstones = await getTombstones(loopNodeId)
-
-  // ─── Step 6: diff ───
-  const diff = diffRowSets(desired, existing)
-
-  // FR-014 orphan filter: a valid actor is either a current PC or the
-  // stash. Rows whose actor was deleted stay put — the DM keeps their
-  // audit trail.
-  const validActors = new Set<string>([
+  // ─── Step 4–7: load existing + tombstones, diff, orphan-filter,
+  // hydrate actor titles, identify affected rows. All generic — see
+  // `lib/autogen-reconcile.ts`.
+  //
+  // FR-014 orphan rule: a valid actor is either a current PC or the
+  // stash. Rows whose actor was removed since last apply stay put
+  // (audit trail preserved); the orphan filter inside computeAutogenDiff
+  // takes care of this for us.
+  const validActorIds: string[] = [
     ...pcCfgs.map((p) => p.pcId),
     ...(stash ? [stash.nodeId] : []),
-  ])
-  const toDeleteNonOrphans = diff.toDelete.filter(
-    (r) => r.actorPcId != null && validActors.has(r.actorPcId),
-  )
-  const filteredDiff = {
-    ...diff,
-    toDelete: toDeleteNonOrphans,
-  }
+  ]
 
-  // ─── Step 7: hydrate actor titles + identify affected ───
-  const actorIds = new Set<string>()
-  for (const pair of filteredDiff.toUpdate) {
-    if (pair.existing.actorPcId) actorIds.add(pair.existing.actorPcId)
-  }
-  for (const r of filteredDiff.toDelete) {
-    if (r.actorPcId) actorIds.add(r.actorPcId)
-  }
-  for (const t of tombstones) {
-    if (t.actorPcId) actorIds.add(t.actorPcId)
-  }
-
-  const actorTitles = new Map<string, string>()
-  if (actorIds.size > 0) {
-    const { data: titleRows } = await admin
-      .from('nodes')
-      .select('id, title')
-      .in('id', Array.from(actorIds))
-    for (const t of (titleRows ?? []) as Array<{ id: string; title: string }>) {
-      actorTitles.set(t.id, t.title)
-    }
-  }
-
-  const affected = identifyAffectedRows(filteredDiff, tombstones, {
-    actorTitles,
+  const { diff: filteredDiff, affected } = await computeAutogenDiff({
+    sourceNodeId: loopNodeId,
+    wizardKeys: SPEC_012_WIZARD_KEYS,
+    desiredRows: desired,
+    validActorIds,
   })
 
   // ─── Step 8: two-phase short-circuit ───
@@ -619,78 +587,33 @@ export async function applyLoopStartSetup(
     return { needsConfirmation: true, affected }
   }
 
-  // ─── Step 9 + 10: execute via RPC ───
-  const toInsertPayload = filteredDiff.toInsert.map((r) => ({
-    campaign_id: campaignId,
-    actor_pc_id: r.actorPcId,
-    kind: r.kind,
-    amount_cp: r.coins.cp,
-    amount_sp: r.coins.sp,
-    amount_gp: r.coins.gp,
-    amount_pp: r.coins.pp,
-    item_name: r.itemName,
-    item_qty: r.itemQty,
-    category_slug: r.categorySlug,
-    comment: r.comment,
-    // Starter rows land on day 1 of the loop by convention — the very
-    // beginning of the loop's timeline. UI surfaces them with the
-    // autogen badge (Phase 11), so the day pin isn't user-visible
-    // clutter.
-    loop_number: loopNumber,
-    day_in_loop: 1,
-    author_user_id: user.id,
-    autogen_wizard_key: r.wizardKey,
-    autogen_source_node_id: loopNodeId,
-  }))
-
-  const toUpdatePayload = filteredDiff.toUpdate.map((pair) => ({
-    id: pair.existing.id,
-    amount_cp: pair.desired.coins.cp,
-    amount_sp: pair.desired.coins.sp,
-    amount_gp: pair.desired.coins.gp,
-    amount_pp: pair.desired.coins.pp,
-    item_name: pair.desired.itemName,
-    item_qty: pair.desired.itemQty,
-    category_slug: pair.desired.categorySlug,
-    comment: pair.desired.comment,
-  }))
-
-  const toDeleteIds = filteredDiff.toDelete.map((r) => r.id)
-
-  const { data: rpcData, error: rpcErr } = await admin.rpc(
-    'apply_loop_start_setup',
-    {
-      p_loop_node_id: loopNodeId,
-      p_to_insert: toInsertPayload,
-      p_to_update: toUpdatePayload,
-      p_to_delete: toDeleteIds,
-    },
-  )
-
-  if (rpcErr) {
+  // ─── Step 9 + 10: execute via shared apply helper (RPC under the
+  // hood). Throws on RPC error — let it bubble up as a 500-equivalent;
+  // the action wrapper below converts to the typed error shape.
+  let summary
+  try {
+    summary = await applyAutogenDiff({
+      diff: filteredDiff,
+      context: {
+        campaignId,
+        sourceNodeId: loopNodeId,
+        wizardKey: 'starting_money', // unused by current RPC; per-row keys win
+        loopNumber,
+        // Starter rows land on day 1 of the loop by convention — the very
+        // beginning of the loop's timeline. UI surfaces them with the
+        // autogen badge (Phase 11), so the day pin isn't user-visible
+        // clutter.
+        dayInLoop: 1,
+        authorUserId: user.id,
+      },
+    })
+  } catch (e) {
     return {
       ok: false,
-      error: `Не удалось применить стартовый сетап: ${rpcErr.message}`,
+      error: `Не удалось применить стартовый сетап: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
     }
-  }
-
-  // RPC returns table(inserted, updated, deleted, tombstones_cleared).
-  // Supabase unwraps a single-row table result as an array of one row.
-  type RpcRow = {
-    inserted: number
-    updated: number
-    deleted: number
-    tombstones_cleared: number
-  }
-  const first = Array.isArray(rpcData)
-    ? (rpcData[0] as RpcRow | undefined)
-    : (rpcData as RpcRow | null)
-
-  const summary: ApplySummary = {
-    insertedCount: first?.inserted ?? 0,
-    updatedCount: first?.updated ?? 0,
-    deletedCount: first?.deleted ?? 0,
-    tombstonesCleared: first?.tombstones_cleared ?? 0,
   }
 
   // ─── Step 11: revalidate ───

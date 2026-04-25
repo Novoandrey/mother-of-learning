@@ -336,6 +336,22 @@ Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
 ---
 
 ## 🔜 NEXT — баги и мелочёвка (chat 29)
+
+### IDEA-055 [P2] DM controls на encounter page (rename + delete)
+- **Открыто**: chat 50 (spec-013 implement, после T003 smoke).
+- Сейчас у DM нет UI-кнопок переименовать или удалить encounter
+  с самой страницы энкаунтера — только напрямую в БД. Это всплыло
+  при ручной проверке триггеров spec-013 (sync title, delete mirror).
+- **Что нужно**: на странице `/c/[slug]/encounters/[id]` (DM-only)
+  две кнопки в header'е — «Переименовать» (inline rename как у нод
+  каталога) и «Удалить» (confirm dialog → cascade удалит участников,
+  log, draft, mirror-ноду через триггер).
+- **Размер**: ~30 минут. Делать **после spec-013 close-out**, не
+  вклинивать в середину implement-flow.
+- Триггеры spec-013 (sync title / delete mirror) уже отработают
+  корректно при любом UPDATE/DELETE на `encounters` — backend готов,
+  только UI кнопок нет.
+
 ### UX-003 [P3] Дата игры (played_at) в американском формате
 - **Открыто**: chat 34 (spec-009 testing)
 - `<input type="date">` отображается по локали ОС/браузера, а не по

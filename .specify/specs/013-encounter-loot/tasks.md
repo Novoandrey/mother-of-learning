@@ -71,20 +71,16 @@ A task is `[x]` only when its acceptance check passes:
 
 ## Phase 1 — Pre-migration verification
 
-- [ ] **T001** [P1] Verify no `(campaign_id, title)` duplicates
-  in `encounters` table (file: `scripts/verify-encounter-titles.sql`)
-  - Run: `select campaign_id, title, count(*) from encounters
-    group by 1, 2 having count(*) > 1`
-  - If empty result set: proceed to T002
-  - If duplicates exist: extend T002 backfill with a row_number()
-    tiebreaker (sketched in plan.md `## Migration § Mitigation`)
-  - Output: short note in chatlog about result
+- [x] **T001** [P1] Verify no `(campaign_id, title)` duplicates
+  in `encounters` table (file: `mat-ucheniya/scripts/verify-encounter-titles.sql`)
+  - Ran on prod (2026-04-25): 10 encounters total, 0 duplicates.
+  - T002 backfill uses straight CTE without row_number() tiebreaker.
 
 ---
 
 ## Phase 2 — Migration
 
-- [ ] **T002** [P1] Write migration `039_encounter_mirror_and_loot_drafts.sql`
+- [x] **T002** [P1] Write migration `039_encounter_mirror_and_loot_drafts.sql`
   (file: `mat-ucheniya/supabase/migrations/039_encounter_mirror_and_loot_drafts.sql`)
   - Section 1: seed `encounter` node_type per existing campaign
     (idempotent, skip if exists)
@@ -103,41 +99,28 @@ A task is `[x]` only when its acceptance check passes:
     `set_updated_at` trigger
   - All wrapped in single `begin / commit`
   - Rollback section as comment block at the bottom
-- [ ] **T003** [P1] Apply migration locally + present file to user
+- [x] **T003** [P1] Apply migration locally + present file to user
   for production apply (file: same as T002)
-  - `npx supabase db reset` against local
-  - Smoke: `select count(*) from encounters where node_id is
-    null` → 0
-  - Smoke: pick one encounter, verify mirror node exists with
-    matching title via SQL
-  - Smoke: rename encounter, verify mirror title syncs
-  - Smoke: delete one test encounter, verify mirror is gone
-  - **Call `present_files` with `039_*.sql`** — required by
-    project rules, no exceptions
+  - Applied to prod 2026-04-25 (chat 50). 4/4 smoke checks pass:
+    no orphans, mirror has correct type+title, title sync trigger
+    works on rename, delete trigger removes mirror.
 
 ---
 
 ## Phase 3 — Spec-012 reconcile carve-out (refactor)
 
-- [ ] **T004** [P1] Extract reconcile core from
+- [x] **T004** [P1] Extract reconcile core from
   `apply-loop-start-setup.ts` into shared helper
   (files: `mat-ucheniya/lib/autogen-reconcile.ts` (new),
-  `mat-ucheniya/app/actions/starter-setup.ts` (modified))
-  - Move the diff-computation logic (currently inside
-    `applyLoopStartSetup`) to new exported `computeAutogenDiff`
-    + `applyAutogenDiff` functions
-  - Function signatures per plan.md `## Server Layer §
-    Generic reconcile`
-  - `applyLoopStartSetup` becomes a thin wrapper:
-    1. resolve loop-specific inputs (PCs, configs)
-    2. call `resolveDesiredRows` (existing)
-    3. call `computeAutogenDiff`
-    4. handle confirmation gate
-    5. call `applyAutogenDiff` inside session-setting transaction
-  - **Behavioural invariant**: existing 135 vitest tests
-    pass with zero changes
-  - **No new tests** in this task (the refactor is verified by
-    spec-012's existing tests staying green)
+  `mat-ucheniya/app/actions/starter-setup.ts` (modified),
+  `mat-ucheniya/lib/starter-setup.ts` (removed `getExistingAutogenRows`/
+  `getTombstones`, exported `SPEC_012_WIZARD_KEYS`))
+  - 135/135 vitest baseline → 135/135 after refactor.
+  - lint 0/0 (one warning on unused canonicalKey import — fixed).
+  - applyLoopStartSetup сократился с ~230 до ~90 строк, делегирует
+    `computeAutogenDiff` + `applyAutogenDiff`. wizardKeys теперь
+    параметризован через `readonly string[]` — spec-013 будет
+    передавать `['encounter_loot']`.
 
 ---
 

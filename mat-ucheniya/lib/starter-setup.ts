@@ -193,9 +193,8 @@ export type LoopSetupStatus = {
 // ═══════════════════════════════════════════════════════════════════════
 
 import { createClient } from '@/lib/supabase/server'
-import { canonicalKey } from './starter-setup-resolver'
 
-const SPEC_012_WIZARD_KEYS: WizardKey[] = [
+export const SPEC_012_WIZARD_KEYS: WizardKey[] = [
   'starting_money',
   'starting_loan',
   'stash_seed',
@@ -439,108 +438,9 @@ export async function getLoopSetupStatus(
   return { hasAutogenRows: (data ?? []).length > 0 }
 }
 
-/**
- * T016 — Load every existing spec-012 autogen row for a loop.
- * Feeds the reconcile step of the apply action.
- */
-export async function getExistingAutogenRows(
-  loopNodeId: string,
-): Promise<ExistingAutogenRow[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('transactions')
-    .select(
-      'id, actor_pc_id, kind, amount_cp, amount_sp, amount_gp, amount_pp, item_name, item_qty, category_slug, comment, autogen_wizard_key, autogen_source_node_id, autogen_hand_touched',
-    )
-    .eq('autogen_source_node_id', loopNodeId)
-    .in('autogen_wizard_key', SPEC_012_WIZARD_KEYS)
-
-  if (error) {
-    throw new Error(`getExistingAutogenRows failed: ${error.message}`)
-  }
-
-  type Row = {
-    id: string
-    actor_pc_id: string | null
-    kind: 'money' | 'item' | 'transfer'
-    amount_cp: number
-    amount_sp: number
-    amount_gp: number
-    amount_pp: number
-    item_name: string | null
-    item_qty: number
-    category_slug: string
-    comment: string
-    autogen_wizard_key: WizardKey
-    autogen_source_node_id: string
-    autogen_hand_touched: boolean
-  }
-
-  return ((data ?? []) as Row[]).map((r) => ({
-    id: r.id,
-    wizardKey: r.autogen_wizard_key,
-    sourceNodeId: r.autogen_source_node_id,
-    actorPcId: r.actor_pc_id,
-    kind: r.kind,
-    coins: {
-      cp: r.amount_cp,
-      sp: r.amount_sp,
-      gp: r.amount_gp,
-      pp: r.amount_pp,
-    },
-    itemName: r.item_name,
-    itemQty: r.item_qty,
-    categorySlug: r.category_slug,
-    comment: r.comment,
-    handTouched: r.autogen_hand_touched,
-    canonicalKey: canonicalKey(r.autogen_wizard_key, {
-      actorPcId: r.actor_pc_id ?? '',
-      itemName: r.item_name,
-    }),
-  }))
-}
-
-/**
- * T017 — Load tombstones for a loop. Used by the apply action to
- * surface hand-deleted rows in the confirmation dialog.
- */
-export async function getTombstones(loopNodeId: string): Promise<Tombstone[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('autogen_tombstones')
-    .select(
-      'id, campaign_id, autogen_wizard_key, autogen_source_node_id, actor_pc_id, kind, item_name, deleted_at',
-    )
-    .eq('autogen_source_node_id', loopNodeId)
-    .in('autogen_wizard_key', SPEC_012_WIZARD_KEYS)
-
-  if (error) {
-    throw new Error(`getTombstones failed: ${error.message}`)
-  }
-
-  type Row = {
-    id: string
-    campaign_id: string
-    autogen_wizard_key: WizardKey
-    autogen_source_node_id: string
-    actor_pc_id: string | null
-    kind: 'money' | 'item' | 'transfer'
-    item_name: string | null
-    deleted_at: string
-  }
-
-  return ((data ?? []) as Row[]).map((r) => ({
-    id: r.id,
-    campaignId: r.campaign_id,
-    wizardKey: r.autogen_wizard_key,
-    sourceNodeId: r.autogen_source_node_id,
-    actorPcId: r.actor_pc_id,
-    kind: r.kind,
-    itemName: r.item_name,
-    deletedAt: r.deleted_at,
-    canonicalKey: canonicalKey(r.autogen_wizard_key, {
-      actorPcId: r.actor_pc_id ?? '',
-      itemName: r.item_name,
-    }),
-  }))
-}
+// NOTE: `getExistingAutogenRows` and `getTombstones` were moved to
+// `lib/autogen-reconcile.ts` in spec-013 T004 (carve-out refactor).
+// They live there as `loadExistingAutogenRows` / `loadTombstones`
+// (private to the module) and are exposed indirectly via
+// `computeAutogenDiff`. Spec-012's `applyLoopStartSetup` now calls
+// `computeAutogenDiff(...)` instead of fetching them itself.
