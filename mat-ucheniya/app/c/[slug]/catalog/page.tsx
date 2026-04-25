@@ -31,11 +31,18 @@ export default async function CatalogPage({
   const supabase = await createClient()
 
   // Load node types for type filter
-  const { data: nodeTypes } = await supabase
+  const { data: nodeTypesRaw } = await supabase
     .from('node_types')
     .select('id, slug, label, icon')
     .eq('campaign_id', campaign.id)
     .order('sort_order')
+
+  // Spec-013: drop encounter mirror type from the catalog filter
+  // chips. Mirrors exist for autogen-source linkage but the encounter
+  // itself is reached via /encounters, not the catalog.
+  const nodeTypes = (nodeTypesRaw ?? []).filter(
+    (t) => t.slug !== 'encounter',
+  )
 
   // Build nodes query
   let nodesQuery = supabase
@@ -74,6 +81,10 @@ export default async function CatalogPage({
   const normalizedNodes = (nodes as RawNode[] | null ?? []).flatMap((n) => {
     const t = Array.isArray(n.type) ? n.type[0] : n.type
     if (!t) return []
+    // Spec-013: encounter mirror nodes exist for autogen-source linkage
+    // but should never show in the catalog grid — the encounter is
+    // navigated to via /encounters list.
+    if (t.slug === 'encounter') return []
     return [{ id: n.id, title: n.title, fields: n.fields, type: t }]
   })
 

@@ -41,15 +41,31 @@ export function CreateEdgeForm({
 
   const search = useCallback(async (q: string) => {
     if (q.length < 2) { setResults([]); return }
+    // Spec-013: select with the type slug so we can filter encounter
+    // mirror nodes out client-side. They aren't valid edge targets —
+    // encounters live separately from the entity graph.
     const { data } = await supabase
       .from('nodes')
-      .select('id, title')
+      .select('id, title, type:node_types(slug)')
       .eq('campaign_id', campaignId)
       .neq('id', sourceId)
       .ilike('title', `%${q}%`)
-      .limit(5)
+      .limit(20)
 
-    if (data) setResults(data)
+    type Row = {
+      id: string
+      title: string
+      type: { slug: string } | { slug: string }[] | null
+    }
+    const filtered = ((data ?? []) as Row[])
+      .filter((n) => {
+        const t = Array.isArray(n.type) ? n.type[0] : n.type
+        return t?.slug !== 'encounter'
+      })
+      .slice(0, 5)
+      .map((n) => ({ id: n.id, title: n.title }))
+
+    setResults(filtered)
   }, [campaignId, sourceId, supabase])
 
   useEffect(() => {
