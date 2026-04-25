@@ -165,19 +165,19 @@ A task is `[x]` only when its acceptance check passes:
 
 ## Phase 5 — Server actions (sequential)
 
-- [ ] **T010** [P1] `getEncounterLootDraft` action
+- [x] **T010** [P1] `getEncounterLootDraft` action
   (file: `mat-ucheniya/app/actions/encounter-loot.ts`)
   - Member-read auth gate
   - Returns `LootDraft | null`
   - Lazy-creates an empty draft row on first call (no error if
     insert race with another tab — use upsert with
     `on conflict do nothing` then re-select)
-- [ ] **T011** [P1] `getEncounterLootSummary(encounterId)` query
+- [x] **T011** [P1] `getEncounterLootSummary(encounterId)` query
   (file: `mat-ucheniya/lib/queries/encounter-loot-summary.ts`)
   - Single query for `{rowCount, lastAppliedAt, mirrorNodeId}`
   - Member-read; uses spec-012 partial index
   - Per plan.md `## Server Layer § Queries`
-- [ ] **T012** [P1] `updateEncounterLootDraft` action
+- [x] **T012** [P1] `updateEncounterLootDraft` action
   (file: `mat-ucheniya/app/actions/encounter-loot.ts`)
   - DM-only auth gate (admin client after role check)
   - Zod validation via T008
@@ -185,13 +185,13 @@ A task is `[x]` only when its acceptance check passes:
     'loop_number' | 'day_in_loop'>>`
   - Lifts `updated_at` and `updated_by` (current user id)
   - `revalidatePath` for encounter page only
-- [ ] **T013** [P1] `setAllToStashShortcut` action
+- [x] **T013** [P1] `setAllToStashShortcut` action
   (file: `mat-ucheniya/app/actions/encounter-loot.ts`)
   - DM-only
   - Loads draft, rewrites every line's `recipient_mode='stash'`
     + `recipient_pc_id=null`
   - Returns `{ok: true, updatedLines: N}`
-- [ ] **T014** [P1] `applyEncounterLoot` action
+- [x] **T014** [P1] `applyEncounterLoot` action
   (file: `mat-ucheniya/app/actions/encounter-loot.ts`)
   - DM-only
   - Flow per plan.md `## Server Layer § Server actions`:
