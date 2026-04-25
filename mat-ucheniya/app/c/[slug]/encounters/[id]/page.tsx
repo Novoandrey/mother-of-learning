@@ -179,18 +179,16 @@ export default async function EncounterPage({
       />
 
       {/* Spec-013: encounter loot — DM panel for editors, read-only
-          summary for players. Hidden when status='active'. */}
+          summary for players. Status guard removed in chat 50. */}
       {canEdit ? (
         <EncounterLootPanel
           encounterId={encounter.id}
           campaignId={campaign.id}
-          status={encounter.status}
         />
       ) : (
         <EncounterLootSummaryReadOnly
           encounterId={encounter.id}
           campaignSlug={slug}
-          status={encounter.status}
         />
       )}
     </div>

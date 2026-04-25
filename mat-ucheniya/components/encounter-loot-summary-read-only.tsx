@@ -18,13 +18,12 @@ import { getEncounterLootSummary } from '@/lib/queries/encounter-loot-summary'
 export async function EncounterLootSummaryReadOnly({
   encounterId,
   campaignSlug,
-  status,
 }: {
   encounterId: string
   campaignSlug: string
-  status: 'active' | 'completed'
 }) {
-  if (status === 'active') return null
+  // Status-gating removed in chat 50: see encounter-loot-panel.tsx
+  // for context. Players see the summary regardless of fight status.
 
   const summary = await getEncounterLootSummary(encounterId)
   if (!summary) return null
