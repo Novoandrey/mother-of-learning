@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-25 (chat 48 — spec-012 Phase 11 T040 + Phase 12 close-out)
+> Last updated: 2026-04-25 (chat 49 — spec-013 specify+clarify+plan+tasks, backlog reorg 017-024+)
 
 ## В проде сейчас
 
@@ -145,13 +145,32 @@
 
 ## Следующий приоритет
 
-**Spec-013 Encounter loot distribution** (5й автоген-визард в
-spec-012 инфраструктуре) — ещё нет spec.md. Будет следующей spec'ой
-от пользователя; миграции не нужны (`autogen_*` колонки и триггеры
-с spec-012 покрывают use case как есть).
+**Spec-013 Encounter loot distribution** — Specify+Clarify+Plan+
+Tasks завершены в chat 49. spec.md (918 строк, 5 Clarifications),
+plan.md (1013 строк), tasks.md (411 строк, 37 задач в 9 фазах) в
+`.specify/specs/013-encounter-loot/`. Следующий шаг —
+**Implementation начинается с T001** (verify no `(campaign_id,
+title)` дублей в encounters), потом T002 миграция 039
+(encounter mirror nodes + encounter_loot_drafts table). T004 —
+рискованный refactor spec-012 reconcile в shared
+`lib/autogen-reconcile.ts`, не комбинировать с другими в одном
+PR. Имплементация — в новом чате с чистым контекстом.
 
-**Spec-016 «Сборы»** — только spec.md лежит. Можно начинать Clarify
-phase в отдельном чате.
+**Альтернативная очередность (на случай если 013 не в приоритете):**
+- **Spec-016 «Сборы»** — spec.md есть, ждёт Clarify.
+- **Spec-017 карта мира** — заявлена в backlog, отдельная
+  фундаментальная фича (5-7 дней), не зависит от 013.
+- **Spec-020 правила/хомрулы** — заявлена в backlog, средняя
+  по размеру, может пойти раньше 013 если хочется уйти с
+  «лут на бумажках» вообще.
+
+**Заявлены в backlog (entries есть, spec.md нет):** 017 (карта),
+018 (encounter rework), 019 (DM sandbox), 020 (правила/хомрулы),
+021 (DM session control), 022 (movement timeline), 023 (часы/
+проекты), 024+ (character-sheet/mobile epic). IDEA-045 и
+IDEA-054 помечены `PROMOTED → spec-NNN`. Spec-015 описание
+расширено — каталог-таблица с фильтрами (цена/вес/source/
+редкость/категория) + дедуп typeahead + первичный SRD-сид.
 
 **Параллельный долг (мелкие):**
 - T044 manual walkthrough — 10 Acceptance Scenarios из spec-012
@@ -163,9 +182,10 @@ phase в отдельном чате.
 - IDEA-043 ✅ (chat 44) — collapsed-transfer-row в /accounting.
 - Bulk-edit ещё нет (часть старого IDEA-043) — может всплыть
   отдельно если будет запрос.
-- **IDEA-054 EPIC** — 🗺️ PC↔Location граф, item_location, wipeable
-  локации. Закреплена в backlog'е; forward-compat column map в
-  spec-012 plan.md готова принять её будущие миграции.
+- **IDEA-054 PROMOTED (chat 49)** — 🗺️ PC↔Location граф разъехался
+  на spec-017 (карта) + spec-021 (DM session control + movement
+  events) + spec-022 (timeline view). Историческая запись
+  осталась в backlog'е.
 
 ### Параллельные кандидаты
 
