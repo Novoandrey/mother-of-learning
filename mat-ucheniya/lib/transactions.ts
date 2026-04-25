@@ -22,7 +22,8 @@ export type CoinSet = {
 /** Discriminator: `'money'` / `'item'` / `'transfer'`. */
 export type TransactionKind = 'money' | 'item' | 'transfer';
 
-/** Approval state. Spec-010 writes `'approved'`; spec-014 will use the rest. */
+/** Approval state. Spec-010 writes `'approved'`; spec-014 uses `'pending'`
+ *  for player submissions and `'rejected'` for DM rejections. */
 export type TransactionStatus = 'pending' | 'approved' | 'rejected';
 
 /**
@@ -32,6 +33,12 @@ export type TransactionStatus = 'pending' | 'approved' | 'rejected';
  *  - `kind = 'item'`      ⇒ `coins` is all zeros, `item_name` is non-empty.
  *  - `kind = 'money'`     ⇒ `item_name` is `null`, at least one coin ≠ 0.
  *  - `kind = 'transfer'`  ⇒ `transfer_group_id` is non-null.
+ *
+ * Spec-014 invariants (enforced by `transactions_approval_consistency`
+ * CHECK in migration 042):
+ *  - `status = 'approved'` ⇒ `approved_at` set; rejected_* / rejection_comment null.
+ *  - `status = 'rejected'` ⇒ `rejected_at` set; approved_* null.
+ *  - `status = 'pending'`  ⇒ all audit fields null.
  */
 export type Transaction = {
   id: string;
@@ -55,6 +62,26 @@ export type Transaction = {
   author_user_id: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Spec-014 batch grouping. Non-null for player-authored rows
+   * submitted as a multi-row batch (one batch_id per submission;
+   * shared across all rows of that submission, including both legs
+   * of a transfer if the transfer was part of the batch). Null for
+   * DM-authored auto-approved rows and autogen rows — neither
+   * participates in approval queue grouping.
+   */
+  batch_id: string | null;
+  /**
+   * Spec-014 approval audit. Populated when `status='approved'`.
+   * Nullable user_id tolerates `ON DELETE SET NULL` on auth.users.
+   */
+  approved_by_user_id: string | null;
+  approved_at: string | null;
+  /** Spec-014 rejection audit. Populated when `status='rejected'`. */
+  rejected_by_user_id: string | null;
+  rejected_at: string | null;
+  /** Optional free-text rejection reason (OQ-4). */
+  rejection_comment: string | null;
   /**
    * Spec-012 autogen marker. Non-null for rows produced by an
    * autogen wizard (loop-start wizards in spec-012;
@@ -201,6 +228,13 @@ type TxRawRow = {
   autogen_wizard_key: string | null;
   autogen_source_node_id: string | null;
   autogen_hand_touched: boolean;
+  // spec-014 batch + audit:
+  batch_id: string | null;
+  approved_by_user_id: string | null;
+  approved_at: string | null;
+  rejected_by_user_id: string | null;
+  rejected_at: string | null;
+  rejection_comment: string | null;
 };
 
 function rawToTransaction(raw: TxRawRow): Transaction {
@@ -227,6 +261,12 @@ function rawToTransaction(raw: TxRawRow): Transaction {
     author_user_id: raw.author_user_id,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
+    batch_id: raw.batch_id,
+    approved_by_user_id: raw.approved_by_user_id,
+    approved_at: raw.approved_at,
+    rejected_by_user_id: raw.rejected_by_user_id,
+    rejected_at: raw.rejected_at,
+    rejection_comment: raw.rejection_comment,
     autogen:
       raw.autogen_wizard_key && raw.autogen_source_node_id
         ? {
@@ -264,6 +304,8 @@ const JOIN_SELECT = `
   transfer_group_id, status, author_user_id,
   created_at, updated_at,
   autogen_wizard_key, autogen_source_node_id, autogen_hand_touched,
+  batch_id, approved_by_user_id, approved_at,
+  rejected_by_user_id, rejected_at, rejection_comment,
   actor_pc:nodes!actor_pc_id(title),
   session:nodes!session_id(title, fields)
 `;
