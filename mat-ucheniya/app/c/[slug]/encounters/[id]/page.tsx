@@ -176,21 +176,20 @@ export default async function EncounterPage({
         initialLogEntries={(logEntries ?? []) as unknown as import('@/lib/log-actions').LogEntry[]}
         initialEvents={(eventEntries ?? []) as unknown as import('@/lib/event-actions').EncounterEvent[]}
         canEdit={canEdit}
+        lootSlot={
+          canEdit ? (
+            <EncounterLootPanel
+              encounterId={encounter.id}
+              campaignId={campaign.id}
+            />
+          ) : (
+            <EncounterLootSummaryReadOnly
+              encounterId={encounter.id}
+              campaignSlug={slug}
+            />
+          )
+        }
       />
-
-      {/* Spec-013: encounter loot — DM panel for editors, read-only
-          summary for players. Status guard removed in chat 50. */}
-      {canEdit ? (
-        <EncounterLootPanel
-          encounterId={encounter.id}
-          campaignId={campaign.id}
-        />
-      ) : (
-        <EncounterLootSummaryReadOnly
-          encounterId={encounter.id}
-          campaignSlug={slug}
-        />
-      )}
     </div>
   )
 }
