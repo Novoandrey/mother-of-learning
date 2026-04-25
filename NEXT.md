@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-25 (chat 50 — spec-013 implementation T001-T034)
+> Last updated: 2026-04-25 (chat 51 — spec-014 Specify/Plan/Tasks + Migration 042 + Phase 2)
 
 ## В проде сейчас
 
@@ -173,29 +173,40 @@
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `039_encounter_mirror_and_loot_drafts.sql`
+**Последняя применённая миграция:** `042_approval_flow.sql` (chat 51)
 
 ## Следующий приоритет
 
-**Spec-013 manual acceptance walkthrough** — пройди 4 ручных
-сценария на проде (можно после авто-deploy через Vercel):
-- T030: US1 happy path — пустой draft → apply → нет ошибок;
-  30gp split на 4 PCs → 4 ряда; item на PC; uneven split (31gp/3).
-- T031: US2 reapply — без изменений = 0 writes; смена recipient
-  у одной строки = 1 row delta; добавить строку = 1 insert;
-  убрать строку = 1 delete.
-- T032: US3+US4+US7 — stash recipient + «Всё в общак»; even-split
-  с изменением списка участников между apply'ями; удаление
-  encounter каскадит autogen rows + mirror.
-- T033: US5+US6 — badge tooltip resolves to encounter title +
-  rename propagates без reapply; hand-edit + reapply → confirm
-  dialog → confirm path + cancel path.
+**Spec-014 Approval flow — В РАБОТЕ.** Specify/Clarify/Plan/Tasks
+готовы. Migration 042 накачена в прод. Phase 2 (T004–T006) — типы +
+pure helpers + ~40 тестов закоммичены, **но тесты не прогнаны
+локально** (npm-install корраптил node_modules в конце сессии).
 
-Дополнительно стоит запустить smoke-скрипты в Supabase SQL Editor:
-- `mat-ucheniya/scripts/check-rls-013.sql` (5 RLS-проверок).
-- `mat-ucheniya/scripts/check-encounter-mirror-triggers.sql` (5
-  trigger-проверок).
-Оба обёрнуты в BEGIN...ROLLBACK, ничего на проде не оседает.
+**Pickup для следующего чата:**
+1. Свежий клон (по AGENTS.md).
+2. `cd mat-ucheniya && rm -rf node_modules .next && npm install`.
+3. `npx vitest run lib/__tests__/approval.test.ts` — пофиксить
+   если что-то падает. Вероятность зелёного — высокая, helpers
+   простые.
+4. Продолжить с **T007** (`createTransaction` status-decision
+   по роли + `batch_id` + audit поля при auto-approve).
+
+Чек-лист в `.specify/specs/014-approval-flow/tasks.md`. Сделано:
+T001–T006. Осталось: T007–T044 (38 задач), оценка 3 рабочих дня.
+
+**Ключевые решения spec-014** (для контекста, чтобы не перечитывать
+spec.md и plan.md):
+- Player → `status='pending'`, DM/owner → `status='approved'` сразу.
+- Multi-row форма (player only), submit-as-batch с общим `batch_id`.
+- Withdraw = hard-delete (нет нового статуса). Edit-in-place.
+- Очередь — таб «Очередь» в `/c/[slug]/accounting`, role-filtered.
+- Pending видны всем, не учитываются в балансах. Rejected тоже видны
+  всем, навсегда.
+- Concurrent edit detection — через `WHERE updated_at = ?` gate.
+- DM-бейдж в nav-tabs; player-toast при заходе на /accounting.
+
+**После spec-014** — IDEA-055 (DM rename/delete на encounter page,
+~30 мин), потом по бэклогу.
 
 **После spec-013** — IDEA-055 (DM controls на encounter page —
 rename + delete кнопки, ~30 минут), потом основные кандидаты:
