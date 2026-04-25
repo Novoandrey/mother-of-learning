@@ -221,6 +221,14 @@ async function loadStashItemLegs(
   const supabase = await createClient();
 
   // Step 1 — stash-actor item legs in this loop.
+  // Include rows from two paths:
+  //   (a) transfer-group pairs (PC ↔ stash drops) — `transfer_group_id`
+  //       is non-null, sibling PC leg lives in the same group.
+  //   (b) autogen rows (e.g. spec-013 encounter loot to stash) —
+  //       single-leg writes tagged with `autogen_wizard_key`. No
+  //       sibling PC, so droppedBy stays null in the row shape.
+  // The PostgREST `.or()` chain expresses this as a single WHERE
+  // (transfer_group_id IS NOT NULL OR autogen_wizard_key IS NOT NULL).
   const { data: legRows, error: legsErr } = await supabase
     .from('transactions')
     .select(
@@ -236,7 +244,7 @@ async function loadStashItemLegs(
     .eq('loop_number', loopNumber)
     .eq('kind', 'item')
     .eq('status', 'approved')
-    .not('transfer_group_id', 'is', null);
+    .or('transfer_group_id.not.is.null,autogen_wizard_key.not.is.null');
 
   if (legsErr) {
     throw new Error(`loadStashItemLegs (legs) failed: ${legsErr.message}`);
