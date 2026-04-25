@@ -384,17 +384,15 @@ export async function applyEncounterLoot(
   const access = await resolveEncounterAccess(encounterId, 'dm')
   if (!access.ok) return { ok: false, error: access.error }
 
-  const { campaignId, campaignSlug, mirrorNodeId, status } = access.access
+  const { campaignId, campaignSlug, mirrorNodeId } = access.access
 
-  // Apply-time encounter status guard (per plan.md Validation Rules).
-  // Mirrors the panel's hide-when-active rule (FR-010); the action
-  // also gates so direct calls can't bypass.
-  if (status !== 'completed') {
-    return {
-      ok: false,
-      error: 'Лут можно применить только после завершения энкаунтера',
-    }
-  }
+  // Note: spec originally gated apply on `status === 'completed'`
+  // (FR-010), but there's no UI to flip status from the encounter
+  // page and DMs reasonably want to distribute loot mid-fight or
+  // before formally closing the encounter. Status guard removed in
+  // chat 50 polish. The panel + summary stay visible regardless of
+  // status; flipping status remains an internal field for the
+  // tracker's «Завершён» badge.
 
   // ── Step 2: load draft + validate ──
   const draft = await getEncounterLootDraft(encounterId)

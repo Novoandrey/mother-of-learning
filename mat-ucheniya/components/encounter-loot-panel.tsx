@@ -26,24 +26,14 @@ import { EncounterLootEditor } from './encounter-loot-editor'
 export async function EncounterLootPanel({
   encounterId,
   campaignId,
-  status,
 }: {
   encounterId: string
   campaignId: string
-  status: 'active' | 'completed'
 }) {
-  if (status === 'active') {
-    return (
-      <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <h3 className="text-sm font-medium text-gray-700 mb-1">
-          Распределение лута
-        </h3>
-        <p className="text-xs text-gray-500">
-          Доступно после завершения боя.
-        </p>
-      </section>
-    )
-  }
+  // Note: previously hid behind status==='active' (spec FR-010), but
+  // status flipping has no UI affordance and DMs reasonably want to
+  // distribute loot mid-fight. Panel always renders for DMs; the
+  // "fight in progress" is conveyed by the tracker grid above.
 
   // Parallel loads: draft (lazy-creates), summary, participants, stash.
   const [draft, summary, participants, stash] = await Promise.all([
