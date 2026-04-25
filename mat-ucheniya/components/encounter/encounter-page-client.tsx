@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react'
 import { EncounterGrid, type CatalogNode, type EncounterGridHandle, type Participant } from './encounter-grid'
 import { EncounterLog } from './encounter-log'
-import { EncounterCatalogPanel } from './encounter-catalog-panel'
 import { StatblockPanel } from './statblock/statblock-panel'
 import { type PickerParticipant } from './statblock/target-picker-dialog'
 import { type ResolveResult } from './statblock/action-resolve-dialog'
@@ -18,7 +17,7 @@ import {
   type EventResult,
   type TimelineItem,
 } from '@/lib/event-actions'
-import { Swords, BookOpen } from 'lucide-react'
+import { Swords, Coins } from 'lucide-react'
 
 type Props = {
   encounter: {
@@ -49,9 +48,16 @@ type Props = {
    * explaining why the click did nothing.
    */
   canEdit: boolean
+  /**
+   * Right-side panel slot for the «Лут» tab. Server-rendered upstream
+   * (encounter loot panel for DM, read-only summary for players) and
+   * passed in here as a ReactNode so this client component can render
+   * server children without hoisting fetch logic.
+   */
+  lootSlot?: ReactNode
 }
 
-type RightTab = 'statblock' | 'catalog'
+type RightTab = 'statblock' | 'loot'
 
 export function EncounterPageClient({
   encounter,
@@ -65,6 +71,7 @@ export function EncounterPageClient({
   initialLogEntries,
   initialEvents,
   canEdit,
+  lootSlot,
 }: Props) {
   const [logEntries, setLogEntries] = useState(initialLogEntries)
   const [events, setEvents] = useState(initialEvents)
@@ -146,10 +153,6 @@ export function EncounterPageClient({
       console.error('Auto-event failed:', e)
     }
   }, [encounter.id])
-
-  const handlePanelAdd = useCallback((nodeId: string, displayName: string, maxHp: number, qty: number) => {
-    gridRef.current?.addFromCatalogExternal(nodeId, displayName, maxHp, qty)
-  }, [])
 
   // ── Counter persistence ─────────────────────────────────────────────
   const persistCounter = useCallback(
@@ -441,17 +444,17 @@ export function EncounterPageClient({
           <button
             type="button"
             role="tab"
-            aria-selected={rightTab === 'catalog'}
-            onClick={() => setRightTab('catalog')}
+            aria-selected={rightTab === 'loot'}
+            onClick={() => setRightTab('loot')}
             className="flex flex-1 items-center justify-center gap-1.5 rounded py-1.5 text-[12px] font-medium transition-colors"
             style={{
-              background: rightTab === 'catalog' ? '#fff' : 'transparent',
-              color: rightTab === 'catalog' ? 'var(--gray-900)' : 'var(--fg-3)',
-              boxShadow: rightTab === 'catalog' ? 'var(--shadow-sm)' : 'none',
+              background: rightTab === 'loot' ? '#fff' : 'transparent',
+              color: rightTab === 'loot' ? 'var(--gray-900)' : 'var(--fg-3)',
+              boxShadow: rightTab === 'loot' ? 'var(--shadow-sm)' : 'none',
             }}
           >
-            <BookOpen size={13} strokeWidth={1.5} />
-            Каталог
+            <Coins size={13} strokeWidth={1.5} />
+            Лут
           </button>
         </div>
 
@@ -506,7 +509,16 @@ export function EncounterPageClient({
             </div>
           )
         ) : (
-          <EncounterCatalogPanel nodes={catalogNodes} onAdd={handlePanelAdd} disabled={done} />
+          lootSlot ?? (
+            <div
+              className="w-full rounded-lg border bg-white p-4 text-center"
+              style={{ borderColor: 'var(--gray-200)' }}
+            >
+              <div className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+                Лут недоступен.
+              </div>
+            </div>
+          )
         )}
       </div>
     </div>
