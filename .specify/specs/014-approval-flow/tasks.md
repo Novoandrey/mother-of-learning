@@ -316,14 +316,14 @@
 
 ## Phase 11 — Manual acceptance walkthrough (post-deploy)
 
-- [ ] **T036 [P1]** Walkthrough AS1–AS6 (single-row player flow):
+- [x] **T036 [P1]** Walkthrough AS1–AS6 (single-row player flow):
   player submits → wallet unchanged → row in queue with pending
   marker; DM approves → wallet updates; DM rejects with comment
   → row marked rejected with comment visible; DM edits-then-
   approves → updated values land; player withdraws → row gone;
   player edits → updated values reflect.
 
-- [ ] **T037 [P1]** Walkthrough AS7, AS13–AS16 (batch + transfer):
+- [x] **T037 [P1]** Walkthrough AS7, AS13–AS16 (batch + transfer):
   player drops to stash → pair pending; player submits 3-row
   batch → all 3 in queue grouped; DM partial-approves → mixed
   state, batch shows in queue with only pending row actionable;
@@ -345,22 +345,22 @@
 
 ## Phase 12 — Close-out
 
-- [ ] **T040 [P1]** Run `npm run lint` + `npx tsc --noEmit` +
+- [x] **T040 [P1]** Run `npm run lint` + `npx tsc --noEmit` +
   `npx vitest run`. Fix any breakage. Expect: lint 0/0,
   vitest passes (existing 199 + 25–30 new from T006), build
   clean.
 
-- [ ] **T041 [P1]** Update `NEXT.md`: move spec-014 to "В проде"
+- [x] **T041 [P1]** Update `NEXT.md`: move spec-014 to "В проде"
   with a chat-like summary (migrations, key components, test
   count); update "Следующий приоритет" to next item in backlog.
 
-- [ ] **T042 [P1]** Update `backlog.md` only if new bugs / ideas
+- [x] **T042 [P1]** Update `backlog.md` only if new bugs / ideas
   surfaced during implementation.
 
-- [ ] **T043 [P1]** Add `chatlog/2026-04-25-chatNN-spec-014-approval-flow.md`
+- [x] **T043 [P1]** Add `chatlog/2026-04-25-chatNN-spec-014-approval-flow.md`
   per `chatlog/README.md` template.
 
-- [ ] **T044 [P1]** Commit + push. Verify Vercel auto-deploy. URL
+- [x] **T044 [P1]** Commit + push. Verify Vercel auto-deploy. URL
   for the user.
 
 ---
