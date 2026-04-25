@@ -27,10 +27,13 @@
 export type LootLineId = string
 
 /**
- * Coin reward line. Recipient mode controls how the line expands at
- * resolve time: `'pc'` → one row, `'stash'` → one row to the campaign
- * stash, `'split_evenly'` → N rows distributed across the encounter
- * participants with floor-cp + remainder rule (see `coin-split.ts`).
+ * Coin reward line — chat-50 polish: a coin line is just a *record*
+ * of money that dropped (with an optional free-text `comment` like
+ * «Тела пауков»). Distribution of the total summed money happens
+ * once, globally, via `LootDraft.money_distribution_*` — not per
+ * line. The `comment` is editor-only metadata for record-keeping
+ * within the encounter; it does not propagate to the ledger and
+ * does not act as a distinguishing key for reconcile.
  */
 export type CoinLine = {
   id: LootLineId
@@ -39,9 +42,11 @@ export type CoinLine = {
   sp: number
   gp: number
   pp: number
-  recipient_mode: 'pc' | 'stash' | 'split_evenly'
-  /** Required when `recipient_mode='pc'`; null otherwise. */
-  recipient_pc_id: string | null
+  /**
+   * Optional free-text label like «Тела пауков», «Сундук». Visible
+   * only in the encounter-loot panel — not in the ledger.
+   */
+  comment?: string
 }
 
 /**
@@ -68,6 +73,11 @@ export type ItemLine = {
 
 export type LootLine = CoinLine | ItemLine
 
+export type MoneyDistribution =
+  | { mode: 'stash'; pc_id: null }
+  | { mode: 'pc'; pc_id: string }
+  | { mode: 'split_evenly'; pc_id: null }
+
 /**
  * The full draft row as stored in `encounter_loot_drafts`. The action
  * layer hydrates this from the DB and persists it back; the resolver
@@ -78,6 +88,12 @@ export type LootDraft = {
   lines: LootLine[]
   loop_number: number | null
   day_in_loop: number | null
+  /**
+   * Spec-013 chat-50 — how the summed total of all coin lines is
+   * distributed on apply. One choice for the whole draft, not per
+   * line.
+   */
+  money_distribution: MoneyDistribution
   updated_by: string | null
   created_at: string
   updated_at: string

@@ -6,6 +6,7 @@ import type {
   ItemLine,
   LootDraft,
   LootLine,
+  MoneyDistribution,
 } from '../encounter-loot-types'
 
 const STASH = 'stash-node-id'
@@ -14,19 +15,23 @@ const PC2 = 'pc-id-2'
 const PC3 = 'pc-id-3'
 const PC4 = 'pc-id-4'
 
-function draft(lines: LootLine[]): LootDraft {
+function draft(
+  lines: LootLine[],
+  money_distribution: MoneyDistribution = { mode: 'stash', pc_id: null },
+): LootDraft {
   return {
     encounter_id: 'enc-id',
     lines,
     loop_number: 3,
     day_in_loop: 5,
+    money_distribution,
     updated_by: null,
     created_at: '2026-04-25T00:00:00Z',
     updated_at: '2026-04-25T00:00:00Z',
   }
 }
 
-function coin(props: Partial<CoinLine> & Pick<CoinLine, 'recipient_mode'>): CoinLine {
+function coin(props: Partial<CoinLine> = {}): CoinLine {
   return {
     id: props.id ?? `cl-${Math.random()}`,
     kind: 'coin',
@@ -34,8 +39,7 @@ function coin(props: Partial<CoinLine> & Pick<CoinLine, 'recipient_mode'>): Coin
     sp: props.sp ?? 0,
     gp: props.gp ?? 0,
     pp: props.pp ?? 0,
-    recipient_mode: props.recipient_mode,
-    recipient_pc_id: props.recipient_pc_id ?? null,
+    ...(props.comment !== undefined ? { comment: props.comment } : {}),
   }
 }
 
@@ -61,11 +65,12 @@ describe('resolveEncounterLootDesiredRows', () => {
     ).toEqual([])
   })
 
-  it('single coin line, recipient=pc → 1 row', () => {
+  it('coin lines + money_distribution=pc → 1 row to that PC', () => {
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 10, recipient_mode: 'pc', recipient_pc_id: PC1 }),
-      ]),
+      draft: draft(
+        [coin({ gp: 10 })],
+        { mode: 'pc', pc_id: PC1 },
+      ),
       participantPcIds: [PC1, PC2],
       stashNodeId: STASH,
     })
@@ -74,11 +79,9 @@ describe('resolveEncounterLootDesiredRows', () => {
     ])
   })
 
-  it('single coin line, recipient=stash → 1 row to stashNodeId', () => {
+  it('coin lines + money_distribution=stash → 1 row to stashNodeId', () => {
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 25, recipient_mode: 'stash' }),
-      ]),
+      draft: draft([coin({ gp: 25 })], { mode: 'stash', pc_id: null }),
       participantPcIds: [PC1, PC2, PC3],
       stashNodeId: STASH,
     })
@@ -87,11 +90,12 @@ describe('resolveEncounterLootDesiredRows', () => {
     ])
   })
 
-  it('single coin line, recipient=split_evenly with 4 PCs → 4 rows summing to total', () => {
+  it('split_evenly with 4 PCs → 4 rows summing to total', () => {
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 40, recipient_mode: 'split_evenly' }),
-      ]),
+      draft: draft(
+        [coin({ gp: 40 })],
+        { mode: 'split_evenly', pc_id: null },
+      ),
       participantPcIds: [PC1, PC2, PC3, PC4],
       stashNodeId: STASH,
     })
@@ -102,16 +106,16 @@ describe('resolveEncounterLootDesiredRows', () => {
       return s + r.cp + 10 * r.sp + 100 * r.gp + 1000 * r.pp
     }, 0)
     expect(totalCp).toBe(4000)
-    // First PC in input order is first recipient.
     expect(result[0].actor_pc_id).toBe(PC1)
     expect(result[3].actor_pc_id).toBe(PC4)
   })
 
   it('uneven split (31gp / 3 PCs) → exact remainder distribution', () => {
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 31, recipient_mode: 'split_evenly' }),
-      ]),
+      draft: draft(
+        [coin({ gp: 31 })],
+        { mode: 'split_evenly', pc_id: null },
+      ),
       participantPcIds: [PC1, PC2, PC3],
       stashNodeId: STASH,
     })
@@ -126,48 +130,53 @@ describe('resolveEncounterLootDesiredRows', () => {
     ])
   })
 
-  it('mixed PC + stash + split → all rows correct', () => {
+  it('multiple coin lines sum into one bucket regardless of comment', () => {
+    // chat-50: comments are editor metadata, not distinguishing keys.
+    // Two coin lines with different comments to the same PC produce
+    // ONE merged row (sum of denominations).
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 10, recipient_mode: 'pc', recipient_pc_id: PC1 }),
-        coin({ gp: 5, recipient_mode: 'stash' }),
-        coin({ gp: 6, recipient_mode: 'split_evenly' }),
-      ]),
-      participantPcIds: [PC1, PC2],
-      stashNodeId: STASH,
-    })
-    // PC1 line: +10gp to PC1 (will merge with split share later)
-    // Stash line: +5gp to stash
-    // Split: 6gp / 2 = 3gp each → +3gp to PC1, +3gp to PC2
-    // After merge: PC1 = 13gp, PC2 = 3gp, STASH = 5gp
-    expect(result).toHaveLength(3)
-    const byActor = new Map(result.map((r) => [r.actor_pc_id, r]))
-    expect(byActor.get(PC1)).toEqual({
-      kind: 'money', actor_pc_id: PC1, cp: 0, sp: 0, gp: 13, pp: 0,
-    })
-    expect(byActor.get(PC2)).toEqual({
-      kind: 'money', actor_pc_id: PC2, cp: 0, sp: 0, gp: 3, pp: 0,
-    })
-    expect(byActor.get(STASH)).toEqual({
-      kind: 'money', actor_pc_id: STASH, cp: 0, sp: 0, gp: 5, pp: 0,
-    })
-  })
-
-  it('merge: two coin lines for same PC → 1 row summed', () => {
-    const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 10, recipient_mode: 'pc', recipient_pc_id: PC1 }),
-        coin({ gp: 5, sp: 3, recipient_mode: 'pc', recipient_pc_id: PC1 }),
-      ]),
+      draft: draft(
+        [
+          coin({ gp: 30, comment: 'Тела пауков' }),
+          coin({ gp: 50, comment: 'Сундук' }),
+        ],
+        { mode: 'pc', pc_id: PC1 },
+      ),
       participantPcIds: [],
       stashNodeId: STASH,
     })
     expect(result).toEqual([
-      { kind: 'money', actor_pc_id: PC1, cp: 0, sp: 3, gp: 15, pp: 0 },
+      { kind: 'money', actor_pc_id: PC1, cp: 0, sp: 0, gp: 80, pp: 0 },
     ])
   })
 
-  it('merge: two item lines, same name + same recipient → 1 row qty summed', () => {
+  it('money + items: items use per-line recipient, money uses global', () => {
+    const result = resolveEncounterLootDesiredRows({
+      draft: draft(
+        [
+          coin({ gp: 10 }),
+          item({ name: 'shield', qty: 1, recipient_mode: 'pc', recipient_pc_id: PC1 }),
+          item({ name: 'rope', qty: 5, recipient_mode: 'stash' }),
+        ],
+        { mode: 'split_evenly', pc_id: null },
+      ),
+      participantPcIds: [PC1, PC2],
+      stashNodeId: STASH,
+    })
+    // Money: 10gp split across PC1+PC2 → 5gp each
+    // Items: shield → PC1, rope → STASH
+    expect(result).toHaveLength(4)
+    expect(result.find((r) => r.kind === 'money' && r.actor_pc_id === PC1))
+      .toEqual({ kind: 'money', actor_pc_id: PC1, cp: 0, sp: 0, gp: 5, pp: 0 })
+    expect(result.find((r) => r.kind === 'money' && r.actor_pc_id === PC2))
+      .toEqual({ kind: 'money', actor_pc_id: PC2, cp: 0, sp: 0, gp: 5, pp: 0 })
+    expect(result.find((r) => r.kind === 'item' && r.actor_pc_id === PC1))
+      .toEqual({ kind: 'item', actor_pc_id: PC1, item_name: 'shield', item_qty: 1 })
+    expect(result.find((r) => r.kind === 'item' && r.actor_pc_id === STASH))
+      .toEqual({ kind: 'item', actor_pc_id: STASH, item_name: 'rope', item_qty: 5 })
+  })
+
+  it('merge: two item lines with same (actor, name) → 1 row qty summed', () => {
     const result = resolveEncounterLootDesiredRows({
       draft: draft([
         item({ name: 'longsword', qty: 1, recipient_mode: 'pc', recipient_pc_id: PC1 }),
@@ -201,55 +210,67 @@ describe('resolveEncounterLootDesiredRows', () => {
 
   it('coin and item to same PC → both rows present (different kind)', () => {
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 5, recipient_mode: 'pc', recipient_pc_id: PC1 }),
-        item({ name: 'shield', qty: 1, recipient_mode: 'pc', recipient_pc_id: PC1 }),
-      ]),
+      draft: draft(
+        [
+          coin({ gp: 5 }),
+          item({ name: 'shield', qty: 1, recipient_mode: 'pc', recipient_pc_id: PC1 }),
+        ],
+        { mode: 'pc', pc_id: PC1 },
+      ),
       participantPcIds: [],
       stashNodeId: STASH,
     })
     expect(result).toHaveLength(2)
+    expect(result.find((r) => r.kind === 'money')).toEqual({
+      kind: 'money', actor_pc_id: PC1, cp: 0, sp: 0, gp: 5, pp: 0,
+    })
+    expect(result.find((r) => r.kind === 'item')).toEqual({
+      kind: 'item', actor_pc_id: PC1, item_name: 'shield', item_qty: 1,
+    })
   })
 
-  it('split_evenly with 0 participants → line skipped silently', () => {
+  it('split_evenly with 0 participants → money silently skipped, items survive', () => {
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 10, recipient_mode: 'split_evenly' }),
-        coin({ gp: 5, recipient_mode: 'pc', recipient_pc_id: PC1 }),
-      ]),
+      draft: draft(
+        [
+          coin({ gp: 10 }),
+          item({ name: 'boots', qty: 1, recipient_mode: 'pc', recipient_pc_id: PC1 }),
+        ],
+        { mode: 'split_evenly', pc_id: null },
+      ),
       participantPcIds: [],
       stashNodeId: STASH,
     })
-    // The split line is dropped, the PC line survives.
+    // Money line dropped (no participants), item line survives.
     expect(result).toEqual([
-      { kind: 'money', actor_pc_id: PC1, cp: 0, sp: 0, gp: 5, pp: 0 },
+      { kind: 'item', actor_pc_id: PC1, item_name: 'boots', item_qty: 1 },
     ])
   })
 
-  it('coin line with null recipient_pc_id but mode=pc → dropped silently', () => {
-    // Defence in depth — validation should reject this at write time.
+  it('money_distribution=pc with null pc_id → money silently dropped', () => {
+    // Defence in depth — validation should reject this upstream.
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ gp: 10, recipient_mode: 'pc', recipient_pc_id: null }),
-      ]),
+      draft: {
+        ...draft([coin({ gp: 10 })]),
+        // @ts-expect-error — intentionally invalid shape for the test
+        money_distribution: { mode: 'pc', pc_id: null },
+      },
       participantPcIds: [PC1],
       stashNodeId: STASH,
     })
     expect(result).toEqual([])
   })
 
-  it('zero-amount coin line dropped after merge', () => {
+  it('zero-amount coin → no money row', () => {
     const result = resolveEncounterLootDesiredRows({
-      draft: draft([
-        coin({ recipient_mode: 'pc', recipient_pc_id: PC1 }),
-      ]),
+      draft: draft([coin({})]),
       participantPcIds: [],
       stashNodeId: STASH,
     })
     expect(result).toEqual([])
   })
 
-  it('zero-qty item line dropped after merge', () => {
+  it('zero-qty item dropped after merge', () => {
     const result = resolveEncounterLootDesiredRows({
       draft: draft([
         item({ name: 'boots', qty: 0, recipient_mode: 'pc', recipient_pc_id: PC1 }),
