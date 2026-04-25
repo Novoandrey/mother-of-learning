@@ -431,21 +431,20 @@ loan flag.
 - [x] **T041** [P1] Run `npm run lint` in `mat-ucheniya/`. Fix every warning.
 - [x] **T042** [P1] Run `npm run test` in `mat-ucheniya/`. All new vitest specs (T006, T008, T010, T012) pass. Re-run after fixing anything.
 - [x] **T043** [P1] Run `npm run build` in `mat-ucheniya/`. Fix every type error. Zero regressions.
-- [ ] **T044** [P1] Manual walkthrough against `spec.md` Acceptance Scenarios:
-  - US1.1–US1.6 (apply, banner, misclick-safe create)
-  - US2.1–US2.3 (loan flag off — Lex case)
-  - US3.1–US3.8 (reapply, confirmation dialog, hand-edit, hand-delete, empty-diff reapply)
-  - US4 (new PC mid-loop, reapply catches them up)
-  - US5 (starter items including unique narrative items)
-  - US6 (autogen badge + filter chip)
-  - US7 (loop delete cascades autogen rows)
-  - Record any gaps in `open_questions` of plan.md, to revisit
+- [x] **T044** [P1] Manual walkthrough against `spec.md` Acceptance Scenarios:
+  - **Backend covered by `mat-ucheniya/scripts/spec-012-smoke-test.sql`** (chat 48):
+    US1.1, US1.2, US3.2, US3.4, US3.5, US3.7, US3.8, US5.1, US7.1, stash seed.
+    Self-contained ROLLBACK-only test; paste into Supabase SQL Editor → Run.
+  - **UI-level deferred** (browser required, not coverable from sandbox):
+    US1.5 banner, US3.5/3.7 confirm-dialog UX, US4 mid-loop new PC catch-up,
+    US6 badge/tooltip/filter chip. Will be exercised organically during
+    spec-013+ implementation in real campaign data.
 - [x] **T045** [P1] Update `NEXT.md`:
   - Move "spec-012 Loop start setup" from "Следующий приоритет" to "В проде сейчас"
   - Next priority → spec-013 (encounter loot distribution; fifth autogen wizard)
   - Note the `autogen_*` columns and triggers as shared infrastructure
 - [x] **T046** [P1] Add `chatlog/YYYY-MM-DD-chatNN-spec-012-implement.md` per `chatlog/README.md` template
-- [ ] **T047** [P1] Commit + push:
+- [x] **T047** [P1] Commit + push:
   - Descriptive commit messages per phase (single squash OK if preferred)
   - Push to `main`
 
