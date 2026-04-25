@@ -2,7 +2,7 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-25 (chat 49 — spec-013 specify+clarify+plan+tasks, backlog reorg 017-024+)
+> Last updated: 2026-04-25 (chat 50 — spec-013 implementation T001-T034)
 
 ## В проде сейчас
 
@@ -124,6 +124,38 @@
   чистый. Spec-013 (encounter loot — 5й автоген-визард) переиспользует
   `autogen_*` инфраструктуру без миграций.
 - **Статблоки монстров** (без папки спеки): миграции `013`-`014`, `018`-`020`, `023`
+- **spec-013 Encounter loot distribution (chat 50)** — _полностью в
+  проде_. Миграция 039: 1 mirror-node infra (encounter node_type +
+  encounters.node_id + 3 триггера create/sync/delete) + 1 таблица
+  `encounter_loot_drafts` + RLS. T004 (carve-out): извлёк
+  `computeAutogenDiff` + `applyAutogenDiff` из spec-012 в
+  `lib/autogen-reconcile.ts` — обе спеки используют общий reconcile
+  core. Phase 4 pure helpers: `lib/encounter-loot-types.ts`,
+  `lib/coin-split.ts` (floor-cp + remainder + greedy denominations,
+  14 тестов), `lib/encounter-loot-resolver.ts` (15 тестов),
+  `lib/encounter-loot-validation.ts` (35 тестов hand-rolled —
+  следует codebase-конвенции, без zod). Phase 5 actions
+  (`app/actions/encounter-loot.ts`): `getEncounterLootDraft`
+  (lazy-create через upsert), `updateEncounterLootDraft`,
+  `setAllToStashShortcut`, `applyEncounterLoot` (полный reconcile с
+  bridge encounter-loot → spec-012 DesiredRow shape, two-phase
+  confirm, ручная очистка encounter_loot tombstones — RPC хардкодит
+  spec-012 keys). Phase 6 UI: `<EncounterLootSummaryReadOnly>` для
+  игроков (3 состояния, link на `/accounting?autogen=only&source=...`),
+  `<EncounterLootPanel>` server frame (DM-only, hides on active
+  status), `<EncounterLootEditor>` client island (consolidated:
+  day picker + coin/item rows + recipient picker single-select +
+  live split preview + debounced save 300ms + apply + confirm
+  dialog + «Всё в общак»). Mounted на encounter page. Phase 7
+  filters: encounter mirrors отрезаны из sidebar
+  (`lib/sidebar-cache.ts`), catalog grid + chip
+  (`app/c/[slug]/catalog/page.tsx`), edge-creation typeahead
+  (`components/create-edge-form.tsx`). T023: `encounter_loot:
+  'Лут энкаунтера'` добавлен в оба `Record<WizardKey, string>`
+  map'а. SQL smoke-скрипты `check-rls-013.sql` +
+  `check-encounter-mirror-triggers.sql` (5+5 проверок каждый,
+  обёрнуты в BEGIN...ROLLBACK) — запускаются через Supabase
+  Dashboard. 199/199 vitest, lint 0/0, next build clean.
 - **Excel-like grid энкаунтера**: рестайл на design tokens, AC+death saves, PillEditor
 - **Markdown + Летопись**: миграции `011`, `015`-`017`
 - **Факультативы**: миграция `029`
@@ -141,41 +173,49 @@
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `038_apply_starter_setup_rpc.sql`
+**Последняя применённая миграция:** `039_encounter_mirror_and_loot_drafts.sql`
 
 ## Следующий приоритет
 
-**Spec-013 Encounter loot distribution** — Specify+Clarify+Plan+
-Tasks завершены в chat 49. spec.md (918 строк, 5 Clarifications),
-plan.md (1013 строк), tasks.md (411 строк, 37 задач в 9 фазах) в
-`.specify/specs/013-encounter-loot/`. Следующий шаг —
-**Implementation начинается с T001** (verify no `(campaign_id,
-title)` дублей в encounters), потом T002 миграция 039
-(encounter mirror nodes + encounter_loot_drafts table). T004 —
-рискованный refactor spec-012 reconcile в shared
-`lib/autogen-reconcile.ts`, не комбинировать с другими в одном
-PR. Имплементация — в новом чате с чистым контекстом.
+**Spec-013 manual acceptance walkthrough** — пройди 4 ручных
+сценария на проде (можно после авто-deploy через Vercel):
+- T030: US1 happy path — пустой draft → apply → нет ошибок;
+  30gp split на 4 PCs → 4 ряда; item на PC; uneven split (31gp/3).
+- T031: US2 reapply — без изменений = 0 writes; смена recipient
+  у одной строки = 1 row delta; добавить строку = 1 insert;
+  убрать строку = 1 delete.
+- T032: US3+US4+US7 — stash recipient + «Всё в общак»; even-split
+  с изменением списка участников между apply'ями; удаление
+  encounter каскадит autogen rows + mirror.
+- T033: US5+US6 — badge tooltip resolves to encounter title +
+  rename propagates без reapply; hand-edit + reapply → confirm
+  dialog → confirm path + cancel path.
 
-**Альтернативная очередность (на случай если 013 не в приоритете):**
+Дополнительно стоит запустить smoke-скрипты в Supabase SQL Editor:
+- `mat-ucheniya/scripts/check-rls-013.sql` (5 RLS-проверок).
+- `mat-ucheniya/scripts/check-encounter-mirror-triggers.sql` (5
+  trigger-проверок).
+Оба обёрнуты в BEGIN...ROLLBACK, ничего на проде не оседает.
+
+**После spec-013** — IDEA-055 (DM controls на encounter page —
+rename + delete кнопки, ~30 минут), потом основные кандидаты:
 - **Spec-016 «Сборы»** — spec.md есть, ждёт Clarify.
 - **Spec-017 карта мира** — заявлена в backlog, отдельная
-  фундаментальная фича (5-7 дней), не зависит от 013.
+  фундаментальная фича (5-7 дней).
 - **Spec-020 правила/хомрулы** — заявлена в backlog, средняя
-  по размеру, может пойти раньше 013 если хочется уйти с
-  «лут на бумажках» вообще.
+  по размеру.
 
 **Заявлены в backlog (entries есть, spec.md нет):** 017 (карта),
 018 (encounter rework), 019 (DM sandbox), 020 (правила/хомрулы),
 021 (DM session control), 022 (movement timeline), 023 (часы/
-проекты), 024+ (character-sheet/mobile epic). IDEA-045 и
-IDEA-054 помечены `PROMOTED → spec-NNN`. Spec-015 описание
-расширено — каталог-таблица с фильтрами (цена/вес/source/
-редкость/категория) + дедуп typeahead + первичный SRD-сид.
+проекты), 024+ (character-sheet/mobile epic). IDEA-055 (DM
+encounter controls) — новая в chat 50.
 
 **Параллельный долг (мелкие):**
 - T044 manual walkthrough — 10 Acceptance Scenarios из spec-012
   spec.md в проде. Я (Claude) автоматизировать не могу, проверка
   вручную DM'ом.
+- IDEA-055 DM rename/delete кнопки (после spec-013).
 
 ### Последняя строка хвостов
 
