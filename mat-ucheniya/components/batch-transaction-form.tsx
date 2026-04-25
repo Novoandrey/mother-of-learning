@@ -108,8 +108,8 @@ export default function BatchTransactionForm({
   const router = useRouter()
   const firstActor =
     initialActorPcId ?? availablePcs[0]?.id ?? null
-  const firstActorDay =
-    (firstActor && defaultDayByPcId[firstActor]) ?? 1
+  const firstActorDay: number =
+    (firstActor !== null ? defaultDayByPcId[firstActor] : undefined) ?? 1
 
   const [rows, setRows] = useState<RowState[]>(() => [
     makeBlankRow(firstActor, firstActorDay),
@@ -121,11 +121,16 @@ export default function BatchTransactionForm({
 
   const addRow = useCallback(() => {
     setRows((prev) => {
-      const lastActor = prev[prev.length - 1]?.actorPcId ?? firstActor ?? ''
-      const day = (lastActor && defaultDayByPcId[lastActor]) ?? prev[prev.length - 1]?.dayInLoop ?? 1
-      return [...prev, makeBlankRow(lastActor, day)]
+      const lastActor: string =
+        prev[prev.length - 1]?.actorPcId || firstActor || ''
+      const fallbackDay =
+        prev[prev.length - 1]?.dayInLoop ?? firstActorDay
+      const day: number =
+        (lastActor !== '' ? defaultDayByPcId[lastActor] : undefined) ??
+        fallbackDay
+      return [...prev, makeBlankRow(lastActor || null, day)]
     })
-  }, [firstActor, defaultDayByPcId])
+  }, [firstActor, firstActorDay, defaultDayByPcId])
 
   const removeRow = useCallback((clientId: string) => {
     setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.clientId !== clientId)))
