@@ -48,13 +48,64 @@ export function splitCoinsEvenly(
   const baseCpPer = Math.floor(totalCp / recipientCount)
   const remainder = totalCp - baseCpPer * recipientCount
 
+  // Pick the denomination floor for the split based on the user's
+  // input shape: if DM entered everything in gp (cp/sp/pp all zero),
+  // we want to *keep* gp and only spill remainder into smaller denoms.
+  // The greedy form (which normalises 25gp → 2pp 5gp) confused users
+  // who wrote the input in gp and saw the preview re-shaped into pp.
+  //
+  //   - originalDenom 'pp': start at pp, then gp/sp/cp
+  //   - originalDenom 'gp': cap at gp (don't roll up to pp)
+  //   - originalDenom 'sp': cap at sp
+  //   - originalDenom 'cp': cap at cp (rare, but symmetric)
+  //
+  // Tie-break: highest non-zero denomination in the input.
+  const originalDenom = inputCeiling(totals)
+
   const out: CoinTotals[] = []
   for (let i = 0; i < recipientCount; i++) {
     // First `remainder` recipients get one extra cp.
     const cpForThis = baseCpPer + (i < remainder ? 1 : 0)
-    out.push(greedyDenominations(cpForThis))
+    out.push(denomCappedSplit(cpForThis, originalDenom))
   }
   return out
+}
+
+type Denom = 'cp' | 'sp' | 'gp' | 'pp'
+
+function inputCeiling(totals: CoinTotals): Denom {
+  if (totals.pp > 0) return 'pp'
+  if (totals.gp > 0) return 'gp'
+  if (totals.sp > 0) return 'sp'
+  if (totals.cp > 0) return 'cp'
+  return 'gp' // empty input — default to gp shape (most common case)
+}
+
+/**
+ * Decompose `totalCp` into the largest denominations up to and
+ * including `ceiling`. Anything above the ceiling stays denominated
+ * at ceiling — e.g. 25gp with ceiling='gp' returns {gp:25, cp:0,...},
+ * not {pp:2, gp:5}.
+ */
+function denomCappedSplit(totalCp: number, ceiling: Denom): CoinTotals {
+  let remaining = totalCp
+  let pp = 0
+  let gp = 0
+  let sp = 0
+
+  if (ceiling === 'pp') {
+    pp = Math.floor(remaining / 1000)
+    remaining -= pp * 1000
+  }
+  if (ceiling === 'pp' || ceiling === 'gp') {
+    gp = Math.floor(remaining / 100)
+    remaining -= gp * 100
+  }
+  if (ceiling === 'pp' || ceiling === 'gp' || ceiling === 'sp') {
+    sp = Math.floor(remaining / 10)
+    remaining -= sp * 10
+  }
+  return { cp: remaining, sp, gp, pp }
 }
 
 /**

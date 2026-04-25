@@ -119,14 +119,14 @@ describe('resolveEncounterLootDesiredRows', () => {
       participantPcIds: [PC1, PC2, PC3],
       stashNodeId: STASH,
     })
-    // 31gp = 3100cp / 3 = 1033 rem 1.
-    // PC1: 1034cp = 1pp + 3sp + 4cp
-    // PC2: 1033cp = 1pp + 3sp + 3cp
-    // PC3: 1033cp = 1pp + 3sp + 3cp
+    // 31gp = 3100cp / 3 = 1033 rem 1. Ceiling=gp (input was gp-only).
+    // PC1: 1034cp = 10gp + 3sp + 4cp
+    // PC2: 1033cp = 10gp + 3sp + 3cp
+    // PC3: 1033cp = 10gp + 3sp + 3cp
     expect(result).toEqual([
-      { kind: 'money', actor_pc_id: PC1, cp: 4, sp: 3, gp: 0, pp: 1 },
-      { kind: 'money', actor_pc_id: PC2, cp: 3, sp: 3, gp: 0, pp: 1 },
-      { kind: 'money', actor_pc_id: PC3, cp: 3, sp: 3, gp: 0, pp: 1 },
+      { kind: 'money', actor_pc_id: PC1, cp: 4, sp: 3, gp: 10, pp: 0 },
+      { kind: 'money', actor_pc_id: PC2, cp: 3, sp: 3, gp: 10, pp: 0 },
+      { kind: 'money', actor_pc_id: PC3, cp: 3, sp: 3, gp: 10, pp: 0 },
     ])
   })
 
