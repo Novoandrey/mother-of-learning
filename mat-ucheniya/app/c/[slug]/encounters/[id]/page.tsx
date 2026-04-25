@@ -5,6 +5,7 @@ import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { EncounterPageClient } from '@/components/encounter/encounter-page-client'
+import { EncounterControls } from '@/components/encounter-controls'
 import { EncounterLootPanel } from '@/components/encounter-loot-panel'
 import { EncounterLootSummaryReadOnly } from '@/components/encounter-loot-summary-read-only'
 import Link from 'next/link'
@@ -140,12 +141,21 @@ export default async function EncounterPage({
 
   return (
     <div className="space-y-3">
-      <Link
-        href={`/c/${slug}/encounters`}
-        className="inline-block text-sm text-gray-400 hover:text-gray-600 transition-colors"
-      >
-        ← Энкаунтеры
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href={`/c/${slug}/encounters`}
+          className="inline-block text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          ← Энкаунтеры
+        </Link>
+        {canEdit && (
+          <EncounterControls
+            encounterId={encounter.id}
+            campaignSlug={slug}
+            initialTitle={encounter.title}
+          />
+        )}
+      </div>
 
       <EncounterPageClient
         encounter={{
