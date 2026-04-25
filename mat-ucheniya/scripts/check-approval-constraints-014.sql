@@ -61,7 +61,7 @@ begin
   values (v_campaign_id, 'pc', 'Персонаж', '👤')
   returning id into v_pc_type_id;
 
-  insert into nodes (campaign_id, node_type_id, title)
+  insert into nodes (campaign_id, type_id, title)
   values (v_campaign_id, v_pc_type_id, 'pc-test')
   returning id into v_pc_id;
 
