@@ -75,7 +75,15 @@ begin
   -- Helper-style assertion: try insert, catch CHECK violation.
   -- Each test wraps the insert in begin/exception.
 
-  -- ── C-1: approved without approved_by_user_id → REJECTS ──
+  -- ── C-1: approved with approved_at but NULL approved_by_user_id → ACCEPTED ──
+  -- This documents the looser CHECK constraint: only approved_at is
+  -- required when status='approved'. The audit user_id can be NULL —
+  -- this is intentional, because the FK has `on delete set null`, so
+  -- if the approving user is later deleted, their approved rows must
+  -- be allowed to keep `approved_at` while `approved_by_user_id`
+  -- becomes NULL. Server actions always populate both at write-time;
+  -- the CHECK constraint just ensures the per-status fields don't
+  -- bleed across statuses.
   v_caught := false;
   v_caught_state := null;
   begin
@@ -84,7 +92,7 @@ begin
       amount_cp, amount_sp, amount_gp, amount_pp,
       item_qty, category_slug, comment, loop_number, day_in_loop,
       status, author_user_id,
-      approved_at  -- approved_by_user_id missing
+      approved_at  -- approved_by_user_id intentionally null
     ) values (
       v_campaign_id, v_pc_id, 'money',
       0, 0, 1, 0,
@@ -97,11 +105,11 @@ begin
     v_caught_state := SQLSTATE || ': ' || SQLERRM;
   end;
 
-  if v_caught then
-    raise notice 'PASS C-1: approved without approved_by_user_id rejected';
+  if not v_caught then
+    raise notice 'PASS C-1: NULL approved_by_user_id allowed (FK on delete set null semantics)';
     v_pass_count := v_pass_count + 1;
   else
-    v_fail_log := v_fail_log || 'C-1 (approved without approved_by_user_id accepted) ';
+    v_fail_log := v_fail_log || 'C-1 (NULL approved_by_user_id should be accepted): ' || coalesce(v_caught_state, 'unknown') || ' / ';
     v_fail_count := v_fail_count + 1;
   end if;
 
