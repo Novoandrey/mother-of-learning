@@ -29,6 +29,7 @@ import { ApplyConfirmDialog } from '@/components/apply-confirm-dialog'
 import { splitCoinsEvenly } from '@/lib/coin-split'
 import type {
   CoinLine,
+  CoinSet,
   ItemLine,
   LootDraft,
   LootLine,
@@ -641,6 +642,22 @@ function DistributeDialog({
       if (localMoney.mode === 'split_evenly' && participants.length === 0) {
         return 'Нет участников для деления денег'
       }
+      if (localMoney.mode === 'manual') {
+        const totalCp =
+          totalCoins.cp + 10 * totalCoins.sp + 100 * totalCoins.gp + 1000 * totalCoins.pp
+        let sumCp = 0
+        for (const c of Object.values(localMoney.amounts)) {
+          sumCp += c.cp + 10 * c.sp + 100 * c.gp + 1000 * c.pp
+        }
+        if (sumCp !== totalCp) {
+          const fmt = (cp: number): string => {
+            const gp = Math.floor(cp / 100)
+            const rem = cp % 100
+            return rem === 0 ? `${gp} gp` : `${gp} gp ${rem} cp`
+          }
+          return `Сумма (${fmt(sumCp)}) ≠ общая (${fmt(totalCp)})`
+        }
+      }
     }
     for (const l of itemLines) {
       if (l.recipient_mode === 'pc' && !l.recipient_pc_id) {
@@ -651,7 +668,7 @@ function DistributeDialog({
       }
     }
     return null
-  }, [hasMoney, localMoney, itemLines, participants.length, stashAvailable])
+  }, [hasMoney, localMoney, totalCoins, itemLines, participants.length, stashAvailable])
 
   // Total apply count: 1 for money (if any) + N for items.
   const applyCount = (hasMoney ? 1 : 0) + itemLines.length
@@ -718,28 +735,72 @@ function DistributeDialog({
                   всего: {formatCoins(totalCoins)}
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-gray-600">Кому:</span>
-                <RecipientPicker
-                  mode={localMoney.mode}
-                  pcId={localMoney.pc_id}
+
+              {localMoney.mode !== 'manual' ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-gray-600">Кому:</span>
+                    <RecipientPicker
+                      mode={localMoney.mode}
+                      pcId={localMoney.pc_id}
+                      participants={participants}
+                      stashAvailable={stashAvailable}
+                      allowSplit={true}
+                      onChange={(mode, pcId) => {
+                        if (mode === 'pc') {
+                          setLocalMoney({ mode: 'pc', pc_id: pcId ?? '' })
+                        } else if (mode === 'stash') {
+                          setLocalMoney({ mode: 'stash', pc_id: null })
+                        } else {
+                          setLocalMoney({ mode: 'split_evenly', pc_id: null })
+                        }
+                      }}
+                    />
+                    {splitPreview && (
+                      <span className="text-xs text-gray-500">· {splitPreview}</span>
+                    )}
+                  </div>
+                  {participants.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Seed manual amounts from split-evenly so the DM
+                        // has a sensible starting point, not a blank slate.
+                        const seed: Record<string, CoinSet> = {}
+                        if (participants.length > 0) {
+                          const splits = splitCoinsEvenly(
+                            totalCoins,
+                            participants.length,
+                          )
+                          for (let i = 0; i < participants.length; i++) {
+                            seed[participants[i].pcNodeId] = splits[i]
+                          }
+                        }
+                        setLocalMoney({
+                          mode: 'manual',
+                          pc_id: null,
+                          amounts: seed,
+                        })
+                      }}
+                      className="text-xs text-blue-700 hover:text-blue-900 hover:underline"
+                    >
+                      или указать суммы вручную ▾
+                    </button>
+                  )}
+                </>
+              ) : (
+                <ManualMoneySection
+                  totalCoins={totalCoins}
                   participants={participants}
-                  stashAvailable={stashAvailable}
-                  allowSplit={true}
-                  onChange={(mode, pcId) => {
-                    if (mode === 'pc') {
-                      setLocalMoney({ mode: 'pc', pc_id: pcId ?? '' })
-                    } else if (mode === 'stash') {
-                      setLocalMoney({ mode: 'stash', pc_id: null })
-                    } else {
-                      setLocalMoney({ mode: 'split_evenly', pc_id: null })
-                    }
-                  }}
+                  amounts={localMoney.amounts}
+                  onChange={(next) =>
+                    setLocalMoney({ mode: 'manual', pc_id: null, amounts: next })
+                  }
+                  onCancel={() =>
+                    setLocalMoney({ mode: 'split_evenly', pc_id: null })
+                  }
                 />
-                {splitPreview && (
-                  <span className="text-xs text-gray-500">· {splitPreview}</span>
-                )}
-              </div>
+              )}
             </div>
           ) : (
             <div className="rounded border border-dashed border-gray-200 px-3 py-3 text-sm text-gray-400">
@@ -827,4 +888,173 @@ function ItemDistributeRow({
       />
     </div>
   )
+}
+
+// ─────────────────────────── manual money section ───────────────────────────
+
+/**
+ * Per-PC manual money input. Lives inside the money section of the
+ * Distribute dialog when `localMoney.mode === 'manual'`.
+ *
+ * Layout: list of PC rows with a GP input each (cp/sp/pp behind a per-
+ * row toggle, same pattern as `CoinLineRow`). Above: running total +
+ * delta vs draft total. Below: «Заполнить поровну» seeds split-evenly,
+ * «обычное распределение» switches back via `onCancel`.
+ *
+ * The validity check (sum equals draft total) lives in the parent
+ * dialog's `invalidReason`; this component just edits the data.
+ */
+function ManualMoneySection({
+  totalCoins,
+  participants,
+  amounts,
+  onChange,
+  onCancel,
+}: {
+  totalCoins: CoinSet
+  participants: PanelParticipant[]
+  amounts: Record<string, CoinSet>
+  onChange: (next: Record<string, CoinSet>) => void
+  onCancel: () => void
+}) {
+  function patchPc(pcNodeId: string, patch: Partial<CoinSet>) {
+    const prev = amounts[pcNodeId] ?? { cp: 0, sp: 0, gp: 0, pp: 0 }
+    onChange({ ...amounts, [pcNodeId]: { ...prev, ...patch } })
+  }
+
+  function fillEvenly() {
+    if (participants.length === 0) return
+    const splits = splitCoinsEvenly(totalCoins, participants.length)
+    const next: Record<string, CoinSet> = {}
+    for (let i = 0; i < participants.length; i++) {
+      next[participants[i].pcNodeId] = splits[i]
+    }
+    onChange(next)
+  }
+
+  // Running totals.
+  const totalCp = totalCp_(totalCoins)
+  const sumCp = useMemo(() => {
+    let s = 0
+    for (const c of Object.values(amounts)) s += totalCp_(c)
+    return s
+  }, [amounts])
+  const delta = sumCp - totalCp
+  const balanced = delta === 0
+
+  return (
+    <div className="space-y-2 text-sm">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="text-gray-600">Кому:</span>
+        <span className="text-gray-900 font-medium">вручную по PC</span>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="ml-auto text-xs text-blue-700 hover:text-blue-900 hover:underline"
+        >
+          ← обычное распределение
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        {participants.map((p) => (
+          <ManualPcRow
+            key={p.pcNodeId}
+            participant={p}
+            coins={amounts[p.pcNodeId] ?? { cp: 0, sp: 0, gp: 0, pp: 0 }}
+            onChange={(patch) => patchPc(p.pcNodeId, patch)}
+          />
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-baseline gap-2 pt-1">
+        <span className="text-xs text-gray-500">
+          Распределено: {formatCoinsCp(sumCp)} / {formatCoinsCp(totalCp)}
+        </span>
+        {!balanced && (
+          <span className="text-xs text-amber-700">
+            ({delta > 0 ? '+' : ''}{formatCoinsCp(Math.abs(delta))} {delta > 0 ? 'лишних' : 'не хватает'})
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={fillEvenly}
+          disabled={participants.length === 0}
+          className="ml-auto rounded border border-gray-300 bg-white px-2 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+        >
+          Заполнить поровну
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ManualPcRow({
+  participant,
+  coins,
+  onChange,
+}: {
+  participant: PanelParticipant
+  coins: CoinSet
+  onChange: (patch: Partial<CoinSet>) => void
+}) {
+  const hasOtherDenoms = coins.cp > 0 || coins.sp > 0 || coins.pp > 0
+  const [expanded, setExpanded] = useState<boolean>(hasOtherDenoms)
+
+  return (
+    <div className="flex items-center gap-2 rounded border border-gray-200 bg-white px-2 py-1">
+      <span className="flex-1 truncate text-gray-800" title={participant.title}>
+        {participant.title}
+      </span>
+      <DenomInput label="gp" value={coins.gp} onChange={(v) => onChange({ gp: v })} />
+      {expanded ? (
+        <>
+          <DenomInput label="cp" value={coins.cp} onChange={(v) => onChange({ cp: v })} />
+          <DenomInput label="sp" value={coins.sp} onChange={(v) => onChange({ sp: v })} />
+          <DenomInput label="pp" value={coins.pp} onChange={(v) => onChange({ pp: v })} />
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            disabled={hasOtherDenoms}
+            title={hasOtherDenoms ? 'Сначала обнули cp/sp/pp' : 'Скрыть'}
+            className="text-xs text-gray-500 hover:text-gray-800 disabled:opacity-30 px-1"
+          >
+            ◂
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-xs text-gray-500 hover:text-gray-800 px-1"
+          title="Показать cp/sp/pp"
+        >
+          +другие
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Local helpers (avoid name clash with the `totalCp` defined above for
+// CoinLine objects — these take a CoinSet which has the same shape but
+// no kind discriminator).
+function totalCp_(c: CoinSet): number {
+  return c.cp + 10 * c.sp + 100 * c.gp + 1000 * c.pp
+}
+
+function formatCoinsCp(cp: number): string {
+  if (cp === 0) return '0 gp'
+  const pp = Math.floor(cp / 1000)
+  const rem1 = cp - pp * 1000
+  const gp = Math.floor(rem1 / 100)
+  const rem2 = rem1 - gp * 100
+  const sp = Math.floor(rem2 / 10)
+  const cpRem = rem2 - sp * 10
+  const parts: string[] = []
+  if (pp) parts.push(`${pp} pp`)
+  if (gp) parts.push(`${gp} gp`)
+  if (sp) parts.push(`${sp} sp`)
+  if (cpRem) parts.push(`${cpRem} cp`)
+  return parts.join(' ') || '0 gp'
 }

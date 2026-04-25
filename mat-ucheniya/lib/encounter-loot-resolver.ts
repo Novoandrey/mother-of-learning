@@ -94,6 +94,17 @@ export function resolveEncounterLootDesiredRows(
         }
       }
       // 0 participants → silent skip
+    } else if (dist.mode === 'manual') {
+      // Per-PC amounts; non-zero entries become rows. Sum-check is the
+      // validator's job, not the resolver's — defence in depth.
+      for (const [pcNodeId, coins] of Object.entries(dist.amounts)) {
+        if (coins.cp + coins.sp + coins.gp + coins.pp === 0) continue
+        expanded.push({
+          kind: 'money',
+          actor_pc_id: pcNodeId,
+          ...coins,
+        })
+      }
     }
   }
 

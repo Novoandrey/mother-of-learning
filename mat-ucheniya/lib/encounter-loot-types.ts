@@ -73,10 +73,28 @@ export type ItemLine = {
 
 export type LootLine = CoinLine | ItemLine
 
+export type CoinSet = {
+  cp: number
+  sp: number
+  gp: number
+  pp: number
+}
+
 export type MoneyDistribution =
   | { mode: 'stash'; pc_id: null }
   | { mode: 'pc'; pc_id: string }
   | { mode: 'split_evenly'; pc_id: null }
+  | {
+      mode: 'manual'
+      pc_id: null
+      /**
+       * Per-PC coin amounts. Keys are PC node ids. Sum across all
+       * entries must equal the total of all coin lines on apply
+       * — the validator surfaces a clear error if it doesn't match.
+       * PCs with all-zero amounts are skipped silently.
+       */
+      amounts: Record<string, CoinSet>
+    }
 
 /**
  * The full draft row as stored in `encounter_loot_drafts`. The action

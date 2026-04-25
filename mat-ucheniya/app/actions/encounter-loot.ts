@@ -146,6 +146,7 @@ function rowToDraft(
     day_in_loop: number | null
     money_distribution_mode: string | null
     money_distribution_pc_id: string | null
+    money_distribution_manual: unknown
     updated_by: string | null
     created_at: string
     updated_at: string
@@ -156,16 +157,28 @@ function rowToDraft(
   // back to empty array so the panel still renders.
   const lines = Array.isArray(row.lines) ? (row.lines as LootLine[]) : []
 
-  // Reassemble money_distribution from the two columns. Defaults to
-  // 'stash' if either column is missing (e.g. a draft created before
-  // migration 040 — shouldn't happen in practice given the column
-  // default, but defence in depth).
+  // Reassemble money_distribution from the three columns. Defaults to
+  // 'stash' if mode is unrecognised — defence in depth (the column
+  // default is also 'stash').
   const mode = row.money_distribution_mode
   let money_distribution: LootDraft['money_distribution']
   if (mode === 'pc' && row.money_distribution_pc_id) {
     money_distribution = { mode: 'pc', pc_id: row.money_distribution_pc_id }
   } else if (mode === 'split_evenly') {
     money_distribution = { mode: 'split_evenly', pc_id: null }
+  } else if (
+    mode === 'manual' &&
+    row.money_distribution_manual &&
+    typeof row.money_distribution_manual === 'object'
+  ) {
+    money_distribution = {
+      mode: 'manual',
+      pc_id: null,
+      amounts: row.money_distribution_manual as Record<
+        string,
+        { cp: number; sp: number; gp: number; pp: number }
+      >,
+    }
   } else {
     money_distribution = { mode: 'stash', pc_id: null }
   }
@@ -200,7 +213,7 @@ export async function getEncounterLootDraft(
   const { data, error } = await supabase
     .from('encounter_loot_drafts')
     .select(
-      'encounter_id, lines, loop_number, day_in_loop, money_distribution_mode, money_distribution_pc_id, updated_by, created_at, updated_at',
+      'encounter_id, lines, loop_number, day_in_loop, money_distribution_mode, money_distribution_pc_id, money_distribution_manual, updated_by, created_at, updated_at',
     )
     .eq('encounter_id', encounterId)
     .maybeSingle()
@@ -240,7 +253,7 @@ export async function getEncounterLootDraft(
   const { data: data2, error: err2 } = await supabase
     .from('encounter_loot_drafts')
     .select(
-      'encounter_id, lines, loop_number, day_in_loop, money_distribution_mode, money_distribution_pc_id, updated_by, created_at, updated_at',
+      'encounter_id, lines, loop_number, day_in_loop, money_distribution_mode, money_distribution_pc_id, money_distribution_manual, updated_by, created_at, updated_at',
     )
     .eq('encounter_id', encounterId)
     .maybeSingle()
@@ -285,6 +298,10 @@ export async function updateEncounterLootDraft(
   if (v.money_distribution !== undefined) {
     updates.money_distribution_mode = v.money_distribution.mode
     updates.money_distribution_pc_id = v.money_distribution.pc_id
+    updates.money_distribution_manual =
+      v.money_distribution.mode === 'manual'
+        ? v.money_distribution.amounts
+        : null
   }
 
   const { error } = await admin
@@ -414,6 +431,29 @@ export async function applyEncounterLoot(
     return {
       ok: false,
       error: 'В черновике есть строки в общак, но общак в кампании не создан',
+    }
+  }
+
+  // Manual-mode sum check: sum of per-PC amounts must equal totalMoneyCp
+  // (in cp units after collapse). Surface a clear error if it doesn't —
+  // this is the natural failure mode if DM forgets to balance after
+  // editing one of the rows.
+  if (draft.money_distribution.mode === 'manual' && totalMoneyCp > 0) {
+    let manualSumCp = 0
+    for (const coins of Object.values(draft.money_distribution.amounts)) {
+      manualSumCp +=
+        coins.cp + 10 * coins.sp + 100 * coins.gp + 1000 * coins.pp
+    }
+    if (manualSumCp !== totalMoneyCp) {
+      const fmt = (cp: number): string => {
+        const gp = Math.floor(cp / 100)
+        const rem = cp % 100
+        return rem === 0 ? `${gp} gp` : `${gp} gp ${rem} cp`
+      }
+      return {
+        ok: false,
+        error: `Суммы вручную (${fmt(manualSumCp)}) не равны общей сумме лута (${fmt(totalMoneyCp)})`,
+      }
     }
   }
 
