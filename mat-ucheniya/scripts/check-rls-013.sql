@@ -40,28 +40,43 @@ begin;
 do $$
 declare
   v_campaign_id   uuid;
-  v_owner_id      uuid := gen_random_uuid();
-  v_dm_id         uuid := gen_random_uuid();
-  v_player_id     uuid := gen_random_uuid();
-  v_outsider_id   uuid := gen_random_uuid();
+  v_owner_id      uuid;
+  v_dm_id         uuid;
+  v_player_id     uuid;
+  v_outsider_id   uuid;
+  v_users         uuid[];
   v_encounter_id  uuid;
   v_pass_count    int  := 0;
   v_fail_count    int  := 0;
   v_visible_count int;
 begin
-  -- ── Setup: create a fresh campaign with all four user roles ──
+  -- ── Setup: borrow 4 existing auth.users (any 4 — they're all
+  -- non-members of our fresh test campaign by construction). FK
+  -- `campaign_members.user_id → auth.users(id)` rules out synthetic
+  -- uuids. ──
+  select array_agg(id) into v_users
+  from (select id from auth.users order by created_at limit 4) sub;
+
+  if coalesce(array_length(v_users, 1), 0) < 4 then
+    raise exception 'Need ≥4 users in auth.users for this test (found %)',
+      coalesce(array_length(v_users, 1), 0);
+  end if;
+
+  v_owner_id    := v_users[1];
+  v_dm_id       := v_users[2];
+  v_player_id   := v_users[3];
+  v_outsider_id := v_users[4];
+
+  -- ── Setup: create a fresh campaign with three roles ──
   insert into campaigns (name, slug)
   values ('rls-013-smoke', 'rls-013-smoke-' || substr(gen_random_uuid()::text, 1, 8))
   returning id into v_campaign_id;
 
-  -- We don't insert into auth.users because that requires Supabase Auth
-  -- machinery. Instead we directly insert into campaign_members with
-  -- synthetic user_ids; RLS policies just check membership rows.
   insert into campaign_members (campaign_id, user_id, role) values
     (v_campaign_id, v_owner_id,  'owner'),
     (v_campaign_id, v_dm_id,     'dm'),
     (v_campaign_id, v_player_id, 'player');
-  -- v_outsider_id intentionally NOT inserted — they're not a member.
+  -- v_outsider_id intentionally NOT added — they're the non-member.
 
   -- Create an encounter (trigger creates the mirror node + node_type).
   insert into encounters (campaign_id, title)
