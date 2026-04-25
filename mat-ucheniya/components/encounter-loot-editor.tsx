@@ -469,7 +469,7 @@ function DenomInput({
         onChange={(e) =>
           onChange(Math.max(0, Number(e.target.value) || 0))
         }
-        className="w-14 rounded border border-gray-300 px-2 py-1 text-sm text-right"
+        className="w-16 rounded border border-gray-300 px-1.5 py-1 text-sm text-right tabular-nums"
       />
       <span className="text-xs text-gray-500">{label}</span>
     </label>

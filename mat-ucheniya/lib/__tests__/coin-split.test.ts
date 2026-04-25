@@ -17,30 +17,30 @@ describe('splitCoinsEvenly', () => {
     expect(splitCoinsEvenly({ cp: 0, sp: 0, gp: 30, pp: 0 }, -1)).toEqual([])
   })
 
-  it('1 recipient gets the full amount, denominations preserved when clean', () => {
-    // 30gp = 3000cp = 3pp (greedy goes to largest).
+  it('1 recipient gets the full amount, original denomination preserved', () => {
+    // 30gp stays as 30gp — no roll-up to 3pp because user wrote in gp.
     expect(splitCoinsEvenly({ cp: 0, sp: 0, gp: 30, pp: 0 }, 1)).toEqual([
-      { cp: 0, sp: 0, gp: 0, pp: 3 },
+      { cp: 0, sp: 0, gp: 30, pp: 0 },
     ])
   })
 
-  it('2 recipients split 30gp → 1pp + 5gp each (clean half)', () => {
+  it('2 recipients split 30gp → 15gp each (no pp roll-up)', () => {
     expect(splitCoinsEvenly({ cp: 0, sp: 0, gp: 30, pp: 0 }, 2)).toEqual([
-      { cp: 0, sp: 0, gp: 5, pp: 1 },
-      { cp: 0, sp: 0, gp: 5, pp: 1 },
+      { cp: 0, sp: 0, gp: 15, pp: 0 },
+      { cp: 0, sp: 0, gp: 15, pp: 0 },
     ])
   })
 
   it('uneven 31gp / 3 PCs: PC0 gets remainder cp, sums match input', () => {
-    // 31gp = 3100cp / 3 = 1033 rem 1.
-    // PC0 = 1034cp = 1pp + 0gp + 3sp + 4cp
-    // PC1 = 1033cp = 1pp + 0gp + 3sp + 3cp
-    // PC2 = 1033cp = 1pp + 0gp + 3sp + 3cp
+    // 31gp = 3100cp / 3 = 1033 rem 1. Ceiling=gp so no pp.
+    // PC0 = 1034cp = 10gp + 3sp + 4cp
+    // PC1 = 1033cp = 10gp + 3sp + 3cp
+    // PC2 = 1033cp = 10gp + 3sp + 3cp
     const out = splitCoinsEvenly({ cp: 0, sp: 0, gp: 31, pp: 0 }, 3)
     expect(out).toEqual([
-      { cp: 4, sp: 3, gp: 0, pp: 1 },
-      { cp: 3, sp: 3, gp: 0, pp: 1 },
-      { cp: 3, sp: 3, gp: 0, pp: 1 },
+      { cp: 4, sp: 3, gp: 10, pp: 0 },
+      { cp: 3, sp: 3, gp: 10, pp: 0 },
+      { cp: 3, sp: 3, gp: 10, pp: 0 },
     ])
     // sanity: total cp matches input
     const sumCp = out.reduce(
@@ -51,9 +51,9 @@ describe('splitCoinsEvenly', () => {
   })
 
   it('4 recipients with mixed denominations: 1pp + 5gp + 5sp + 5cp = 1555cp', () => {
-    // 1555 / 4 = 388 rem 3. PC0/1/2 get 389, PC3 gets 388.
-    // 389cp = 0pp + 3gp + 8sp + 9cp
-    // 388cp = 0pp + 3gp + 8sp + 8cp
+    // Ceiling=pp because input has pp. 1555 / 4 = 388 rem 3.
+    // PC0/1/2 get 389cp = 0pp + 3gp + 8sp + 9cp
+    // PC3 gets 388cp = 0pp + 3gp + 8sp + 8cp
     expect(
       splitCoinsEvenly({ cp: 5, sp: 5, gp: 5, pp: 1 }, 4),
     ).toEqual([
