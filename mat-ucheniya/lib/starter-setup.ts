@@ -61,6 +61,7 @@ export type WizardKey =
   | 'starting_loan'
   | 'stash_seed'
   | 'starting_items'
+  | 'encounter_loot' // spec-013
 
 /** Orthogonal property on a transaction — what produced it, from where. */
 export type AutogenMarker = {
