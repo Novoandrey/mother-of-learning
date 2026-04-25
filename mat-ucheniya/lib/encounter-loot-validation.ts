@@ -229,6 +229,49 @@ function validateMoneyDistribution(
     }
     return { ok: true, value: { mode, pc_id: obj.pc_id as string } }
   }
+  if (mode === 'manual') {
+    if (obj.pc_id != null) {
+      return { ok: false, error: 'pc_id должен быть null при mode=manual' }
+    }
+    if (!obj.amounts || typeof obj.amounts !== 'object') {
+      return {
+        ok: false,
+        error: 'Для mode=manual нужен объект amounts с суммами по PC',
+      }
+    }
+    const amountsObj = obj.amounts as Record<string, unknown>
+    const amounts: Record<string, import('./encounter-loot-types').CoinSet> = {}
+    for (const [pcNodeId, raw] of Object.entries(amountsObj)) {
+      if (!looksLikeUuid(pcNodeId)) {
+        return {
+          ok: false,
+          error: `Ключ amounts должен быть uuid PC-ноды, не ${JSON.stringify(pcNodeId)}`,
+        }
+      }
+      if (!raw || typeof raw !== 'object') {
+        return {
+          ok: false,
+          error: `amounts[${pcNodeId}] должно быть объектом с cp/sp/gp/pp`,
+        }
+      }
+      const coinObj = raw as Record<string, unknown>
+      for (const k of ['cp', 'sp', 'gp', 'pp'] as const) {
+        if (!isNonNegInt(coinObj[k])) {
+          return {
+            ok: false,
+            error: `amounts[${pcNodeId}].${k} должно быть целым неотрицательным`,
+          }
+        }
+      }
+      amounts[pcNodeId] = {
+        cp: coinObj.cp as number,
+        sp: coinObj.sp as number,
+        gp: coinObj.gp as number,
+        pp: coinObj.pp as number,
+      }
+    }
+    return { ok: true, value: { mode, pc_id: null, amounts } }
+  }
   return {
     ok: false,
     error: `Неизвестный money_distribution.mode: ${JSON.stringify(mode)}`,
