@@ -174,7 +174,7 @@
 
 ## Phase 6 — Form refit (multi-row submission)
 
-- [ ] **T020 [P1]** Refactor `components/transaction-form.tsx`
+- [x] **T020 [P1]** Refactor `components/transaction-form.tsx`
   state into array shape: `rows: BatchRowState[]` instead of
   flat fields. Existing field state moves into the array
   element. Single-row default for DM path; player path renders
@@ -183,7 +183,7 @@
   to today after this refactor.
   *(file: `mat-ucheniya/components/transaction-form.tsx`, depends on T012)*
 
-- [ ] **T021 [P1]** Add "+ Добавить ряд" affordance below last row
+- [x] **T021 [P1]** Add "+ Добавить ряд" affordance below last row
   (player only, hidden for DM); add per-row "× удалить" button
   when `rows.length > 1`. Submit button label switches: DM →
   "Сохранить", player single-row → "Отправить заявку", player

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import TransactionFormSheet from './transaction-form-sheet'
+import BatchTransactionFormSheet from './batch-transaction-form-sheet'
 import StashButtons from './stash-buttons'
 import type { Category, TransactionWithRelations } from '@/lib/transactions'
 import type { CampaignPC } from '@/app/actions/characters'
@@ -26,6 +27,12 @@ type Props = {
    * the stash-pinned put/take buttons render as disabled with a hint.
    */
   currentLoopNumber?: number | null
+  /**
+   * Spec-014 T021 — show the "Подать пачку" multi-row button for
+   * player role. DM/owner doesn't need batching (their writes are
+   * auto-approved; "batch of 1 vs N" makes no observable difference).
+   */
+  isPlayer?: boolean
 }
 
 /**
@@ -50,6 +57,7 @@ export default function LedgerActorBar({
   defaultLoopNumber,
   defaultDayByPcId,
   currentLoopNumber,
+  isPlayer,
 }: Props) {
   const storageKey = `mol:accounting-actor-pc:${campaignId}`
 
@@ -117,6 +125,7 @@ export default function LedgerActorBar({
   const [initialKind, setInitialKind] = useState<
     'income' | 'expense' | 'transfer' | null
   >(null)
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false)
 
   const openSheet = useCallback(
     (kind: 'income' | 'expense' | 'transfer') => {
@@ -130,6 +139,9 @@ export default function LedgerActorBar({
     setSheetOpen(false)
     setInitialKind(null)
   }, [])
+
+  const openBatchSheet = useCallback(() => setBatchSheetOpen(true), [])
+  const closeBatchSheet = useCallback(() => setBatchSheetOpen(false), [])
 
   const selectedActor = useMemo(
     () => actors.find((a) => a.id === actorPcId) ?? null,
@@ -201,6 +213,19 @@ export default function LedgerActorBar({
         />
       )}
 
+      {/* Spec-014 T021 — multi-row batch entry, player only. Lives at the
+          end of the bar so it doesn't crowd the primary single-row CTAs. */}
+      {isPlayer && availablePcs.length > 0 && (
+        <button
+          type="button"
+          onClick={openBatchSheet}
+          disabled={!hydrated}
+          className="ml-auto rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors"
+        >
+          📋 Подать пачку
+        </button>
+      )}
+
       {selectedActor && initialKind && (
         <TransactionFormSheet
           open={sheetOpen}
@@ -213,6 +238,21 @@ export default function LedgerActorBar({
           categories={categories}
           editing={null}
           initialKind={initialKind}
+        />
+      )}
+
+      {isPlayer && (
+        <BatchTransactionFormSheet
+          open={batchSheetOpen}
+          onClose={closeBatchSheet}
+          campaignId={campaignId}
+          availablePcs={availablePcs}
+          defaultLoopNumber={defaultLoopNumber}
+          defaultDayByPcId={defaultDayByPcId}
+          defaultSessionId={null}
+          initialActorPcId={
+            selectedActor && !selectedIsStash ? selectedActor.id : null
+          }
         />
       )}
     </div>

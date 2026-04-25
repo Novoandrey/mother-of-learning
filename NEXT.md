@@ -177,10 +177,10 @@
 
 ## Следующий приоритет
 
-**Spec-014 Approval flow — В РАБОТЕ.** Phase 1–9 + smoke scripts
-закоммичены (T001–T035, кроме T020/T021). Migration 042 в проде.
-Тесты НЕ прогонялись локально (npm install был корраптнут);
-проверка через Vercel auto-deploy и smoke SQL.
+**Spec-014 Approval flow — В РАБОТЕ.** Phase 1–9 + smoke scripts +
+T020/T021 (multi-row batch form) закоммичены. Migration 042 в проде.
+Тесты НЕ прогонялись локально; проверка через Vercel auto-deploy
+и smoke SQL.
 
 **Сделано в chat 52:**
 - **Phase 3** (T007–T013) — `createTransaction` / `createTransfer`
@@ -205,6 +205,15 @@
   `hydrateCategoryLabels` / `hydrateAuthors` /
   `hydrateCounterparties` из `lib/transactions.ts` для переиспользования.
   Plus `getRecentDMActionSummary` + `markDMActionsSeen` для FR-027.
+- **Phase 6** (T020/T021) — `<BatchTransactionForm>` +
+  `<BatchTransactionFormSheet>`. Отдельный focus-компонент
+  (existing 770-строчная `transaction-form.tsx` не трогалась).
+  Поддерживает income/expense/transfer/item × N рядов,
+  `+ Добавить ряд` affordance, `× удалить` per row (когда ≥ 2),
+  client-side validation, submit через `submitBatch`. Sheet
+  открывается из новой кнопки «📋 Подать пачку» в
+  `<LedgerActorBar>`, видимой только player'у. Submit label
+  «Отправить заявку» (1 ряд) / «Отправить N заявок».
 - **Phase 7** (T022, T023) — `transaction-row.tsx` status-aware:
   amber border-left + «⏳ Ждёт DM» для pending; gray + strikethrough
   + «✗ Отклонено» + чип с `rejection_comment` для rejected.
@@ -227,35 +236,22 @@
   кейсов), оба в `BEGIN…ROLLBACK`. Запускать через Supabase
   Dashboard.
 
-**ОТЛОЖЕНО на следующий чат (T020/T021 — multi-row form):**
-Существующая `components/transaction-form.tsx` (770 строк, stash-pinned
-modes, transfer recipient picker, shortfall prompt) — single-row.
-Игрок может подавать только **по одной** заявке через текущий UI,
-каждая становится отдельной «пачкой из 1». Это закрывает AS1–AS6,
-AS15 (withdraw row), AS16 (partial). НЕ закрывает AS13 (3-row
-batch submission в одном клике) и `«Отозвать всю пачку»` имеет
-смысл только для batch-of-1.
-
-Минимальная реализация на следующий чат:
-- `<PlayerBatchForm>` — отдельный простой компонент (money/item/transfer
-  × N rows) на `/accounting`.
-- ИЛИ — рефактор `transaction-form.tsx` lifting state в `rows: BatchRowState[]`.
-
 **ОТЛОЖЕНО (proper close-out):**
 - T036–T039 — manual walkthrough Acceptance Scenarios (DM only).
-- T040 — `npm run lint` + `tsc --noEmit` + vitest. Делать после
-  T020/T021 либо параллельно через Vercel CI.
+- T040 — `npm run lint` + `tsc --noEmit` + vitest. Делать через
+  Vercel CI или локально по желанию.
 - T041–T044 — close-out final.
 
 **Pickup в следующем чате:**
 1. Свежий клон.
-2. `cd mat-ucheniya && rm -rf node_modules .next && npm install` — Vercel build уже валидировал.
-3. Implement T020/T021 (см. выше — два варианта).
-4. После — T036–T044.
+2. Проверить Vercel build на последнем коммите.
+3. Прогнать оба SQL smoke-script'а через Supabase Dashboard.
+4. Manual walkthrough AS1–AS9, AS13–AS16 (DM-only).
+5. После — commit close-out (T040–T044).
 
 Чек-лист в `.specify/specs/014-approval-flow/tasks.md`. Сделано:
-T001–T019, T022–T035 (29 из 44). Осталось: T020, T021, T036–T044
-(15 задач).
+T001–T035 (35 из 44). Осталось: T036–T044 (manual walkthrough +
+final close-out).
 
 **Ключевые решения spec-014** (для контекста, чтобы не перечитывать
 spec.md и plan.md):
