@@ -27,6 +27,7 @@ function payload(partial: Partial<ItemPayload> = {}): ItemPayload {
     srdSlug: 'longsword',
     description: null,
     sourceDetail: null,
+    useDefaultPrice: true,
     ...partial,
   };
 }
