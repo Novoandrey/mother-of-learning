@@ -30,6 +30,7 @@ function desiredMoney(opts: {
     kind: 'money',
     coins,
     itemName: null,
+    itemNodeId: null,
     itemQty: 1,
     categorySlug: opts.categorySlug ?? 'starting_money',
     comment: '',
@@ -41,6 +42,7 @@ function desiredItem(opts: {
   pc: string
   name: string
   qty: number
+  itemNodeId?: string | null
 }): DesiredRow {
   return {
     wizardKey: 'starting_items',
@@ -49,6 +51,7 @@ function desiredItem(opts: {
     kind: 'item',
     coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
     itemName: opts.name,
+    itemNodeId: opts.itemNodeId ?? null,
     itemQty: opts.qty,
     categorySlug: 'starting_items',
     comment: '',
@@ -71,6 +74,7 @@ function existingFromDesired(
     kind: desired.kind,
     coins: desired.coins,
     itemName: desired.itemName,
+    itemNodeId: desired.itemNodeId,
     itemQty: desired.itemQty,
     categorySlug: desired.categorySlug,
     comment: desired.comment,
@@ -213,6 +217,39 @@ describe('diffRowSets', () => {
   it('no content change but hand_touched differs → unchanged (handTouched is not a content field)', () => {
     const d = desiredMoney({ wizardKey: 'starting_money', pc: pcId(1), gp: 100 })
     const e = existingFromDesired(d, { handTouched: true })
+    const diff = diffRowSets([d], [e])
+    expect(diff.toUpdate).toHaveLength(0)
+    expect(diff.unchanged).toHaveLength(1)
+  })
+
+  it('itemNodeId change → toUpdate (link delta is a content delta)', () => {
+    // Spec-015 (T039): when desired has a fresh Образец link and
+    // existing was a free-text row, reapply must update.
+    const linked = desiredItem({
+      pc: pcId(1),
+      name: 'Длинный меч',
+      qty: 1,
+      itemNodeId: '00000000-0000-0000-0000-item000000ms',
+    })
+    const free = existingFromDesired(
+      desiredItem({ pc: pcId(1), name: 'Длинный меч', qty: 1 }),
+    )
+    const diff = diffRowSets([linked], [free])
+    expect(diff.toUpdate).toHaveLength(1)
+    expect(diff.toUpdate[0].desired.itemNodeId).toBe(
+      '00000000-0000-0000-0000-item000000ms',
+    )
+  })
+
+  it('itemNodeId equal on both sides → unchanged', () => {
+    const id = '00000000-0000-0000-0000-item000000ms'
+    const d = desiredItem({
+      pc: pcId(1),
+      name: 'Длинный меч',
+      qty: 1,
+      itemNodeId: id,
+    })
+    const e = existingFromDesired(d)
     const diff = diffRowSets([d], [e])
     expect(diff.toUpdate).toHaveLength(0)
     expect(diff.unchanged).toHaveLength(1)

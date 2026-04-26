@@ -87,6 +87,12 @@ export type DesiredRow = {
   coins: CoinSet
   /** Non-null for `kind='item'`; null for `kind='money'`. */
   itemName: string | null
+  /**
+   * Spec-015 (T039). Optional Образец link applied to `item_node_id`
+   * on the generated transaction. Always `null` for `kind='money'`;
+   * may be `null` for free-text item rows.
+   */
+  itemNodeId: string | null
   /** Integer ≥ 1 (`1` for money rows; > 0 for item rows). */
   itemQty: number
   categorySlug: string
@@ -107,6 +113,8 @@ export type ExistingAutogenRow = {
   kind: 'money' | 'item' | 'transfer'
   coins: CoinSet
   itemName: string | null
+  /** Spec-015 (T039). Existing transaction's catalog link, or NULL. */
+  itemNodeId: string | null
   itemQty: number
   categorySlug: string
   comment: string

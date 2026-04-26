@@ -93,6 +93,7 @@ function rowsMatch(desired: DesiredRow, existing: ExistingAutogenRow): boolean {
     existing.kind === desired.kind &&
     coinsEqual(existing.coins, desired.coins) &&
     (existing.itemName ?? null) === (desired.itemName ?? null) &&
+    (existing.itemNodeId ?? null) === (desired.itemNodeId ?? null) &&
     existing.itemQty === desired.itemQty &&
     existing.categorySlug === desired.categorySlug &&
     existing.comment === desired.comment

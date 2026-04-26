@@ -170,6 +170,22 @@ function validateItemLine(obj: Record<string, unknown>): ValidateResult<ItemLine
     recipientPcId = null
   }
 
+  // Spec-015 (T038). `item_node_id` is optional. When present and not
+  // null, must be a uuid string. When absent / null / undefined, the
+  // line stays free-text and reconcile writes no link. Drafts produced
+  // before mig 044 simply lack the field and pass through unchanged
+  // (FR-018).
+  let itemNodeId: string | null = null
+  if ('item_node_id' in obj && obj.item_node_id != null) {
+    if (!looksLikeUuid(obj.item_node_id)) {
+      return {
+        ok: false,
+        error: 'item_node_id должен быть валидным uuid либо null',
+      }
+    }
+    itemNodeId = obj.item_node_id as string
+  }
+
   return {
     ok: true,
     value: {
@@ -179,6 +195,7 @@ function validateItemLine(obj: Record<string, unknown>): ValidateResult<ItemLine
       qty: obj.qty as number,
       recipient_mode: mode,
       recipient_pc_id: recipientPcId,
+      ...(itemNodeId !== null ? { item_node_id: itemNodeId } : {}),
     },
   }
 }

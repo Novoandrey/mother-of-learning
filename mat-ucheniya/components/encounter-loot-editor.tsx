@@ -26,6 +26,7 @@ import {
   updateEncounterLootDraft,
 } from '@/app/actions/encounter-loot'
 import { ApplyConfirmDialog } from '@/components/apply-confirm-dialog'
+import ItemTypeahead from '@/components/item-typeahead'
 import { splitCoinsEvenly } from '@/lib/coin-split'
 import type {
   CoinLine,
@@ -85,12 +86,21 @@ type Summary = {
 
 export function EncounterLootEditor({
   encounterId,
+  campaignId,
+  campaignSlug,
+  canEditCatalog,
   initialDraft,
   summary,
   participants,
   stashAvailable,
 }: {
   encounterId: string
+  /** Spec-015 (T040): for the item typeahead's catalog query. */
+  campaignId: string
+  /** Spec-015 (T040): for the typeahead's «+ Создать» link target. */
+  campaignSlug: string
+  /** Spec-015 (T040): DM-only typeahead affordance. */
+  canEditCatalog: boolean
   initialDraft: LootDraft
   summary: Summary
   participants: PanelParticipant[]
@@ -270,6 +280,9 @@ export function EncounterLootEditor({
             <ItemLineRow
               key={line.id}
               line={line}
+              campaignId={campaignId}
+              campaignSlug={campaignSlug}
+              canEditCatalog={canEditCatalog}
               onChange={(patch) => updateLine(line.id, patch)}
               onRemove={() => removeLine(line.id)}
             />
@@ -409,10 +422,16 @@ function CoinLineRow({
 
 function ItemLineRow({
   line,
+  campaignId,
+  campaignSlug,
+  canEditCatalog,
   onChange,
   onRemove,
 }: {
   line: ItemLine
+  campaignId: string
+  campaignSlug: string
+  canEditCatalog: boolean
   onChange: (patch: Partial<ItemLine>) => void
   onRemove: () => void
 }) {
@@ -420,13 +439,25 @@ function ItemLineRow({
     <li className="rounded border border-gray-200 bg-gray-50 p-2">
       <div className="flex items-center gap-2 text-sm">
         <span className="font-medium text-gray-700 w-16">Предмет</span>
-        <input
-          type="text"
-          value={line.name}
-          placeholder="Название"
-          onChange={(e) => onChange({ name: e.target.value })}
-          className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
-        />
+        <div className="flex-1 min-w-0">
+          <ItemTypeahead
+            campaignId={campaignId}
+            campaignSlug={campaignSlug}
+            value={{
+              itemNodeId: line.item_node_id ?? null,
+              itemName: line.name,
+            }}
+            onChange={(next) =>
+              onChange({
+                name: next.itemName,
+                item_node_id: next.itemNodeId,
+              })
+            }
+            canCreateNew={canEditCatalog}
+            showFreeTextHint={false}
+            placeholder="Название (или выберите Образец)"
+          />
+        </div>
         <span className="text-gray-500 text-xs">×</span>
         <input
           type="number"

@@ -171,9 +171,9 @@ describe('resolveEncounterLootDesiredRows', () => {
     expect(result.find((r) => r.kind === 'money' && r.actor_pc_id === PC2))
       .toEqual({ kind: 'money', actor_pc_id: PC2, cp: 0, sp: 0, gp: 5, pp: 0 })
     expect(result.find((r) => r.kind === 'item' && r.actor_pc_id === PC1))
-      .toEqual({ kind: 'item', actor_pc_id: PC1, item_name: 'shield', item_qty: 1 })
+      .toEqual({ kind: 'item', actor_pc_id: PC1, item_name: 'shield', item_qty: 1, item_node_id: null })
     expect(result.find((r) => r.kind === 'item' && r.actor_pc_id === STASH))
-      .toEqual({ kind: 'item', actor_pc_id: STASH, item_name: 'rope', item_qty: 5 })
+      .toEqual({ kind: 'item', actor_pc_id: STASH, item_name: 'rope', item_qty: 5, item_node_id: null })
   })
 
   it('merge: two item lines with same (actor, name) → 1 row qty summed', () => {
@@ -186,7 +186,7 @@ describe('resolveEncounterLootDesiredRows', () => {
       stashNodeId: STASH,
     })
     expect(result).toEqual([
-      { kind: 'item', actor_pc_id: PC1, item_name: 'longsword', item_qty: 3 },
+      { kind: 'item', actor_pc_id: PC1, item_name: 'longsword', item_qty: 3, item_node_id: null },
     ])
   })
 
@@ -201,10 +201,10 @@ describe('resolveEncounterLootDesiredRows', () => {
     })
     expect(result).toHaveLength(2)
     expect(result.find((r) => r.actor_pc_id === PC1)).toEqual({
-      kind: 'item', actor_pc_id: PC1, item_name: 'potion', item_qty: 1,
+      kind: 'item', actor_pc_id: PC1, item_name: 'potion', item_qty: 1, item_node_id: null,
     })
     expect(result.find((r) => r.actor_pc_id === STASH)).toEqual({
-      kind: 'item', actor_pc_id: STASH, item_name: 'potion', item_qty: 2,
+      kind: 'item', actor_pc_id: STASH, item_name: 'potion', item_qty: 2, item_node_id: null,
     })
   })
 
@@ -225,7 +225,7 @@ describe('resolveEncounterLootDesiredRows', () => {
       kind: 'money', actor_pc_id: PC1, cp: 0, sp: 0, gp: 5, pp: 0,
     })
     expect(result.find((r) => r.kind === 'item')).toEqual({
-      kind: 'item', actor_pc_id: PC1, item_name: 'shield', item_qty: 1,
+      kind: 'item', actor_pc_id: PC1, item_name: 'shield', item_qty: 1, item_node_id: null,
     })
   })
 
@@ -243,7 +243,7 @@ describe('resolveEncounterLootDesiredRows', () => {
     })
     // Money line dropped (no participants), item line survives.
     expect(result).toEqual([
-      { kind: 'item', actor_pc_id: PC1, item_name: 'boots', item_qty: 1 },
+      { kind: 'item', actor_pc_id: PC1, item_name: 'boots', item_qty: 1, item_node_id: null },
     ])
   })
 
@@ -290,7 +290,7 @@ describe('resolveEncounterLootDesiredRows', () => {
       stashNodeId: STASH,
     })
     expect(result).toEqual([
-      { kind: 'item', actor_pc_id: STASH, item_name: 'rope', item_qty: 5 },
+      { kind: 'item', actor_pc_id: STASH, item_name: 'rope', item_qty: 5, item_node_id: null },
     ])
   })
 })

@@ -26,9 +26,15 @@ import { EncounterLootEditor } from './encounter-loot-editor'
 export async function EncounterLootPanel({
   encounterId,
   campaignId,
+  campaignSlug,
+  canEditCatalog,
 }: {
   encounterId: string
   campaignId: string
+  /** Spec-015 (T040): for the typeahead's «+ Создать» link target. */
+  campaignSlug: string
+  /** Spec-015 (T040): DM-only Образец-creation affordance in typeahead. */
+  canEditCatalog: boolean
 }) {
   // Note: previously hid behind status==='active' (spec FR-010), but
   // status flipping has no UI affordance and DMs reasonably want to
@@ -67,6 +73,9 @@ export async function EncounterLootPanel({
 
       <EncounterLootEditor
         encounterId={encounterId}
+        campaignId={campaignId}
+        campaignSlug={campaignSlug}
+        canEditCatalog={canEditCatalog}
         initialDraft={draft}
         summary={summary}
         participants={participants}

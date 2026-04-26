@@ -119,10 +119,15 @@ export function resolveEncounterLootDesiredRows(
       actor_pc_id: target,
       item_name: line.name,
       item_qty: line.qty,
+      item_node_id: line.item_node_id ?? null,
     })
   }
 
-  // ── Step 4: merge by (kind, actor, item_name) ──
+  // ── Step 4: merge by (kind, actor, item_name [, item_node_id]) ──
+  // Spec-015 (T039): the merge key includes item_node_id so a linked
+  // line and a free-text line with the same display name don't collapse
+  // — they're conceptually different items even if the snapshot text
+  // matches.
   const merged = new Map<string, EncounterLootDesiredRow>()
   for (const row of expanded) {
     const key = mergeKey(row)
@@ -159,5 +164,8 @@ function mergeKey(row: EncounterLootDesiredRow): string {
   if (row.kind === 'money') {
     return `money|${row.actor_pc_id}`
   }
-  return `item|${row.actor_pc_id}|${row.item_name}`
+  // Linked items merge separately from free-text items, even if the
+  // snapshot title matches — keeps the catalog link intact downstream.
+  const linkPart = row.item_node_id ?? '__free__'
+  return `item|${row.actor_pc_id}|${linkPart}|${row.item_name}`
 }

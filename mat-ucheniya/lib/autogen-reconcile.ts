@@ -196,6 +196,7 @@ export async function applyAutogenDiff(
     amount_gp: r.coins.gp,
     amount_pp: r.coins.pp,
     item_name: r.itemName,
+    item_node_id: r.itemNodeId,
     item_qty: r.itemQty,
     category_slug: r.categorySlug,
     comment: r.comment,
@@ -213,6 +214,7 @@ export async function applyAutogenDiff(
     amount_gp: pair.desired.coins.gp,
     amount_pp: pair.desired.coins.pp,
     item_name: pair.desired.itemName,
+    item_node_id: pair.desired.itemNodeId,
     item_qty: pair.desired.itemQty,
     category_slug: pair.desired.categorySlug,
     comment: pair.desired.comment,
@@ -266,7 +268,7 @@ async function loadExistingAutogenRows(
   const { data, error } = await supabase
     .from('transactions')
     .select(
-      'id, actor_pc_id, kind, amount_cp, amount_sp, amount_gp, amount_pp, item_name, item_qty, category_slug, comment, autogen_wizard_key, autogen_source_node_id, autogen_hand_touched',
+      'id, actor_pc_id, kind, amount_cp, amount_sp, amount_gp, amount_pp, item_name, item_node_id, item_qty, category_slug, comment, autogen_wizard_key, autogen_source_node_id, autogen_hand_touched',
     )
     .eq('autogen_source_node_id', sourceNodeId)
     .in('autogen_wizard_key', wizardKeys as string[])
@@ -289,6 +291,7 @@ async function loadExistingAutogenRows(
     amount_gp: number
     amount_pp: number
     item_name: string | null
+    item_node_id: string | null
     item_qty: number
     category_slug: string
     comment: string
@@ -310,6 +313,7 @@ async function loadExistingAutogenRows(
       pp: r.amount_pp,
     },
     itemName: r.item_name,
+    itemNodeId: r.item_node_id,
     itemQty: r.item_qty,
     categorySlug: r.category_slug,
     comment: r.comment,
