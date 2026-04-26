@@ -118,15 +118,15 @@ export default function ItemFilterBar({
   }, [basePath, router])
 
   return (
-    <section className="rounded border border-zinc-800 bg-zinc-900/40">
+    <section className="rounded border border-gray-200 bg-gray-50">
       <header className="flex flex-wrap items-center gap-2 px-3 py-2">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="text-sm text-zinc-200 hover:text-zinc-50"
+          className="text-sm text-gray-800 hover:text-gray-900"
         >
           Фильтры{activeCount > 0 ? ` (${activeCount})` : ''}{' '}
-          <span aria-hidden className="text-zinc-500">{expanded ? '▾' : '▸'}</span>
+          <span aria-hidden className="text-gray-400">{expanded ? '▾' : '▸'}</span>
         </button>
 
         {/* Active-filter chips with × removal. */}
@@ -134,10 +134,10 @@ export default function ItemFilterBar({
           <a
             key={`${af.key}:${af.value}`}
             href={af.removeUrl}
-            className="flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-xs text-zinc-200 hover:border-zinc-500"
+            className="flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-800 hover:border-gray-400"
           >
             <span>{labelFor(af.key, af.value)}</span>
-            <span aria-hidden className="text-zinc-500">×</span>
+            <span aria-hidden className="text-gray-400">×</span>
           </a>
         ))}
 
@@ -145,7 +145,7 @@ export default function ItemFilterBar({
           <button
             type="button"
             onClick={resetAll}
-            className="ml-auto text-xs text-zinc-400 hover:text-zinc-200"
+            className="ml-auto text-xs text-gray-500 hover:text-gray-800"
           >
             Сбросить всё
           </button>
@@ -153,21 +153,21 @@ export default function ItemFilterBar({
       </header>
 
       {expanded && (
-        <div className="grid gap-3 border-t border-zinc-800 px-3 py-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 border-t border-gray-200 px-3 py-3 sm:grid-cols-2 lg:grid-cols-3">
           {/* Name search */}
           <form onSubmit={submitSearch} className="flex flex-col gap-1">
-            <label className="text-xs text-zinc-400">Поиск по названию</label>
+            <label className="text-xs text-gray-500">Поиск по названию</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={searchDraft}
                 onChange={(e) => setSearchDraft(e.target.value)}
                 placeholder="меч"
-                className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+                className="flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 placeholder:text-gray-300 focus:border-gray-400 focus:outline-none"
               />
               <button
                 type="submit"
-                className="rounded border border-zinc-700 px-2 py-1 text-sm text-zinc-200 hover:border-zinc-500"
+                className="rounded border border-gray-200 px-2 py-1 text-sm text-gray-800 hover:border-gray-400"
               >
                 ↵
               </button>
@@ -240,11 +240,11 @@ function FilterSelect({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-zinc-400">{label}</span>
+      <span className="text-xs text-gray-500">{label}</span>
       <select
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value || undefined)}
-        className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none"
+        className="rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:border-gray-400 focus:outline-none"
       >
         <option value="">— любое —</option>
         {options.map((o) => (

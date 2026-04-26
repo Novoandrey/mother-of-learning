@@ -60,8 +60,8 @@ export default async function ItemsCatalogPage({
     <div className="flex flex-col gap-6">
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-100">Предметы</h1>
-          <p className="text-sm text-zinc-400">
+          <h1 className="text-2xl font-semibold text-gray-900">Предметы</h1>
+          <p className="text-sm text-gray-500">
             Каталог образцов: оружие, доспехи, расходники, магия и прочее.
             {isDm
               ? ' Транзакции игроков могут привязываться к этим записям.'
@@ -72,14 +72,14 @@ export default async function ItemsCatalogPage({
           <div className="flex items-center gap-2">
             <a
               href={`/c/${slug}/items/settings`}
-              className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+              className="rounded border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:border-gray-400 hover:text-gray-900"
             >
               Настройки
             </a>
             {/* «+ Предмет» CTA — wired in T018 (<ItemCreateDialog>). */}
             <a
               href={`/c/${slug}/items/new`}
-              className="rounded bg-amber-600 px-3 py-1.5 text-sm font-medium text-zinc-900 hover:bg-amber-500"
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
             >
               + Предмет
             </a>
