@@ -8,6 +8,7 @@ import { getMembership, requireAuth } from '@/lib/auth'
 import { listCategories } from '@/lib/categories'
 import CategorySettings from '@/components/category-settings'
 import DefaultPricesEditor from '@/components/default-prices-editor'
+import ApplyDefaultPricesButton from '@/components/apply-default-prices-button'
 
 export async function generateMetadata({
   params,
@@ -152,6 +153,16 @@ export default async function ItemsSettingsPage({
             initial={campaign.settings.item_default_prices}
             canEdit={isManager}
           />
+          {isManager && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <p className="mb-2 text-xs text-gray-500">
+                Spec-016 — применить таблицу выше ко всем существующим
+                предметам каталога. Защищены items с галочкой
+                «Не использовать стандарт» в форме предмета.
+              </p>
+              <ApplyDefaultPricesButton slug={slug} />
+            </div>
+          )}
         </Section>
       </div>
     </div>

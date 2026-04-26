@@ -162,6 +162,7 @@ export async function createItemAction(
     slot_slug: payload.slotSlug,
     source_slug: payload.sourceSlug,
     availability_slug: payload.availabilitySlug,
+    use_default_price: payload.useDefaultPrice,
   })
 
   if (attrsErr) {
@@ -223,6 +224,7 @@ export async function updateItemAction(
       slot_slug: payload.slotSlug,
       source_slug: payload.sourceSlug,
       availability_slug: payload.availabilitySlug,
+      use_default_price: payload.useDefaultPrice,
     })
     .eq('node_id', itemId)
 

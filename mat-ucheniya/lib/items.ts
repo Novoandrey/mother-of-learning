@@ -34,6 +34,7 @@ type ItemAttrsRow = {
   slot_slug: string | null;
   source_slug: string | null;
   availability_slug: string | null;
+  use_default_price: boolean | null;
 };
 
 type NodeRow = {
@@ -73,6 +74,7 @@ function hydrate(node: NodeRow, attrs: ItemAttrsRow | null): ItemNode | null {
     slotSlug: attrs.slot_slug,
     sourceSlug: attrs.source_slug,
     availabilitySlug: attrs.availability_slug,
+    useDefaultPrice: attrs.use_default_price ?? true,
     srdSlug,
     description,
     sourceDetail,
@@ -138,7 +140,7 @@ export async function getCatalogItems(
   let attrsQuery = supabase
     .from('item_attributes')
     .select(
-      'node_id, category_slug, rarity, price_gp, weight_lb, slot_slug, source_slug, availability_slug',
+      'node_id, category_slug, rarity, price_gp, weight_lb, slot_slug, source_slug, availability_slug, use_default_price',
     )
     .in('node_id', ids);
 
@@ -196,7 +198,7 @@ export async function getItemById(
   const { data: attrs, error: attrsErr } = await supabase
     .from('item_attributes')
     .select(
-      'node_id, category_slug, rarity, price_gp, weight_lb, slot_slug, source_slug, availability_slug',
+      'node_id, category_slug, rarity, price_gp, weight_lb, slot_slug, source_slug, availability_slug, use_default_price',
     )
     .eq('node_id', itemId)
     .maybeSingle();
@@ -252,7 +254,7 @@ export async function searchItemsForTypeahead(
       type:node_types!inner(slug),
       attrs:item_attributes!inner(
         node_id, category_slug, rarity, price_gp, weight_lb,
-        slot_slug, source_slug, availability_slug
+        slot_slug, source_slug, availability_slug, use_default_price
       )
     `,
     )

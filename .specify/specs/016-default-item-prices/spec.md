@@ -2,7 +2,7 @@
 
 **Feature Branch**: `016-default-item-prices`
 **Created**: 2026-04-26
-**Status**: Draft
+**Status**: Clarified (2026-04-26, chat 72)
 **Input**: User feedback after spec-015 ship — "вынести в настройки
 'стандартную цену' маг предметов и возможность 'Применить' её, а
 потом поменять на некоторые предметы цену на кастомную (поставив
@@ -178,7 +178,8 @@ isn't enough.
 
 ## Migration
 
-- New: `047_item_use_default_price.sql`
+- New: `048_item_use_default_price.sql` (047 taken by spec-017
+  Складчина).
   - `alter table item_attributes add column use_default_price
     boolean not null default true;`
   - Comment + idempotent guard.
@@ -205,3 +206,84 @@ isn't enough.
 - `components/default-prices-editor.tsx` — Apply button lives
   alongside this editor.
 - `components/item-form-page.tsx` — checkbox lands here.
+
+---
+
+## Clarifications
+
+_Resolved 2026-04-26 in chat 72._
+
+### Q1: Migration filename
+
+**Answer: `048_item_use_default_price.sql`.** 047 уже занят
+spec-017 (Складчина, applied или ready to apply). Tail-numbering
+по строгому порядку.
+
+### Q2: Manual price entry without flag — clobbered on apply?
+
+**Answer: Yes.** Flag — единственный opt-out. Если DM ввёл
+кастомную цену но не поставил галочку «Не использовать стандарт»
+— на следующем «Применить» цена откатится к стандарту.
+
+Rationale: пользователь явно сформулировал «поставив галочку»,
+т.е. opt-out — конкретное действие, не побочный эффект. Если
+auto-tick'ать на divergence — DM теряет контроль (мог опечатать
+цену и не понять почему она не клобберится).
+
+UI affordance: при тыке Apply показать confirm-dialog с
+breakdown'ом «N будет обновлено, M защищены галочкой» — так DM
+сам отловит «упс, забыл галочку». Already in FR-004.
+
+### Q3: FR-008 badge «стандарт / ручная цена» в v1?
+
+**Answer: Skip в v1.** Метка «стандарт / ручная цена» —
+nice-to-have, не блокирующий MVP. Если DM не уверен какая цена
+у item'а — открывает edit form, видит галочку. Один лишний клик
+на edge case стоит дешевле строки UI на каждой карточке.
+
+Если возникнет реальный pain (DM сравнивает 30 предметов через
+catalog grid и хочет видеть какие custom) — заводим как
+follow-up.
+
+### Q4: FR-006/FR-007 autofill suppression behavior
+
+**Answer: Suppression привязана к flag value на момент
+рарити-смены, не к history.** Логика item form:
+
+- Flag = false (стандарт ON), price field empty, rarity changes →
+  prefill from default. (FR-009 — same as today.)
+- Flag = false, price field NON-empty, rarity changes → leave
+  price as is. (Existing behavior; не трогаем.)
+- Flag = true (override ON), price field empty, rarity changes →
+  **no prefill** (suppress). DM хочет ручную цену — пусть введёт.
+- Flag = true, price NON-empty, rarity changes → leave as is.
+
+Если DM расжимает галочку (true → false), prefill **не**
+происходит немедленно (FR-007). Но на следующей смене rarity при
+empty price — prefill сработает по правилу выше.
+
+### Q5: Bucket mapping — `consumable` vs `magic`
+
+**Answer: Простое pattern matching на `item_attributes.category_slug`.**
+
+```
+bucket = (category_slug == 'consumable') ? 'consumable' : 'magic'
+```
+
+Mundane items (rarity = null) автоматически отсеиваются guard'ом
+«rarity ∈ {artifact, null} → skip». Если кто-то категоризирует
+weapon/armor с rarity != null — они получат «magic» цену, что и
+ожидается (магическое оружие).
+
+### Q6: Действие при отсутствии `consumable` category в кампании
+
+**Answer: Skip-by-empty-cell guard покрывает.** Если у кампании
+нет category_slug == 'consumable', items с не-consumable
+категорией просто попадают в magic bucket — что естественно.
+Если кампания экзотическая с другим именем для consumable
+(скажем, 'potion') — это scope для отдельной спеки (mapping
+custom categories to buckets), не v1.
+
+---
+
+### Status: **Clarified**. Next phase: **Plan**.
