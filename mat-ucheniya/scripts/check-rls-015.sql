@@ -55,11 +55,11 @@ begin
     values (gen_random_uuid(), 'spec015-out@test.local')
     returning id into v_outsider;
 
-  insert into campaigns (id, name, slug, owner_id, settings)
-    values (gen_random_uuid(), 'spec-015 smoke A', 'sp015-a-' || substring(gen_random_uuid()::text, 1, 8), v_user_a, '{}'::jsonb)
+  insert into campaigns (id, name, slug, settings)
+    values (gen_random_uuid(), 'spec-015 smoke A', 'sp015-a-' || substring(gen_random_uuid()::text, 1, 8), '{}'::jsonb)
     returning id into v_campaign_a;
-  insert into campaigns (id, name, slug, owner_id, settings)
-    values (gen_random_uuid(), 'spec-015 smoke B', 'sp015-b-' || substring(gen_random_uuid()::text, 1, 8), v_user_b, '{}'::jsonb)
+  insert into campaigns (id, name, slug, settings)
+    values (gen_random_uuid(), 'spec-015 smoke B', 'sp015-b-' || substring(gen_random_uuid()::text, 1, 8), '{}'::jsonb)
     returning id into v_campaign_b;
 
   insert into campaign_members (campaign_id, user_id, role)
