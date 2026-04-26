@@ -61,6 +61,7 @@ export default async function EditItemPage({
       slots={slots}
       sources={sources}
       availabilities={availabilities}
+      defaultPrices={campaign.settings.item_default_prices}
     />
   )
 }

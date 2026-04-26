@@ -200,15 +200,17 @@ begin
   declare
     v_caught text := null;
     v_ok_count int := 0;
+    v_scope text;
   begin
     -- 5 valid scopes
-    for s in select unnest(array['transaction', 'item', 'item-slot', 'item-source', 'item-availability']) loop
+    foreach v_scope in array array['transaction', 'item', 'item-slot', 'item-source', 'item-availability']
+    loop
       begin
         insert into categories (campaign_id, scope, slug, label, sort_order)
-          values (v_campaign_a, s, 'sp015-test-' || s, 'spec-015 smoke ' || s, 1000);
+          values (v_campaign_a, v_scope, 'sp015-test-' || v_scope, 'spec-015 smoke ' || v_scope, 1000);
         v_ok_count := v_ok_count + 1;
       exception when others then
-        raise exception 'FAIL spec-015-6a: scope=% rejected unexpectedly: %', s, SQLERRM;
+        raise exception 'FAIL spec-015-6a: scope=% rejected unexpectedly: %', v_scope, SQLERRM;
       end;
     end loop;
 
