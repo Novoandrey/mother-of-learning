@@ -11,6 +11,11 @@ import type {
   SortDir,
   SortKey,
 } from '@/lib/items-types'
+import {
+  EditablePriceCell,
+  EditableSourceCell,
+  EditableTitleCell,
+} from './item-catalog-edit-cells'
 
 type SlugLabels = {
   category: Record<string, string>
@@ -22,8 +27,11 @@ type SlugLabels = {
 type Props = {
   items: ItemNode[]
   slugLabels: SlugLabels
+  campaignId: string
   campaignSlug: string
   canEdit: boolean
+  /** Источники как опции для inline-edit dropdown'а. */
+  sourceOptions: Array<{ slug: string; label: string }>
 }
 
 const GROUP_BY_OPTIONS: { value: GroupBy; label: string }[] = [
@@ -70,8 +78,10 @@ const RARITY_TONE: Record<Rarity, string> = {
 export default function ItemCatalogGrid({
   items,
   slugLabels,
+  campaignId,
   campaignSlug,
   canEdit,
+  sourceOptions,
 }: Props) {
   const [groupBy, setGroupBy] = useState<GroupBy>('category')
   const [sortKey, setSortKey] = useState<SortKey>('name')
@@ -198,14 +208,15 @@ export default function ItemCatalogGrid({
                     for ru labels.
                   */}
                   <colgroup>
-                    <col style={{ width: '24%' }} />
-                    <col style={{ width: '13%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '23%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
                     <col style={{ width: '9%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '12%' }} />
-                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '7%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '5%' }} />
                   </colgroup>
                   <thead className="text-xs text-gray-400">
                     <tr className="border-b border-gray-200">
@@ -217,6 +228,12 @@ export default function ItemCatalogGrid({
                       <th className="px-3 py-1.5 text-right font-normal">Вес, lb</th>
                       <th className="px-3 py-1.5 text-left font-normal">Источник</th>
                       <th className="px-3 py-1.5 text-left font-normal">Доступность</th>
+                      <th
+                        className="px-3 py-1.5 text-center font-normal"
+                        title="Настройка — галочка «Не использовать стандартную цену»"
+                      >
+                        Н
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -225,7 +242,10 @@ export default function ItemCatalogGrid({
                         key={item.id}
                         item={item}
                         slugLabels={slugLabels}
+                        campaignId={campaignId}
                         campaignSlug={campaignSlug}
+                        canEdit={canEdit}
+                        sourceOptions={sourceOptions}
                         expanded={expandedItemIds.has(item.id)}
                         onToggleExpand={() => toggleItemExpand(item.id)}
                       />
@@ -244,37 +264,64 @@ export default function ItemCatalogGrid({
 function ItemRow({
   item,
   slugLabels,
+  campaignId,
   campaignSlug,
+  canEdit,
+  sourceOptions,
   expanded,
   onToggleExpand,
 }: {
   item: ItemNode
   slugLabels: SlugLabels
+  campaignId: string
   campaignSlug: string
+  canEdit: boolean
+  sourceOptions: Array<{ slug: string; label: string }>
   expanded: boolean
   onToggleExpand: () => void
 }) {
+  // Какая ячейка сейчас редактируется. Только одна за раз.
+  type EditMode = 'title' | 'price' | 'source' | null
+  const [editing, setEditing] = useState<EditMode>(null)
+
+  function startEdit(mode: EditMode, e: React.MouseEvent) {
+    if (!canEdit) return
+    e.stopPropagation()
+    setEditing(mode)
+  }
+
   // Whole row toggles expansion. The title link uses
   // stopPropagation so clicking the name navigates to the
   // permalink without also toggling the description below.
   return (
     <>
       <tr
-        onClick={onToggleExpand}
-        className="cursor-pointer border-b border-gray-200 hover:bg-gray-50"
+        onClick={editing ? undefined : onToggleExpand}
+        className={`border-b border-gray-200 ${editing ? '' : 'cursor-pointer hover:bg-gray-50'}`}
         aria-expanded={expanded}
       >
         <td className="px-3 py-1.5">
           <span aria-hidden className="mr-1 inline-block w-3 text-center text-gray-300">
             {expanded ? '▾' : '▸'}
           </span>
-          <Link
-            href={`/c/${campaignSlug}/items/${item.id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-gray-900 hover:text-blue-700 hover:underline"
-          >
-            {item.title}
-          </Link>
+          {editing === 'title' ? (
+            <EditableTitleCell
+              campaignId={campaignId}
+              itemId={item.id}
+              value={item.title}
+              onCancel={() => setEditing(null)}
+            />
+          ) : (
+            <Link
+              href={`/c/${campaignSlug}/items/${item.id}`}
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => startEdit('title', e)}
+              title={canEdit ? 'Двойной клик — переименовать' : undefined}
+              className="text-gray-900 hover:text-blue-700 hover:underline"
+            >
+              {item.title}
+            </Link>
+          )}
         </td>
         <td className="px-3 py-1.5 text-gray-500">
           {slugLabels.category[item.categorySlug] ?? item.categorySlug}
@@ -291,24 +338,69 @@ function ItemRow({
         <td className="px-3 py-1.5 text-gray-500">
           {item.slotSlug ? slugLabels.slot[item.slotSlug] ?? item.slotSlug : <span className="text-gray-300">—</span>}
         </td>
-        <td className="px-3 py-1.5 text-right font-mono text-gray-700">
-          {item.priceGp !== null ? formatGp(item.priceGp) : <span className="text-gray-300">—</span>}
+        <td
+          className={`px-3 py-1.5 text-right font-mono text-gray-700 ${canEdit && !editing ? 'hover:bg-blue-50' : ''}`}
+          onClick={canEdit && !editing ? (e) => startEdit('price', e) : undefined}
+          title={canEdit ? 'Клик — изменить цену' : undefined}
+        >
+          {editing === 'price' ? (
+            <EditablePriceCell
+              campaignId={campaignId}
+              itemId={item.id}
+              value={item.priceGp}
+              onCancel={() => setEditing(null)}
+            />
+          ) : item.priceGp !== null ? (
+            formatGp(item.priceGp)
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
         </td>
         <td className="px-3 py-1.5 text-right font-mono text-gray-700">
           {item.weightLb !== null ? item.weightLb : <span className="text-gray-300">—</span>}
         </td>
-        <td className="px-3 py-1.5 text-gray-500">
-          {item.sourceSlug ? slugLabels.source[item.sourceSlug] ?? item.sourceSlug : <span className="text-gray-300">—</span>}
+        <td
+          className={`px-3 py-1.5 text-gray-500 ${canEdit && !editing ? 'hover:bg-blue-50' : ''}`}
+          onClick={canEdit && !editing ? (e) => startEdit('source', e) : undefined}
+          title={canEdit ? 'Клик — изменить источник' : undefined}
+        >
+          {editing === 'source' ? (
+            <EditableSourceCell
+              campaignId={campaignId}
+              itemId={item.id}
+              value={item.sourceSlug}
+              options={sourceOptions}
+              onCancel={() => setEditing(null)}
+            />
+          ) : item.sourceSlug ? (
+            slugLabels.source[item.sourceSlug] ?? item.sourceSlug
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
         </td>
         <td className="px-3 py-1.5 text-gray-500">
           {item.availabilitySlug
             ? slugLabels.availability[item.availabilitySlug] ?? item.availabilitySlug
             : <span className="text-gray-300">—</span>}
         </td>
+        <td
+          className="px-3 py-1.5 text-center"
+          title={
+            !item.useDefaultPrice
+              ? 'Галочка «Не использовать стандартную цену» стоит — цена защищена от bulk apply.'
+              : 'Стандартная цена — bulk apply будет перезаписывать.'
+          }
+        >
+          {!item.useDefaultPrice && (
+            <span aria-label="custom price" className="text-emerald-600">
+              ✓
+            </span>
+          )}
+        </td>
       </tr>
       {expanded && (
         <tr className="border-b border-gray-200 bg-gray-50">
-          <td colSpan={8} className="px-6 py-2 text-sm text-gray-700">
+          <td colSpan={9} className="px-6 py-2 text-sm text-gray-700">
             {item.description ? (
               <div className="whitespace-pre-wrap">{item.description}</div>
             ) : (

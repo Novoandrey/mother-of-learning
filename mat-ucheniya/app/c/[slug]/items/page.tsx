@@ -106,8 +106,10 @@ export default async function ItemsCatalogPage({
             availabilities.map((c) => [c.slug, c.label]),
           ),
         }}
+        campaignId={campaign.id}
         campaignSlug={slug}
         canEdit={isDm}
+        sourceOptions={sources.map((c) => ({ slug: c.slug, label: c.label }))}
       />
     </div>
   )

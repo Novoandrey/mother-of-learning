@@ -320,3 +320,85 @@ export async function getLinkedTxCountAction(
     return { ok: false, error: message }
   }
 }
+
+/**
+ * Partial in-row update — для inline edit в каталоге. Меняет только
+ * переданные поля. Никакой валидации slug-references на стороне
+ * action'а: title — text up to 200, priceGp — non-negative number
+ * or null, sourceSlug — string или null (доверяем dropdown'у в UI;
+ * на стороне БД нет FK на categories, что matches existing pattern).
+ *
+ * NOTE: не пробрасывает payload через `updateItemAction` целиком,
+ * чтобы не загружать full item shape в каталог. Ровно три поля
+ * редактируются: title / priceGp / sourceSlug.
+ *
+ * Возвращает { ok: true } или { ok: false, error: string }.
+ */
+export async function quickUpdateItemAction(
+  campaignId: string,
+  itemId: string,
+  patch: {
+    title?: string
+    priceGp?: number | null
+    sourceSlug?: string | null
+  },
+): Promise<ItemActionResult> {
+  if (!campaignId) return { ok: false, error: 'Не указана кампания' }
+  if (!itemId) return { ok: false, error: 'Не указан предмет' }
+
+  const auth = await requireDm(campaignId)
+  if (!auth.ok) return auth
+
+  const admin = createAdminClient()
+
+  // node-side update (title только).
+  if (patch.title !== undefined) {
+    const trimmed = patch.title.trim()
+    if (trimmed.length === 0) {
+      return { ok: false, error: 'Название не может быть пустым' }
+    }
+    if (trimmed.length > 200) {
+      return { ok: false, error: 'Название слишком длинное' }
+    }
+    const { error } = await admin
+      .from('nodes')
+      .update({ title: trimmed })
+      .eq('id', itemId)
+      .eq('campaign_id', campaignId)
+    if (error) {
+      return { ok: false, error: `Не удалось обновить название: ${error.message}` }
+    }
+  }
+
+  // attrs-side update (priceGp / sourceSlug).
+  const attrsPatch: Record<string, unknown> = {}
+  if (patch.priceGp !== undefined) {
+    if (patch.priceGp !== null) {
+      if (!Number.isFinite(patch.priceGp)) {
+        return { ok: false, error: 'Цена должна быть числом' }
+      }
+      if (patch.priceGp < 0) {
+        return { ok: false, error: 'Цена не может быть отрицательной' }
+      }
+    }
+    attrsPatch.price_gp = patch.priceGp
+  }
+  if (patch.sourceSlug !== undefined) {
+    attrsPatch.source_slug = patch.sourceSlug ?? null
+  }
+
+  if (Object.keys(attrsPatch).length > 0) {
+    const { error } = await admin
+      .from('item_attributes')
+      .update(attrsPatch)
+      .eq('node_id', itemId)
+    if (error) {
+      return { ok: false, error: `Не удалось обновить: ${error.message}` }
+    }
+  }
+
+  invalidateSidebar(campaignId)
+  revalidatePath(`/c/${campaignId}/items`)
+  revalidatePath(`/c/${campaignId}/items/${itemId}`)
+  return { ok: true }
+}
