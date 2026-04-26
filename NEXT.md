@@ -2,10 +2,8 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-26 (chat 64-65 — spec-015 light theme polish,
-> Предметы nav tab, и UX редизайн: 4 кнопки (+ Доход / − Расход /
-> + Предмет / − Предмет) вместо single «+ Транзакция» с табами)
-> spec.md status Clarified, ждёт Plan)
+> Last updated: 2026-04-26 (chat 66 — fix slow item search +
+> counterparty picker for `+ Предмет` / `− Предмет` forms)
 
 ## В проде сейчас
 
@@ -290,6 +288,21 @@
   (`item-in` → +qty, `item-out` → −qty). `validateItemQty`
   loosened до `≠ 0` (соответствует DB CHECK из мига 036).
 
+  **UX iter 1.5 (chat 66):** две регрессии iter 1 закрыты.
+  *Perf:* `searchItemsForTypeahead` переписан с трёх sequential
+  Postgrest-запросов (`node_types` → `nodes` → `item_attributes`)
+  на один nested-select с `!inner` join'ами и фильтром
+  `.eq('type.slug', 'item')`. Снимает ~600ms server-side latency
+  даже на 1-предметном датасете. Client debounce 200→120ms.
+  *Counterparty picker:* в `<TransactionForm>` для `kind === 'item'`
+  добавлен опциональный `<TransferRecipientPicker>` с лейблом
+  «От кого получен» (item-in) / «Кому передан» (item-out) и
+  default-опцией «— без передачи —». При выборе PC submit идёт
+  через `createItemTransfer` (spec-011 уже умеет всё). Picker
+  расширен пропами `label` / `placeholder` / `clearLabel` и
+  `onChange: (pcId: string | null) => void`. Возвращает потерянную
+  семантику item-transfer без воскрешения «↔ Перевод» кнопки.
+
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
 **Последняя применённая миграция:** `043_item_catalog.sql` (chat 55,
@@ -301,6 +314,12 @@ spec-015 — node_type=item, item_attributes, transactions.item_node_id,
 **Spec-015 Item catalog — UX iter 2 + Phases 7–12.**
 
 ### UX iter 2 (next chat — мелкая, важная)
+
+**Закрыто в chat 66:** ✅ recipient picker для `+ Предмет` /
+`− Предмет` (commit `c90205f`). ✅ perf fix item search
+(commit `bcc2704`).
+
+Осталось:
 1. **Bundle (item + деньги одной операцией):**
    - Добавить опциональное поле «Заплатил, gp» / «Получил, gp» в форме
      `+ Предмет` / `− Предмет` (показывается когда `initialKind` is
@@ -314,17 +333,16 @@ spec-015 — node_type=item, item_attributes, transactions.item_node_id,
      не показывать монетный picker для бандла — только GP с дробной
      частью, а сервер раскладывает.
 
-2. **Recipient picker внутри `− Расход` / `− Предмет`:**
-   - Опциональный select «Получатель: <PC>» (default — нет получателя).
-   - Когда выбран — `− Расход` становится `createTransfer`,
-     `− Предмет` становится `createItemTransfer`. Существующая
-     серверная инфраструктура полностью готова, нужен только UI и
-     route в submit.
-   - Это re-добавляет потерянную семантику «Перевод» (отдельной
-     кнопки `↔ Перевод` больше нет — она встроена в `−` варианты
-     через recipient).
-   - Sheet props нужны `availablePcs` — они уже есть в server pages,
-     надо протянуть до `<TransactionActions>` и далее в `<TransactionForm>`.
+2. **Recipient picker внутри `− Расход`** (item-side уже сделан
+   в chat 66):
+   - Тот же паттерн: опциональный `<TransferRecipientPicker>` под
+     amount input, лейбл «Кому передан», `clearLabel`
+     «— без передачи —».
+   - При выборе — `− Расход` становится `createTransfer`
+     (sender=actorPc, recipient=picked). Existing infra готова.
+   - Симметрично можно добавить и в `+ Доход` («От кого получен»),
+     но это меньшая ценность — denser path для денежных переводов
+     уже есть.
 
 ### Phase 7 — Inventory tab
 - `<InventoryTab>` shared component, монтаж на PC page (новая
