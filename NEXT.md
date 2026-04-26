@@ -2,8 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-26 (chat 66 — fix slow item search +
-> counterparty picker for `+ Предмет` / `− Предмет` forms)
+> Last updated: 2026-04-26 (chat 71 — spec-015 ship + 0.4.25
+> release; spec-016 renumber to spec-017, new spec-016 filed for
+> bulk-apply default prices)
 
 ## В проде сейчас
 
@@ -329,16 +330,28 @@
 
 ## Следующий приоритет
 
-**Выбрать следующую спеку.** Spec-015 закрыта целиком, наследия нет.
+**Spec-016 «Цены по умолчанию: bulk apply + per-item override».**
+Хвост spec-015 — пользователь просил кнопку «Применить» к
+существующему каталогу + чекбокс «Не использовать стандарт» на
+карточке предмета. В chat 71 я (Claude) молча урезал scope до
+автозаполнения при создании. Полный flow вынесен в отдельную
+спеку. spec.md готов, ждёт `/clarify`. Версия откроет 0.5
+(старт минорной серии после bookkeeping arc 0.4).
 
-Кандидаты:
-1. **Spec-016 «Сборы»** — spec.md готов, ждёт `/clarify`. Узкий
-   scope, ~1–2 чата. Решает: автоматический сбор денег с PC
-   (party tax / городские налоги / спонсорские взносы) на дне X
-   петли N.
-2. **Spec-017 «Карта мира»** — заявка в backlog'е, фундаментальная
-   (5–7 дней). Карта-канвас, путевые точки, фильтры по сессиям.
-3. **TECH-006/TECH-009/TECH-011** — мелкие техдолги. Открыть
+Старая spec-016 «Сборы» переименована в **spec-017** (sidecar
+real-money pool, sidecar к ledger). spec.md лежит, ждёт
+`/clarify` после 016.
+
+Кандидаты в порядке:
+1. **Spec-016 «Default item prices: bulk apply + override»** —
+   1 миграция (`item_attributes.use_default_price`), 1 server
+   action `applyItemDefaultPrices`, кнопка «Применить» в
+   `/items/settings`, чекбокс в форме Образца. ~1 чат.
+2. **Spec-017 «Сборы»** — узкий scope, ~1–2 чата. Real-money
+   pool, sidecar к ledger.
+3. **Spec-018 «Карта мира»** — фундаментальная (5–7 дней).
+   Карта-канвас, путевые точки, фильтры по сессиям. (Был 017.)
+4. **TECH-006/TECH-009/TECH-011** — мелкие техдолги. Открыть
    `backlog.md`, выбрать что подвернётся.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
@@ -359,10 +372,11 @@
 ### Кандидаты после следующей спеки
 
 Из backlog'а (entries есть, spec.md нет):
-- **spec-018** (encounter rework), **spec-019** (DM sandbox),
-  **spec-021** (DM session control), **spec-022** (movement
-  timeline), **spec-023** (часы/проекты), **spec-024+**
-  (character-sheet/mobile epic).
+- **spec-019** (encounter rework), **spec-020** (DM sandbox),
+  **spec-022** (DM session control), **spec-023** (movement
+  timeline), **spec-024** (часы/проекты), **spec-025+**
+  (character-sheet/mobile epic). _Все номера сдвинуты на +1
+  относительно chat 71 — новый spec-016 встал перед «Сборами»._
 - **IDEA-055** (DM rename/delete на encounter page, ~30 мин) —
   новая в chat 50.
 
@@ -377,9 +391,10 @@
 - Bulk-edit ещё нет (часть старого IDEA-043) — может всплыть
   отдельно если будет запрос.
 - **IDEA-054 PROMOTED (chat 49)** — 🗺️ PC↔Location граф разъехался
-  на spec-017 (карта) + spec-021 (DM session control + movement
-  events) + spec-022 (timeline view). Историческая запись
-  осталась в backlog'е.
+  на spec-018 (карта) + spec-022 (DM session control + movement
+  events) + spec-023 (timeline view). Историческая запись
+  осталась в backlog'е. _Номера сдвинуты на +1 относительно
+  chat 71._
 
 ### Параллельные кандидаты
 
