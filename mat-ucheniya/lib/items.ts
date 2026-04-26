@@ -209,14 +209,20 @@ export async function getItemById(
 // ─────────────────────────── searchItemsForTypeahead ───────────────────────────
 
 /**
- * Top 10 items matching `query`, ranked: exact prefix > exact substring >
- * fuzzy match. Used by `<ItemTypeahead>` (T022). Per NFR-002, this
- * MUST return within 100 ms at 500-item catalog scale.
+ * Top N items matching `query`, ranked: exact > prefix > substring.
+ * Used by `<ItemTypeahead>` (T022). Per NFR-002, this MUST return
+ * within 100 ms at 500-item catalog scale.
  *
- * Ranking is implemented in two passes:
- *   1. Pull up to 30 ILIKE-substring matches from Postgres (cheap).
- *   2. Re-rank in memory by prefix > substring > full match.
- *   3. Slice to 10.
+ * Single-roundtrip implementation (chat 66 perf fix). Originally three
+ * sequential queries (`node_types` → `nodes` → `item_attributes`) —
+ * cumulative ~600 ms even on a 1-item dataset because each Postgrest
+ * call is its own HTTPS round trip. Replaced with one nested-select
+ * via `!inner` joins so Postgrest hits Postgres exactly once.
+ *
+ * Ranking still happens in memory (Postgrest can't do it cleanly):
+ *   1. Pull up to 30 ILIKE matches with attrs embedded.
+ *   2. Re-rank by exact > prefix > substring.
+ *   3. Slice to `limit`.
  */
 export async function searchItemsForTypeahead(
   campaignId: string,
@@ -228,46 +234,39 @@ export async function searchItemsForTypeahead(
 
   const supabase = await createClient();
 
-  const { data: itemType } = await supabase
-    .from('node_types')
-    .select('id')
-    .eq('campaign_id', campaignId)
-    .eq('slug', 'item')
-    .maybeSingle();
-  if (!itemType) return [];
+  type Embedded = Omit<NodeRow, 'type'> & {
+    type: { slug: string } | { slug: string }[] | null;
+    attrs: ItemAttrsRow | ItemAttrsRow[] | null;
+  };
 
-  // Step 1 — broad ILIKE pull. Search both `title` (Russian display)
-  // and `srd_slug` (English alias). The latter is in JSONB so we use
-  // the `->>` operator inside ILIKE.
-  const { data: candidates, error: candErr } = await supabase
+  // `!inner` on both joins drops nodes without attrs (defensive
+  // against the post-mig 043 invariant being broken) and lets us
+  // filter by `node_types.slug` without a separate id lookup.
+  // Search both `title` (Russian display) and `fields->>srd_slug`
+  // (English alias) — the JSONB path arg works inside `ilike`.
+  const { data, error } = await supabase
     .from('nodes')
-    .select('id, campaign_id, title, fields')
+    .select(
+      `
+      id, campaign_id, title, fields,
+      type:node_types!inner(slug),
+      attrs:item_attributes!inner(
+        node_id, category_slug, rarity, price_gp, weight_lb,
+        slot_slug, source_slug, availability_slug
+      )
+    `,
+    )
     .eq('campaign_id', campaignId)
-    .eq('type_id', (itemType as { id: string }).id)
+    .eq('type.slug', 'item')
     .or(`title.ilike.%${trimmed}%,fields->>srd_slug.ilike.%${trimmed.toLowerCase()}%`)
     .limit(30);
 
-  if (candErr) throw new Error(`searchItemsForTypeahead: ${candErr.message}`);
+  if (error) throw new Error(`searchItemsForTypeahead: ${error.message}`);
 
-  const rows = (candidates ?? []) as Array<Omit<NodeRow, 'type'>>;
+  const rows = (data ?? []) as Embedded[];
   if (rows.length === 0) return [];
 
-  // Step 2 — load attrs for the candidates.
-  const ids = rows.map((r) => r.id);
-  const { data: attrRows, error: attrsErr } = await supabase
-    .from('item_attributes')
-    .select(
-      'node_id, category_slug, rarity, price_gp, weight_lb, slot_slug, source_slug, availability_slug',
-    )
-    .in('node_id', ids);
-  if (attrsErr) throw new Error(`searchItemsForTypeahead (attrs): ${attrsErr.message}`);
-
-  const attrsByNodeId = new Map<string, ItemAttrsRow>();
-  for (const a of (attrRows ?? []) as ItemAttrsRow[]) {
-    attrsByNodeId.set(a.node_id, a);
-  }
-
-  // Step 3 — score and re-rank. Score lower = better.
+  // Score and re-rank. Score lower = better.
   const needle = trimmed.toLowerCase();
   const scored = rows
     .map((r) => {
@@ -288,7 +287,17 @@ export async function searchItemsForTypeahead(
 
   const out: ItemNode[] = [];
   for (const { row } of scored) {
-    const item = hydrate({ ...row, type: null }, attrsByNodeId.get(row.id) ?? null);
+    const attrs = unwrapOne(row.attrs as ItemAttrsRow | ItemAttrsRow[] | null);
+    const item = hydrate(
+      {
+        id: row.id,
+        campaign_id: row.campaign_id,
+        title: row.title,
+        fields: row.fields,
+        type: null,
+      },
+      attrs ?? null,
+    );
     if (item) out.push(item);
   }
   return out;
