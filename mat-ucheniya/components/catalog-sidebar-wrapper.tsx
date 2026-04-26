@@ -46,10 +46,22 @@ export function CatalogSidebarWrapper({ nodeTypes, nodes, campaignSlug }: Props)
     groupOrder.push(t.slug)
   }
 
-  // Active node ID from pathname
-  const activeNodeId = pathname.match(/\/catalog\/([a-f0-9-]+)/)?.[1] || null
+  // Active node ID from pathname.
+  // Recognises both /catalog/[id] (legacy + non-item nodes) and
+  // /items/[id] (spec-015 item nodes), so highlight stays correct
+  // when the user lands on either route.
+  const activeNodeId =
+    pathname.match(/\/catalog\/([a-f0-9-]+)/)?.[1] ||
+    pathname.match(/\/items\/([a-f0-9-]+)/)?.[1] ||
+    null
 
   const getHref = useCallback((node: SidebarNode) => {
+    // Item nodes have a dedicated route under /items — short-circuit
+    // here so the click doesn't bounce through /catalog/[id]'s
+    // server-side redirect (T046). Cleaner UX, one fewer roundtrip.
+    if (node.type?.slug === 'item') {
+      return `/c/${campaignSlug}/items/${node.id}`
+    }
     return `/c/${campaignSlug}/catalog/${node.id}`
   }, [campaignSlug])
 

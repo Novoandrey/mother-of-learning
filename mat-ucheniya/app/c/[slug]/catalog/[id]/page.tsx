@@ -134,6 +134,11 @@ export default async function NodePage({
   // Stash (spec-011) has the same pattern: a purpose-built page under
   // /accounting/stash renders wallet + inventory; the catalog route
   // is kept as a discoverable URL but redirects to the canonical view.
+  //
+  // Items (spec-015 T046): same again — `/items/[id]` is the dedicated
+  // item permalink (with attributes table, history, edit affordance).
+  // Sidebar already short-circuits this for item nodes (T043), but
+  // legacy bookmarks and edge-relations land here and get redirected.
   {
     const typeRaw = (node as { type?: unknown }).type
     const earlyTypeSlug = Array.isArray(typeRaw)
@@ -144,6 +149,9 @@ export default async function NodePage({
     }
     if (earlyTypeSlug === 'stash') {
       redirect(`/c/${slug}/accounting/stash`)
+    }
+    if (earlyTypeSlug === 'item') {
+      redirect(`/c/${slug}/items/${id}`)
     }
   }
 

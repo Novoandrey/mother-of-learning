@@ -419,23 +419,23 @@
 
 ## Phase 11 — Sidebar / nav / alias redirects
 
-- [ ] **T043 [P1]** Update `lib/sidebar-cache.ts` so item nodes
+- [x] **T043 [P1]** Update `lib/sidebar-cache.ts` so item nodes
   appear under «Предметы» group in the sidebar. The encounter-
   mirror cut-out from spec-013 stays unaffected — items are a
   legitimate sidebar entry.
   *(file: `mat-ucheniya/lib/sidebar-cache.ts`)*
 
-- [ ] **T044 [P1]** Add «Предметы» tab to `<NavTabs>`
+- [x] **T044 [P1]** Add «Предметы» tab to `<NavTabs>`
   (`components/nav-tabs.tsx`), positioned between «Каталог» and
   «Бухгалтерия». Visible to all members.
   *(file: `mat-ucheniya/components/nav-tabs.tsx`)*
 
-- [ ] **T045 [P2]** Server-side `redirect()` from
+- [x] **T045 [P2]** Server-side `redirect()` from
   `/c/[slug]/catalog?type=item` → `/c/[slug]/items` preserving
   any other params (`?q=…`).
   *(file: `mat-ucheniya/app/c/[slug]/catalog/page.tsx`)*
 
-- [ ] **T046 [P2]** Server-side `redirect()` from
+- [x] **T046 [P2]** Server-side `redirect()` from
   `/c/[slug]/catalog/[id]` → `/c/[slug]/items/[id]` when the
   node's type slug is `'item'`. Detect by the existing node
   load logic in that route.
