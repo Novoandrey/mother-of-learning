@@ -1,6 +1,6 @@
 # Feature Specification: Real-money Contribution Pool (Сборы)
 
-**Feature Branch**: `016-contribution-pool`
+**Feature Branch**: `017-contribution-pool`
 **Created**: 2026-04-24
 **Status**: Draft
 **Input**: User prompt — "mini-module for chipping in on real-world
@@ -895,9 +895,9 @@ P2/P3 items are live-able gaps.
 
 - `.specify/memory/constitution.md` — v3.0.0.
 - `.specify/memory/bookkeeping-roadmap.md` — in-game ledger
-  series (009-015). **This spec is deliberately outside** that
+  series (009-016). **This spec is deliberately outside** that
   series — bookkeeping-roadmap treats money as an in-game
-  resource, spec-016 treats money as a real-world utility.
+  resource, spec-017 treats money as a real-world utility.
 - `.specify/specs/006-auth-and-roles/spec.md` — campaign
   member / DM role semantics reused in FR-010.
 - `.specify/specs/009-loop-progress-bar/spec.md` — session
