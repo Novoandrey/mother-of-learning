@@ -60,10 +60,23 @@ export type ItemLine = {
   kind: 'item'
   /**
    * Free-text item name. May match an item-node title in spec-015's
-   * catalog, but the link is not enforced here — encounter-loot lines
-   * are independent of any future item registry.
+   * catalog. When `item_node_id` is set, this still carries the
+   * snapshot title — written into the resulting transactions exactly
+   * as typed (FR-014). Renames of the linked Образец surface in
+   * inventory views via the live-title hydration pass, not here.
    */
   name: string
+  /**
+   * Spec-015 (T038). Optional link to an Образец in the items catalog.
+   * When set:
+   *   - `applyEncounterLoot` propagates the value into each generated
+   *     transaction's `item_node_id` (T039), so the lines auto-link.
+   *   - `name` remains the snapshot — both legs of any transfer pair
+   *     written by reconcile share the same name.
+   * When `null` / `undefined` — free-text path, identical to pre-spec-015
+   * behaviour. Existing drafts without this field stay valid (FR-018).
+   */
+  item_node_id?: string | null
   /** Positive integer. Validated in `validateLootDraft`. */
   qty: number
   recipient_mode: 'pc' | 'stash'
@@ -142,4 +155,10 @@ export type EncounterLootDesiredRow =
       actor_pc_id: string
       item_name: string
       item_qty: number
+      /**
+       * Spec-015 (T039). Optional Образец link, propagated from the
+       * draft `ItemLine.item_node_id`. Reconcile core writes this into
+       * the generated transaction's `item_node_id` column.
+       */
+      item_node_id: string | null
     }

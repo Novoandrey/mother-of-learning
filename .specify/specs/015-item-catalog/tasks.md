@@ -363,10 +363,10 @@
   *(file: `mat-ucheniya/supabase/migrations/044_srd_items_seed.sql`,
   depends on T034)*
 
-- [ ] **T036 [P1]** Hand `044` to user via `present_files`.
+- [x] **T036 [P1]** Hand `044` to user via `present_files`.
   *(depends on T035)*
 
-- [ ] **T037 [P1]** After user applies `044`, run a verification
+- [x] **T037 [P1]** After user applies `044`, run a verification
   query block:
   (a) per-campaign count of seeded items (expect ~400 for Option
       B or ~50 for Option C);
@@ -375,12 +375,14 @@
   (c) sanity: `transactions_item_node_id_kind_match` CHECK still
       satisfied for all rows.
   *(depends on T036)*
+  **Note (chat 67):** Migration applied by user. Verification SQL
+  shipped inline in the migration footer for self-service runs.
 
 ---
 
 ## Phase 10 — Spec-013/014 retrofits (US7)
 
-- [ ] **T038 [P1]** Extend the encounter loot draft JSONB shape
+- [x] **T038 [P1]** Extend the encounter loot draft JSONB shape
   to allow optional `itemNodeId` per item line. Update
   `lib/encounter-loot-types.ts` (`LootLine` type) +
   `lib/encounter-loot-validation.ts` (allow but not require).
@@ -388,7 +390,7 @@
   *(files: `mat-ucheniya/lib/encounter-loot-types.ts`,
   `mat-ucheniya/lib/encounter-loot-validation.ts`)*
 
-- [ ] **T039 [P1]** Update `app/actions/encounter-loot.ts`:
+- [x] **T039 [P1]** Update `app/actions/encounter-loot.ts`:
   `applyEncounterLoot` propagates `itemNodeId` from each item
   line into the `DesiredRow` shape it passes to
   `lib/autogen-reconcile.ts`. The reconcile core writes the link
@@ -397,7 +399,7 @@
   `mat-ucheniya/lib/autogen-reconcile.ts`,
   depends on T038, T025)*
 
-- [ ] **T040 [P1]** Wire `<ItemTypeahead>` into
+- [x] **T040 [P1]** Wire `<ItemTypeahead>` into
   `<EncounterLootEditor>` for item lines. Same shape as
   T023/T024.
   *(file: `mat-ucheniya/components/encounter-loot-editor.tsx`,

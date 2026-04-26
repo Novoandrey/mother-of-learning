@@ -181,6 +181,8 @@ export default async function EncounterPage({
             <EncounterLootPanel
               encounterId={encounter.id}
               campaignId={campaign.id}
+              campaignSlug={slug}
+              canEditCatalog={true}
             />
           ) : (
             <EncounterLootSummaryReadOnly

@@ -176,6 +176,7 @@ function makeMoneyRow(opts: {
     kind: 'money',
     coins: { ...opts.coins },
     itemName: null,
+    itemNodeId: null,
     itemQty: 1, // schema default for non-item rows
     categorySlug: opts.categorySlug,
     comment: opts.comment,
@@ -198,6 +199,10 @@ function makeItemRow(opts: {
     kind: 'item',
     coins: { ...ZERO },
     itemName: opts.item.name,
+    // Spec-012 starter items don't carry catalog links — DM curates
+    // free-text in the wizard. The mig-044 backfill will pick them up
+    // by name match if/when an Образец matches.
+    itemNodeId: null,
     itemQty: opts.item.qty,
     categorySlug: opts.categorySlug,
     comment: opts.comment,
