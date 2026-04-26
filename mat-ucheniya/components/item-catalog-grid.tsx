@@ -52,12 +52,12 @@ const RARITY_LABEL: Record<string, string> = {
 }
 
 const RARITY_TONE: Record<Rarity, string> = {
-  common: 'border-zinc-600 text-zinc-300',
-  uncommon: 'border-green-700 text-green-300',
-  rare: 'border-blue-700 text-blue-300',
-  'very-rare': 'border-purple-700 text-purple-300',
-  legendary: 'border-amber-700 text-amber-300',
-  artifact: 'border-rose-700 text-rose-300',
+  common: 'border-gray-300 text-gray-700',
+  uncommon: 'border-green-500 bg-green-50 text-green-800',
+  rare: 'border-blue-500 bg-blue-50 text-blue-800',
+  'very-rare': 'border-purple-500 bg-purple-50 text-purple-800',
+  legendary: 'border-amber-700 text-blue-700',
+  artifact: 'border-rose-500 bg-rose-50 text-rose-800',
 }
 
 /**
@@ -99,8 +99,8 @@ export default function ItemCatalogGrid({
 
   if (items.length === 0) {
     return (
-      <section className="rounded border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-12 text-center">
-        <p className="text-sm text-zinc-400">
+      <section className="rounded border border-dashed border-gray-300 bg-gray-50 px-4 py-12 text-center">
+        <p className="text-sm text-gray-500">
           Каталог пуст{canEdit ? ' — добавьте первый предмет.' : '.'}
         </p>
       </section>
@@ -111,7 +111,7 @@ export default function ItemCatalogGrid({
     <section className="flex flex-col gap-3">
       {/* Group-by + sort controls */}
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-zinc-400">Группа:</span>
+        <span className="text-gray-500">Группа:</span>
         <div className="flex flex-wrap gap-1">
           {GROUP_BY_OPTIONS.map((o) => (
             <button
@@ -120,8 +120,8 @@ export default function ItemCatalogGrid({
               onClick={() => setGroupBy(o.value)}
               className={`rounded border px-2 py-0.5 text-xs ${
                 groupBy === o.value
-                  ? 'border-amber-600 bg-amber-600/10 text-amber-300'
-                  : 'border-zinc-700 text-zinc-300 hover:border-zinc-500'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 text-gray-700 hover:border-gray-400'
               }`}
             >
               {o.label}
@@ -129,11 +129,11 @@ export default function ItemCatalogGrid({
           ))}
         </div>
 
-        <span className="ml-3 text-zinc-400">Сортировка:</span>
+        <span className="ml-3 text-gray-500">Сортировка:</span>
         <select
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
-          className="rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-xs text-zinc-100"
+          className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-900"
         >
           {SORT_KEY_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -144,14 +144,14 @@ export default function ItemCatalogGrid({
         <button
           type="button"
           onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-          className="rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 hover:border-zinc-500"
+          className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-700 hover:border-gray-400"
           aria-label="Направление сортировки"
           title={sortDir === 'asc' ? 'По возрастанию' : 'По убыванию'}
         >
           {sortDir === 'asc' ? '↑' : '↓'}
         </button>
 
-        <span className="ml-auto text-xs text-zinc-500">
+        <span className="ml-auto text-xs text-gray-400">
           {items.length} {pluralizeRu(items.length, 'предмет', 'предмета', 'предметов')}
         </span>
       </div>
@@ -160,25 +160,25 @@ export default function ItemCatalogGrid({
       {groups.map((g) => {
         const isCollapsed = collapsed.has(g.key)
         return (
-          <div key={g.key} className="rounded border border-zinc-800">
+          <div key={g.key} className="rounded border border-gray-200">
             <button
               type="button"
               onClick={() => toggleGroup(g.key)}
-              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium text-zinc-200 hover:bg-zinc-900/40"
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-50"
             >
               <span>
-                <span aria-hidden className="mr-1 text-zinc-500">
+                <span aria-hidden className="mr-1 text-gray-400">
                   {isCollapsed ? '▸' : '▾'}
                 </span>
                 {g.label}
-                <span className="ml-2 text-xs text-zinc-500">({g.items.length})</span>
+                <span className="ml-2 text-xs text-gray-400">({g.items.length})</span>
               </span>
             </button>
             {!isCollapsed && (
-              <div className="overflow-x-auto border-t border-zinc-800">
+              <div className="overflow-x-auto border-t border-gray-200">
                 <table className="w-full text-sm">
-                  <thead className="text-xs text-zinc-500">
-                    <tr className="border-b border-zinc-800">
+                  <thead className="text-xs text-gray-400">
+                    <tr className="border-b border-gray-200">
                       <th className="px-3 py-1.5 text-left font-normal">Название</th>
                       <th className="px-3 py-1.5 text-left font-normal">Категория</th>
                       <th className="px-3 py-1.5 text-left font-normal">Редкость</th>
@@ -219,16 +219,16 @@ function ItemRow({
   campaignSlug: string
 }) {
   return (
-    <tr className="border-b border-zinc-900 hover:bg-zinc-900/30">
+    <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="px-3 py-1.5">
         <Link
           href={`/c/${campaignSlug}/items/${item.id}`}
-          className="text-zinc-100 hover:text-amber-300"
+          className="text-gray-900 hover:text-blue-700"
         >
           {item.title}
         </Link>
       </td>
-      <td className="px-3 py-1.5 text-zinc-400">
+      <td className="px-3 py-1.5 text-gray-500">
         {slugLabels.category[item.categorySlug] ?? item.categorySlug}
       </td>
       <td className="px-3 py-1.5">
@@ -237,25 +237,25 @@ function ItemRow({
             {RARITY_LABEL[item.rarity]}
           </span>
         ) : (
-          <span className="text-zinc-600">—</span>
+          <span className="text-gray-300">—</span>
         )}
       </td>
-      <td className="px-3 py-1.5 text-zinc-400">
-        {item.slotSlug ? slugLabels.slot[item.slotSlug] ?? item.slotSlug : <span className="text-zinc-600">—</span>}
+      <td className="px-3 py-1.5 text-gray-500">
+        {item.slotSlug ? slugLabels.slot[item.slotSlug] ?? item.slotSlug : <span className="text-gray-300">—</span>}
       </td>
-      <td className="px-3 py-1.5 text-right font-mono text-zinc-300">
-        {item.priceGp !== null ? formatGp(item.priceGp) : <span className="text-zinc-600">—</span>}
+      <td className="px-3 py-1.5 text-right font-mono text-gray-700">
+        {item.priceGp !== null ? formatGp(item.priceGp) : <span className="text-gray-300">—</span>}
       </td>
-      <td className="px-3 py-1.5 text-right font-mono text-zinc-300">
-        {item.weightLb !== null ? item.weightLb : <span className="text-zinc-600">—</span>}
+      <td className="px-3 py-1.5 text-right font-mono text-gray-700">
+        {item.weightLb !== null ? item.weightLb : <span className="text-gray-300">—</span>}
       </td>
-      <td className="px-3 py-1.5 text-zinc-400">
-        {item.sourceSlug ? slugLabels.source[item.sourceSlug] ?? item.sourceSlug : <span className="text-zinc-600">—</span>}
+      <td className="px-3 py-1.5 text-gray-500">
+        {item.sourceSlug ? slugLabels.source[item.sourceSlug] ?? item.sourceSlug : <span className="text-gray-300">—</span>}
       </td>
-      <td className="px-3 py-1.5 text-zinc-400">
+      <td className="px-3 py-1.5 text-gray-500">
         {item.availabilitySlug
           ? slugLabels.availability[item.availabilitySlug] ?? item.availabilitySlug
-          : <span className="text-zinc-600">—</span>}
+          : <span className="text-gray-300">—</span>}
       </td>
     </tr>
   )

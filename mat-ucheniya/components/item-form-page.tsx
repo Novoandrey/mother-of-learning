@@ -122,13 +122,13 @@ export default function ItemFormPage({
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
       <header>
-        <h1 className="text-2xl font-semibold text-zinc-100">
+        <h1 className="text-2xl font-semibold text-gray-900">
           {itemId ? 'Редактирование предмета' : 'Новый предмет'}
         </h1>
         {itemId && typeof linkedTxCount === 'number' && linkedTxCount > 0 && (
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-gray-500">
             На этот образец ссылается{' '}
-            <strong className="text-zinc-200">{linkedTxCount}</strong>{' '}
+            <strong className="text-gray-800">{linkedTxCount}</strong>{' '}
             {linkedTxCount === 1 ? 'транзакция' : 'транзакций'} — изменения
             отразятся в каталоге и ленте.
           </p>
@@ -136,7 +136,7 @@ export default function ItemFormPage({
       </header>
 
       {error && (
-        <div className="rounded border border-rose-700 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
+        <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">
           {error}
         </div>
       )}
@@ -149,7 +149,7 @@ export default function ItemFormPage({
             onChange={(e) => setTitle(e.target.value)}
             required
             maxLength={200}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none"
           />
         </Field>
 
@@ -158,7 +158,7 @@ export default function ItemFormPage({
             value={categorySlug}
             onChange={(e) => setCategorySlug(e.target.value)}
             required
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           >
             <option value="">— выбрать —</option>
             {categories.map((c) => (
@@ -173,7 +173,7 @@ export default function ItemFormPage({
           <select
             value={rarity}
             onChange={(e) => setRarity(e.target.value as Rarity | '')}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           >
             <option value="">— нет / без редкости —</option>
             {RARITY_OPTIONS.map((o) => (
@@ -188,7 +188,7 @@ export default function ItemFormPage({
           <select
             value={slotSlug}
             onChange={(e) => setSlotSlug(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           >
             <option value="">— не занимает —</option>
             {slots.map((s) => (
@@ -206,7 +206,7 @@ export default function ItemFormPage({
             step="0.01"
             value={priceGp}
             onChange={(e) => setPriceGp(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           />
         </Field>
 
@@ -217,7 +217,7 @@ export default function ItemFormPage({
             step="0.01"
             value={weightLb}
             onChange={(e) => setWeightLb(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           />
         </Field>
 
@@ -225,7 +225,7 @@ export default function ItemFormPage({
           <select
             value={sourceSlug}
             onChange={(e) => setSourceSlug(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           >
             <option value="">— нет —</option>
             {sources.map((s) => (
@@ -240,7 +240,7 @@ export default function ItemFormPage({
           <select
             value={availabilitySlug}
             onChange={(e) => setAvailabilitySlug(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           >
             <option value="">— нет —</option>
             {availabilities.map((a) => (
@@ -258,7 +258,7 @@ export default function ItemFormPage({
             onChange={(e) => setSrdSlug(e.target.value)}
             placeholder="longsword"
             maxLength={80}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           />
         </Field>
 
@@ -269,7 +269,7 @@ export default function ItemFormPage({
             onChange={(e) => setSourceDetail(e.target.value)}
             placeholder='Tasha, p. 142'
             maxLength={200}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           />
         </Field>
       </div>
@@ -280,15 +280,15 @@ export default function ItemFormPage({
           onChange={(e) => setDescription(e.target.value)}
           rows={6}
           maxLength={4000}
-          className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none"
+          className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none"
         />
       </Field>
 
-      <footer className="flex flex-wrap items-center gap-3 border-t border-zinc-800 pt-4">
+      <footer className="flex flex-wrap items-center gap-3 border-t border-gray-200 pt-4">
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-amber-600 px-4 py-1.5 text-sm font-medium text-zinc-900 hover:bg-amber-500 disabled:opacity-60"
+          className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {pending ? 'Сохраняю…' : itemId ? 'Сохранить' : 'Создать'}
         </button>
@@ -297,7 +297,7 @@ export default function ItemFormPage({
           type="button"
           onClick={() => router.back()}
           disabled={pending}
-          className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-zinc-500"
+          className="rounded border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:border-gray-400"
         >
           Отмена
         </button>
@@ -309,18 +309,18 @@ export default function ItemFormPage({
                 type="button"
                 onClick={() => setConfirmDelete(true)}
                 disabled={pending}
-                className="text-xs text-rose-400 hover:text-rose-300"
+                className="text-xs text-rose-700 hover:text-rose-700"
               >
                 Удалить предмет
               </button>
             ) : (
               <>
-                <span className="text-xs text-zinc-400">Удалить?</span>
+                <span className="text-xs text-gray-500">Удалить?</span>
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   disabled={pending}
-                  className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300"
+                  className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
                 >
                   Нет
                 </button>
@@ -328,7 +328,7 @@ export default function ItemFormPage({
                   type="button"
                   onClick={onDelete}
                   disabled={pending}
-                  className="rounded bg-rose-700 px-2 py-1 text-xs text-zinc-100 hover:bg-rose-600 disabled:opacity-60"
+                  className="rounded bg-rose-600 px-2 py-1 text-xs text-gray-900 hover:bg-rose-600 disabled:opacity-60"
                 >
                   Да, удалить
                 </button>
@@ -352,9 +352,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-zinc-400">
+      <span className="text-xs text-gray-500">
         {label}
-        {required && <span className="ml-1 text-rose-400">*</span>}
+        {required && <span className="ml-1 text-rose-700">*</span>}
       </span>
       {children}
     </label>

@@ -23,12 +23,12 @@ const RARITY_LABEL: Record<string, string> = {
 }
 
 const RARITY_TONE: Record<Rarity, string> = {
-  common: 'border-zinc-600 text-zinc-300',
-  uncommon: 'border-green-700 text-green-300',
-  rare: 'border-blue-700 text-blue-300',
-  'very-rare': 'border-purple-700 text-purple-300',
-  legendary: 'border-amber-700 text-amber-300',
-  artifact: 'border-rose-700 text-rose-300',
+  common: 'border-gray-300 text-gray-700',
+  uncommon: 'border-green-500 bg-green-50 text-green-800',
+  rare: 'border-blue-500 bg-blue-50 text-blue-800',
+  'very-rare': 'border-purple-500 bg-purple-50 text-purple-800',
+  legendary: 'border-amber-700 text-blue-700',
+  artifact: 'border-rose-500 bg-rose-50 text-rose-800',
 }
 
 export async function generateMetadata({
@@ -89,11 +89,11 @@ export default async function ItemPage({
         <div className="min-w-0">
           <Link
             href={`/c/${slug}/items`}
-            className="text-xs text-zinc-500 hover:text-zinc-300"
+            className="text-xs text-gray-400 hover:text-gray-700"
           >
             ← Все предметы
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-zinc-100">{item.title}</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900">{item.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Chip>{categoryLabel}</Chip>
             {item.rarity && (
@@ -110,7 +110,7 @@ export default async function ItemPage({
         {isDm && (
           <Link
             href={`/c/${slug}/items/${id}/edit`}
-            className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+            className="rounded border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:border-gray-400 hover:text-gray-900"
           >
             Редактировать
           </Link>
@@ -118,7 +118,7 @@ export default async function ItemPage({
       </header>
 
       {/* Structured fields panel */}
-      <section className="grid gap-3 rounded border border-zinc-800 bg-zinc-900/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 rounded border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Цена" value={item.priceGp !== null ? `${item.priceGp} gp` : '—'} mono />
         <Stat label="Вес" value={item.weightLb !== null ? `${item.weightLb} lb` : '—'} mono />
         <Stat label="Слот" value={slotLabel ?? '—'} />
@@ -132,9 +132,9 @@ export default async function ItemPage({
 
       {/* Description */}
       {item.description && (
-        <section className="rounded border border-zinc-800 bg-zinc-900/30 p-4">
-          <h2 className="mb-2 text-sm font-medium text-zinc-300">Описание</h2>
-          <div className="whitespace-pre-wrap text-sm text-zinc-300">
+        <section className="rounded border border-gray-200 bg-gray-50 p-4">
+          <h2 className="mb-2 text-sm font-medium text-gray-700">Описание</h2>
+          <div className="whitespace-pre-wrap text-sm text-gray-700">
             {item.description}
           </div>
         </section>
@@ -143,22 +143,22 @@ export default async function ItemPage({
       {/* История */}
       <section>
         <header className="mb-2 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium text-zinc-300">История</h2>
-          <span className="text-xs text-zinc-500">
+          <h2 className="text-sm font-medium text-gray-700">История</h2>
+          <span className="text-xs text-gray-400">
             {history.length === 0
               ? 'связанных транзакций нет'
               : `${history.length}${history.length === 50 ? '+' : ''} ${pluralizeRu(history.length, 'запись', 'записи', 'записей')}`}
           </span>
         </header>
         {history.length === 0 ? (
-          <p className="rounded border border-dashed border-zinc-800 px-4 py-6 text-center text-sm text-zinc-500">
+          <p className="rounded border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-400">
             Этот образец ещё нигде не использован.
           </p>
         ) : (
-          <div className="overflow-hidden rounded border border-zinc-800">
+          <div className="overflow-hidden rounded border border-gray-200">
             <table className="w-full text-sm">
-              <thead className="text-xs text-zinc-500">
-                <tr className="border-b border-zinc-800">
+              <thead className="text-xs text-gray-400">
+                <tr className="border-b border-gray-200">
                   <th className="px-3 py-1.5 text-left font-normal">Когда</th>
                   <th className="px-3 py-1.5 text-left font-normal">Кто</th>
                   <th className="px-3 py-1.5 text-right font-normal">Кол-во</th>
@@ -172,27 +172,27 @@ export default async function ItemPage({
                   return (
                     <tr
                       key={tx.id}
-                      className="border-b border-zinc-900 hover:bg-zinc-900/30"
+                      className="border-b border-gray-100 hover:bg-gray-50"
                     >
-                      <td className="px-3 py-1.5 whitespace-nowrap text-zinc-400">
+                      <td className="px-3 py-1.5 whitespace-nowrap text-gray-500">
                         П{tx.loop_number} · день {tx.day_in_loop}
                       </td>
-                      <td className="px-3 py-1.5 text-zinc-200">
-                        {tx.actor_pc_title ?? <span className="text-zinc-600">[удалён]</span>}
+                      <td className="px-3 py-1.5 text-gray-800">
+                        {tx.actor_pc_title ?? <span className="text-gray-300">[удалён]</span>}
                         {tx.counterparty?.title && (
-                          <span className="text-zinc-500">
+                          <span className="text-gray-400">
                             {' '}→ {tx.counterparty.title}
                           </span>
                         )}
                       </td>
                       <td className={`px-3 py-1.5 text-right font-mono ${
-                        tx.item_qty > 0 ? 'text-emerald-400' : 'text-rose-400'
+                        tx.item_qty > 0 ? 'text-emerald-700' : 'text-rose-700'
                       }`}>
                         {direction}
                         {qty}
                       </td>
-                      <td className="px-3 py-1.5 text-zinc-400">
-                        {tx.comment || <span className="text-zinc-600">—</span>}
+                      <td className="px-3 py-1.5 text-gray-500">
+                        {tx.comment || <span className="text-gray-300">—</span>}
                       </td>
                     </tr>
                   )
@@ -216,7 +216,7 @@ export default async function ItemPage({
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300">
+    <span className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-700">
       {children}
     </span>
   )
@@ -233,8 +233,8 @@ function Stat({
 }) {
   return (
     <div className="flex flex-col">
-      <span className="text-xs text-zinc-500">{label}</span>
-      <span className={`text-sm text-zinc-200 ${mono ? 'font-mono' : ''}`}>
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className={`text-sm text-gray-800 ${mono ? 'font-mono' : ''}`}>
         {value}
       </span>
     </div>
