@@ -67,12 +67,22 @@ begin
   insert into campaign_members (campaign_id, user_id, role)
     values (v_campaign_b, v_user_b, 'owner');
 
-  -- node_type=item should already exist for both campaigns (mig 043
-  -- backfilled all). Pick A's.
+  -- Seed minimum node_types required by the test setup. Real
+  -- campaigns get these via seedCampaignSrd / seedCampaignItemValueLists
+  -- (lib/campaign-actions.ts) on first DM-init; bare INSERT-only test
+  -- campaigns bypass that flow, so seed manually.
+  insert into node_types (campaign_id, slug, label, sort_order)
+    values
+      (v_campaign_a, 'item', 'Предмет', 100),
+      (v_campaign_a, 'character', 'Персонаж', 10),
+      (v_campaign_b, 'item', 'Предмет', 100),
+      (v_campaign_b, 'character', 'Персонаж', 10);
+
+  -- node_type=item should now exist for both campaigns. Pick A's.
   select id into v_item_type_id
     from node_types where campaign_id = v_campaign_a and slug = 'item';
   if v_item_type_id is null then
-    raise exception 'Setup: campaign A is missing node_type=item — was mig 043 applied?';
+    raise exception 'Setup: campaign A is missing node_type=item — node_types insert failed unexpectedly';
   end if;
 
   -- Seed one item node + attrs in campaign A.
