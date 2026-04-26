@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import TransactionFormSheet from './transaction-form-sheet'
+import TransactionActions from './transaction-actions'
 import TransactionRow from './transaction-row'
 import WalletBalance from './wallet-balance'
 import type {
@@ -70,11 +71,6 @@ export default function WalletBlockClient({
   const [editing, setEditing] = useState<TransactionWithRelations | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  const openCreate = useCallback(() => {
-    setEditing(null)
-    setSheetOpen(true)
-  }, [])
-
   const openEdit = useCallback((tx: TransactionWithRelations) => {
     setEditing(tx)
     setSheetOpen(true)
@@ -128,13 +124,19 @@ export default function WalletBlockClient({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="flex-shrink-0 self-start rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-        >
-          + Транзакция
-        </button>
+        <div className="flex-shrink-0 self-start">
+          <TransactionActions
+            campaignId={campaignId}
+            campaignSlug={campaignSlug}
+            canEditCatalog={canManage}
+            actorPcId={actorNodeId}
+            defaultLoopNumber={defaultLoopNumber}
+            defaultDayInLoop={defaultDayInLoop}
+            defaultSessionId={defaultSessionId}
+            categories={categories}
+            currentWalletGp={currentWalletGp}
+          />
+        </div>
       </div>
 
       {/* Row 2: full-width recent list */}
@@ -158,20 +160,26 @@ export default function WalletBlockClient({
         </Link>
       </div>
 
-      <TransactionFormSheet
-        open={sheetOpen}
-        onClose={closeSheet}
-        campaignId={campaignId}
-        campaignSlug={campaignSlug}
-        canEditCatalog={canManage}
-        actorPcId={actorNodeId}
-        defaultLoopNumber={defaultLoopNumber}
-        defaultDayInLoop={defaultDayInLoop}
-        defaultSessionId={defaultSessionId}
-        currentWalletGp={currentWalletGp}
-        categories={categories}
-        editing={editing}
-      />
+      {/* Edit flow keeps the legacy sheet — opens with tab-bar so the
+          DM can switch between money/transfer types of an existing row.
+          Create flow goes through <TransactionActions> above (no tabs,
+          one button = one intent). */}
+      {editing && (
+        <TransactionFormSheet
+          open={sheetOpen}
+          onClose={closeSheet}
+          campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canManage}
+          actorPcId={actorNodeId}
+          defaultLoopNumber={defaultLoopNumber}
+          defaultDayInLoop={defaultDayInLoop}
+          defaultSessionId={defaultSessionId}
+          currentWalletGp={currentWalletGp}
+          categories={categories}
+          editing={editing}
+        />
+      )}
     </div>
   )
 }

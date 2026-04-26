@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import TransactionFormSheet from './transaction-form-sheet'
+import TransactionActions from './transaction-actions'
 import BatchTransactionFormSheet from './batch-transaction-form-sheet'
 import StashButtons from './stash-buttons'
 import type { Category, TransactionWithRelations } from '@/lib/transactions'
@@ -125,24 +125,7 @@ export default function LedgerActorBar({
     [storageKey],
   )
 
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [initialKind, setInitialKind] = useState<
-    'income' | 'expense' | 'transfer' | null
-  >(null)
   const [batchSheetOpen, setBatchSheetOpen] = useState(false)
-
-  const openSheet = useCallback(
-    (kind: 'income' | 'expense' | 'transfer') => {
-      setInitialKind(kind)
-      setSheetOpen(true)
-    },
-    [],
-  )
-
-  const closeSheet = useCallback(() => {
-    setSheetOpen(false)
-    setInitialKind(null)
-  }, [])
 
   const openBatchSheet = useCallback(() => setBatchSheetOpen(true), [])
   const closeBatchSheet = useCallback(() => setBatchSheetOpen(false), [])
@@ -156,8 +139,6 @@ export default function LedgerActorBar({
   if (actors.length === 0) {
     return null
   }
-
-  const buttonsDisabled = !hydrated || !selectedActor
 
   return (
     <div className="flex flex-wrap items-end gap-2">
@@ -179,33 +160,22 @@ export default function LedgerActorBar({
         </select>
       </label>
 
-      <button
-        type="button"
-        onClick={() => openSheet('income')}
-        disabled={buttonsDisabled}
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-      >
-        + Доход
-      </button>
-      <button
-        type="button"
-        onClick={() => openSheet('expense')}
-        disabled={buttonsDisabled}
-        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-      >
-        − Расход
-      </button>
-      <button
-        type="button"
-        onClick={() => openSheet('transfer')}
-        disabled={buttonsDisabled}
-        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-      >
-        Перевод →
-      </button>
+      {selectedActor && (
+        <TransactionActions
+          campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canEditCatalog}
+          actorPcId={selectedActor.id}
+          defaultLoopNumber={defaultLoopNumber}
+          defaultDayInLoop={defaultDayByPcId[selectedActor.id] ?? 1}
+          defaultSessionId={null}
+          categories={categories}
+          moneyOnly={selectedIsStash}
+        />
+      )}
 
       {/* StashButtons — only for PC actors. Stash-as-actor path can use
-          the regular Transfer button to move money to a PC. */}
+          the regular «Расход» action to move money to a PC. */}
       {selectedActor && !selectedIsStash && stashNode && (
         <StashButtons
           campaignId={campaignId}
@@ -230,23 +200,6 @@ export default function LedgerActorBar({
         >
           📋 Подать пачку
         </button>
-      )}
-
-      {selectedActor && initialKind && (
-        <TransactionFormSheet
-          open={sheetOpen}
-          onClose={closeSheet}
-          campaignId={campaignId}
-          campaignSlug={campaignSlug}
-          canEditCatalog={canEditCatalog}
-          actorPcId={selectedActor.id}
-          defaultLoopNumber={defaultLoopNumber}
-          defaultDayInLoop={defaultDayByPcId[selectedActor.id] ?? 1}
-          defaultSessionId={null}
-          categories={categories}
-          editing={null}
-          initialKind={initialKind}
-        />
       )}
 
       {isPlayer && (
