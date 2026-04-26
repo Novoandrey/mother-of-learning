@@ -5,12 +5,51 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth } from '@/lib/auth'
-import { getCurrentLoop } from '@/lib/loops'
+import { getCurrentLoop, getLoops } from '@/lib/loops'
 import { getStashNode, getStashContents } from '@/lib/stash'
 import BalanceHero from '@/components/balance-hero'
 import StashPageTabs from '@/components/stash-page-tabs'
 import LedgerList from '@/components/ledger-list'
-import { InventoryGrid } from '@/components/inventory-grid'
+import InventoryTab from '@/components/inventory-tab'
+import type { InventoryTabLoop } from '@/components/inventory-tab-controls'
+import type { GroupBy } from '@/lib/items-types'
+
+const VALID_GROUP_BY: ReadonlyArray<GroupBy> = [
+  'category',
+  'rarity',
+  'slot',
+  'priceBand',
+  'source',
+  'availability',
+]
+
+function pickStr(raw: string | string[] | undefined): string | undefined {
+  return Array.isArray(raw) ? raw[0] : raw
+}
+
+function parseGroupBy(raw: string | string[] | undefined): GroupBy | null {
+  const v = pickStr(raw)
+  if (!v) return null
+  return VALID_GROUP_BY.includes(v as GroupBy) ? (v as GroupBy) : null
+}
+
+function parseInt1to30(raw: string | string[] | undefined): number | null {
+  const v = pickStr(raw)
+  if (!v) return null
+  const n = Number(v)
+  if (!Number.isFinite(n)) return null
+  const t = Math.trunc(n)
+  if (t < 1 || t > 30) return null
+  return t
+}
+
+function parsePositiveInt(raw: string | string[] | undefined): number | null {
+  const v = pickStr(raw)
+  if (!v) return null
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.trunc(n)
+}
 
 export async function generateMetadata({
   params,
@@ -57,9 +96,10 @@ export default async function StashPage({
   const membership = await getMembership(campaign.id)
   if (!membership) redirect('/')
 
-  const [stash, currentLoop] = await Promise.all([
+  const [stash, currentLoop, allLoops] = await Promise.all([
     getStashNode(campaign.id),
     getCurrentLoop(campaign.id),
+    getLoops(campaign.id),
   ])
 
   if (!stash) {
@@ -79,9 +119,36 @@ export default async function StashPage({
   // to the PC-page behaviour — lifetime aggregate.
   const loopNumber = currentLoop?.number ?? null
 
+  // Item-count badge in the «Предметы» tab heading: count distinct
+  // items in the *current* loop only. The InventoryTab below renders
+  // its own slice (which the user can scrub via day picker), but the
+  // badge tracks "where things currently are".
   const items = loopNumber !== null
     ? (await getStashContents(campaign.id, loopNumber)).items
     : []
+
+  // ── InventoryTab inputs (T029): same URL params as PC page. ──
+  const visibleLoops = allLoops.filter((l) => l.status !== 'future')
+  const tabLoops: InventoryTabLoop[] = visibleLoops.map((l) => ({
+    number: l.number,
+    title: l.title,
+    isCurrent: l.status === 'current',
+  }))
+  const requestedLoop = parsePositiveInt(sp.loop)
+  const fallbackLoopNumber =
+    currentLoop?.number ?? visibleLoops[visibleLoops.length - 1]?.number ?? 1
+  const selectedLoopNumber =
+    requestedLoop && visibleLoops.some((l) => l.number === requestedLoop)
+      ? requestedLoop
+      : fallbackLoopNumber
+
+  // Stash has no "frontier day" — the общак doesn't participate in
+  // sessions. Default to day 30 (end-of-loop view) so the slice shows
+  // the loop's accumulated state at a glance.
+  const requestedDay = parseInt1to30(sp.day)
+  const dayInLoop = requestedDay ?? 30
+
+  const groupBy = parseGroupBy(sp.group)
 
   const loopCaption = currentLoop
     ? `Петля ${currentLoop.number}`
@@ -110,8 +177,13 @@ export default async function StashPage({
         itemCount={items.length}
         defaultTab="items"
         itemsContent={
-          <InventoryGrid
-            items={items}
+          <InventoryTab
+            actorNodeId={stash.nodeId}
+            campaignId={campaign.id}
+            loops={tabLoops}
+            loopNumber={selectedLoopNumber}
+            dayInLoop={dayInLoop}
+            groupBy={groupBy}
             emptyMessage={
               currentLoop
                 ? 'В этой петле в общаке пока нет предметов. Любой персонаж может положить — кнопка «Положить в Общак» на его странице или в шапке бухгалтерии.'

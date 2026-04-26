@@ -281,7 +281,7 @@
   *(file: `mat-ucheniya/components/inventory-tab.tsx`,
   depends on T013)*
 
-- [ ] **T028 [P1]** Mount `<InventoryTab>` on PC page.
+- [x] **T028 [P1]** Mount `<InventoryTab>` on PC page.
   `app/c/[slug]/catalog/[id]/page.tsx` already exists for PC
   nodes; add a tab structure (Wallet / Inventory). URL param
   `?tab=` switches. Default tab = Wallet (preserves current
@@ -290,7 +290,7 @@
   *(file: `mat-ucheniya/app/c/[slug]/catalog/[id]/page.tsx`,
   depends on T027)*
 
-- [ ] **T029 [P1]** Replace existing «Предметы» tab content on
+- [x] **T029 [P1]** Replace existing «Предметы» tab content on
   stash page (`app/c/[slug]/accounting/stash/page.tsx` or its
   StashPageTabs component) with `<InventoryTab>` pre-bound to
   the stash actor. The «Лента транзакций» tab is unchanged.
