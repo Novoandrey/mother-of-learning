@@ -21,7 +21,7 @@ import {
   type ItemDefaultPrices,
   type RarityKey,
   type RarityPriceMap,
-} from '@/lib/campaign'
+} from '@/lib/item-default-prices'
 
 const RARITY_LABEL: Record<RarityKey, string> = {
   common: 'Common',
