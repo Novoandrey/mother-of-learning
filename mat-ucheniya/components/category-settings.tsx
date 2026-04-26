@@ -9,8 +9,11 @@ import {
   softDeleteCategoryAction,
 } from '@/app/actions/categories'
 import type { Category } from '@/lib/transactions'
+import type { CategoryScope } from '@/lib/categories'
 
-export type CategoryScope = 'transaction' | 'item'
+// Re-export so existing call-sites keep working without importing the
+// scope from `lib/categories` directly.
+export type { CategoryScope }
 
 type Props = {
   campaignId: string
@@ -19,6 +22,12 @@ type Props = {
   initial: Category[]
   /** When false, the UI is read-only (non-DM viewer). */
   canEdit: boolean
+  /** Optional slug-input placeholder, scope-specific (e.g. «напр. helmet»). */
+  slugPlaceholder?: string
+  /** Optional label-input placeholder, scope-specific (e.g. «напр. Шлем»). */
+  labelPlaceholder?: string
+  /** Optional CTA label override. Default: «+ Добавить категорию». */
+  addLabel?: string
 }
 
 /**
@@ -35,6 +44,9 @@ export default function CategorySettings({
   scope,
   initial,
   canEdit,
+  slugPlaceholder,
+  labelPlaceholder,
+  addLabel,
 }: Props) {
   const router = useRouter()
   // Mirror the prefetched list in state so optimistic updates feel instant.
@@ -123,6 +135,9 @@ export default function CategorySettings({
       {canEdit && (
         <AddCategoryForm
           busy={busy}
+          slugPlaceholder={slugPlaceholder}
+          labelPlaceholder={labelPlaceholder}
+          addLabel={addLabel}
           onCreate={async (slug, label) => {
             const ok = await runAction(() =>
               createCategoryAction(campaignId, scope, slug, label),
@@ -293,9 +308,15 @@ function CategoryRow({
 function AddCategoryForm({
   busy,
   onCreate,
+  slugPlaceholder = 'напр. tax',
+  labelPlaceholder = 'напр. Налог',
+  addLabel = '+ Добавить категорию',
 }: {
   busy: boolean
   onCreate: (slug: string, label: string) => Promise<boolean>
+  slugPlaceholder?: string
+  labelPlaceholder?: string
+  addLabel?: string
 }) {
   const [slug, setSlug] = useState('')
   const [label, setLabel] = useState('')
@@ -309,7 +330,7 @@ function AddCategoryForm({
         disabled={busy}
         className="self-start rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
       >
-        + Добавить категорию
+        {addLabel}
       </button>
     )
   }
@@ -323,7 +344,7 @@ function AddCategoryForm({
             type="text"
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase())}
-            placeholder="напр. tax"
+            placeholder={slugPlaceholder}
             disabled={busy}
             className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           />
@@ -334,7 +355,7 @@ function AddCategoryForm({
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="напр. Налог"
+            placeholder={labelPlaceholder}
             disabled={busy}
             className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           />

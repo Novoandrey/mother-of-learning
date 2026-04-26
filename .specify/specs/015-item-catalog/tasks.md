@@ -301,7 +301,7 @@
 
 ## Phase 8 — Settings page (FR-005d)
 
-- [ ] **T030 [P1]** Create
+- [x] **T030 [P1]** Create
   `app/c/[slug]/items/settings/page.tsx` (server). Renders 4
   stacked sections, each is the existing `<CategorySettings>`
   component with a different `scope`:
@@ -312,7 +312,7 @@
   H2 dividers between sections. DM-only (redirect non-DM).
   *(file: `mat-ucheniya/app/c/[slug]/items/settings/page.tsx`)*
 
-- [ ] **T031 [P2]** Verify `<CategorySettings>` renders correctly
+- [x] **T031 [P2]** Verify `<CategorySettings>` renders correctly
   for the new scopes without code change. The component already
   takes `scope` as a prop; the section title and slug-required-
   here-too text should be parameterisable (or default to the
