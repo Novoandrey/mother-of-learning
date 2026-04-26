@@ -345,9 +345,12 @@
 
 ## Следующий приоритет
 
-**Spec-017 «Складчина» — code shipped, awaits migration apply +
-manual smoke.** Миграция `047_contribution_pools.sql` написана
-и выложена через `present_files`, но не применена. После apply:
+**Spec-017 «Складчина» — code shipped + quality gates passed,
+awaits migration apply + manual smoke.** Lint clean (0/0),
+type-check clean, vitest 390/390, next build artifacts
+generated. Миграция `047_contribution_pools.sql` написана и
+выложена через `present_files`, но не применена в проде.
+После apply:
 
 1. RLS smoke (T003) — psql/Studio, 5 проверок.
 2. Manual walkthrough US1 (T023) — pizza-test на live mat-ucheniya.

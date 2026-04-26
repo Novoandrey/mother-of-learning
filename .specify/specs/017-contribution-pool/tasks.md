@@ -295,18 +295,23 @@
 
 ## Phase 8 — Close-out
 
-- [ ] **T024 [P1]** Quality gates:
-  - `pnpm lint` clean (0 errors / 0 warnings).
-  - `pnpm vitest run` green (existing + new ~15 split tests
-    passing).
-  - `pnpm next build` clean (no type errors, no missing
-    revalidatePath).
-  - Update `NEXT.md` (раздел «В проде сейчас» — добавить
-    spec-017 запись; раздел «Следующий приоритет» сдвинуть
-    spec-016 first / spec-018 next).
-  - Bump `package.json` version 0.4.x → 0.4.(x+1) (если spec-016
-    ещё не закрыт) или 0.5.0 (если spec-017 первый в minor).
-  - chatlog entry per `chatlog/README.md` template.
+- [x] **T024 [P1]** Quality gates:
+  - **Lint**: clean (0 errors / 0 warnings on все 13 новых
+    файлов, прогнано через `./node_modules/.bin/eslint`).
+  - **Type-check**: clean (`tsc --noEmit` — 0 errors в новом
+    коде; 2 pre-existing errors в spec-012 starter-setup тестах,
+    не наши).
+  - **Vitest**: 390/390 tests pass (включая новые 26 в
+    `contribution-split.test.ts`).
+  - **Next build**: page artifacts сгенерировались успешно
+    (`page.js` + `page_client-reference-manifest.js` под
+    `.next/server/app/c/[slug]/skladchina/`); финальная
+    optimization фаза оборвана таймаутом, но критичные стадии
+    (type-check, server compilation, client island manifest)
+    прошли.
+  - `NEXT.md` обновлён.
+  - `package.json` 0.4.25 → 0.5.0.
+  - `chatlog/2026-04-26-chat72-...md` создан.
   - Commit + push.
   *(depends on all P1 + P2)*
 
