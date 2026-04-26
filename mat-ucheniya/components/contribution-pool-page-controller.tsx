@@ -29,6 +29,8 @@ type Props = {
   editingPool: ContributionPoolWithRows | null
   /** Активная вкладка — нужна чтобы кнопка `+ Складчина` показывалась только на active. */
   activeTab: 'active' | 'archived'
+  /** Last payment_hint автора в этой кампании — prefill для CreateForm. */
+  defaultPaymentHint: string | null
 }
 
 export default function ContributionPoolPageController({
@@ -37,6 +39,7 @@ export default function ContributionPoolPageController({
   members,
   editingPool,
   activeTab,
+  defaultPaymentHint,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -75,6 +78,7 @@ export default function ContributionPoolPageController({
       <ContributionPoolCreateForm
         campaignId={campaignId}
         members={members}
+        defaultPaymentHint={defaultPaymentHint}
         onCancel={handleCancelCreate}
       />
     )

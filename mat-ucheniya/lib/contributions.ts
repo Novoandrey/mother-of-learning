@@ -329,3 +329,33 @@ export const countActiveContributionPools = cache(
     return list.length
   },
 )
+
+/**
+ * Возвращает payment_hint последнего pool'а, созданного юзером в
+ * этой кампании. Используется CreateForm для prefill — чтобы не
+ * вводить реквизиты заново каждый раз.
+ *
+ * Возвращает `null` если у юзера нет ни одного pool'а в кампании,
+ * или если последний pool создан без hint.
+ */
+export async function getLastPaymentHintForUser(
+  campaignId: string,
+  userId: string,
+): Promise<string | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('contribution_pools')
+    .select('payment_hint')
+    .eq('campaign_id', campaignId)
+    .eq('created_by', userId)
+    .not('payment_hint', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getLastPaymentHintForUser failed', error)
+    return null
+  }
+  return (data as { payment_hint: string | null } | null)?.payment_hint ?? null
+}

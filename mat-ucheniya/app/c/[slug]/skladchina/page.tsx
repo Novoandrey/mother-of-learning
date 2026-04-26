@@ -9,6 +9,7 @@ import { getMembership, requireAuth } from '@/lib/auth'
 import {
   getContributionPool,
   getContributionPoolsForList,
+  getLastPaymentHintForUser,
 } from '@/lib/contributions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ContributionPoolCard from '@/components/contribution-pool-card'
@@ -41,37 +42,52 @@ function readStringParam(
 /**
  * Грузим member'ов кампании с их display_name. Inline здесь, потому
  * что больше нигде не нужно (admin-page членов рендерит со своими
- * полями). Если понадобится в третьем месте — выносим в lib/.
+ * полями). Two-step (members → profiles by IN), потому что
+ * PostgREST embed между `campaign_members` и `user_profiles` не
+ * работает: оба ссылаются на `auth.users`, но между собой FK нет.
  */
 async function listCampaignMembers(
   campaignId: string,
 ): Promise<CampaignMemberOption[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin
+
+  const { data: memberRows, error: membersErr } = await admin
     .from('campaign_members')
-    .select('user_id, user_profiles!inner(display_name, login)')
+    .select('user_id')
     .eq('campaign_id', campaignId)
 
-  if (error) {
-    console.error('listCampaignMembers failed', error)
+  if (membersErr) {
+    console.error('listCampaignMembers: members fetch failed', membersErr)
+    return []
+  }
+  const userIds = (memberRows ?? []).map(
+    (r) => (r as { user_id: string }).user_id,
+  )
+  if (userIds.length === 0) return []
+
+  const { data: profileRows, error: profilesErr } = await admin
+    .from('user_profiles')
+    .select('user_id, display_name, login')
+    .in('user_id', userIds)
+
+  if (profilesErr) {
+    console.error('listCampaignMembers: profiles fetch failed', profilesErr)
     return []
   }
 
-  type Row = {
+  type Profile = {
     user_id: string
-    user_profiles:
-      | { display_name: string | null; login: string }
-      | { display_name: string | null; login: string }[]
-      | null
+    display_name: string | null
+    login: string
   }
+  const profileMap = new Map<string, Profile>(
+    (profileRows ?? []).map((p) => [(p as Profile).user_id, p as Profile]),
+  )
 
-  return (data ?? []).map((raw) => {
-    const r = raw as Row
-    const profile = Array.isArray(r.user_profiles)
-      ? r.user_profiles[0]
-      : r.user_profiles
+  return userIds.map((uid) => {
+    const profile = profileMap.get(uid)
     return {
-      userId: r.user_id,
+      userId: uid,
       displayName: profile?.display_name ?? profile?.login ?? '(unknown)',
     }
   })
@@ -103,11 +119,13 @@ export default async function SkladchinaPage({
   const editParam = readStringParam(resolvedSearch, 'edit')
 
   // Параллельно: pools для активной вкладки + members для форм + pool
-  // в режиме editing (если URL `?edit=`).
-  const [pools, members, editingPool] = await Promise.all([
+  // в режиме editing (если URL `?edit=`) + last payment hint автора
+  // (для prefill в CreateForm).
+  const [pools, members, editingPool, lastPaymentHint] = await Promise.all([
     getContributionPoolsForList(campaign.id, activeTab),
     listCampaignMembers(campaign.id),
     editParam ? getContributionPool(editParam) : Promise.resolve(null),
+    getLastPaymentHintForUser(campaign.id, user.id),
   ])
 
   // Validate editingPool — pool должен быть в этой кампании, иначе
@@ -161,6 +179,7 @@ export default async function SkladchinaPage({
           members={members}
           editingPool={safeEditingPool}
           activeTab={activeTab}
+          defaultPaymentHint={lastPaymentHint}
         />
       </div>
 

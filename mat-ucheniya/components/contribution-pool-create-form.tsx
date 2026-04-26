@@ -40,6 +40,9 @@ type ParticipantDraft = {
 type Props = {
   campaignId: string
   members: CampaignMemberOption[]
+  /** Prefill для поля Реквизиты — последний payment_hint автора в
+   *  этой кампании. Если null — пустое поле. */
+  defaultPaymentHint?: string | null
   onCancel?: () => void
 }
 
@@ -51,6 +54,7 @@ function nextKey() {
 export default function ContributionPoolCreateForm({
   campaignId,
   members,
+  defaultPaymentHint,
   onCancel,
 }: Props) {
   const router = useRouter()
@@ -58,7 +62,7 @@ export default function ContributionPoolCreateForm({
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const [title, setTitle] = useState('')
-  const [paymentHint, setPaymentHint] = useState('')
+  const [paymentHint, setPaymentHint] = useState(defaultPaymentHint ?? '')
   const [totalStr, setTotalStr] = useState('')
   const [participants, setParticipants] = useState<ParticipantDraft[]>([])
   const [adHocInput, setAdHocInput] = useState('')
