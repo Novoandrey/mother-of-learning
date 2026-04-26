@@ -32,6 +32,7 @@ function row(
     kind: partial.kind ?? 'money',
     coins: partial.coins ?? { cp: 0, sp: 0, gp: 10, pp: 0 },
     item_name: partial.item_name ?? null,
+    item_node_id: partial.item_node_id ?? null,
     item_qty: partial.item_qty ?? 1,
     category_slug: partial.category_slug ?? 'income',
     comment: partial.comment ?? '',
@@ -222,8 +223,8 @@ describe('summarizeBatch', () => {
     }
     const s = summarizeBatch(batch)
     expect(s.netCoins).toEqual({ cp: 50, sp: 5, gp: 7, pp: 1 })
-    // 50 + 50 + 700 + 10000 = 10800 cp = 108 gp.
-    expect(s.netGp).toBe(108)
+    // 50 cp + 5*10 cp + 7*100 cp + 1*1000 cp = 1800 cp = 18 gp.
+    expect(s.netGp).toBe(18)
     expect(s.itemCount).toBe(0)
     expect(s.kinds).toEqual(['money'])
   })

@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AmountInput, { type AmountInputValue } from './amount-input'
+import ItemTypeahead from './item-typeahead'
 import { submitBatch, type BatchRowSubmitInput } from '@/app/actions/transactions'
 import type { CampaignPC } from '@/app/actions/characters'
 import { aggregateGp } from '@/lib/transaction-resolver'
@@ -34,6 +35,8 @@ type RowState = {
   amount: AmountInputValue
   /** Item rows. */
   itemName: string
+  /** Spec-015 — optional Образец link for item / transfer-item rows. */
+  itemNodeId: string | null
   itemQty: number
   /** Transfer rows. */
   recipientPcId: string | null
@@ -43,6 +46,9 @@ type RowState = {
 
 type Props = {
   campaignId: string
+  /** Spec-015 — passed through to ItemTypeahead. */
+  campaignSlug: string
+  canEditCatalog: boolean
   availablePcs: CampaignPC[]
   defaultLoopNumber: number
   defaultDayByPcId: Record<string, number>
@@ -82,6 +88,7 @@ function makeBlankRow(
     actorPcId: defaultActorPcId ?? '',
     amount: { mode: 'gp', amount: 0 },
     itemName: '',
+    itemNodeId: null,
     itemQty: 1,
     recipientPcId: null,
     comment: '',
@@ -97,6 +104,8 @@ function rowAmountMagnitudeGp(row: RowState): number {
 
 export default function BatchTransactionForm({
   campaignId,
+  campaignSlug,
+  canEditCatalog,
   availablePcs,
   defaultLoopNumber,
   defaultDayByPcId,
@@ -143,6 +152,13 @@ export default function BatchTransactionForm({
   ) => {
     setRows((prev) =>
       prev.map((r) => (r.clientId === clientId ? { ...r, [field]: value } : r)),
+    )
+  }, [])
+
+  /** Multi-field update — used by ItemTypeahead which sets itemNodeId+itemName together. */
+  const patchRow = useCallback((clientId: string, patch: Partial<RowState>) => {
+    setRows((prev) =>
+      prev.map((r) => (r.clientId === clientId ? { ...r, ...patch } : r)),
     )
   }, [])
 
@@ -207,6 +223,7 @@ export default function BatchTransactionForm({
           kind: 'item',
           actorPcId: row.actorPcId,
           itemName: row.itemName.trim(),
+          itemNodeId: row.itemNodeId ?? undefined,
           itemQty: row.itemQty,
         }
       }
@@ -372,13 +389,20 @@ export default function BatchTransactionForm({
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                     Название
                   </span>
-                  <input
-                    type="text"
-                    value={row.itemName}
-                    onChange={(e) => updateRow(row.clientId, 'itemName', e.target.value)}
+                  <ItemTypeahead
+                    campaignId={campaignId}
+                    campaignSlug={campaignSlug}
+                    value={{ itemNodeId: row.itemNodeId, itemName: row.itemName }}
+                    onChange={(pick) =>
+                      patchRow(row.clientId, {
+                        itemNodeId: pick.itemNodeId,
+                        itemName: pick.itemName,
+                      })
+                    }
+                    canCreateNew={canEditCatalog}
+                    showFreeTextHint={!canEditCatalog}
                     disabled={submitting}
                     placeholder="например, Зелье лечения"
-                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </label>
                 <label className="flex w-24 flex-col gap-1">

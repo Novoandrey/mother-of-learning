@@ -25,6 +25,8 @@ import type { Category, TransactionWithRelations } from '@/lib/transactions';
 
 type Props = {
   campaignId: string;
+  campaignSlug: string;
+  canEditCatalog: boolean;
   actorPcId: string;
   /** `null` → no current loop → buttons disabled with a hint. */
   currentLoopNumber: number | null;
@@ -36,6 +38,8 @@ type Props = {
 
 export default function StashButtons({
   campaignId,
+  campaignSlug,
+  canEditCatalog,
   actorPcId,
   currentLoopNumber,
   defaultDay,
@@ -94,6 +98,8 @@ export default function StashButtons({
         open={sheetOpen}
         onClose={close}
         campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canEditCatalog}
         actorPcId={actorPcId}
         defaultLoopNumber={currentLoopNumber ?? 1}
         defaultDayInLoop={defaultDay}

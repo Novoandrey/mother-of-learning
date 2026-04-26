@@ -80,6 +80,17 @@ const NODE_TYPES: SrdNodeTypeSpec[] = [
     default_fields: { description: '', name_en: '' },
     sort_order: 12,
   },
+  // spec-015: item nodes. Migration 043 already seeded this for existing
+  // campaigns; this entry catches future ones via initializeCampaignFromTemplate.
+  // default_fields stays {} — item form is a custom dialog, not the
+  // generic node form.
+  {
+    slug: 'item',
+    label: 'Предметы',
+    icon: 'package',
+    default_fields: {},
+    sort_order: 60,
+  },
 ]
 
 // 14 base SRD conditions. The historical "Истощённый" node was replaced by

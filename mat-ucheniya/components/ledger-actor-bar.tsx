@@ -10,6 +10,8 @@ import type { StashMeta } from '@/lib/stash'
 
 type Props = {
   campaignId: string
+  campaignSlug: string
+  canEditCatalog: boolean
   availablePcs: CampaignPC[]
   /** spec-011: stash node for this campaign. `null` → seeder hasn't run. */
   stashNode?: StashMeta | null
@@ -51,6 +53,8 @@ type Props = {
  */
 export default function LedgerActorBar({
   campaignId,
+  campaignSlug,
+  canEditCatalog,
   availablePcs,
   stashNode,
   categories,
@@ -205,6 +209,8 @@ export default function LedgerActorBar({
       {selectedActor && !selectedIsStash && stashNode && (
         <StashButtons
           campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canEditCatalog}
           actorPcId={selectedActor.id}
           currentLoopNumber={currentLoopNumber ?? null}
           defaultDay={defaultDayByPcId[selectedActor.id] ?? 1}
@@ -231,6 +237,8 @@ export default function LedgerActorBar({
           open={sheetOpen}
           onClose={closeSheet}
           campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canEditCatalog}
           actorPcId={selectedActor.id}
           defaultLoopNumber={defaultLoopNumber}
           defaultDayInLoop={defaultDayByPcId[selectedActor.id] ?? 1}
@@ -246,6 +254,8 @@ export default function LedgerActorBar({
           open={batchSheetOpen}
           onClose={closeBatchSheet}
           campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canEditCatalog}
           availablePcs={availablePcs}
           defaultLoopNumber={defaultLoopNumber}
           defaultDayByPcId={defaultDayByPcId}

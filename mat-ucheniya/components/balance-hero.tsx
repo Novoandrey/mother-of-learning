@@ -11,6 +11,8 @@ type Props = {
    */
   actorNodeId: string
   campaignId: string
+  /** Spec-015 — campaign slug for the typeahead's «+ Создать» link. */
+  campaignSlug: string
   /**
    * Section heading. Defaults to "Кошелёк". Stash page passes
    * "Баланс общака" so the card reads naturally as a standalone hero.
@@ -38,12 +40,14 @@ type Props = {
 export default async function BalanceHero({
   actorNodeId,
   campaignId,
+  campaignSlug,
   heading = 'Кошелёк',
 }: Props) {
   const user = await getCurrentUser()
   if (!user) return null
   const membership = await getMembership(campaignId)
   if (!membership) return null
+  const canEditCatalog = membership.role === 'owner' || membership.role === 'dm'
 
   const currentLoop = await getCurrentLoop(campaignId)
   const loopNumber = currentLoop?.number ?? null
@@ -70,6 +74,8 @@ export default async function BalanceHero({
         walletCaption={walletCaption}
         showLifetimeFallback={!currentLoop}
         campaignId={campaignId}
+        campaignSlug={campaignSlug}
+        canEditCatalog={canEditCatalog}
         actorNodeId={actorNodeId}
         defaultLoopNumber={defaultLoopNumber}
         defaultDayInLoop={defaultDayInLoop}

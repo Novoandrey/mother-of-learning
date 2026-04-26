@@ -139,6 +139,8 @@ export default async function AccountingPage({
         {availablePcs.length > 0 && (
           <LedgerActorBar
             campaignId={campaign.id}
+            campaignSlug={slug}
+            canEditCatalog={membership.role === 'owner' || membership.role === 'dm'}
             availablePcs={availablePcs}
             stashNode={stashNode}
             categories={categories}

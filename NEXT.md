@@ -2,7 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-26 (chat 54 — spec-015 Specify+Clarify;
+> Last updated: 2026-04-26 (chat 63 — spec-015 Phases 1–6 done +
+> deployed; migration 043 applied; item catalog UI live; typeahead
+> retrofit; awaiting prod verify before Phases 7–12)
 > spec.md status Clarified, ждёт Plan)
 
 ## В проде сейчас
@@ -250,34 +252,105 @@
   server action + CLI
 - **BUG-016 + TECH-006 (chat 31)**: аудит invalidate сайдбара
 - **TECH-007 (chat 32)**: invalidate-from-CLI endpoint
+- **spec-015 Item catalog Phases 1–6 (chat 55–63)** — _в проде наполовину_.
+  Миграция `043_item_catalog.sql` применена. Item-нода = «Образец»,
+  side table `item_attributes` (category/rarity/price/weight/slot/source/
+  availability), `transactions.item_node_id` nullable FK с `ON DELETE
+  SET NULL` (FR-032), CHECK блочит link для не-item kind'ов. Categories
+  scope расширен до 5 (`transaction`, `item`, `item-slot`, `item-source`,
+  `item-availability`); 4 value-list дефолта засеяны. Routes:
+  `/c/[slug]/items` (каталог), `/items/new`, `/items/[id]`,
+  `/items/[id]/edit`. `<ItemFilterBar>` — collapsed-by-default,
+  active-filter chips, URL single source of truth. `<ItemCatalogGrid>` —
+  group-by × 6 axes (category/rarity/slot/priceBand/source/availability),
+  sort × 4 keys, collapsible sections, пустое-состояние. `<ItemFormPage>`
+  shared между create/edit, FR-030 chip с linked-tx count, inline
+  delete confirmation. Item permalink с «Историей» (read-only таблица).
+  `<ItemTypeahead>` шарится между transaction-form и batch-form
+  (debounced 200ms search, «образец» badge, DM-only «+ Создать»
+  affordance). Server actions (`createTransaction`/`updateTransaction`/
+  `createItemTransfer`/`submitBatch`/`stash` wrappers) принимают
+  `itemNodeId`, резолвят каноничное имя через `getItemById` (FR-014
+  snapshot). Ownership check в `createItemTransfer` использует
+  `item_node_id` когда есть, иначе strict free-text path. Pure helpers:
+  6 модулей, ~125 vitest тестов (всего 356/356 после правки
+  pre-existing арифметического бага в `approval.test.ts`). Phases 7–12
+  ещё впереди (см. «Следующий приоритет»).
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `042_approval_flow.sql` (chat 51)
+**Последняя применённая миграция:** `043_item_catalog.sql` (chat 55,
+spec-015 — node_type=item, item_attributes, transactions.item_node_id,
+4 value-list seeds)
 
 ## Следующий приоритет
 
-**Spec-015 Item catalog integration** — Specify+Clarify завершены
-в chat 54. spec.md (1357 строк, 38 FR, 11 SC, 7 user stories,
-8 clarifications) лежит в `.specify/specs/015-item-catalog/`.
-Status: **Clarified**. Следующий шаг — **Plan phase** в новом
-чате.
+**Spec-015 Item catalog integration — Phases 7–12** (середина
+имплементации). Phases 1–6 закрыты в chat 55–63:
 
-Ключевые архитектурные решения (закреплены в § Context и §
-Clarifications):
-- **Item-нода = Образец (Платонов слепок)**, транзакции =
-  instances. Сам Образец редактируется редко и deliberate
-  (FR-030).
-- **Гибридное хранилище** (Q1=C): hot fields колонками
-  (category, rarity, price_gp, weight_lb, slot, source,
-  availability), cold (description, srd_slug, source detail) в
-  JSONB. Plan решает: на `nodes` напрямую vs side table
-  `item_attributes`.
-- **Inventory = temporal slice (loop, day) — день это picker, не
-  gate** (Q8). Ничего не блочить; default через
-  `computeDefaultDayForTx` (existing helper из spec-010); URL
-  encodes `?loop=N&day=M`.
-- **Categories через `categories(scope='item')`** (Q2=A),
+- Phase 1 — миграция 043 (схема, item_attributes side table, FK на
+  `transactions.item_node_id`, scope expansion, default seeds для
+  4 списков).
+- Phase 2 — 6 pure-helper модулей с ~125 vitest-тестами
+  (items-types, items-filters, items-grouping, items-validation,
+  inventory-aggregation, inventory-slice). `aggregateStashLegs`
+  refactor отложен до Phase 7 (T009 deferred).
+- Phase 3 — read-surface (`lib/items.ts`, `lib/inventory.ts`).
+  `getItemHistory` делегирует в `getLedgerPage` через новый
+  `LedgerFilters.itemNodeId` — все hydration paths общие.
+- Phase 4 — каталог UI: `/c/[slug]/items` страница, `<ItemFilterBar>`,
+  `<ItemCatalogGrid>` (group-by × 6, sort × 4 keys), `<ItemFormPage>`,
+  `app/actions/items.ts` (create/update/delete/getLinkedTxCount).
+- Phase 5 — item permalink (`/items/[id]`) + edit (`/items/[id]/edit`).
+  «История» секция через `getItemHistory` + read-only таблица
+  (компактные строки: «П3 · день 7» / actor → counterparty / signed qty).
+  T021 (history pagination) отложен.
+- Phase 6 — typeahead retrofit. `<ItemTypeahead>` компонент с
+  debounced 200ms search, «образец» badge, DM-only «+ Создать»
+  affordance. Wired в `<TransactionForm>`, `<BatchTransactionForm>`,
+  `<TransactionFormSheet>`, `<BatchTransactionFormSheet>`. Сервер:
+  `CreateTransactionInput`/`UpdateTransactionInput`/`ItemTransferInput`/
+  `BatchRowSubmitInput`/`ItemStashInput` все принимают
+  `itemNodeId`. Каноничное имя резолвится через `getItemById`
+  (FR-014). Ownership check в `createItemTransfer` использует
+  `item_node_id` когда есть, иначе `item_name + item_node_id IS NULL`
+  (strict free-text path).
+
+**Что осталось (Phase 7+):**
+- Phase 7 — `<InventoryTab>` shared component, монтаж на PC page
+  (новая вкладка) и stash page (заменяет существующую «Предметы»).
+  Day picker URL-driven `?tab=inventory&loop=N&day=M`. Refactor
+  `aggregateStashLegs` → делегация в `aggregateItemLegs` (отложенный T009).
+- Phase 8 — `/c/[slug]/items/settings` страница: 4 секции,
+  переиспользует `<CategorySettings>` для item / item-slot / item-source /
+  item-availability scopes. Возможно потребуется параметризация labels
+  в существующем компоненте.
+- Phase 9 — миграция 044 (SRD seed + backfill). Dataset choice:
+  Option B (open5e parser) vs Option C (~50-item hand-curate). Решить
+  в самом T032 после быстрого аудита датасета. Backfill через
+  `LOWER(TRIM(item_name)) = LOWER(TRIM(title)) OR LOWER(TRIM(item_name)) = LOWER(srd_slug)`.
+- Phase 10 — encounter loot retrofit (spec-013) + spec-014 walkthroughs.
+  Расширить `LootLine.itemNodeId` в `lib/encounter-loot-types.ts`,
+  пробросить в `applyEncounterLoot` → `lib/autogen-reconcile.ts`.
+- Phase 11 — sidebar/nav: `«Предметы»` пункт в sidebar (spec-013
+  encounter mirror cut-out не задевает item ноды), tab между
+  «Каталог» и «Бухгалтерия», redirects `catalog?type=item` →
+  `/items`.
+- Phase 12 — smoke: `scripts/check-rls-015.sql` (RLS на
+  `item_attributes`, FK cascade SET NULL, CHECK на kind-vs-link
+  mismatch), manual walkthrough всех 7 user stories на mat-ucheniya.
+
+**Сначала проверить на проде:**
+- `/c/<slug>/items` рендерится, каталог пустой, фильтры работают.
+- DM создаёт первый предмет через `+ Предмет`, открывает permalink.
+- В транзакционной форме item-tab показывает typeahead, при выборе
+  предмета появляется бейдж «образец».
+- DM редактирует Образец: linked-tx count chip показывает 0 пока
+  никто не сослался; после первой связанной транзакции — 1.
+- `/c/<slug>/catalog?type=item` пока НЕ редиректит (Phase 11) —
+  это OK.
+
+
   TECH-011 closes as "keep".
 - **SRD seed ~400 items с английским `srd_slug` + русским
   `nodes.title`** (Q3=A).

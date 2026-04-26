@@ -10,7 +10,12 @@
 import { createClient } from '@/lib/supabase/server';
 import type { Category } from './transactions';
 
-export type CategoryScope = 'transaction' | 'item';
+export type CategoryScope =
+  | 'transaction'
+  | 'item'
+  | 'item-slot'
+  | 'item-source'
+  | 'item-availability';
 
 export type ListCategoriesOpts = {
   /** Include soft-deleted rows. Default: false. */

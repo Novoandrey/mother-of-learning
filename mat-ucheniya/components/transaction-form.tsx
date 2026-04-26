@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import AmountInput, { type AmountInputValue } from './amount-input'
 import TransferRecipientPicker from './transfer-recipient-picker'
 import ShortfallPrompt from './shortfall-prompt'
+import ItemTypeahead from './item-typeahead'
 import {
   createTransaction,
   createTransfer,
@@ -34,6 +35,10 @@ export type StashPinnedDirection = 'put-into-stash' | 'take-from-stash'
 
 type Props = {
   campaignId: string
+  /** Spec-015 — campaign slug for the typeahead's «+ Создать» link. */
+  campaignSlug: string
+  /** Spec-015 — DM/owner gets the «+ Создать» affordance in the typeahead. */
+  canEditCatalog: boolean
   actorPcId: string
   defaultLoopNumber: number
   defaultDayInLoop: number
@@ -149,6 +154,8 @@ function amountMagnitudeGp(v: AmountInputValue): number {
  */
 export default function TransactionForm({
   campaignId,
+  campaignSlug,
+  canEditCatalog,
   actorPcId,
   defaultLoopNumber,
   defaultDayInLoop,
@@ -182,8 +189,11 @@ export default function TransactionForm({
   )
   const [recipientPcId, setRecipientPcId] = useState<string | null>(null)
   const [comment, setComment] = useState<string>(editing?.comment ?? '')
-  // Item-specific state (spec-011).
-  const [itemName, setItemName] = useState<string>('')
+  // Item-specific state (spec-011 + spec-015 catalog link).
+  const [itemName, setItemName] = useState<string>(editing?.item_name ?? '')
+  const [itemNodeId, setItemNodeId] = useState<string | null>(
+    editing?.item_node_id ?? null,
+  )
   const [itemQty, setItemQty] = useState<number>(1)
 
   const loopNumber: number = editing?.loop_number ?? defaultLoopNumber
@@ -320,6 +330,7 @@ export default function TransactionForm({
             campaignId,
             actorPcId,
             itemName: itemName.trim(),
+            itemNodeId: itemNodeId ?? undefined,
             qty: itemQty,
             comment,
             loopNumber,
@@ -502,6 +513,7 @@ export default function TransactionForm({
     editingTransferGroupId,
     initialTransferDirection,
     itemName,
+    itemNodeId,
     itemQty,
     kind,
     loopNumber,
@@ -618,13 +630,17 @@ export default function TransactionForm({
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Предмет
             </label>
-            <input
-              type="text"
-              value={itemName}
-              onChange={(e) => setItemName(e.target.value)}
-              placeholder="Название предмета"
+            <ItemTypeahead
+              campaignId={campaignId}
+              campaignSlug={campaignSlug}
+              value={{ itemNodeId, itemName }}
+              onChange={(next) => {
+                setItemNodeId(next.itemNodeId)
+                setItemName(next.itemName)
+              }}
+              canCreateNew={canEditCatalog}
+              showFreeTextHint={!canEditCatalog}
               disabled={busy}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none disabled:opacity-50"
             />
           </div>
           <div className="flex flex-col gap-1">

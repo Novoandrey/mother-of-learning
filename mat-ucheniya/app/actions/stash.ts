@@ -48,6 +48,8 @@ type ItemStashInput = {
   campaignId: string
   actorPcId: string
   itemName: string
+  /** Spec-015 — optional Образец link, applied to both legs of the transfer. */
+  itemNodeId?: string
   qty: number
   comment: string
   /** Defaults to `'loot'` when put-into-stash, `'loot'` also when take-from. */
@@ -117,6 +119,7 @@ export async function putItemIntoStash(
     senderPcId: input.actorPcId,
     recipientPcId: stash.nodeId,
     itemName: input.itemName,
+    itemNodeId: input.itemNodeId,
     qty: input.qty,
     categorySlug: input.categorySlug ?? 'loot',
     comment: input.comment,
@@ -138,6 +141,7 @@ export async function takeItemFromStash(
     senderPcId: stash.nodeId,
     recipientPcId: input.actorPcId,
     itemName: input.itemName,
+    itemNodeId: input.itemNodeId,
     qty: input.qty,
     categorySlug: input.categorySlug ?? 'loot',
     comment: input.comment,
