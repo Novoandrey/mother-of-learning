@@ -110,10 +110,12 @@ export function validateCoinSet(coins: CoinSet): ValidationError | null {
 // ============================================================================
 
 /**
- * `item_qty` must be a positive integer. Mirrors the DB CHECK from
- * migration 035 (`item_qty >= 1`). Rejects non-integers, NaN,
- * negative, and zero. Used by the UI for inline feedback before
- * submitting the form.
+ * `item_qty` must be a non-zero integer. The DB CHECK was relaxed in
+ * migration 036 (`item_qty <> 0`) so transfer pairs can encode
+ * direction by sign. Spec-015 chat 64 extends this to single-leg
+ * item rows: `+ Предмет` writes a positive qty (gained), `− Предмет`
+ * writes a negative qty (lost). Used by the UI for inline feedback
+ * before submitting the form.
  */
 export function validateItemQty(qty: number): ValidationError | null {
   if (typeof qty !== 'number' || !Number.isFinite(qty)) {
@@ -122,8 +124,8 @@ export function validateItemQty(qty: number): ValidationError | null {
   if (!Number.isInteger(qty)) {
     return 'Количество должно быть целым числом';
   }
-  if (qty < 1) {
-    return 'Количество должно быть не меньше 1';
+  if (qty === 0) {
+    return 'Количество не может быть нулём';
   }
   return null;
 }

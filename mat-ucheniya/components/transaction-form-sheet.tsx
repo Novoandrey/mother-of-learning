@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect } from 'react'
-import TransactionForm, { type StashPinnedDirection } from './transaction-form'
+import TransactionForm, {
+  type StashPinnedDirection,
+  type TransactionActionKind,
+} from './transaction-form'
 import type { Category, TransactionWithRelations } from '@/lib/transactions'
 
 type Props = {
@@ -17,8 +20,8 @@ type Props = {
   defaultSessionId: string | null
   categories?: Category[]
   editing?: TransactionWithRelations | null
-  /** Pre-select a tab on mount (create flow). Ignored in edit mode. */
-  initialKind?: 'income' | 'expense' | 'transfer'
+  /** Pre-select a kind on mount (create flow). Ignored in edit mode. */
+  initialKind?: TransactionActionKind
   /** spec-011: pin the form to a put-into / take-from-stash flow. */
   initialTransferDirection?: StashPinnedDirection | null
   /** spec-011: current wallet gp — feeds the shortfall prompt. */

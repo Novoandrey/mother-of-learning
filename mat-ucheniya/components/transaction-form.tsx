@@ -46,8 +46,14 @@ type Props = {
   /** Retained for shape compat — unused while category UI is hidden (IDEA-050). */
   categories?: Category[]
   editing?: TransactionWithRelations | null
-  /** Pre-select a tab in create mode. Ignored when `editing` is set. */
-  initialKind?: FormKind
+  /**
+   * Pre-select a kind / mode in create mode. Ignored when `editing` is set.
+   *
+   * Accepts the new action-kind enum (`'item-in'`/`'item-out'` etc.) —
+   * when set to one of those, the tab-bar inside the form is hidden
+   * and the form opens with a fixed heading + the right item-direction.
+   */
+  initialKind?: TransactionActionKind
   /**
    * When set, lock the form to a stash-pinned flow (spec-011 T025):
    *   - Hide transfer tab + recipient picker.
@@ -74,11 +80,50 @@ type Props = {
  */
 type FormKind = 'income' | 'expense' | 'transfer' | 'item'
 
+/**
+ * Public action-kind enum for the four-button entry point
+ * (`<TransactionActions>`). Differs from `FormKind`:
+ *   - `item-in` / `item-out` distinguish direction; both map to the
+ *     same internal `'item'` form mode but seed `itemQty` sign / form
+ *     heading differently.
+ *   - `transfer` is kept for back-compat callers that still trigger
+ *     the legacy money-transfer path (e.g. ledger-list-client edit
+ *     flow). The new four-button row no longer surfaces it.
+ */
+export type TransactionActionKind =
+  | 'income'
+  | 'expense'
+  | 'transfer'
+  | 'item-in'
+  | 'item-out'
+
+/**
+ * Map action-kind → internal form-kind. Keeps the form's 4-tab logic
+ * (which talks `'item'`) untouched.
+ */
+function actionKindToFormKind(k: TransactionActionKind): FormKind {
+  if (k === 'item-in' || k === 'item-out') return 'item'
+  return k
+}
+
 const TAB_LABELS: Record<FormKind, string> = {
   income: 'Доход',
   expense: 'Расход',
   transfer: 'Перевод',
   item: 'Предмет',
+}
+
+/**
+ * Heading shown when the form opens from a specific action-kind
+ * (no tab-bar). Tab-bar UI is hidden for these — user already
+ * picked their intent on the page.
+ */
+const ACTION_HEADINGS: Record<TransactionActionKind, string> = {
+  income: 'Доход',
+  expense: 'Расход',
+  transfer: 'Перевод',
+  'item-in': 'Получение предмета',
+  'item-out': 'Расход предмета',
 }
 
 const AUTO_CATEGORY: Record<FormKind, string> = {
@@ -181,9 +226,24 @@ export default function TransactionForm({
 
   const seed = editing ? seedFromEditing(editing) : null
 
-  const [kind, setKind] = useState<FormKind>(
-    seed?.kind ?? (stashPinned ? stashMoneyKind : initialKind ?? 'expense'),
-  )
+  // When the form opens from one of the new specific action-kinds,
+  // we hide the tab-bar entirely (`hideTabBar = true`). The user
+  // already declared intent on the page; switching tabs inside the
+  // form would only let them undo that. The exception is
+  // `'income'`/`'expense'`/`'transfer'` — these correspond to old
+  // tab labels and may still be opened from legacy entry points
+  // (which haven't been migrated yet) so we keep the bar.
+  const isExplicitItemAction =
+    initialKind === 'item-in' || initialKind === 'item-out'
+  const hideTabBar = isExplicitItemAction && !editing
+
+  const initialFormKind: FormKind = stashPinned
+    ? stashMoneyKind
+    : initialKind
+      ? actionKindToFormKind(initialKind)
+      : 'expense'
+
+  const [kind, setKind] = useState<FormKind>(seed?.kind ?? initialFormKind)
   const [amount, setAmount] = useState<AmountInputValue>(
     seed?.amount ?? { mode: 'gp', amount: 0 },
   )
@@ -428,11 +488,55 @@ export default function TransactionForm({
           return
         }
       } else if (kind === 'item') {
-        // Item kind in normal mode isn't wired — spec-011 restricts
-        // item entry to stash-pinned mode. If we ever surface an
-        // item-only tab outside stash flows, route it here.
-        setError('Предметы пока создаются только через «Положить/Взять из Общака»')
-        return
+        // Spec-015 chat 64+: item rows can be written from non-stash
+        // entry points. Direction comes from the action-kind:
+        //   'item-in'  → positive qty (PC gained the item)
+        //   'item-out' → negative qty (PC lost the item)
+        // Bundle (concurrent ±gp) and PC-recipient transfer are
+        // forthcoming in the next pass — for now this writes a single
+        // item row with no money side and no transfer pair.
+        if (!itemName.trim()) {
+          setError('Укажите название предмета')
+          return
+        }
+        const qtyMagErr = validateItemQty(itemQty)
+        if (qtyMagErr) {
+          setError(qtyMagErr)
+          return
+        }
+        const direction: 'in' | 'out' =
+          initialKind === 'item-out' ? 'out' : 'in'
+        const signedQty = direction === 'in' ? Math.abs(itemQty) : -Math.abs(itemQty)
+        const payload: CreateTransactionInput = {
+          campaignId,
+          actorPcId,
+          kind: 'item',
+          itemName: itemName.trim(),
+          itemNodeId: itemNodeId ?? undefined,
+          itemQty: signedQty,
+          categorySlug: 'loot',
+          comment,
+          loopNumber,
+          dayInLoop,
+          sessionId,
+        }
+        const res = editingId
+          ? await updateTransaction(editingId, {
+              kind: 'item',
+              itemName: itemName.trim(),
+              itemNodeId: itemNodeId ?? undefined,
+              itemQty: signedQty,
+              categorySlug: 'loot',
+              comment,
+              loopNumber,
+              dayInLoop,
+              sessionId,
+            })
+          : await createTransaction(payload)
+        if (!res.ok) {
+          setError(res.error)
+          return
+        }
       } else {
         // transfer
         if (!editingTransferGroupId && !recipientPcId) {
@@ -512,6 +616,7 @@ export default function TransactionForm({
     editingId,
     editingTransferGroupId,
     initialTransferDirection,
+    initialKind,
     itemName,
     itemNodeId,
     itemQty,
@@ -562,8 +667,14 @@ export default function TransactionForm({
 
       {/* Kind switcher. Two-tab in stash-pinned (money + item), three-
           tab in normal mode. Transfer tab disabled in stash-pinned —
-          stash transfers aren't PC↔PC. */}
-      {stashPinned ? (
+          stash transfers aren't PC↔PC. Hidden entirely when the form
+          opens from a specific item-action (`item-in`/`item-out`) —
+          the user picked intent on the page, no need to second-guess. */}
+      {hideTabBar ? (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700">
+          {initialKind && ACTION_HEADINGS[initialKind]}
+        </div>
+      ) : stashPinned ? (
         <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
           {([stashMoneyKind, 'item'] as const).map((k) => {
             const isActive = kind === k
