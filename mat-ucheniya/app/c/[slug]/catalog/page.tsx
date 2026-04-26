@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { NodeList } from '@/components/node-list'
 import type { Metadata } from 'next'
 
@@ -25,6 +25,17 @@ export default async function CatalogPage({
 }) {
   const { slug } = await params
   const { q, type } = await searchParams
+
+  // Spec-015 (T045): item nodes have a dedicated route under /items
+  // with its own filter bar, group-by toggle, and grid. Redirect any
+  // legacy ?type=item link there, preserving the search query.
+  if (type === 'item') {
+    const target = q
+      ? `/c/${slug}/items?q=${encodeURIComponent(q)}`
+      : `/c/${slug}/items`
+    redirect(target)
+  }
+
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 
