@@ -2,9 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-26 (chat 72 — spec-017 + spec-016 двойной
-> implement; awaits migration 047 + 048 + manual smoke; version
-> 0.5.1)
+> Last updated: 2026-04-27 (chat 74 — SRD seed batches 049-054 +
+> spec-016 follow-up: attunement column + auto-managed price flag;
+> version 0.6.0)
 
 ## В проде сейчас
 
@@ -322,62 +322,95 @@
   кейсов: outsider RLS, member RLS, CASCADE на attrs, SET NULL на
   transactions, kind/link CHECK, scope CHECK с unknown-rejection).
 
-- **spec-017 Складчина (chat 72)** — _code shipped, awaits migration
-  apply + manual smoke._ Миграция 047 (2 таблицы — `contribution_pools`
-  + `contribution_participants`, 2 триггера, 5 RLS policies — DELETE
-  default-deny, soft-delete only). Sidecar к ledger: не трогает
-  transactions/nodes/петли. Архивность DERIVED (deleted_at OR all-paid).
-  `lib/contributions.ts` (read), `app/actions/contributions.ts` (5
-  actions: create / toggleParticipantPaid / updateHeader /
-  replaceParticipants / softDelete). `lib/contribution-split.ts` pure
-  helpers (kopeck-precision split, 25 vitest). UI: `<ContributionPoolCard>`
-  (server inline-expand через `<details>`), `<ContributionPoolCheckbox>`
-  (`useOptimistic`), CreateForm + EditForm (paid-row freeze rules),
-  CopyButton, UserPaymentHint. Top-level page `/c/[slug]/skladchina`
-  с двумя URL-driven табами (Текущие / Архив, edit-mode через
-  `?edit=<id>`). Nav-tab «🤝 Складчина» добавлена в `nav-tabs.tsx`.
-  Version 0.5.0.
+- **spec-017 Складчина (chat 72)** — _полностью в проде._ Миграция
+  047 применена. RLS smoke ✓, pizza-test US1 ✓.
 
 - **spec-016 Default item prices: bulk apply + override (chat 72)** —
-  _code shipped, awaits migration apply + manual smoke._ Миграция 048
-  (1 column: `item_attributes.use_default_price boolean default true`).
-  `lib/apply-default-prices.ts` pure helper `computeApplyPlan` (12
-  vitest). `applyItemDefaultPrices` server action с CASE-style bulk
-  update (sequential per-row пока — для каталогов 100–500 items
-  acceptable; если станет hot — мигрируем в RPC). Item form:
-  чекбокс «Не использовать стандартную цену» + autofill suppression
-  когда checked. Settings page: кнопка «Применить ко всем предметам»
-  с confirm + alert breakdown (updated / unchanged / skippedByFlag /
-  skippedByRarity / skippedByMissingCell). Расширен ItemPayload +
-  ItemNode + EMPTY_PAYLOAD + items.ts SELECT'ы + create/update
-  payload pass-through. Version 0.5.1.
+  _полностью в проде._ Миграция 048 применена. Расширен в chat 74
+  (см. ниже): manual чекбокс «Не использовать стандартную цену»
+  убран, `use_default_price` теперь auto-managed.
+
+- **SRD items extended seed batches (chat 74)** — _полностью в проде._
+  6 миграций (049–054) добавляют 224 предмета сверх базовых 50.
+  Итого 274 предмета в `lib/seeds/items-srd.ts`. Источники: PHB +
+  XGE + supplements (DMG/VRGR/IMR/JRC/EGW/RLW). Состав:
+  * 049 — 19 ядов (DMG/VRGR/IMR/JRC: simple/contact/inhaled/injury)
+  * 050 — 11 наркотиков и веществ (DMG/EGW/RLW/JRC); skip
+    «Противоядие» = `antitoxin-vial`
+  * 051 — 30 оружий (5 simple melee, 3 simple ranged, 12 martial
+    melee, 2 martial ranged, 3 Renaissance firearms, 5 Modern
+    firearms — Modern с null price)
+  * 052 — 5 PHB armors (padded, hide, breastplate, ring-mail,
+    splint) + conditional rename `studded-leather`
+  * 053 — 36 tools/instruments/gaming sets (5 standalone kits,
+    4 gaming sets, 10 musical instruments, 17 artisan tools)
+  * 054 — 82 PHB equipment items (70 standalone gear + 5 arcane
+    foci + 3 holy symbols + 4 druidic foci) + conditional rename
+    `whetstone` («Точило» → «Точильный камень»)
+  Все pattern-conformant: per-campaign DO loop, NOT EXISTS guard
+  на `(campaign_id, srd_slug)`, Phase 2 backfill
+  `transactions.item_node_id` по name/slug match. Идемпотентны.
+
+- **Attunement + auto-managed price flag (chat 74)** — _полностью
+  в проде._ Миграция 055 (small follow-up к spec-016, не отдельная
+  спека). Добавляет:
+  * `item_attributes.requires_attunement boolean default false` +
+    бэкфилл по 17 предметам с «Требует настройки» в описании
+    (cloak-of-protection, ring-of-protection, amulet-of-health,
+    gauntlets-of-ogre-power, wand-of-web, cloak-of-elvenkind,
+    boots-of-speed, boots-of-striding-and-springing, winged-boots,
+    slippers-of-spider-climbing, ring-of-jumping, ring-of-warmth,
+    ring-of-spell-storing, eyes-of-the-eagle, helm-of-telepathy,
+    bracers-of-defense, pearl-of-power)
+  * Auto-flag `use_default_price`: для magic+consumable bucket
+    сравнение с `campaigns.settings->'item_default_prices'[bucket]
+    [rarity]`; для mundane (rarity=null, non-consumable, с
+    srd_slug) — с embedded PHB seed baselines (210 tuples).
+    Custom items без srd_slug → flag=true (нет baseline).
+
+  UI:
+  * Catalog grid: колонка «Н» переименована в «Цр» (✓ когда
+    цена изменена руками — отличается от стандартной); новая
+    колонка «Н» (purple ✓) для attunement.
+  * Item form: убран ручной чекбокс «Не использовать стандартную
+    цену» (теперь auto); добавлен чекбокс «Требует настройки»
+    под полем Слот. Autofill цены теперь всегда активен (не
+    gated на flag).
+  * Server actions: helper `computeUseDefaultPrice(payload,
+    defaults)` зеркалит SQL-логику бэкфилла; вызывается на
+    create/update; `requires_attunement` пробрасывается
+    отдельно из payload.
+
+  `ItemPayload` больше не несёт `useDefaultPrice` (auto-computed
+  server-side). `ItemNode` оставляет оба поля (для grid display).
+
+  **Future per-location pricing axis** — отдельный layer поверх
+  base price (новая таблица типа `item_location_prices(item_id,
+  location_node_id, price_gp, availability)` или подобная). Не
+  пересекается с use_default_price, который остаётся про базовую
+  цену vs кампейн-стандарт.
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `045_apply_starter_setup_item_node_id.sql`
-(spec-015 chat 69). **Ждут применения**:
-* `047_contribution_pools.sql` (spec-017 chat 72 — Складчина)
-* `048_item_use_default_price.sql` (spec-016 chat 72 — per-item
-  override flag)
+**Последняя применённая миграция:** `055_attunement_and_price_autoflag.sql`
+(chat 74). Все миграции 047–055 применены.
 
 ## Следующий приоритет
 
-**Применить обе миграции (047 + 048)** через Supabase Dashboard,
-прогнать smoke checks. После apply:
+**Spec-018 «Карта мира»** — фундаментальная фича, ~5–7 дней.
+Карта-канвас, путевые точки (waypoints), фильтры по сессиям.
+Spec.md ещё не написан — стартуем с Specify фазы.
 
-1. **Spec-017 Складчина**: RLS smoke (T003), pizza-test US1
-   walkthrough (T023). Pull spec-017 в _полностью в проде_.
-2. **Spec-016 Default prices**: визуальная проверка чекбокса
-   «Не использовать стандартную цену» в item form, нажать
-   «Применить ко всем предметам» в `/items/settings` на
-   mat-ucheniya (91 SRD items + custom). Pull spec-016 в
-   _полностью в проде_.
-3. Quality gates spec-016: lint / type-check / vitest /
-   next build — у меня в container'е npm не работает,
-   прогон у тебя.
+Связь:
+- Поглощает IDEA-054 (PC↔Location граф).
+- Откроет дорогу spec-022 (DM session control + movement events)
+  и spec-023 (timeline view).
 
-После этого — **Spec-018 «Карта мира»** (фундаментальная фича,
-~5–7 дней). Карта-канвас, путевые точки, фильтры по сессиям.
+Phasing предложение (обсудим в Clarify):
+1. Canvas скелет + панорамирование/zoom
+2. Локации как пины с иерархией
+3. Пути между локациями (travel time edges)
+4. Фильтры по сессиям + история перемещений PC
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 
