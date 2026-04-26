@@ -98,13 +98,16 @@ export default function ItemTypeahead({
     }
     let cancelled = false
     setSearching(true)
+    // 120 ms debounce (chat 66): with the search server action now
+    // single-roundtrip, the original 200 ms felt like added latency
+    // rather than burst-protection. 120 ms still throttles fast typing.
     const timer = setTimeout(async () => {
       const res = await searchItemsAction(campaignId, trimmed, 10)
       if (cancelled) return
       setSearching(false)
       if (res.ok) setResults(res.items)
       else setResults([])
-    }, 200)
+    }, 120)
     return () => {
       cancelled = true
       clearTimeout(timer)
