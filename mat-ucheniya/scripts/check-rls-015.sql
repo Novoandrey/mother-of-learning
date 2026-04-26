@@ -41,6 +41,7 @@ declare
   v_item_node_id  uuid;
   v_tx_id         uuid;
   v_count         int;
+  v_caught        text;
   v_pass          int := 0;
   v_total         int := 6;
 begin
@@ -182,8 +183,7 @@ begin
   end if;
 
   -- ── CHECK-1: kind=money + item_node_id NOT NULL is rejected ────
-  declare
-    v_caught text := null;
+  v_caught := null;
   begin
     insert into transactions (
       id, campaign_id, actor_pc_id, kind, amount_cp, amount_sp,
@@ -212,8 +212,8 @@ begin
   end if;
 
   -- ── CHECK-2: categories.scope accepts all 5 + rejects unknown ──
+  v_caught := null;
   declare
-    v_caught text := null;
     v_ok_count int := 0;
     v_scope text;
   begin
