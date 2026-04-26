@@ -271,7 +271,7 @@
 
 ## Phase 7 — Inventory tab (US4)
 
-- [ ] **T027 [P1]** Create `<InventoryTab>` shared component.
+- [x] **T027 [P1]** Create `<InventoryTab>` shared component.
   Props: `actorNodeId`, `campaignId`, `currentLoop`, `loops` (for
   picker — past + current only, FR-023b). Server-fetches via
   `getInventoryAt`. Renders: loop picker, day picker, day chip
