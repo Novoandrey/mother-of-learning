@@ -24,11 +24,15 @@ export function EditableTitleCell({
   itemId,
   value,
   onCancel,
+  onOptimisticSave,
 }: {
   campaignId: string
   itemId: string
   value: string
   onCancel: () => void
+  /** Called с новым значением до того как server вернёт ok — для
+   *  optimistic UI. Parent может тут же отрисовать новое значение. */
+  onOptimisticSave: (next: string) => void
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState(value)
@@ -46,16 +50,20 @@ export function EditableTitleCell({
       onCancel()
       return
     }
+    // Optimistic — applied first, потом server.
+    onOptimisticSave(trimmed)
+    onCancel()
     startTransition(async () => {
       const result = await quickUpdateItemAction(campaignId, itemId, {
         title: trimmed,
       })
       if (!result.ok) {
         alert(result.error)
-        return
+        // На fail useEffect в родителе оставит optimistic пока props
+        // не вернутся к старому значению, что и произойдёт
+        // на router.refresh() ниже.
       }
       router.refresh()
-      onCancel()
     })
   }
 
@@ -90,11 +98,13 @@ export function EditablePriceCell({
   itemId,
   value,
   onCancel,
+  onOptimisticSave,
 }: {
   campaignId: string
   itemId: string
   value: number | null
   onCancel: () => void
+  onOptimisticSave: (next: number | null) => void
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState(value === null ? '' : String(value))
@@ -117,16 +127,16 @@ export function EditablePriceCell({
       onCancel()
       return
     }
+    onOptimisticSave(newPrice)
+    onCancel()
     startTransition(async () => {
       const result = await quickUpdateItemAction(campaignId, itemId, {
         priceGp: newPrice,
       })
       if (!result.ok) {
         alert(result.error)
-        return
       }
       router.refresh()
-      onCancel()
     })
   }
 
@@ -163,12 +173,14 @@ export function EditableSourceCell({
   value,
   options,
   onCancel,
+  onOptimisticSave,
 }: {
   campaignId: string
   itemId: string
   value: string | null
   options: Array<{ slug: string; label: string }>
   onCancel: () => void
+  onOptimisticSave: (next: string | null) => void
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -183,16 +195,16 @@ export function EditableSourceCell({
       onCancel()
       return
     }
+    onOptimisticSave(next)
+    onCancel()
     startTransition(async () => {
       const result = await quickUpdateItemAction(campaignId, itemId, {
         sourceSlug: next,
       })
       if (!result.ok) {
         alert(result.error)
-        return
       }
       router.refresh()
-      onCancel()
     })
   }
 

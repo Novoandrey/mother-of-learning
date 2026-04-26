@@ -284,6 +284,33 @@ function ItemRow({
   type EditMode = 'title' | 'price' | 'source' | null
   const [editing, setEditing] = useState<EditMode>(null)
 
+  // Optimistic overrides: после save показываем новое значение
+  // мгновенно. Display ниже сравнивает override с props — если
+  // равны (RSC refresh догнал), фолбэчимся на prop. Никакого
+  // cleanup-effect: stale-no-op override остаётся в state, но не
+  // влияет на render (display уже совпадает с prop'ом).
+  type Optimistic = {
+    title?: string
+    priceGp?: number | null
+    sourceSlug?: string | null
+  }
+  const [optimistic, setOptimistic] = useState<Optimistic>({})
+
+  // Effective values: optimistic if набрано и НЕ равно prop'у.
+  const displayTitle =
+    optimistic.title !== undefined && optimistic.title !== item.title
+      ? optimistic.title
+      : item.title
+  const displayPrice =
+    optimistic.priceGp !== undefined && optimistic.priceGp !== item.priceGp
+      ? optimistic.priceGp
+      : item.priceGp
+  const displaySourceSlug =
+    optimistic.sourceSlug !== undefined &&
+    optimistic.sourceSlug !== item.sourceSlug
+      ? optimistic.sourceSlug
+      : item.sourceSlug
+
   function startEdit(mode: EditMode, e: React.MouseEvent) {
     if (!canEdit) return
     e.stopPropagation()
@@ -308,8 +335,11 @@ function ItemRow({
             <EditableTitleCell
               campaignId={campaignId}
               itemId={item.id}
-              value={item.title}
+              value={displayTitle}
               onCancel={() => setEditing(null)}
+              onOptimisticSave={(next) =>
+                setOptimistic((p) => ({ ...p, title: next }))
+              }
             />
           ) : (
             <Link
@@ -319,7 +349,7 @@ function ItemRow({
               title={canEdit ? 'Двойной клик — переименовать' : undefined}
               className="text-gray-900 hover:text-blue-700 hover:underline"
             >
-              {item.title}
+              {displayTitle}
             </Link>
           )}
         </td>
@@ -347,11 +377,14 @@ function ItemRow({
             <EditablePriceCell
               campaignId={campaignId}
               itemId={item.id}
-              value={item.priceGp}
+              value={displayPrice}
               onCancel={() => setEditing(null)}
+              onOptimisticSave={(next) =>
+                setOptimistic((p) => ({ ...p, priceGp: next }))
+              }
             />
-          ) : item.priceGp !== null ? (
-            formatGp(item.priceGp)
+          ) : displayPrice !== null ? (
+            formatGp(displayPrice)
           ) : (
             <span className="text-gray-300">—</span>
           )}
@@ -368,12 +401,15 @@ function ItemRow({
             <EditableSourceCell
               campaignId={campaignId}
               itemId={item.id}
-              value={item.sourceSlug}
+              value={displaySourceSlug}
               options={sourceOptions}
               onCancel={() => setEditing(null)}
+              onOptimisticSave={(next) =>
+                setOptimistic((p) => ({ ...p, sourceSlug: next }))
+              }
             />
-          ) : item.sourceSlug ? (
-            slugLabels.source[item.sourceSlug] ?? item.sourceSlug
+          ) : displaySourceSlug ? (
+            slugLabels.source[displaySourceSlug] ?? displaySourceSlug
           ) : (
             <span className="text-gray-300">—</span>
           )}
