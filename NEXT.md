@@ -250,196 +250,98 @@
   server action + CLI
 - **BUG-016 + TECH-006 (chat 31)**: аудит invalidate сайдбара
 - **TECH-007 (chat 32)**: invalidate-from-CLI endpoint
-- **spec-015 Item catalog Phases 1–6 + UX iter 1 (chat 55–65)** —
-  _в проде наполовину_. Миграция `043_item_catalog.sql` применена.
-  Item-нода = «Образец», side table `item_attributes` (category/rarity/
-  price/weight/slot/source/availability), `transactions.item_node_id`
-  nullable FK с `ON DELETE SET NULL` (FR-032), CHECK блочит link для
-  не-item kind'ов. Categories scope расширен до 5 (`transaction`,
-  `item`, `item-slot`, `item-source`, `item-availability`); 4
-  value-list дефолта засеяны. Routes: `/c/[slug]/items` (каталог),
-  `/items/new`, `/items/[id]`, `/items/[id]/edit`. Каталог UI —
-  `<ItemFilterBar>` (collapsed, active-filter chips), `<ItemCatalogGrid>`
-  (group-by × 6, sort × 4), `<ItemFormPage>` shared с linked-tx count
-  chip и inline delete confirmation. Item permalink с «Историей»
-  (read-only таблица). `<ItemTypeahead>` шарится между transaction-
-  form и batch-form (debounced 200ms search, «образец» badge,
-  DM-only «+ Создать»). Server actions принимают `itemNodeId`,
-  каноничное имя резолвится через `getItemById` (FR-014 snapshot).
-  Ownership check в `createItemTransfer` использует `item_node_id`
-  когда есть, иначе strict free-text path. Pure helpers: 6 модулей,
-  ~125 vitest тестов. Phases 7–12 ещё впереди.
+- **spec-015 Item catalog (chat 55–69)** — _полностью в проде._
+  Миграции `043_item_catalog.sql`, `044_srd_items_seed.sql` (50
+  hand-curated SRD items + per-campaign backfill), `045_apply_starter_setup_item_node_id.sql`
+  (RPC accepts item_node_id; spec-013 tombstones whitelisted)
+  применены.
 
-  **UX iter 1 (chat 64–65):** light-theme conversion (zinc → gray,
-  amber CTA → blue) — каталог пришлось перекрасить, изначально был
-  ошибочно сделан в dark theme на фоне светлого приложения.
-  «Предметы» nav tab (icon 🎒) добавлен между «Бухгалтерия» и
-  «Участники». **4-button TransactionActions:** заменили один
-  «+ Транзакция» с табами Доход/Расход/Перевод на ряд явных
-  кнопок-действий: `+ Доход` / `− Расход` / `+ Предмет` /
-  `− Предмет` (на мобилке 2×2 grid). Каждая открывает форму уже
-  специализированную, без таб-bar внутри. Mounted в
-  `<WalletBlockClient>` (PC), `<BalanceHeroClient>` (stash
-  — `moneyOnly`), `<LedgerActorBar>` (accounting). Stash-кнопки
-  (`Положить/Взять из Общака`) остались отдельным рядом —
-  специальные шорткаты для частого use case. Item-ветка submit'а
-  в форме перерисована: пишет single item row через
-  `createTransaction`, direction encoded знаком `item_qty`
-  (`item-in` → +qty, `item-out` → −qty). `validateItemQty`
-  loosened до `≠ 0` (соответствует DB CHECK из мига 036).
+  **Phases 1–6 + UX iter 1 (chat 55–65):** Item-нода = «Образец»,
+  side table `item_attributes` (category/rarity/price/weight/slot/
+  source/availability), `transactions.item_node_id` nullable FK с
+  `ON DELETE SET NULL` (FR-032), CHECK блочит link для не-item
+  kind'ов. Categories scope расширен до 5 (`transaction`, `item`,
+  `item-slot`, `item-source`, `item-availability`). Routes:
+  `/c/[slug]/items` (каталог), `/items/new`, `/items/[id]`,
+  `/items/[id]/edit`. `<ItemFilterBar>` (collapsed, active-filter
+  chips), `<ItemCatalogGrid>` (group-by × 6, sort × 4),
+  `<ItemFormPage>` shared с linked-tx count chip и inline delete
+  confirmation. Item permalink с «Историей». `<ItemTypeahead>`
+  шарится между transaction-form, batch-form, encounter loot
+  editor. Server actions принимают `itemNodeId`, каноничное имя
+  резолвится через `getItemById` (FR-014 snapshot). Ownership
+  check в `createItemTransfer` использует `item_node_id` когда
+  есть. UX iter 1: light-theme + 4-button TransactionActions
+  (+ Доход / − Расход / + Предмет / − Предмет вместо single
+  «+ Транзакция»). 🎒 nav tab.
 
-  **UX iter 1.5 (chat 66):** две регрессии iter 1 закрыты.
-  *Perf:* `searchItemsForTypeahead` переписан с трёх sequential
-  Postgrest-запросов (`node_types` → `nodes` → `item_attributes`)
-  на один nested-select с `!inner` join'ами и фильтром
-  `.eq('type.slug', 'item')`. Снимает ~600ms server-side latency
-  даже на 1-предметном датасете. Client debounce 200→120ms.
-  *Counterparty picker:* в `<TransactionForm>` для `kind === 'item'`
-  добавлен опциональный `<TransferRecipientPicker>` с лейблом
-  «От кого получен» (item-in) / «Кому передан» (item-out) и
-  default-опцией «— без передачи —». При выборе PC submit идёт
-  через `createItemTransfer` (spec-011 уже умеет всё). Picker
-  расширен пропами `label` / `placeholder` / `clearLabel` и
-  `onChange: (pcId: string | null) => void`. Возвращает потерянную
-  семантику item-transfer без воскрешения «↔ Перевод» кнопки.
+  **UX iter 1.5 (chat 66):** Perf — `searchItemsForTypeahead`
+  переписан на single-roundtrip nested-select с `!inner` join'ами
+  (3 sequential round-trip'а → 1, ~600ms экономии). Counterparty
+  picker — опциональный «От кого / Кому» в форме item-in / item-out
+  возвращает потерянную семантику transfer без отдельной кнопки.
+
+  **Phase 7 — InventoryTab (chat 67):** новый `<InventoryTab>`
+  server component + `<InventoryTabControls>` client island
+  (loop/day/group-by URL-driven). `groupInventoryRows` pure helper
+  (parallel `groupItems`, free-text bucket в хвосте). Mounted на PC
+  page (`?tab=inventory&loop=N&day=M&group=...`) и заменил
+  `<InventoryGrid>` в stash page tabs.
+
+  **Phase 8 — Settings page:** `/c/[slug]/items/settings` (DM-only)
+  с 4 секциями: Категории / Слоты / Источники / Доступность.
+  `<CategorySettings>` обобщён до 5 scope'ов через
+  `slugPlaceholder` / `labelPlaceholder` / `addLabel` пропы (старая
+  transaction-categories страница не сломана).
+
+  **Phase 9 — SRD seed (chat 67):** Option C, 50 hand-curated items
+  (15 weapons, 8 armour, 12 gear/tools, 8 consumables, 7 magic).
+  `lib/seeds/items-srd.ts` + `scripts/items-srd-codegen.ts`
+  (regenerator) + `044_srd_items_seed.sql` (per-campaign INSERT
+  + transactions backfill via name-or-srd-slug match, RAISE NOTICE
+  counts, idempotent).
+
+  **Phase 10 — Encounter loot retrofit (chat 68):**
+  `lib/encounter-loot-types.ts` `ItemLine.item_node_id` опциональный
+  uuid + uuid-валидация (legacy drafts проходят, FR-018). Resolver
+  пробрасывает link, merge-key segments linked vs free-text.
+  DesiredRow + ExistingAutogenRow + diff equality + reconcile insert/
+  update payloads + bridge — везде `item_node_id`. Spec-012 path
+  стайт `null` (DM-curate by name as before). RPC обновлён мигом 045.
+  `<ItemTypeahead>` подключён в `<EncounterLootEditor>`.
+
+  **Phase 11 — Sidebar/nav (chat 68):** `catalog-sidebar-wrapper`
+  short-circuit'ит item-ноды на `/items/[id]` (без bounce через
+  redirect). `activeNodeId` regex распознаёт оба роута.
+  `/catalog?type=item` → `/items` server-side redirect, preserves
+  `?q=`. `/catalog/[id]` → `/items/[id]` для item-нод (рядом с
+  существующим session/stash redirect-блоком).
+
+  **Phase 12 — Smoke (chat 69):** `scripts/check-rls-015.sql` (6
+  кейсов: outsider RLS, member RLS, CASCADE на attrs, SET NULL на
+  transactions, kind/link CHECK, scope CHECK с unknown-rejection).
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `043_item_catalog.sql` (chat 55,
-spec-015 — node_type=item, item_attributes, transactions.item_node_id,
-4 value-list seeds)
+**Последняя применённая миграция:** `045_apply_starter_setup_item_node_id.sql`
+(spec-015 chat 69 — RPC `apply_loop_start_setup` принимает `item_node_id`
+в JSONB payload; tombstone-cleanup whitelist расширен `'encounter_loot'`)
 
 ## Следующий приоритет
 
-**Spec-015 Item catalog — UX iter 2 + Phases 7–12.**
+**Выбрать следующую спеку.** Spec-015 закрыта целиком, наследия нет.
 
-### UX iter 2 (next chat — мелкая, важная)
-
-**Закрыто в chat 66:** ✅ recipient picker для `+ Предмет` /
-`− Предмет` (commit `c90205f`). ✅ perf fix item search
-(commit `bcc2704`).
-
-Осталось:
-1. **Bundle (item + деньги одной операцией):**
-   - Добавить опциональное поле «Заплатил, gp» / «Получил, gp» в форме
-     `+ Предмет` / `− Предмет` (показывается когда `initialKind` is
-     `item-in` или `item-out`).
-   - Сервер пишет 2 строки одним `batch_id`: item-row + money-row с
-     противоположным знаком. Можно использовать существующую
-     `submitBatch` инфраструктуру или extend `createTransaction`
-     приёмом paired-money payload.
-   - Нецелые gp (например 1.5) автоматически переводятся в копейки
-     (1.5 gp = 1 gp 5 sp, или 150 cp). Пользователь явно попросил
-     не показывать монетный picker для бандла — только GP с дробной
-     частью, а сервер раскладывает.
-
-2. **Recipient picker внутри `− Расход`** (item-side уже сделан
-   в chat 66):
-   - Тот же паттерн: опциональный `<TransferRecipientPicker>` под
-     amount input, лейбл «Кому передан», `clearLabel`
-     «— без передачи —».
-   - При выборе — `− Расход` становится `createTransfer`
-     (sender=actorPc, recipient=picked). Existing infra готова.
-   - Симметрично можно добавить и в `+ Доход` («От кого получен»),
-     но это меньшая ценность — denser path для денежных переводов
-     уже есть.
-
-### Phase 7 — Inventory tab
-- `<InventoryTab>` shared component, монтаж на PC page (новая
-  вкладка — день picker URL-driven `?tab=inventory&loop=N&day=M`)
-  и stash page (заменяет существующую «Предметы» вкладку, которая
-  сейчас рендерит `<InventoryGrid>` напрямую).
-- Refactor `aggregateStashLegs` → делегация в `aggregateItemLegs`
-  (отложенный T009).
-
-### Phase 8 — Settings page
-- `/c/[slug]/items/settings` страница: 4 секции, переиспользует
-  `<CategorySettings>` для item / item-slot / item-source /
-  item-availability scopes. Возможно нужна параметризация labels
-  в существующем компоненте.
-
-### Phase 9 — SRD seed + backfill (миграция 044)
-- Dataset choice: Option B (open5e parser) vs Option C (~50-item
-  hand-curate). Решить в самом T032 после быстрого аудита датасета.
-- Backfill через
-  `LOWER(TRIM(item_name)) = LOWER(TRIM(title)) OR LOWER(TRIM(item_name)) = LOWER(srd_slug)`.
-  RAISE NOTICE с подсчётом per campaign (FR-029).
-
-### Phase 10 — Encounter loot retrofit (spec-013)
-- Расширить `LootLine.itemNodeId` в `lib/encounter-loot-types.ts`,
-  пробросить в `applyEncounterLoot` → `lib/autogen-reconcile.ts`.
-- Wire `<ItemTypeahead>` в encounter loot editor.
-- Spec-014 walkthrough'ы.
-
-### Phase 11 — Sidebar/nav refinements
-- Sidebar item entries в `lib/sidebar-cache.ts`.
-- Redirects: `/catalog?type=item` → `/items`,
-  `/catalog/[id]` → `/items/[id]` для item-нод (current state:
-  `<NavTab Предметы>` уже есть с chat 64, осталось перенаправление
-  старых catalog routes).
-
-### Phase 12 — Smoke + close-out
-- `scripts/check-rls-015.sql` (RLS на `item_attributes`, FK cascade
-  SET NULL, CHECK на kind-vs-link mismatch).
-- Manual walkthrough всех 7 user stories на mat-ucheniya prod.
-
-### Сначала проверить на проде (после chat 65 push):
-- 4 кнопки рендерятся на странице игрока, accounting, и stash hero.
-- На мобилке 2×2 grid, тапается удобно.
-- `+ Предмет` открывает форму без таб-bar, со статичным заголовком
-  «Получение предмета», typeahead для названия, qty.
-- Submit пишет single item row, на permalink Образца появляется в
-  «Истории» с положительным/отрицательным qty в зависимости от
-  кнопки.
-- `+ Доход` / `− Расход` работают как раньше (никаких регрессий
-  money-flow).
-- Edit existing row (тапнуть ✏️ в ленте) — открывает legacy форму
-  с таб-bar (для смены kind'а).
-- Stash hero показывает только 2 кнопки (`+ Доход`, `− Расход`)
-  без item'ов.
-- `<NavTab Предметы>` 🎒 работает между Бухгалтерией и Участниками.
-
-
-  TECH-011 closes as "keep".
-- **SRD seed ~400 items с английским `srd_slug` + русским
-  `nodes.title`** (Q3=A).
-- **Backfill strict by title OR srd_slug** (Q4=B), zero
-  false-positive риска благодаря двум ключам.
-- **Slot field** (Q6 user-clarified): ring/cloak/amulet/boots/
-  gloves/headwear/belt/body/shield/1-handed/2-handed/versatile/
-  ranged. DM-configurable value list per-campaign.
-- **DM-configurable value lists per-campaign**: category
-  (existing), slot, source, availability — единый паттерн
-  (FR-005a/b/c/d) с settings page.
-- **URL**: `/c/[slug]/items` primary, `/catalog?type=item` alias
-  (Q6=A).
-- **Item history**: только linked rows (Q7=A).
-
-**Out of scope (зафиксировано):** location inventory (IDEA-054 —
-deprioritised, "не факт что понадобятся"), spell-as-item
-(IDEA-029 — отдельная спека), item identification mechanics,
-attunement / equipped / charges, marketplace simulation, bulk
-relinking, fuzzy backfill.
-
-**Pickup для нового чата (Plan phase):**
-1. Свежий клон.
-2. Прочитать `.specify/specs/015-item-catalog/spec.md`
-   полностью — особенно § Context (5 pinned points), §
-   Clarifications (8 Qs), FR-002/004/005a-d/023/030.
-3. Инспектировать wallet block в проде: какой default helper
-   она использует для day chip → inventory tab дёрнет тот же.
-4. Решить placement hot columns (`nodes` vs side table).
-5. Спроектировать settings page для 4 value lists.
-6. Найти SRD items dataset (en+ru ~400 items) — существующий
-   parser для статблоков в `mat-ucheniya/scripts/` ориентир, но
-   items — другой dataset.
-7. Создать `.specify/specs/015-item-catalog/plan.md`. Дождаться
-   ok, потом tasks.md, потом implement.
-
-**Альтернативная очередность (если 015 не в приоритете):**
-- **Spec-016 «Сборы»** — spec.md есть, ждёт Clarify.
-- **Spec-017 карта мира** — заявлена в backlog (5-7 дней).
-- **IDEA-055** — DM rename/delete на encounter page (~30 мин).
+Кандидаты:
+1. **Spec-016 «Сборы»** — spec.md готов, ждёт `/clarify`. Узкий
+   scope, ~1–2 чата. Решает: автоматический сбор денег с PC
+   (party tax / городские налоги / спонсорские взносы) на дне X
+   петли N.
+2. **Spec-017 «Карта мира»** — заявка в backlog'е, фундаментальная
+   (5–7 дней). Карта-канвас, путевые точки, фильтры по сессиям.
+3. **IDEA-055 — DM rename/delete на encounter page** (~30 мин,
+   быстрый win).
+4. **TECH-006/TECH-009/TECH-011** — мелкие техдолги. Открыть
+   `backlog.md`, выбрать что подвернётся.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 
@@ -456,12 +358,9 @@ relinking, fuzzy backfill.
   не в спеке (см. plan.md «Out of scope»). Если возникнет —
   заводить отдельный backlog item.
 
-### Кандидаты после spec-015
+### Кандидаты после следующей спеки
 
 Из backlog'а (entries есть, spec.md нет):
-- **spec-016 «Сборы»** — spec.md есть, ждёт Clarify.
-- **spec-017 карта мира** — фундаментальная (5-7 дней).
-- **spec-020 правила/хомрулы** — средняя.
 - **spec-018** (encounter rework), **spec-019** (DM sandbox),
   **spec-021** (DM session control), **spec-022** (movement
   timeline), **spec-023** (часы/проекты), **spec-024+**
