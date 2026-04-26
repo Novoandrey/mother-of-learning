@@ -496,3 +496,49 @@ export async function removePcOwnerAction(
   revalidatePath(`/c/${slug}/catalog/${nodeId}`)
   return { error: null, success: 'Владелец снят' }
 }
+
+/**
+ * Rename a member's display_name. DM/owner-only. The display_name
+ * lives on `user_profiles` (global per-user, not per-campaign), so
+ * editing it here propagates to the user's name everywhere in the
+ * app — including any other campaigns this player is in. That's the
+ * intended behaviour: один человек, одно имя.
+ *
+ * Empty string clears the display_name (UI shows just the login).
+ */
+export async function renameMemberAction(
+  slug: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const userId = String(formData.get('user_id') ?? '')
+  const rawName = String(formData.get('display_name') ?? '')
+  const trimmed = rawName.trim()
+
+  if (!userId) return { error: 'Нет user_id', success: null }
+  if (trimmed.length > 100) {
+    return { error: 'Имя слишком длинное (макс 100)', success: null }
+  }
+
+  try {
+    await requireManager(slug)
+  } catch {
+    return { error: 'Нет прав', success: null }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('user_profiles')
+    .update({ display_name: trimmed === '' ? null : trimmed })
+    .eq('user_id', userId)
+
+  if (error) {
+    return { error: 'Не удалось сохранить имя: ' + error.message, success: null }
+  }
+
+  revalidatePath(`/c/${slug}/members`)
+  return {
+    error: null,
+    success: trimmed === '' ? 'Имя очищено' : `Имя обновлено: ${trimmed}`,
+  }
+}
