@@ -208,14 +208,15 @@ export default function ItemCatalogGrid({
                     for ru labels.
                   */}
                   <colgroup>
-                    <col style={{ width: '23%' }} />
+                    <col style={{ width: '22%' }} />
                     <col style={{ width: '12%' }} />
                     <col style={{ width: '10%' }} />
                     <col style={{ width: '10%' }} />
                     <col style={{ width: '9%' }} />
                     <col style={{ width: '7%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '5%' }} />
                     <col style={{ width: '5%' }} />
                   </colgroup>
                   <thead className="text-xs text-gray-400">
@@ -230,7 +231,13 @@ export default function ItemCatalogGrid({
                       <th className="px-3 py-1.5 text-left font-normal">Доступность</th>
                       <th
                         className="px-3 py-1.5 text-center font-normal"
-                        title="Настройка — галочка «Не использовать стандартную цену»"
+                        title="Цена ручная — отличается от стандартной (campaign defaults для magic/consumable, PHB seed для mundane). Защищена от bulk apply."
+                      >
+                        Цр
+                      </th>
+                      <th
+                        className="px-3 py-1.5 text-center font-normal"
+                        title="Настройка — 5e «Требует настройки» (attunement)"
                       >
                         Н
                       </th>
@@ -423,8 +430,8 @@ function ItemRow({
           className="px-3 py-1.5 text-center"
           title={
             !item.useDefaultPrice
-              ? 'Галочка «Не использовать стандартную цену» стоит — цена защищена от bulk apply.'
-              : 'Стандартная цена — bulk apply будет перезаписывать.'
+              ? 'Цена изменена руками — отличается от стандартной, защищена от bulk apply.'
+              : 'Стандартная цена — совпадает с дефолтом (или нет baseline для сравнения).'
           }
         >
           {!item.useDefaultPrice && (
@@ -433,10 +440,24 @@ function ItemRow({
             </span>
           )}
         </td>
+        <td
+          className="px-3 py-1.5 text-center"
+          title={
+            item.requiresAttunement
+              ? '5e «Требует настройки» — предмет требует attunement.'
+              : 'Не требует настройки.'
+          }
+        >
+          {item.requiresAttunement && (
+            <span aria-label="requires attunement" className="text-purple-600">
+              ✓
+            </span>
+          )}
+        </td>
       </tr>
       {expanded && (
         <tr className="border-b border-gray-200 bg-gray-50">
-          <td colSpan={9} className="px-6 py-2 text-sm text-gray-700">
+          <td colSpan={10} className="px-6 py-2 text-sm text-gray-700">
             {item.description ? (
               <div className="whitespace-pre-wrap">{item.description}</div>
             ) : (

@@ -45,6 +45,12 @@ export type ItemNode = {
    */
   useDefaultPrice: boolean;
 
+  /**
+   * 5e «Требует настройки» / attunement. Backfilled at mig 055 from
+   * description scan. Magic items only — mundane stays false.
+   */
+  requiresAttunement: boolean;
+
   // Cold fields (`nodes.fields` JSONB).
   srdSlug: string | null;
   description: string | null;
@@ -139,8 +145,8 @@ export type ItemPayload = {
   description: string | null;
   sourceDetail: string | null;
   /**
-   * Spec-016. true (default) — bulk apply default prices будет
-   * перезаписывать `priceGp` этого item'а. false — opt-out.
+   * 5e «Требует настройки». Set by DM via form checkbox. Independent
+   * of price autoflag (different concept).
    */
-  useDefaultPrice: boolean;
+  requiresAttunement: boolean;
 };

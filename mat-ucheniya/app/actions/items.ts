@@ -29,6 +29,103 @@ import { validateItemPayload } from '@/lib/items-validation'
 import type { ItemNode, ItemPayload } from '@/lib/items-types'
 import { invalidateSidebar } from '@/lib/sidebar-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ITEMS_SRD_SEED } from '@/lib/seeds/items-srd'
+import {
+  type ItemDefaultPrices,
+  type RarityKey,
+  DEFAULT_ITEM_PRICES,
+} from '@/lib/item-default-prices'
+
+// ─────────────────────────── Auto-flag helpers (mig 055) ───────────────────────────
+
+/**
+ * Seed slug → baseline price map. PHB / SRD prices for mundane items;
+ * for magic items, this is the original D&D price (defaults table
+ * lookup happens separately via campaign settings).
+ *
+ * Built once at module init from `ITEMS_SRD_SEED`. Custom items
+ * without srd_slug have no entry here → no baseline → flag stays at
+ * default (true), since we have no opinion to express.
+ */
+const SEED_BASELINE_BY_SLUG: ReadonlyMap<string, number> = new Map(
+  ITEMS_SRD_SEED.filter(
+    (e): e is typeof e & { priceGp: number } => e.priceGp !== null,
+  ).map((e) => [e.srdSlug, e.priceGp]),
+)
+
+const RARITY_KEYS_IN_DEFAULTS: ReadonlySet<string> = new Set<RarityKey>([
+  'common',
+  'uncommon',
+  'rare',
+  'very-rare',
+  'legendary',
+])
+
+/**
+ * Mirror of mig 055 phase 3a/3b backfill logic, used at item
+ * create/update to keep `use_default_price` auto-managed:
+ *
+ *   • Magic + consumable items (rarity in common..legendary):
+ *     baseline = `defaults[bucket][rarity]` (bucket =
+ *     'consumable' if categorySlug === 'consumable' else 'magic').
+ *     If price matches baseline → flag=true; differs → false.
+ *
+ *   • Mundane items (rarity=null, non-consumable, with srd_slug):
+ *     baseline = SRD seed price for that slug. Same compare rule.
+ *
+ *   • No baseline (custom items, artifacts, missing default cell):
+ *     flag stays true. We have no canonical to compare against.
+ *
+ *   • Null price: flag stays true (no opinion).
+ */
+function computeUseDefaultPrice(
+  payload: ItemPayload,
+  defaults: ItemDefaultPrices,
+): boolean {
+  if (payload.priceGp === null) return true
+
+  // Magic / consumable bucket — defaults table is canonical.
+  if (payload.rarity !== null && RARITY_KEYS_IN_DEFAULTS.has(payload.rarity)) {
+    const bucket: keyof ItemDefaultPrices =
+      payload.categorySlug === 'consumable' ? 'consumable' : 'magic'
+    const cell = defaults[bucket][payload.rarity as RarityKey]
+    if (cell === null) return true
+    return payload.priceGp === cell
+  }
+
+  // Mundane bucket — SRD seed price is canonical.
+  if (
+    payload.rarity === null &&
+    payload.categorySlug !== 'consumable' &&
+    payload.srdSlug
+  ) {
+    const baseline = SEED_BASELINE_BY_SLUG.get(payload.srdSlug)
+    if (baseline === undefined) return true
+    return payload.priceGp === baseline
+  }
+
+  return true
+}
+
+async function loadDefaultPrices(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  campaignId: string,
+): Promise<ItemDefaultPrices> {
+  const { data } = await admin
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .single()
+  const settings = (data as { settings?: { item_default_prices?: unknown } } | null)
+    ?.settings
+  const raw = settings?.item_default_prices
+  if (!raw || typeof raw !== 'object') return DEFAULT_ITEM_PRICES
+  // Trust the JSONB shape; parser lives in lib/campaign.ts but
+  // pulling it here would re-introduce the next/headers transitive
+  // import. Server action is fine — accept light shape.
+  return raw as ItemDefaultPrices
+}
 
 export type ItemActionResult<T = object> =
   | ({ ok: true } & T)
@@ -116,6 +213,8 @@ export async function createItemAction(
 
   const admin = createAdminClient()
   const typeId = await getItemTypeId(admin, campaignId)
+  const defaults = await loadDefaultPrices(admin, campaignId)
+  const useDefaultPrice = computeUseDefaultPrice(payload, defaults)
 
   // Cold fields → nodes.fields JSONB. We strip empty strings to NULL
   // so JSONB stays clean and queries (`fields->>srd_slug`) don't have
@@ -162,7 +261,8 @@ export async function createItemAction(
     slot_slug: payload.slotSlug,
     source_slug: payload.sourceSlug,
     availability_slug: payload.availabilitySlug,
-    use_default_price: payload.useDefaultPrice,
+    use_default_price: useDefaultPrice,
+    requires_attunement: payload.requiresAttunement,
   })
 
   if (attrsErr) {
@@ -195,6 +295,8 @@ export async function updateItemAction(
   }
 
   const admin = createAdminClient()
+  const defaults = await loadDefaultPrices(admin, campaignId)
+  const useDefaultPrice = computeUseDefaultPrice(payload, defaults)
 
   // Same fields shape as createItemAction.
   const fields: Record<string, string> = {}
@@ -224,7 +326,8 @@ export async function updateItemAction(
       slot_slug: payload.slotSlug,
       source_slug: payload.sourceSlug,
       availability_slug: payload.availabilitySlug,
-      use_default_price: payload.useDefaultPrice,
+      use_default_price: useDefaultPrice,
+      requires_attunement: payload.requiresAttunement,
     })
     .eq('node_id', itemId)
 
