@@ -38,6 +38,13 @@ export type ItemNode = {
   sourceSlug: string | null;
   availabilitySlug: string | null;
 
+  /**
+   * Spec-016. true (default) — item участвует в bulk apply
+   * default prices. false — DM opt-out («Не использовать
+   * стандарт»), цена защищена от clobber.
+   */
+  useDefaultPrice: boolean;
+
   // Cold fields (`nodes.fields` JSONB).
   srdSlug: string | null;
   description: string | null;
@@ -131,4 +138,9 @@ export type ItemPayload = {
   srdSlug: string | null;
   description: string | null;
   sourceDetail: string | null;
+  /**
+   * Spec-016. true (default) — bulk apply default prices будет
+   * перезаписывать `priceGp` этого item'а. false — opt-out.
+   */
+  useDefaultPrice: boolean;
 };

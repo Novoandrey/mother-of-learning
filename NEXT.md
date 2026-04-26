@@ -2,8 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-26 (chat 72 — spec-017 Складчина full
-> implement; awaits migration 047 + manual smoke; version 0.5.0)
+> Last updated: 2026-04-26 (chat 72 — spec-017 + spec-016 двойной
+> implement; awaits migration 047 + 048 + manual smoke; version
+> 0.5.1)
 
 ## В проде сейчас
 
@@ -337,32 +338,46 @@
   `?edit=<id>`). Nav-tab «🤝 Складчина» добавлена в `nav-tabs.tsx`.
   Version 0.5.0.
 
+- **spec-016 Default item prices: bulk apply + override (chat 72)** —
+  _code shipped, awaits migration apply + manual smoke._ Миграция 048
+  (1 column: `item_attributes.use_default_price boolean default true`).
+  `lib/apply-default-prices.ts` pure helper `computeApplyPlan` (12
+  vitest). `applyItemDefaultPrices` server action с CASE-style bulk
+  update (sequential per-row пока — для каталогов 100–500 items
+  acceptable; если станет hot — мигрируем в RPC). Item form:
+  чекбокс «Не использовать стандартную цену» + autofill suppression
+  когда checked. Settings page: кнопка «Применить ко всем предметам»
+  с confirm + alert breakdown (updated / unchanged / skippedByFlag /
+  skippedByRarity / skippedByMissingCell). Расширен ItemPayload +
+  ItemNode + EMPTY_PAYLOAD + items.ts SELECT'ы + create/update
+  payload pass-through. Version 0.5.1.
+
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
 **Последняя применённая миграция:** `045_apply_starter_setup_item_node_id.sql`
-(spec-015 chat 69). **Ждёт применения**: `047_contribution_pools.sql`
-(spec-017 chat 72 — Складчина).
+(spec-015 chat 69). **Ждут применения**:
+* `047_contribution_pools.sql` (spec-017 chat 72 — Складчина)
+* `048_item_use_default_price.sql` (spec-016 chat 72 — per-item
+  override flag)
 
 ## Следующий приоритет
 
-**Spec-017 «Складчина» — code shipped + quality gates passed,
-awaits migration apply + manual smoke.** Lint clean (0/0),
-type-check clean, vitest 390/390, next build artifacts
-generated. Миграция `047_contribution_pools.sql` написана и
-выложена через `present_files`, но не применена в проде.
-После apply:
+**Применить обе миграции (047 + 048)** через Supabase Dashboard,
+прогнать smoke checks. После apply:
 
-1. RLS smoke (T003) — psql/Studio, 5 проверок.
-2. Manual walkthrough US1 (T023) — pizza-test на live mat-ucheniya.
-3. Если всё ок — закрываем спеку.
+1. **Spec-017 Складчина**: RLS smoke (T003), pizza-test US1
+   walkthrough (T023). Pull spec-017 в _полностью в проде_.
+2. **Spec-016 Default prices**: визуальная проверка чекбокса
+   «Не использовать стандартную цену» в item form, нажать
+   «Применить ко всем предметам» в `/items/settings` на
+   mat-ucheniya (91 SRD items + custom). Pull spec-016 в
+   _полностью в проде_.
+3. Quality gates spec-016: lint / type-check / vitest /
+   next build — у меня в container'е npm не работает,
+   прогон у тебя.
 
-После этого — **Spec-016 «Default item prices: bulk apply +
-override»** (хвост spec-015 — кнопка «Применить» к существующему
-каталогу + чекбокс «не использовать стандарт» на карточке предмета).
-spec.md готов, ждёт `/clarify`. ~1 чат.
-
-Старая последовательность: 016 → 017 → 018 (карта). spec-017
-прошёл вне очереди по запросу юзера.
+После этого — **Spec-018 «Карта мира»** (фундаментальная фича,
+~5–7 дней). Карта-канвас, путевые точки, фильтры по сессиям.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 
