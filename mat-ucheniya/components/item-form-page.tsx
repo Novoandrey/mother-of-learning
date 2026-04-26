@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { createItemAction, updateItemAction, deleteItemAction } from '@/app/actions/items'
-import type { ItemDefaultPrices, RarityKey } from '@/lib/campaign'
+import type { ItemDefaultPrices, RarityKey } from '@/lib/item-default-prices'
 import type { ItemPayload, Rarity } from '@/lib/items-types'
 import type { Category } from '@/lib/transactions'
 

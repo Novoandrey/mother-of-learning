@@ -1,76 +1,25 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { isHpMethod, type HpMethod } from '@/lib/statblock'
+import {
+  DEFAULT_ITEM_PRICES,
+  parseItemDefaultPrices,
+  type ItemDefaultPrices,
+} from '@/lib/item-default-prices'
 
-/**
- * Spec-015 follow-up (chat 70). Per-rarity default prices for newly
- * created items. The DM tunes these once per campaign in
- * `/items/settings`; the item form prefills the price input on
- * rarity-change when the user hasn't typed anything yet. Override
- * is just typing your own number.
- *
- * Two tables — magic items vs consumables — because consumables are
- * traditionally priced ~half of equivalent-rarity wondrous gear.
- *
- * Any value may be `null` meaning "no default — leave the price
- * field empty". Storing nulls lets the DM intentionally turn off
- * the prefill for a rarity tier.
- */
-export type RarityKey = 'common' | 'uncommon' | 'rare' | 'very-rare' | 'legendary'
-
-export type RarityPriceMap = Record<RarityKey, number | null>
-
-export type ItemDefaultPrices = {
-  magic: RarityPriceMap
-  consumable: RarityPriceMap
-}
-
-export const RARITY_KEYS: ReadonlyArray<RarityKey> = [
-  'common',
-  'uncommon',
-  'rare',
-  'very-rare',
-  'legendary',
-]
-
-const EMPTY_PRICE_MAP: RarityPriceMap = {
-  common: null,
-  uncommon: null,
-  rare: null,
-  'very-rare': null,
-  legendary: null,
-}
-
-export const DEFAULT_ITEM_PRICES: ItemDefaultPrices = {
-  magic: { ...EMPTY_PRICE_MAP },
-  consumable: { ...EMPTY_PRICE_MAP },
-}
-
-function parseRarityMap(raw: unknown): RarityPriceMap {
-  const out: RarityPriceMap = { ...EMPTY_PRICE_MAP }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
-  const r = raw as Record<string, unknown>
-  for (const k of RARITY_KEYS) {
-    const v = r[k]
-    if (typeof v === 'number' && Number.isFinite(v) && v >= 0) {
-      out[k] = v
-    } else if (v === null) {
-      out[k] = null
-    }
-  }
-  return out
-}
-
-export function parseItemDefaultPrices(raw: unknown): ItemDefaultPrices {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return DEFAULT_ITEM_PRICES
-  }
-  const r = raw as Record<string, unknown>
-  return {
-    magic: parseRarityMap(r.magic),
-    consumable: parseRarityMap(r.consumable),
-  }
-}
+// Re-export for backwards-compat: callers were importing these
+// names from '@/lib/campaign' before the pure-module split. Keep
+// the surface stable to avoid touching every site.
+export {
+  DEFAULT_ITEM_PRICES,
+  parseItemDefaultPrices,
+  RARITY_KEYS,
+} from '@/lib/item-default-prices'
+export type {
+  ItemDefaultPrices,
+  RarityKey,
+  RarityPriceMap,
+} from '@/lib/item-default-prices'
 
 export type CampaignSettings = {
   hp_method: HpMethod
