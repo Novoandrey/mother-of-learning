@@ -2,9 +2,8 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-26 (chat 71 — spec-015 ship + 0.4.25
-> release; spec-016 renumber to spec-017, new spec-016 filed for
-> bulk-apply default prices)
+> Last updated: 2026-04-26 (chat 72 — spec-017 Складчина full
+> implement; awaits migration 047 + manual smoke; version 0.5.0)
 
 ## В проде сейчас
 
@@ -322,37 +321,45 @@
   кейсов: outsider RLS, member RLS, CASCADE на attrs, SET NULL на
   transactions, kind/link CHECK, scope CHECK с unknown-rejection).
 
+- **spec-017 Складчина (chat 72)** — _code shipped, awaits migration
+  apply + manual smoke._ Миграция 047 (2 таблицы — `contribution_pools`
+  + `contribution_participants`, 2 триггера, 5 RLS policies — DELETE
+  default-deny, soft-delete only). Sidecar к ledger: не трогает
+  transactions/nodes/петли. Архивность DERIVED (deleted_at OR all-paid).
+  `lib/contributions.ts` (read), `app/actions/contributions.ts` (5
+  actions: create / toggleParticipantPaid / updateHeader /
+  replaceParticipants / softDelete). `lib/contribution-split.ts` pure
+  helpers (kopeck-precision split, 25 vitest). UI: `<ContributionPoolCard>`
+  (server inline-expand через `<details>`), `<ContributionPoolCheckbox>`
+  (`useOptimistic`), CreateForm + EditForm (paid-row freeze rules),
+  CopyButton, UserPaymentHint. Top-level page `/c/[slug]/skladchina`
+  с двумя URL-driven табами (Текущие / Архив, edit-mode через
+  `?edit=<id>`). Nav-tab «🤝 Складчина» добавлена в `nav-tabs.tsx`.
+  Version 0.5.0.
+
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
 **Последняя применённая миграция:** `045_apply_starter_setup_item_node_id.sql`
-(spec-015 chat 69 — RPC `apply_loop_start_setup` принимает `item_node_id`
-в JSONB payload; tombstone-cleanup whitelist расширен `'encounter_loot'`)
+(spec-015 chat 69). **Ждёт применения**: `047_contribution_pools.sql`
+(spec-017 chat 72 — Складчина).
 
 ## Следующий приоритет
 
-**Spec-016 «Цены по умолчанию: bulk apply + per-item override».**
-Хвост spec-015 — пользователь просил кнопку «Применить» к
-существующему каталогу + чекбокс «Не использовать стандарт» на
-карточке предмета. В chat 71 я (Claude) молча урезал scope до
-автозаполнения при создании. Полный flow вынесен в отдельную
-спеку. spec.md готов, ждёт `/clarify`. Версия откроет 0.5
-(старт минорной серии после bookkeeping arc 0.4).
+**Spec-017 «Складчина» — code shipped, awaits migration apply +
+manual smoke.** Миграция `047_contribution_pools.sql` написана
+и выложена через `present_files`, но не применена. После apply:
 
-Старая spec-016 «Сборы» переименована в **spec-017** (sidecar
-real-money pool, sidecar к ledger). spec.md лежит, ждёт
-`/clarify` после 016.
+1. RLS smoke (T003) — psql/Studio, 5 проверок.
+2. Manual walkthrough US1 (T023) — pizza-test на live mat-ucheniya.
+3. Если всё ок — закрываем спеку.
 
-Кандидаты в порядке:
-1. **Spec-016 «Default item prices: bulk apply + override»** —
-   1 миграция (`item_attributes.use_default_price`), 1 server
-   action `applyItemDefaultPrices`, кнопка «Применить» в
-   `/items/settings`, чекбокс в форме Образца. ~1 чат.
-2. **Spec-017 «Сборы»** — узкий scope, ~1–2 чата. Real-money
-   pool, sidecar к ledger.
-3. **Spec-018 «Карта мира»** — фундаментальная (5–7 дней).
-   Карта-канвас, путевые точки, фильтры по сессиям. (Был 017.)
-4. **TECH-006/TECH-009/TECH-011** — мелкие техдолги. Открыть
-   `backlog.md`, выбрать что подвернётся.
+После этого — **Spec-016 «Default item prices: bulk apply +
+override»** (хвост spec-015 — кнопка «Применить» к существующему
+каталогу + чекбокс «не использовать стандарт» на карточке предмета).
+spec.md готов, ждёт `/clarify`. ~1 чат.
+
+Старая последовательность: 016 → 017 → 018 (карта). spec-017
+прошёл вне очереди по запросу юзера.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 
