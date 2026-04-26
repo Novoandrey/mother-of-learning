@@ -25,6 +25,7 @@ function item(partial: Partial<ItemNode>): ItemNode {
     srdSlug: 'longsword',
     description: null,
     sourceDetail: null,
+    useDefaultPrice: true,
     ...partial,
   };
 }
