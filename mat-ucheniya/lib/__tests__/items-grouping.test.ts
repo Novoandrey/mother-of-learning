@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupItems, priceBandFor, rarityOrder, sortItems } from '../items-grouping';
-import type { ItemNode, Rarity } from '../items-types';
+import {
+  groupInventoryRows,
+  groupItems,
+  priceBandFor,
+  rarityOrder,
+  sortItems,
+} from '../items-grouping';
+import type { InventoryRow, ItemNode, ItemNodeAttributes, Rarity } from '../items-types';
 
 function item(partial: Partial<ItemNode>): ItemNode {
   return {
@@ -164,5 +170,88 @@ describe('sortItems', () => {
     const original = [...items];
     sortItems(items, 'name', 'desc');
     expect(items).toEqual(original);
+  });
+});
+
+// ─────────────────────────── groupInventoryRows ───────────────────────────
+
+function attrs(p: Partial<ItemNodeAttributes>): ItemNodeAttributes {
+  return {
+    categorySlug: 'misc',
+    rarity: null,
+    priceGp: null,
+    weightLb: null,
+    slotSlug: null,
+    sourceSlug: null,
+    availabilitySlug: null,
+    ...p,
+  };
+}
+
+function row(p: Partial<InventoryRow>): InventoryRow {
+  return {
+    itemNodeId: 'n1',
+    itemName: 'X',
+    qty: 1,
+    latestLoop: 1,
+    latestDay: 1,
+    attributes: attrs({}),
+    ...p,
+  };
+}
+
+describe('groupInventoryRows', () => {
+  const rows: InventoryRow[] = [
+    row({ itemNodeId: 'i1', attributes: attrs({ categorySlug: 'weapon', rarity: null, priceGp: 15 }) }),
+    row({ itemNodeId: 'i2', attributes: attrs({ categorySlug: 'weapon', rarity: 'rare', priceGp: 700 }) }),
+    row({ itemNodeId: 'i3', attributes: attrs({ categorySlug: 'consumable', rarity: 'common', priceGp: 50 }) }),
+    row({ itemNodeId: null, itemName: 'самопал', attributes: null }), // free-text → tail bucket
+  ];
+
+  it('groups by category, free-text last', () => {
+    const groups = groupInventoryRows(rows, 'category');
+    expect(groups).toHaveLength(3);
+    // alphabetical by label, then no-link tail
+    expect(groups[groups.length - 1].label).toBe('Без образца');
+    expect(groups[groups.length - 1].rows).toHaveLength(1);
+    expect(groups.find((g) => g.key === 'weapon')?.rows.map((r) => r.itemNodeId)).toEqual(['i1', 'i2']);
+  });
+
+  it('uses slugLabels for category labels when provided', () => {
+    const groups = groupInventoryRows(rows, 'category', {
+      category: { weapon: 'Оружие', consumable: 'Расходники' },
+    });
+    expect(groups.find((g) => g.key === 'weapon')?.label).toBe('Оружие');
+    expect(groups.find((g) => g.key === 'consumable')?.label).toBe('Расходники');
+  });
+
+  it('groups by rarity in canonical ladder, free-text last', () => {
+    const groups = groupInventoryRows(rows, 'rarity');
+    const keys = groups.map((g) => g.key);
+    // i1 rarity null → '', i2 rare, i3 common; no-link last
+    expect(keys[keys.length - 1]).toBe('__no_link__');
+    expect(keys.slice(0, -1)).toEqual(['', 'common', 'rare']);
+  });
+
+  it('groups by priceBand in canonical order, free-text last', () => {
+    const groups = groupInventoryRows(rows, 'priceBand');
+    expect(groups[groups.length - 1].key).toBe('__no_link__');
+    // i1=15 cheap, i3=50 cheap, i2=700 expensive
+    expect(groups.slice(0, -1).map((g) => g.key)).toEqual(['cheap', 'expensive']);
+  });
+
+  it('all-free-text → single tail bucket', () => {
+    const onlyFree: InventoryRow[] = [
+      row({ itemNodeId: null, itemName: 'a', attributes: null }),
+      row({ itemNodeId: null, itemName: 'b', attributes: null }),
+    ];
+    const groups = groupInventoryRows(onlyFree, 'category');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe('Без образца');
+    expect(groups[0].rows).toHaveLength(2);
+  });
+
+  it('returns empty when rows is empty', () => {
+    expect(groupInventoryRows([], 'category')).toEqual([]);
   });
 });

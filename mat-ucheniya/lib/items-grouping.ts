@@ -10,6 +10,7 @@
 
 import type {
   GroupBy,
+  InventoryRow,
   ItemNode,
   PriceBand,
   Rarity,
@@ -219,4 +220,111 @@ function compareNullableNumber(
   if (a === null) return dir === 'asc' ? 1 : -1;
   if (b === null) return dir === 'asc' ? -1 : 1;
   return a - b;
+}
+
+// ─────────────────────────── Inventory grouping ───────────────────────────
+//
+// Inventory rows are aggregated `getInventoryAt` output. They share the
+// `attributes` slice with `ItemNode` but lack the editable fields
+// (`title`, `description`, etc.). Group-by axes are the same set;
+// free-text rows (no Образец link) end up in a special `(no-link)`
+// bucket — they have no hot fields to bucket on.
+
+export type InventoryGroup = {
+  /** Stable key used for collapse state. */
+  key: string;
+  /** Display label rendered in the section header. */
+  label: string;
+  rows: InventoryRow[];
+};
+
+const NO_LINK_KEY = '__no_link__';
+
+function inventoryGroupKey(row: InventoryRow, groupBy: GroupBy): string {
+  if (row.attributes === null) return NO_LINK_KEY;
+  switch (groupBy) {
+    case 'category':
+      return row.attributes.categorySlug;
+    case 'rarity':
+      return row.attributes.rarity ?? '';
+    case 'slot':
+      return row.attributes.slotSlug ?? '';
+    case 'priceBand':
+      return priceBandFor(row.attributes.priceGp);
+    case 'source':
+      return row.attributes.sourceSlug ?? '';
+    case 'availability':
+      return row.attributes.availabilitySlug ?? '';
+  }
+}
+
+function inventoryGroupLabel(
+  key: string,
+  groupBy: GroupBy,
+  slugMap: Record<string, string> | undefined,
+): string {
+  if (key === NO_LINK_KEY) return 'Без образца';
+  if (groupBy === 'priceBand') return PRICE_BAND_LABELS[key as PriceBand];
+  if (groupBy === 'rarity') return RARITY_LABELS[key] ?? key;
+  if (key === '') return 'Без значения';
+  return slugMap?.[key] ?? key;
+}
+
+/**
+ * Re-fold inventory rows into sections by `groupBy`. Free-text rows
+ * (no Образец link) collect into a single tail bucket «Без образца».
+ *
+ * Group ordering matches `groupItems` for parity with the catalog.
+ * Free-text bucket is always last.
+ */
+export function groupInventoryRows(
+  rows: InventoryRow[],
+  groupBy: GroupBy,
+  slugLabels?: Partial<Record<GroupBy, Record<string, string>>>,
+): InventoryGroup[] {
+  const buckets = new Map<string, InventoryRow[]>();
+
+  for (const row of rows) {
+    const key = inventoryGroupKey(row, groupBy);
+    const list = buckets.get(key) ?? [];
+    list.push(row);
+    buckets.set(key, list);
+  }
+
+  const out: InventoryGroup[] = [];
+  for (const [key, list] of buckets) {
+    out.push({
+      key,
+      label: inventoryGroupLabel(key, groupBy, slugLabels?.[groupBy]),
+      rows: list,
+    });
+  }
+
+  // Order: canonical for the axis (rarity/priceBand have intrinsic
+  // ordering; slug-axes alphabetical), then free-text bucket last.
+  const noLink = out.find((g) => g.key === NO_LINK_KEY);
+  const linked = out.filter((g) => g.key !== NO_LINK_KEY);
+
+  if (groupBy === 'rarity') {
+    linked.sort(
+      (a, b) =>
+        rarityOrder(a.key === '' ? null : (a.key as Rarity)) -
+        rarityOrder(b.key === '' ? null : (b.key as Rarity)),
+    );
+  } else if (groupBy === 'priceBand') {
+    const priceOrder: Record<PriceBand, number> = {
+      free: 0,
+      cheap: 1,
+      mid: 2,
+      expensive: 3,
+      priceless: 4,
+    };
+    linked.sort(
+      (a, b) => priceOrder[a.key as PriceBand] - priceOrder[b.key as PriceBand],
+    );
+  } else {
+    linked.sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+  }
+
+  return noLink ? [...linked, noLink] : linked;
 }
