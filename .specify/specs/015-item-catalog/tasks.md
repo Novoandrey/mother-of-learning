@@ -445,7 +445,7 @@
 
 ## Phase 12 — Smoke tests + close-out
 
-- [ ] **T047 [P1]** Create `scripts/check-rls-015.sql` covering
+- [x] **T047 [P1]** Create `scripts/check-rls-015.sql` covering
   ~6 cases: (1) non-member cannot read `item_attributes`; (2)
   member can read; (3) item-node deletion cascades to
   `item_attributes` and SET NULL'es `transactions.item_node_id`;
@@ -467,19 +467,19 @@
   visible in catalog), US7 (encounter loot retrofit). Record
   outcomes in chatlog.
 
-- [ ] **T050 [P1]** Update `NEXT.md`: move spec-015 to «В проде»
+- [x] **T050 [P1]** Update `NEXT.md`: move spec-015 to «В проде»
   with a summary (migrations 043+044, key components, test
   count, item count post-seed); update «Следующий приоритет» to
   next backlog item (spec-016 «Сборы» candidate per NEXT.md).
 
-- [ ] **T051 [P1]** Update `backlog.md` only if new bugs / ideas
+- [x] **T051 [P1]** Update `backlog.md` only if new bugs / ideas
   surfaced during implementation.
 
-- [ ] **T052 [P1]** Add
+- [x] **T052 [P1]** Add
   `chatlog/2026-04-NN-chatNN-spec-015-item-catalog.md` per
   `chatlog/README.md` template.
 
-- [ ] **T053 [P1]** Commit + push. Verify Vercel auto-deploy.
+- [x] **T053 [P1]** Commit + push. Verify Vercel auto-deploy.
   URL for the user.
 
 ---
