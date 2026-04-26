@@ -162,6 +162,8 @@ export default function WalletBlockClient({
         open={sheetOpen}
         onClose={closeSheet}
         campaignId={campaignId}
+        campaignSlug={campaignSlug}
+        canEditCatalog={canManage}
         actorPcId={actorNodeId}
         defaultLoopNumber={defaultLoopNumber}
         defaultDayInLoop={defaultDayInLoop}

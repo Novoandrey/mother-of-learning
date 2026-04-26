@@ -8,6 +8,9 @@ type Props = {
   open: boolean
   onClose: () => void
   campaignId: string
+  /** Spec-015 — campaign slug + DM flag passed through to ItemTypeahead. */
+  campaignSlug: string
+  canEditCatalog: boolean
   actorPcId: string
   defaultLoopNumber: number
   defaultDayInLoop: number
@@ -36,6 +39,8 @@ export default function TransactionFormSheet({
   open,
   onClose,
   campaignId,
+  campaignSlug,
+  canEditCatalog,
   actorPcId,
   defaultLoopNumber,
   defaultDayInLoop,
@@ -107,6 +112,8 @@ export default function TransactionFormSheet({
 
           <TransactionForm
             campaignId={campaignId}
+            campaignSlug={campaignSlug}
+            canEditCatalog={canEditCatalog}
             actorPcId={actorPcId}
             defaultLoopNumber={defaultLoopNumber}
             defaultDayInLoop={defaultDayInLoop}

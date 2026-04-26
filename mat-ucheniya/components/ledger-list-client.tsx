@@ -19,6 +19,7 @@ import type {
 type Props = {
   campaignId: string
   campaignSlug: string
+  canEditCatalog: boolean
   currentUserId: string
   canManage: boolean
   categories: Category[]
@@ -51,6 +52,7 @@ type Props = {
 export default function LedgerListClient({
   campaignId,
   campaignSlug,
+  canEditCatalog,
   currentUserId,
   canManage,
   categories,
@@ -213,6 +215,8 @@ export default function LedgerListClient({
           open={sheetOpen}
           onClose={closeSheet}
           campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canEditCatalog}
           actorPcId={defaultActorPcId}
           defaultLoopNumber={defaultLoopNumber}
           defaultDayInLoop={defaultDayInLoop}

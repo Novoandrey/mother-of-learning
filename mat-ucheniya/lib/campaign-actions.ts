@@ -17,11 +17,21 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { seedCampaignSrd, type SeedResult } from '@/lib/seeds/dnd5e-srd'
 import { seedCampaignCategories, type CategoriesSeedResult } from '@/lib/seeds/categories'
+import {
+  seedCampaignItemValueLists,
+  type ItemValueListsSeedResult,
+} from '@/lib/seeds/item-value-lists'
 import { ensureCampaignStash, type EnsureStashResult } from '@/lib/seeds/stash'
 import { invalidateSidebar } from '@/lib/sidebar-cache'
 
 export type InitializeCampaignResult =
-  | { ok: true; seed: SeedResult; categories: CategoriesSeedResult; stash: EnsureStashResult }
+  | {
+      ok: true
+      seed: SeedResult
+      categories: CategoriesSeedResult
+      itemValueLists: ItemValueListsSeedResult
+      stash: EnsureStashResult
+    }
   | { ok: false; error: string }
 
 /**
@@ -70,6 +80,10 @@ export async function initializeCampaignFromTemplate(
     // Spec-010 transaction categories — idempotent, safe to call
     // every time alongside the SRD seed.
     const categories = await seedCampaignCategories(supabase, campaignId)
+    // Spec-015 — 4 item-scope value lists (categories, slots, sources,
+    // availabilities). Idempotent; mat-ucheniya already has these from
+    // migration 043, but new campaigns pick them up here.
+    const itemValueLists = await seedCampaignItemValueLists(supabase, campaignId)
     // Spec-011 — one stash ("Общак") node per campaign. Idempotent;
     // no-op if the campaign already has one (e.g. seeded by mig 035).
     const stash = await ensureCampaignStash(supabase, campaignId)
@@ -77,7 +91,7 @@ export async function initializeCampaignFromTemplate(
     // Drop the cache so the freshly seeded campaign shows full content
     // immediately instead of waiting for the 60s TTL.
     invalidateSidebar(campaignId)
-    return { ok: true, seed, categories, stash }
+    return { ok: true, seed, categories, itemValueLists, stash }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Неизвестная ошибка сидинга'
     return { ok: false, error: message }

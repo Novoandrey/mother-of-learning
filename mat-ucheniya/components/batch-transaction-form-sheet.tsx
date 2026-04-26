@@ -8,6 +8,9 @@ type Props = {
   open: boolean
   onClose: () => void
   campaignId: string
+  /** Spec-015 — passed through to ItemTypeahead in batch form item rows. */
+  campaignSlug: string
+  canEditCatalog: boolean
   availablePcs: CampaignPC[]
   defaultLoopNumber: number
   defaultDayByPcId: Record<string, number>
@@ -27,6 +30,8 @@ export default function BatchTransactionFormSheet({
   open,
   onClose,
   campaignId,
+  campaignSlug,
+  canEditCatalog,
   availablePcs,
   defaultLoopNumber,
   defaultDayByPcId,
@@ -83,6 +88,8 @@ export default function BatchTransactionFormSheet({
 
           <BatchTransactionForm
             campaignId={campaignId}
+            campaignSlug={campaignSlug}
+            canEditCatalog={canEditCatalog}
             availablePcs={availablePcs}
             defaultLoopNumber={defaultLoopNumber}
             defaultDayByPcId={defaultDayByPcId}

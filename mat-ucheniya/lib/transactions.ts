@@ -48,6 +48,14 @@ export type Transaction = {
   /** Signed per-denom amount. All zeros for `kind='item'`. */
   coins: CoinSet;
   item_name: string | null;
+  /**
+   * Spec-015. Optional FK to an `item` node — when present, this row
+   * references a canonical Образец and the rendering layer reads its
+   * live title via the join. NULL keeps the legacy free-text path
+   * (`item_name` is the source of truth). DB CHECK forbids non-NULL
+   * for `kind != 'item'`.
+   */
+  item_node_id: string | null;
   /** Integer ≥ 1 (CHECK in migration 035). Semantically unused for
    * `kind='money'` / `'transfer'` — defaulted to 1 at write time. */
   item_qty: number;
@@ -186,6 +194,12 @@ export type LedgerFilters = {
    *   undefined → no filter (default)
    */
   autogen?: 'only' | 'none';
+  /**
+   * Spec-015. When set, returns only rows linked to this item Образец
+   * (`item_node_id = …`). Used by the item page's История section so
+   * existing ledger hydration / dedup paths stay shared.
+   */
+  itemNodeId?: string;
 };
 
 export type LedgerPage = {
@@ -216,6 +230,7 @@ type TxRawRow = {
   amount_gp: number;
   amount_pp: number;
   item_name: string | null;
+  item_node_id: string | null;
   item_qty: number;
   category_slug: string;
   comment: string;
@@ -252,6 +267,7 @@ function rawToTransaction(raw: TxRawRow): Transaction {
       pp: raw.amount_pp,
     },
     item_name: raw.item_name,
+    item_node_id: raw.item_node_id,
     item_qty: raw.item_qty,
     category_slug: raw.category_slug,
     comment: raw.comment,
@@ -301,7 +317,7 @@ export type TxJoinedRow = TxRawRow & {
 export const JOIN_SELECT = `
   id, campaign_id, actor_pc_id, kind,
   amount_cp, amount_sp, amount_gp, amount_pp,
-  item_name, item_qty, category_slug, comment,
+  item_name, item_node_id, item_qty, category_slug, comment,
   loop_number, day_in_loop, session_id,
   transfer_group_id, status, author_user_id,
   created_at, updated_at,
@@ -716,6 +732,9 @@ export async function getLedgerPage(
       out = out.not('autogen_wizard_key', 'is', null);
     } else if (filters.autogen === 'none') {
       out = out.is('autogen_wizard_key', null);
+    }
+    if (filters.itemNodeId) {
+      out = out.eq('item_node_id', filters.itemNodeId);
     }
     return out;
   };

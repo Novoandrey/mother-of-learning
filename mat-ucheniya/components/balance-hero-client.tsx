@@ -14,6 +14,8 @@ type Props = {
   showLifetimeFallback: boolean
 
   campaignId: string
+  campaignSlug: string
+  canEditCatalog: boolean
   actorNodeId: string
   defaultLoopNumber: number
   defaultDayInLoop: number
@@ -37,6 +39,8 @@ export default function BalanceHeroClient({
   walletCaption,
   showLifetimeFallback,
   campaignId,
+  campaignSlug,
+  canEditCatalog,
   actorNodeId,
   defaultLoopNumber,
   defaultDayInLoop,
@@ -84,6 +88,8 @@ export default function BalanceHeroClient({
         open={sheetOpen}
         onClose={closeSheet}
         campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          canEditCatalog={canEditCatalog}
         actorPcId={actorNodeId}
         defaultLoopNumber={defaultLoopNumber}
         defaultDayInLoop={defaultDayInLoop}

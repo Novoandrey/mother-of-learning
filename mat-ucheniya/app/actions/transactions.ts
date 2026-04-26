@@ -36,6 +36,7 @@ import {
   validateCoinSet,
   validateItemQty,
 } from '@/lib/transaction-validation'
+import { getItemById } from '@/lib/items'
 import { getWallet } from '@/lib/transactions'
 
 export type ActionResult<T = object> =
@@ -56,6 +57,14 @@ export type CreateTransactionInput = {
   perDenomOverride?: CoinSet
   /** Required non-empty for `kind='item'`; forbidden otherwise. */
   itemName?: string
+  /**
+   * Spec-015. Optional Образец link for `kind='item'` calls. When set,
+   * the server resolves the canonical title via `getItemById` and
+   * stores it as the `item_name` snapshot (FR-014, overrides any
+   * client-typed name). Forbidden for `kind='money'`. Free-text
+   * submissions leave this undefined.
+   */
+  itemNodeId?: string
   /** Integer ≥ 1 for `kind='item'`; default 1. Ignored for `kind='money'`. */
   itemQty?: number
   categorySlug: string
@@ -189,6 +198,16 @@ export async function createTransaction(
       return { ok: false, error: 'Укажите название предмета' }
     }
     itemName = input.itemName.trim()
+    // Spec-015: when an Образец is linked, the server resolves the
+    // canonical title and stores it as the snapshot (FR-014). The
+    // client-typed name is ignored — the typeahead pick is the truth.
+    if (input.itemNodeId) {
+      const item = await getItemById(input.campaignId, input.itemNodeId)
+      if (!item) {
+        return { ok: false, error: 'Связанный образец не найден в этой кампании' }
+      }
+      itemName = item.title
+    }
     // coins stays all-zero; DB CHECK enforces this.
   }
 
@@ -231,6 +250,7 @@ export async function createTransaction(
       amount_gp: coins.gp,
       amount_pp: coins.pp,
       item_name: itemName,
+      item_node_id: input.kind === 'item' ? input.itemNodeId ?? null : null,
       item_qty: itemQty,
       category_slug: input.categorySlug,
       comment: input.comment,
@@ -336,6 +356,23 @@ export async function updateTransaction(
       }
       patch.item_name = input.itemName.trim()
     }
+    // Spec-015: itemNodeId can be added, changed, or removed (set null
+    // explicitly via the input). Resolving the title overwrites whatever
+    // patch.item_name held.
+    if (input.itemNodeId !== undefined) {
+      if (input.itemNodeId === '' || input.itemNodeId === null) {
+        // Explicit unlink — keep current item_name as the free-text
+        // fallback, drop the FK.
+        patch.item_node_id = null
+      } else {
+        const item = await getItemById(row.campaign_id, input.itemNodeId)
+        if (!item) {
+          return { ok: false, error: 'Связанный образец не найден в этой кампании' }
+        }
+        patch.item_node_id = input.itemNodeId
+        patch.item_name = item.title
+      }
+    }
     if (input.itemQty !== undefined) {
       const qtyErr = validateItemQty(input.itemQty)
       if (qtyErr) return { ok: false, error: qtyErr }
@@ -396,6 +433,7 @@ export async function updateTransaction(
       patch.amount_gp = coins.gp
       patch.amount_pp = coins.pp
       patch.item_name = null
+      patch.item_node_id = null  // spec-015: switching to money clears the item link
     }
   }
 
@@ -814,6 +852,12 @@ export type ItemTransferInput = {
   senderPcId: string
   recipientPcId: string
   itemName: string
+  /**
+   * Spec-015. Optional Образец link applied to BOTH legs (sender + recipient).
+   * When set, server resolves canonical title → snapshot. Both legs share the
+   * link so inventory aggregates at sender and recipient agree.
+   */
+  itemNodeId?: string
   /** Positive integer. Direction is encoded by the writer, not the caller. */
   qty: number
   categorySlug: string
@@ -867,7 +911,21 @@ export async function createItemTransfer(
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
-  const itemName = input.itemName.trim()
+  let itemName = input.itemName.trim()
+  let itemNodeId: string | null = null
+
+  // Spec-015: when an Образец is linked, server resolves the canonical
+  // title and stores it as the snapshot on both legs (FR-014). Ownership
+  // check below uses item_node_id (more reliable than item_name) when
+  // a link is present.
+  if (input.itemNodeId) {
+    const item = await getItemById(input.campaignId, input.itemNodeId)
+    if (!item) {
+      return { ok: false, error: 'Связанный образец не найден в этой кампании' }
+    }
+    itemName = item.title
+    itemNodeId = input.itemNodeId
+  }
 
   // Ownership check — sender must actually own ≥ qty of this item in
   // the current loop. Without this gate, "Положить в общак" (or any
@@ -877,18 +935,21 @@ export async function createItemTransfer(
   // require the net to be ≥ requested qty.
   //
   // Balances wipe per loop (FR-015), so the scope is the current loop
-  // only. `item_name` match is exact — the form auto-completes from
-  // existing rows so case/whitespace drift is rare; if it bites we can
-  // loosen later.
-  const { data: senderLegs, error: ownErr } = await admin
+  // only. Match precedence (spec-015): item_node_id when present (any
+  // historical name aliases dedupe correctly), else exact item_name
+  // (free-text fallback).
+  const ownerQuery = admin
     .from('transactions')
     .select('item_qty')
     .eq('campaign_id', input.campaignId)
     .eq('actor_pc_id', input.senderPcId)
     .eq('kind', 'item')
-    .eq('item_name', itemName)
     .eq('loop_number', input.loopNumber)
     .eq('status', 'approved')
+
+  const { data: senderLegs, error: ownErr } = await (itemNodeId
+    ? ownerQuery.eq('item_node_id', itemNodeId)
+    : ownerQuery.eq('item_name', itemName).is('item_node_id', null))
 
   if (ownErr) {
     return { ok: false, error: `Ошибка проверки инвентаря: ${ownErr.message}` }
@@ -913,6 +974,7 @@ export async function createItemTransfer(
     amount_gp: 0,
     amount_pp: 0,
     item_name: itemName,
+    item_node_id: itemNodeId,
     category_slug: input.categorySlug,
     comment: input.comment,
     loop_number: input.loopNumber,
@@ -984,6 +1046,8 @@ export type BatchRowSubmitInput =
       kind: 'item'
       actorPcId: string
       itemName: string
+      /** Spec-015 — optional Образец link. */
+      itemNodeId?: string
       itemQty: number
       categorySlug: string
       comment: string
@@ -1010,6 +1074,8 @@ export type BatchRowSubmitInput =
       senderPcId: string
       recipientPcId: string
       itemName: string
+      /** Spec-015 — optional Образец link, applied to both legs. */
+      itemNodeId?: string
       qty: number
       categorySlug: string
       comment: string
@@ -1074,6 +1140,7 @@ export async function submitBatch(
         actorPcId: row.actorPcId,
         kind: 'item',
         itemName: row.itemName,
+        itemNodeId: row.itemNodeId,
         itemQty: row.itemQty,
         categorySlug: row.categorySlug,
         comment: row.comment,
@@ -1105,6 +1172,7 @@ export async function submitBatch(
         senderPcId: row.senderPcId,
         recipientPcId: row.recipientPcId,
         itemName: row.itemName,
+        itemNodeId: row.itemNodeId,
         qty: row.qty,
         categorySlug: row.categorySlug,
         comment: row.comment,

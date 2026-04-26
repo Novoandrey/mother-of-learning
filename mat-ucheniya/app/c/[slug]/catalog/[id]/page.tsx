@@ -294,6 +294,8 @@ export default async function NodePage({
         {stashNode && (
           <StashButtons
             campaignId={campaign.id}
+            campaignSlug={slug}
+            canEditCatalog={membership.role === 'owner' || membership.role === 'dm'}
             actorPcId={node.id}
             currentLoopNumber={currentLoop?.number ?? null}
             defaultDay={defaultDay}

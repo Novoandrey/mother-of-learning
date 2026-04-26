@@ -206,6 +206,7 @@ export default async function LedgerList({
         key={JSON.stringify(filters)}
         campaignId={campaignId}
         campaignSlug={campaignSlug}
+        canEditCatalog={canManage}
         currentUserId={user.id}
         canManage={canManage}
         categories={categories}
