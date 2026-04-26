@@ -2,9 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-26 (chat 63 — spec-015 Phases 1–6 done +
-> deployed; migration 043 applied; item catalog UI live; typeahead
-> retrofit; awaiting prod verify before Phases 7–12)
+> Last updated: 2026-04-26 (chat 64-65 — spec-015 light theme polish,
+> Предметы nav tab, и UX редизайн: 4 кнопки (+ Доход / − Расход /
+> + Предмет / − Предмет) вместо single «+ Транзакция» с табами)
 > spec.md status Clarified, ждёт Plan)
 
 ## В проде сейчас
@@ -252,30 +252,43 @@
   server action + CLI
 - **BUG-016 + TECH-006 (chat 31)**: аудит invalidate сайдбара
 - **TECH-007 (chat 32)**: invalidate-from-CLI endpoint
-- **spec-015 Item catalog Phases 1–6 (chat 55–63)** — _в проде наполовину_.
-  Миграция `043_item_catalog.sql` применена. Item-нода = «Образец»,
-  side table `item_attributes` (category/rarity/price/weight/slot/source/
-  availability), `transactions.item_node_id` nullable FK с `ON DELETE
-  SET NULL` (FR-032), CHECK блочит link для не-item kind'ов. Categories
-  scope расширен до 5 (`transaction`, `item`, `item-slot`, `item-source`,
-  `item-availability`); 4 value-list дефолта засеяны. Routes:
-  `/c/[slug]/items` (каталог), `/items/new`, `/items/[id]`,
-  `/items/[id]/edit`. `<ItemFilterBar>` — collapsed-by-default,
-  active-filter chips, URL single source of truth. `<ItemCatalogGrid>` —
-  group-by × 6 axes (category/rarity/slot/priceBand/source/availability),
-  sort × 4 keys, collapsible sections, пустое-состояние. `<ItemFormPage>`
-  shared между create/edit, FR-030 chip с linked-tx count, inline
-  delete confirmation. Item permalink с «Историей» (read-only таблица).
-  `<ItemTypeahead>` шарится между transaction-form и batch-form
-  (debounced 200ms search, «образец» badge, DM-only «+ Создать»
-  affordance). Server actions (`createTransaction`/`updateTransaction`/
-  `createItemTransfer`/`submitBatch`/`stash` wrappers) принимают
-  `itemNodeId`, резолвят каноничное имя через `getItemById` (FR-014
-  snapshot). Ownership check в `createItemTransfer` использует
-  `item_node_id` когда есть, иначе strict free-text path. Pure helpers:
-  6 модулей, ~125 vitest тестов (всего 356/356 после правки
-  pre-existing арифметического бага в `approval.test.ts`). Phases 7–12
-  ещё впереди (см. «Следующий приоритет»).
+- **spec-015 Item catalog Phases 1–6 + UX iter 1 (chat 55–65)** —
+  _в проде наполовину_. Миграция `043_item_catalog.sql` применена.
+  Item-нода = «Образец», side table `item_attributes` (category/rarity/
+  price/weight/slot/source/availability), `transactions.item_node_id`
+  nullable FK с `ON DELETE SET NULL` (FR-032), CHECK блочит link для
+  не-item kind'ов. Categories scope расширен до 5 (`transaction`,
+  `item`, `item-slot`, `item-source`, `item-availability`); 4
+  value-list дефолта засеяны. Routes: `/c/[slug]/items` (каталог),
+  `/items/new`, `/items/[id]`, `/items/[id]/edit`. Каталог UI —
+  `<ItemFilterBar>` (collapsed, active-filter chips), `<ItemCatalogGrid>`
+  (group-by × 6, sort × 4), `<ItemFormPage>` shared с linked-tx count
+  chip и inline delete confirmation. Item permalink с «Историей»
+  (read-only таблица). `<ItemTypeahead>` шарится между transaction-
+  form и batch-form (debounced 200ms search, «образец» badge,
+  DM-only «+ Создать»). Server actions принимают `itemNodeId`,
+  каноничное имя резолвится через `getItemById` (FR-014 snapshot).
+  Ownership check в `createItemTransfer` использует `item_node_id`
+  когда есть, иначе strict free-text path. Pure helpers: 6 модулей,
+  ~125 vitest тестов. Phases 7–12 ещё впереди.
+
+  **UX iter 1 (chat 64–65):** light-theme conversion (zinc → gray,
+  amber CTA → blue) — каталог пришлось перекрасить, изначально был
+  ошибочно сделан в dark theme на фоне светлого приложения.
+  «Предметы» nav tab (icon 🎒) добавлен между «Бухгалтерия» и
+  «Участники». **4-button TransactionActions:** заменили один
+  «+ Транзакция» с табами Доход/Расход/Перевод на ряд явных
+  кнопок-действий: `+ Доход` / `− Расход` / `+ Предмет` /
+  `− Предмет` (на мобилке 2×2 grid). Каждая открывает форму уже
+  специализированную, без таб-bar внутри. Mounted в
+  `<WalletBlockClient>` (PC), `<BalanceHeroClient>` (stash
+  — `moneyOnly`), `<LedgerActorBar>` (accounting). Stash-кнопки
+  (`Положить/Взять из Общака`) остались отдельным рядом —
+  специальные шорткаты для частого use case. Item-ветка submit'а
+  в форме перерисована: пишет single item row через
+  `createTransaction`, direction encoded знаком `item_qty`
+  (`item-in` → +qty, `item-out` → −qty). `validateItemQty`
+  loosened до `≠ 0` (соответствует DB CHECK из мига 036).
 
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
@@ -285,70 +298,88 @@ spec-015 — node_type=item, item_attributes, transactions.item_node_id,
 
 ## Следующий приоритет
 
-**Spec-015 Item catalog integration — Phases 7–12** (середина
-имплементации). Phases 1–6 закрыты в chat 55–63:
+**Spec-015 Item catalog — UX iter 2 + Phases 7–12.**
 
-- Phase 1 — миграция 043 (схема, item_attributes side table, FK на
-  `transactions.item_node_id`, scope expansion, default seeds для
-  4 списков).
-- Phase 2 — 6 pure-helper модулей с ~125 vitest-тестами
-  (items-types, items-filters, items-grouping, items-validation,
-  inventory-aggregation, inventory-slice). `aggregateStashLegs`
-  refactor отложен до Phase 7 (T009 deferred).
-- Phase 3 — read-surface (`lib/items.ts`, `lib/inventory.ts`).
-  `getItemHistory` делегирует в `getLedgerPage` через новый
-  `LedgerFilters.itemNodeId` — все hydration paths общие.
-- Phase 4 — каталог UI: `/c/[slug]/items` страница, `<ItemFilterBar>`,
-  `<ItemCatalogGrid>` (group-by × 6, sort × 4 keys), `<ItemFormPage>`,
-  `app/actions/items.ts` (create/update/delete/getLinkedTxCount).
-- Phase 5 — item permalink (`/items/[id]`) + edit (`/items/[id]/edit`).
-  «История» секция через `getItemHistory` + read-only таблица
-  (компактные строки: «П3 · день 7» / actor → counterparty / signed qty).
-  T021 (history pagination) отложен.
-- Phase 6 — typeahead retrofit. `<ItemTypeahead>` компонент с
-  debounced 200ms search, «образец» badge, DM-only «+ Создать»
-  affordance. Wired в `<TransactionForm>`, `<BatchTransactionForm>`,
-  `<TransactionFormSheet>`, `<BatchTransactionFormSheet>`. Сервер:
-  `CreateTransactionInput`/`UpdateTransactionInput`/`ItemTransferInput`/
-  `BatchRowSubmitInput`/`ItemStashInput` все принимают
-  `itemNodeId`. Каноничное имя резолвится через `getItemById`
-  (FR-014). Ownership check в `createItemTransfer` использует
-  `item_node_id` когда есть, иначе `item_name + item_node_id IS NULL`
-  (strict free-text path).
+### UX iter 2 (next chat — мелкая, важная)
+1. **Bundle (item + деньги одной операцией):**
+   - Добавить опциональное поле «Заплатил, gp» / «Получил, gp» в форме
+     `+ Предмет` / `− Предмет` (показывается когда `initialKind` is
+     `item-in` или `item-out`).
+   - Сервер пишет 2 строки одним `batch_id`: item-row + money-row с
+     противоположным знаком. Можно использовать существующую
+     `submitBatch` инфраструктуру или extend `createTransaction`
+     приёмом paired-money payload.
+   - Нецелые gp (например 1.5) автоматически переводятся в копейки
+     (1.5 gp = 1 gp 5 sp, или 150 cp). Пользователь явно попросил
+     не показывать монетный picker для бандла — только GP с дробной
+     частью, а сервер раскладывает.
 
-**Что осталось (Phase 7+):**
-- Phase 7 — `<InventoryTab>` shared component, монтаж на PC page
-  (новая вкладка) и stash page (заменяет существующую «Предметы»).
-  Day picker URL-driven `?tab=inventory&loop=N&day=M`. Refactor
-  `aggregateStashLegs` → делегация в `aggregateItemLegs` (отложенный T009).
-- Phase 8 — `/c/[slug]/items/settings` страница: 4 секции,
-  переиспользует `<CategorySettings>` для item / item-slot / item-source /
-  item-availability scopes. Возможно потребуется параметризация labels
+2. **Recipient picker внутри `− Расход` / `− Предмет`:**
+   - Опциональный select «Получатель: <PC>» (default — нет получателя).
+   - Когда выбран — `− Расход` становится `createTransfer`,
+     `− Предмет` становится `createItemTransfer`. Существующая
+     серверная инфраструктура полностью готова, нужен только UI и
+     route в submit.
+   - Это re-добавляет потерянную семантику «Перевод» (отдельной
+     кнопки `↔ Перевод` больше нет — она встроена в `−` варианты
+     через recipient).
+   - Sheet props нужны `availablePcs` — они уже есть в server pages,
+     надо протянуть до `<TransactionActions>` и далее в `<TransactionForm>`.
+
+### Phase 7 — Inventory tab
+- `<InventoryTab>` shared component, монтаж на PC page (новая
+  вкладка — день picker URL-driven `?tab=inventory&loop=N&day=M`)
+  и stash page (заменяет существующую «Предметы» вкладку, которая
+  сейчас рендерит `<InventoryGrid>` напрямую).
+- Refactor `aggregateStashLegs` → делегация в `aggregateItemLegs`
+  (отложенный T009).
+
+### Phase 8 — Settings page
+- `/c/[slug]/items/settings` страница: 4 секции, переиспользует
+  `<CategorySettings>` для item / item-slot / item-source /
+  item-availability scopes. Возможно нужна параметризация labels
   в существующем компоненте.
-- Phase 9 — миграция 044 (SRD seed + backfill). Dataset choice:
-  Option B (open5e parser) vs Option C (~50-item hand-curate). Решить
-  в самом T032 после быстрого аудита датасета. Backfill через
-  `LOWER(TRIM(item_name)) = LOWER(TRIM(title)) OR LOWER(TRIM(item_name)) = LOWER(srd_slug)`.
-- Phase 10 — encounter loot retrofit (spec-013) + spec-014 walkthroughs.
-  Расширить `LootLine.itemNodeId` в `lib/encounter-loot-types.ts`,
-  пробросить в `applyEncounterLoot` → `lib/autogen-reconcile.ts`.
-- Phase 11 — sidebar/nav: `«Предметы»` пункт в sidebar (spec-013
-  encounter mirror cut-out не задевает item ноды), tab между
-  «Каталог» и «Бухгалтерия», redirects `catalog?type=item` →
-  `/items`.
-- Phase 12 — smoke: `scripts/check-rls-015.sql` (RLS на
-  `item_attributes`, FK cascade SET NULL, CHECK на kind-vs-link
-  mismatch), manual walkthrough всех 7 user stories на mat-ucheniya.
 
-**Сначала проверить на проде:**
-- `/c/<slug>/items` рендерится, каталог пустой, фильтры работают.
-- DM создаёт первый предмет через `+ Предмет`, открывает permalink.
-- В транзакционной форме item-tab показывает typeahead, при выборе
-  предмета появляется бейдж «образец».
-- DM редактирует Образец: linked-tx count chip показывает 0 пока
-  никто не сослался; после первой связанной транзакции — 1.
-- `/c/<slug>/catalog?type=item` пока НЕ редиректит (Phase 11) —
-  это OK.
+### Phase 9 — SRD seed + backfill (миграция 044)
+- Dataset choice: Option B (open5e parser) vs Option C (~50-item
+  hand-curate). Решить в самом T032 после быстрого аудита датасета.
+- Backfill через
+  `LOWER(TRIM(item_name)) = LOWER(TRIM(title)) OR LOWER(TRIM(item_name)) = LOWER(srd_slug)`.
+  RAISE NOTICE с подсчётом per campaign (FR-029).
+
+### Phase 10 — Encounter loot retrofit (spec-013)
+- Расширить `LootLine.itemNodeId` в `lib/encounter-loot-types.ts`,
+  пробросить в `applyEncounterLoot` → `lib/autogen-reconcile.ts`.
+- Wire `<ItemTypeahead>` в encounter loot editor.
+- Spec-014 walkthrough'ы.
+
+### Phase 11 — Sidebar/nav refinements
+- Sidebar item entries в `lib/sidebar-cache.ts`.
+- Redirects: `/catalog?type=item` → `/items`,
+  `/catalog/[id]` → `/items/[id]` для item-нод (current state:
+  `<NavTab Предметы>` уже есть с chat 64, осталось перенаправление
+  старых catalog routes).
+
+### Phase 12 — Smoke + close-out
+- `scripts/check-rls-015.sql` (RLS на `item_attributes`, FK cascade
+  SET NULL, CHECK на kind-vs-link mismatch).
+- Manual walkthrough всех 7 user stories на mat-ucheniya prod.
+
+### Сначала проверить на проде (после chat 65 push):
+- 4 кнопки рендерятся на странице игрока, accounting, и stash hero.
+- На мобилке 2×2 grid, тапается удобно.
+- `+ Предмет` открывает форму без таб-bar, со статичным заголовком
+  «Получение предмета», typeahead для названия, qty.
+- Submit пишет single item row, на permalink Образца появляется в
+  «Истории» с положительным/отрицательным qty в зависимости от
+  кнопки.
+- `+ Доход` / `− Расход` работают как раньше (никаких регрессий
+  money-flow).
+- Edit existing row (тапнуть ✏️ в ленте) — открывает legacy форму
+  с таб-bar (для смены kind'а).
+- Stash hero показывает только 2 кнопки (`+ Доход`, `− Расход`)
+  без item'ов.
+- `<NavTab Предметы>` 🎒 работает между Бухгалтерией и Участниками.
 
 
   TECH-011 closes as "keep".
