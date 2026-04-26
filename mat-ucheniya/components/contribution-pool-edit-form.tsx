@@ -97,18 +97,18 @@ export default function ContributionPoolEditForm({
     reduceCheck.ok
 
   function toggleMember(member: CampaignMemberOption) {
+    const existing = participants.find((p) => p.userId === member.userId)
+    if (existing?.paid) {
+      setSubmitError(
+        `Нельзя убрать «${existing.displayName}» — он уже сдал. ` +
+          `Сначала расжми чекбокс на странице.`,
+      )
+      return
+    }
+    setSubmitError(null)
     setParticipants((current) => {
-      const existing = current.find((p) => p.userId === member.userId)
-      if (existing) {
-        if (existing.paid) {
-          setSubmitError(
-            `Нельзя убрать «${existing.displayName}» — он уже сдал. ` +
-              `Сначала расжми чекбокс на странице.`,
-          )
-          return current
-        }
-        return current.filter((p) => p.userId !== member.userId)
-      }
+      const cur = current.find((p) => p.userId === member.userId)
+      if (cur) return current.filter((p) => p.userId !== member.userId)
       return [
         ...current,
         {
