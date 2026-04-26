@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   getCampaignBySlug,
@@ -43,11 +42,14 @@ export async function updateCampaignHpMethod(slug: string, rawMethod: string) {
     return
   }
 
-  const supabase = await createClient()
+  // Admin client — campaigns RLS only has SELECT policy; UPDATE через
+  // anon-client would silently match 0 rows. Role gate выше — наш
+  // первичный security layer.
+  const admin = createAdminClient()
 
   const next = { ...campaign.settings, hp_method: rawMethod }
 
-  await supabase.from('campaigns').update({ settings: next }).eq('id', campaign.id)
+  await admin.from('campaigns').update({ settings: next }).eq('id', campaign.id)
 }
 
 /**
@@ -78,10 +80,14 @@ export async function updateItemDefaultPrices(
 
   const parsed: ItemDefaultPrices = parseItemDefaultPrices(rawPrices)
 
-  const supabase = await createClient()
+  // Admin client — campaigns RLS только SELECT-policy. UPDATE через
+  // anon-client silently матчит 0 строк, форма показывает
+  // «Сохранено» а в БД ничего не пишется. Role gate выше — primary
+  // security layer.
+  const admin = createAdminClient()
   const next = { ...campaign.settings, item_default_prices: parsed }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('campaigns')
     .update({ settings: next })
     .eq('id', campaign.id)
