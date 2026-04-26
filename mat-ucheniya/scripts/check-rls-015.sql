@@ -148,11 +148,13 @@ begin
       id, campaign_id, actor_pc_id, kind, amount_cp, amount_sp,
       amount_gp, amount_pp, item_name, item_node_id, item_qty,
       category_slug, comment, loop_number, day_in_loop, status,
+      approved_at, approved_by_user_id,
       author_user_id
     ) values (
       gen_random_uuid(), v_campaign_a, v_actor_id, 'item', 0, 0,
       0, 0, 'Тестовый меч', v_item_node_id, 1,
       'loot', '', 1, 1, 'approved',
+      now(), v_user_a,
       v_user_a
     ) returning id into v_tx_id;
   end;
@@ -187,13 +189,16 @@ begin
       id, campaign_id, actor_pc_id, kind, amount_cp, amount_sp,
       amount_gp, amount_pp, item_name, item_node_id, item_qty,
       category_slug, comment, loop_number, day_in_loop, status,
+      approved_at, approved_by_user_id,
       author_user_id
     ) values (
       gen_random_uuid(), v_campaign_a, null, 'money', 0, 0,
       100, 0, null,
       -- bogus item_node_id; CHECK should fire BEFORE FK validation
       gen_random_uuid(), 1,
-      'loot', '', 1, 1, 'approved', v_user_a
+      'loot', '', 1, 1, 'approved',
+      now(), v_user_a,
+      v_user_a
     );
   exception when check_violation or foreign_key_violation then
     v_caught := SQLERRM;
