@@ -326,13 +326,17 @@
 
 ## Phase 9 — SRD seed + backfill (US6)
 
-- [ ] **T032 [P1]** Decide SRD dataset source: parse
+- [x] **T032 [P1]** Decide SRD dataset source: parse
   open5e (Option B) vs minimal 50-item hand-curate (Option C).
   Audit dataset quality + parse complexity in 30 minutes; default
   to Option B unless the parse explodes. Document the choice in
   the chat + chatlog.
+  **Decision (chat 67):** Option C — 50 hand-curated entries.
+  Rationale in chatlog: ROI on common items > ROI on 350 exotic
+  ones for backfill purposes; no external-data review or parse
+  fragility blocker on this session.
 
-- [ ] **T033 [P1]** Build `lib/seeds/items-srd.ts` per the chosen
+- [x] **T033 [P1]** Build `lib/seeds/items-srd.ts` per the chosen
   source from T032. Each entry: `{ srdSlug, titleRu, category,
   rarity, priceGp, weightLb, slot, descriptionRu }`. Source field
   is implicit `'srd-5e'`. Magical items get `rarity` set;
@@ -340,14 +344,14 @@
   ~50 (Option C).
   *(file: `mat-ucheniya/lib/seeds/items-srd.ts`)*
 
-- [ ] **T034 [P1]** Build `mat-ucheniya/scripts/items-srd-codegen.ts`
+- [x] **T034 [P1]** Build `mat-ucheniya/scripts/items-srd-codegen.ts`
   — reads `lib/seeds/items-srd.ts`, emits a SQL block of INSERT
   statements suitable for inclusion in migration 044. Same
   pattern as the existing SRD CLI from chat 30.
   *(file: `mat-ucheniya/scripts/items-srd-codegen.ts`,
   depends on T033)*
 
-- [ ] **T035 [P1]** Generate the seed SQL via T034 and write
+- [x] **T035 [P1]** Generate the seed SQL via T034 and write
   migration `044_srd_items_seed.sql`:
   Phase 1 — per-campaign INSERT of `nodes` + `item_attributes`
   rows. Idempotent via `(campaign_id, fields->>'srd_slug')`
