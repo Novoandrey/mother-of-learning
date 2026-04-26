@@ -5,6 +5,7 @@ import type { Role } from '@/lib/auth'
 import {
   createMemberAction,
   removeMemberAction,
+  renameMemberAction,
   resetPasswordAction,
   updateMemberRoleAction,
 } from './actions'
@@ -260,7 +261,7 @@ function MemberRowView({
   isLast: boolean
   canManage: boolean
 }) {
-  const [mode, setMode] = useState<'idle' | 'reset'>('idle')
+  const [mode, setMode] = useState<'idle' | 'reset' | 'rename'>('idle')
 
   const borderStyle = isLast
     ? {}
@@ -315,6 +316,16 @@ function MemberRowView({
         {canManage && (
           <td className="px-4 py-3 align-top">
             <div className="flex flex-wrap justify-end gap-2">
+              {!member.is_self && (
+                <button
+                  type="button"
+                  onClick={() => setMode(mode === 'rename' ? 'idle' : 'rename')}
+                  className="rounded-[var(--radius)] border px-2 py-1 text-[11px] transition-colors hover:bg-[var(--gray-50)]"
+                  style={{ borderColor: 'var(--gray-300)', color: 'var(--fg-1)' }}
+                >
+                  {mode === 'rename' ? 'Отмена' : 'Имя'}
+                </button>
+              )}
               {member.role !== 'owner' && !member.is_self && (
                 <>
                   <ChangeRoleButton slug={slug} member={member} />
@@ -333,6 +344,20 @@ function MemberRowView({
           </td>
         )}
       </tr>
+
+      {canManage && mode === 'rename' && (
+        <tr style={borderStyle}>
+          <td colSpan={colSpan} className="px-4 pb-3" style={{ background: 'var(--gray-50)' }}>
+            <RenameMemberForm
+              slug={slug}
+              userId={member.user_id}
+              login={member.login}
+              currentName={member.display_name}
+              onDone={() => setMode('idle')}
+            />
+          </td>
+        </tr>
+      )}
 
       {canManage && mode === 'reset' && (
         <tr style={borderStyle}>
@@ -428,6 +453,75 @@ function ResetPasswordForm({
           style={{ background: 'var(--blue-600)' }}
         >
           {pending ? '…' : 'Сбросить'}
+        </button>
+      </div>
+      {state.error && (
+        <div className="text-[11px]" style={{ color: 'var(--red-700)' }}>
+          {state.error}
+        </div>
+      )}
+      {state.success && (
+        <div className="text-[11px]" style={{ color: 'var(--green-700)' }}>
+          ✓ {state.success}
+        </div>
+      )}
+    </form>
+  )
+}
+
+// ────────────────────────────── Rename member ──────────────────────────────
+
+function RenameMemberForm({
+  slug,
+  userId,
+  login,
+  currentName,
+  onDone,
+}: {
+  slug: string
+  userId: string
+  login: string
+  currentName: string | null
+  onDone: () => void
+}) {
+  const boundAction = renameMemberAction.bind(null, slug)
+  const [state, formAction, pending] = useActionState(boundAction, initialState)
+
+  useEffect(() => {
+    if (state.success) {
+      const t = setTimeout(onDone, 1200)
+      return () => clearTimeout(t)
+    }
+  }, [state.success, onDone])
+
+  return (
+    <form action={formAction} className="flex flex-col gap-2 py-2">
+      <div className="text-[11px]" style={{ color: 'var(--gray-600)' }}>
+        Имя для <span className="font-mono font-semibold">{login}</span>:
+        {' '}
+        <span style={{ color: 'var(--gray-500)' }}>
+          (показывается под логином в кампаниях)
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <input type="hidden" name="user_id" value={userId} />
+        <input
+          name="display_name"
+          type="text"
+          maxLength={100}
+          autoComplete="off"
+          defaultValue={currentName ?? ''}
+          placeholder="Андрей (или пусто чтобы очистить)"
+          className="flex-1 rounded-[var(--radius)] border px-3 py-1.5 text-[12px] outline-none"
+          style={{ borderColor: 'var(--gray-300)' }}
+        />
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-[var(--radius)] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60"
+          style={{ background: 'var(--blue-600)' }}
+        >
+          {pending ? '…' : 'Сохранить'}
         </button>
       </div>
       {state.error && (
