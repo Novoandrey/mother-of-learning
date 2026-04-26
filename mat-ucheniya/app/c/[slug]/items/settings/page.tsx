@@ -7,6 +7,7 @@ import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth } from '@/lib/auth'
 import { listCategories } from '@/lib/categories'
 import CategorySettings from '@/components/category-settings'
+import DefaultPricesEditor from '@/components/default-prices-editor'
 
 export async function generateMetadata({
   params,
@@ -139,6 +140,17 @@ export default async function ItemsSettingsPage({
             slugPlaceholder="напр. common"
             labelPlaceholder="напр. Общедоступный"
             addLabel="+ Добавить доступность"
+          />
+        </Section>
+
+        <Section
+          title="Цены по умолчанию"
+          subtitle="Префилл поля «Цена» при создании Образца, в зависимости от редкости."
+        >
+          <DefaultPricesEditor
+            campaignSlug={slug}
+            initial={campaign.settings.item_default_prices}
+            canEdit={isManager}
           />
         </Section>
       </div>

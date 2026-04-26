@@ -129,4 +129,55 @@ export const ITEMS_SRD_SEED: ReadonlyArray<ItemSeedEntry> = [
   { srdSlug: 'ring-of-protection', titleRu: 'Кольцо защиты', category: 'magic-item', rarity: 'rare', priceGp: 8000, weightLb: 0, slot: 'ring', descriptionRu: '+1 к AC и спасброскам. Требует настройки.' },
   { srdSlug: 'amulet-of-health', titleRu: 'Амулет здоровья', category: 'magic-item', rarity: 'rare', priceGp: 8000, weightLb: 1, slot: 'amulet', descriptionRu: 'Телосложение становится 19. Требует настройки.' },
   { srdSlug: 'gauntlets-of-ogre-power', titleRu: 'Перчатки силы огра', category: 'magic-item', rarity: 'uncommon', priceGp: 4000, weightLb: 2, slot: 'gloves', descriptionRu: 'Сила становится 19. Требует настройки.' },
+
+  // ─────────────────── Magic items — extended pool (chat 70) ───────────────────
+  // Uncommon weapons / armor / shields with +N
+  { srdSlug: 'shield-plus-1', titleRu: '+1 щит', category: 'magic-item', rarity: 'uncommon', priceGp: 1000, weightLb: 6, slot: 'shield', descriptionRu: '+1 к AC сверх обычного бонуса щита.' },
+  { srdSlug: 'shortsword-plus-1', titleRu: '+1 короткий меч', category: 'magic-item', rarity: 'uncommon', priceGp: 1000, weightLb: 2, slot: '1-handed', descriptionRu: '+1 к броску атаки и урона. 1d6 колющий, фехтовальное.' },
+  { srdSlug: 'dagger-plus-1', titleRu: '+1 кинжал', category: 'magic-item', rarity: 'uncommon', priceGp: 1000, weightLb: 1, slot: '1-handed', descriptionRu: '+1 к броску атаки и урона. 1d4, можно метать.' },
+  { srdSlug: 'longbow-plus-1', titleRu: '+1 длинный лук', category: 'magic-item', rarity: 'uncommon', priceGp: 1000, weightLb: 2, slot: 'ranged', descriptionRu: '+1 к броску атаки и урона. 1d8 колющий, дальность 150/600.' },
+  { srdSlug: 'leather-armor-plus-1', titleRu: '+1 кожаный доспех', category: 'magic-item', rarity: 'rare', priceGp: 4000, weightLb: 10, slot: 'body', descriptionRu: '+1 к AC сверх обычного. Лёгкий, без помех скрытности.' },
+  { srdSlug: 'chain-shirt-plus-1', titleRu: '+1 кольчужная рубаха', category: 'magic-item', rarity: 'rare', priceGp: 4000, weightLb: 20, slot: 'body', descriptionRu: '+1 к AC сверх обычного.' },
+  { srdSlug: 'plate-armor-plus-1', titleRu: '+1 латные доспехи', category: 'magic-item', rarity: 'very-rare', priceGp: 24000, weightLb: 65, slot: 'body', descriptionRu: '+1 к AC сверх обычного. Тяжёлый.' },
+
+  // Wands
+  { srdSlug: 'wand-of-magic-missiles', titleRu: 'Жезл магических снарядов', category: 'magic-item', rarity: 'uncommon', priceGp: 1500, weightLb: 1, slot: null, descriptionRu: '7 зарядов. 1 заряд = «Волшебная стрела» 1 круга, до 7 зарядов = до 7 круга.' },
+  { srdSlug: 'wand-of-fireballs', titleRu: 'Жезл огненных шаров', category: 'magic-item', rarity: 'rare', priceGp: 6000, weightLb: 1, slot: null, descriptionRu: '7 зарядов. 1 заряд = «Огненный шар» 3 круга, +1 круг за каждый дополнительный заряд.' },
+  { srdSlug: 'wand-of-web', titleRu: 'Жезл паутины', category: 'magic-item', rarity: 'uncommon', priceGp: 1500, weightLb: 1, slot: null, descriptionRu: '7 зарядов. 1 заряд = «Паутина», DC спасброска Лвк 15. Требует настройки заклинателя.' },
+
+  // Wondrous slot items (cloak / boots / ring / headwear / gloves / amulet)
+  { srdSlug: 'cloak-of-elvenkind', titleRu: 'Плащ эльфов', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 1, slot: 'cloak', descriptionRu: 'Преимущество на скрытность; помеха проверкам Внимания обнаружить вас. Требует настройки.' },
+  { srdSlug: 'cape-of-the-mountebank', titleRu: 'Плащ шарлатана', category: 'wondrous', rarity: 'rare', priceGp: 5000, weightLb: 1, slot: 'cloak', descriptionRu: 'Раз в день — телепорт «Туманный шаг» (60 футов).' },
+  { srdSlug: 'boots-of-speed', titleRu: 'Сапоги быстроты', category: 'wondrous', rarity: 'rare', priceGp: 5000, weightLb: 1, slot: 'boots', descriptionRu: 'Удвоенная скорость на 10 минут в день. Требует настройки.' },
+  { srdSlug: 'boots-of-striding-and-springing', titleRu: 'Сапоги поступи и прыжков', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 1, slot: 'boots', descriptionRu: 'Скорость 30 футов независимо от Силы; прыжки утрояются. Требует настройки.' },
+  { srdSlug: 'winged-boots', titleRu: 'Крылатые сапоги', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 1, slot: 'boots', descriptionRu: 'Полёт со скоростью ходьбы. 4 часа полёта в день. Требует настройки.' },
+  { srdSlug: 'slippers-of-spider-climbing', titleRu: 'Туфли паучьего лазания', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 0, slot: 'boots', descriptionRu: 'Лазание со скоростью ходьбы по любым поверхностям. Требует настройки.' },
+  { srdSlug: 'ring-of-jumping', titleRu: 'Кольцо прыжков', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 0, slot: 'ring', descriptionRu: 'Бонусное действие — «Прыжок» на себя. Требует настройки.' },
+  { srdSlug: 'ring-of-warmth', titleRu: 'Кольцо тепла', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 0, slot: 'ring', descriptionRu: 'Сопротивление холоду; комфорт при −45°C и теплее. Требует настройки.' },
+  { srdSlug: 'ring-of-spell-storing', titleRu: 'Кольцо хранения заклинаний', category: 'wondrous', rarity: 'rare', priceGp: 5000, weightLb: 0, slot: 'ring', descriptionRu: 'Хранит до 5 уровней заклинаний; владелец накладывает их позже. Требует настройки.' },
+  { srdSlug: 'goggles-of-night', titleRu: 'Очки ночного видения', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 0, slot: 'headwear', descriptionRu: 'Тёмное зрение 60 футов, пока надеты.' },
+  { srdSlug: 'eyes-of-the-eagle', titleRu: 'Очки орла', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 0, slot: 'headwear', descriptionRu: 'Преимущество на проверки Внимания, основанные на зрении. Требует настройки.' },
+  { srdSlug: 'helm-of-telepathy', titleRu: 'Шлем телепатии', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 1, slot: 'headwear', descriptionRu: 'Заклинание «Обнаружение мыслей»; «Внушение» 3 раза в день. Требует настройки.' },
+  { srdSlug: 'bracers-of-defense', titleRu: 'Наручи защиты', category: 'wondrous', rarity: 'rare', priceGp: 6000, weightLb: 1, slot: 'gloves', descriptionRu: '+2 к AC, если вы без доспехов и щита. Требует настройки.' },
+  { srdSlug: 'pearl-of-power', titleRu: 'Жемчужина силы', category: 'wondrous', rarity: 'uncommon', priceGp: 1500, weightLb: 0, slot: null, descriptionRu: '1 раз в день восстанавливает использованную ячейку заклинания 3-го круга или ниже. Требует настройки заклинателя.' },
+  { srdSlug: 'driftglobe', titleRu: 'Парящий шар', category: 'wondrous', rarity: 'uncommon', priceGp: 1500, weightLb: 1, slot: null, descriptionRu: 'Шар-светильник. Команда — свет / парение в радиусе 60 футов хозяина.' },
+  { srdSlug: 'immovable-rod', titleRu: 'Несдвигаемый жезл', category: 'wondrous', rarity: 'uncommon', priceGp: 4000, weightLb: 2, slot: null, descriptionRu: 'Кнопка фиксирует жезл в воздухе; держит до 3500 кг.' },
+  { srdSlug: 'broom-of-flying', titleRu: 'Метла полёта', category: 'wondrous', rarity: 'uncommon', priceGp: 1500, weightLb: 3, slot: null, descriptionRu: 'Полёт со скоростью 50 футов; до 200 кг.' },
+  { srdSlug: 'portable-hole', titleRu: 'Переносная яма', category: 'wondrous', rarity: 'rare', priceGp: 5000, weightLb: 0, slot: null, descriptionRu: 'Чёрный круг диаметром 6 футов; превращается в внепространственную яму глубиной 10 футов.' },
+  { srdSlug: 'javelin-of-lightning', titleRu: 'Молниевое копьё', category: 'magic-item', rarity: 'uncommon', priceGp: 1500, weightLb: 2, slot: 'versatile', descriptionRu: 'Метание = молниевая линия 5×120 футов, 4d6 урона электричеством. Расходный.' },
+  { srdSlug: 'flame-tongue', titleRu: 'Пламенный язык', category: 'magic-item', rarity: 'rare', priceGp: 5000, weightLb: 3, slot: 'versatile', descriptionRu: 'Командное слово зажигает клинок: +2d6 огненного урона. Свет 40 футов.' },
+  { srdSlug: 'dragon-scale-mail', titleRu: 'Драконья чешуя', category: 'magic-item', rarity: 'very-rare', priceGp: 50000, weightLb: 45, slot: 'body', descriptionRu: '+1 к AC, преимущество на спасброски от страха драконов; 1 раз в день — чувствуете драконов в радиусе 30 миль.' },
+
+  // ─────────────────── Consumables — extended pool ───────────────────
+  { srdSlug: 'potion-of-heroism', titleRu: 'Зелье героизма', category: 'consumable', rarity: 'rare', priceGp: 500, weightLb: 0.5, slot: null, descriptionRu: '10 временных HP + эффект «Благословение» 1 час.' },
+  { srdSlug: 'potion-of-invisibility', titleRu: 'Зелье невидимости', category: 'consumable', rarity: 'very-rare', priceGp: 5000, weightLb: 0.5, slot: null, descriptionRu: 'Невидимость на 1 час или до атаки/каста.' },
+  { srdSlug: 'potion-of-flying', titleRu: 'Зелье полёта', category: 'consumable', rarity: 'very-rare', priceGp: 5000, weightLb: 0.5, slot: null, descriptionRu: 'Скорость полёта 60 футов на 1 час.' },
+  { srdSlug: 'potion-of-speed', titleRu: 'Зелье скорости', category: 'consumable', rarity: 'very-rare', priceGp: 5000, weightLb: 0.5, slot: null, descriptionRu: 'Эффект «Ускорения» на 1 минуту, без концентрации.' },
+  { srdSlug: 'potion-of-water-breathing', titleRu: 'Зелье дыхания под водой', category: 'consumable', rarity: 'uncommon', priceGp: 200, weightLb: 0.5, slot: null, descriptionRu: 'Дыхание под водой 1 час.' },
+  { srdSlug: 'potion-of-climbing', titleRu: 'Зелье лазания', category: 'consumable', rarity: 'common', priceGp: 50, weightLb: 0.5, slot: null, descriptionRu: 'Скорость лазания = скорости ходьбы; преимущество на лазание; 1 час.' },
+  { srdSlug: 'potion-of-growth', titleRu: 'Зелье увеличения', category: 'consumable', rarity: 'uncommon', priceGp: 200, weightLb: 0.5, slot: null, descriptionRu: 'Эффект «Увеличения», размер +1 категория, 1d4 часа.' },
+  { srdSlug: 'oil-of-slipperiness', titleRu: 'Масло скольжения', category: 'consumable', rarity: 'uncommon', priceGp: 200, weightLb: 0.5, slot: null, descriptionRu: 'Намазать существо/предмет: 8 часов «Освобождения» / зона 10 футов «Жирной грязи» 8 часов.' },
+  { srdSlug: 'dust-of-disappearance', titleRu: 'Пыль исчезновения', category: 'consumable', rarity: 'uncommon', priceGp: 200, weightLb: 0, slot: null, descriptionRu: 'Невидимость для всех в радиусе 10 футов на 2d4 минуты.' },
+  { srdSlug: 'dust-of-dryness', titleRu: 'Пыль сухости', category: 'consumable', rarity: 'uncommon', priceGp: 200, weightLb: 0, slot: null, descriptionRu: 'Высушивает до 15 куб. футов воды в горошину; разбить горошину — вода возвращается.' },
 ]
+

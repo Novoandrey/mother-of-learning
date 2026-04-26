@@ -52,6 +52,7 @@ export default async function NewItemPage({
       slots={slots}
       sources={sources}
       availabilities={availabilities}
+      defaultPrices={campaign.settings.item_default_prices}
     />
   )
 }

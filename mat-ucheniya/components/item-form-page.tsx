@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { createItemAction, updateItemAction, deleteItemAction } from '@/app/actions/items'
+import type { ItemDefaultPrices, RarityKey } from '@/lib/campaign'
 import type { ItemPayload, Rarity } from '@/lib/items-types'
 import type { Category } from '@/lib/transactions'
 
@@ -28,6 +29,34 @@ type Props = {
   slots: Category[]
   sources: Category[]
   availabilities: Category[]
+  /**
+   * Spec-015 follow-up (chat 70). DM-curated default prices per
+   * rarity (split into magic / consumable buckets). When the user
+   * picks a rarity AND the price field is empty, we prefill from
+   * here. Empty / no match → no prefill, behaviour unchanged.
+   */
+  defaultPrices: ItemDefaultPrices
+}
+
+/**
+ * Pick the matching default price bucket given the chosen category.
+ * Catalog uses the slug `consumable` for расходники; everything else
+ * (magic-item, wondrous, weapon, armor, …) maps to the magic bucket.
+ * Returning null means "don't auto-fill for this combo".
+ */
+function lookupDefaultPrice(
+  defaults: ItemDefaultPrices,
+  categorySlug: string,
+  rarity: Rarity | '',
+): number | null {
+  if (!rarity) return null
+  // 'artifact' is in the Rarity union but not in the 5-key default
+  // table — DM tunes only the common…legendary band, artifacts stay
+  // free-text.
+  if (!(rarity in defaults.magic)) return null
+  const bucket: keyof ItemDefaultPrices =
+    categorySlug === 'consumable' ? 'consumable' : 'magic'
+  return defaults[bucket][rarity as RarityKey]
 }
 
 /**
@@ -45,6 +74,7 @@ export default function ItemFormPage({
   slots,
   sources,
   availabilities,
+  defaultPrices,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -68,6 +98,34 @@ export default function ItemFormPage({
   const [srdSlug, setSrdSlug] = useState(initial.srdSlug ?? '')
   const [description, setDescription] = useState(initial.description ?? '')
   const [sourceDetail, setSourceDetail] = useState(initial.sourceDetail ?? '')
+
+  /**
+   * Apply rarity change and, if the price field is empty, prefill
+   * from the DM-curated defaults. We deliberately don't overwrite a
+   * non-empty price field — user intent wins. We also don't clear
+   * the price when rarity goes back to '' or to a tier with no
+   * default; once the user (or autofill) types something, it stays.
+   */
+  function handleRarityChange(next: Rarity | '') {
+    setRarity(next)
+    if (priceGp.trim() === '') {
+      const def = lookupDefaultPrice(defaultPrices, categorySlug, next)
+      if (def !== null) setPriceGp(String(def))
+    }
+  }
+
+  /**
+   * Same defaulting on category change — switching to/from
+   * `consumable` flips the bucket, so an empty price field should
+   * pick up the new bucket's value if a rarity is already chosen.
+   */
+  function handleCategoryChange(next: string) {
+    setCategorySlug(next)
+    if (priceGp.trim() === '') {
+      const def = lookupDefaultPrice(defaultPrices, next, rarity)
+      if (def !== null) setPriceGp(String(def))
+    }
+  }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -156,7 +214,7 @@ export default function ItemFormPage({
         <Field label="Категория" required>
           <select
             value={categorySlug}
-            onChange={(e) => setCategorySlug(e.target.value)}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             required
             className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           >
@@ -172,7 +230,7 @@ export default function ItemFormPage({
         <Field label="Редкость">
           <select
             value={rarity}
-            onChange={(e) => setRarity(e.target.value as Rarity | '')}
+            onChange={(e) => handleRarityChange(e.target.value as Rarity | '')}
             className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           >
             <option value="">— нет / без редкости —</option>

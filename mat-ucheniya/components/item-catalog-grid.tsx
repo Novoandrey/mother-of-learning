@@ -77,6 +77,19 @@ export default function ItemCatalogGrid({
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // Per-row expanded description state. Click on a row toggles
+  // a panel beneath it showing the full description from the seed
+  // / DM-edited Образец. Independent of group collapse.
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set())
+
+  const toggleItemExpand = (id: string) => {
+    setExpandedItemIds((cur) => {
+      const next = new Set(cur)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const groups = useMemo(() => {
     const sorted = sortItems(items, sortKey, sortDir)
@@ -176,7 +189,24 @@ export default function ItemCatalogGrid({
             </button>
             {!isCollapsed && (
               <div className="overflow-x-auto border-t border-gray-200">
-                <table className="w-full text-sm">
+                <table className="w-full table-fixed text-sm">
+                  {/*
+                    table-fixed + colgroup: columns sized identically
+                    across every group's table, so a category-only group
+                    («Прочее») doesn't shift columns vs a richly-populated
+                    group («Чудесные»). Total = 100%, percentages tuned
+                    for ru labels.
+                  */}
+                  <colgroup>
+                    <col style={{ width: '24%' }} />
+                    <col style={{ width: '13%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '12%' }} />
+                  </colgroup>
                   <thead className="text-xs text-gray-400">
                     <tr className="border-b border-gray-200">
                       <th className="px-3 py-1.5 text-left font-normal">Название</th>
@@ -196,6 +226,8 @@ export default function ItemCatalogGrid({
                         item={item}
                         slugLabels={slugLabels}
                         campaignSlug={campaignSlug}
+                        expanded={expandedItemIds.has(item.id)}
+                        onToggleExpand={() => toggleItemExpand(item.id)}
                       />
                     ))}
                   </tbody>
@@ -213,51 +245,79 @@ function ItemRow({
   item,
   slugLabels,
   campaignSlug,
+  expanded,
+  onToggleExpand,
 }: {
   item: ItemNode
   slugLabels: SlugLabels
   campaignSlug: string
+  expanded: boolean
+  onToggleExpand: () => void
 }) {
+  // Whole row toggles expansion. The title link uses
+  // stopPropagation so clicking the name navigates to the
+  // permalink without also toggling the description below.
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="px-3 py-1.5">
-        <Link
-          href={`/c/${campaignSlug}/items/${item.id}`}
-          className="text-gray-900 hover:text-blue-700"
-        >
-          {item.title}
-        </Link>
-      </td>
-      <td className="px-3 py-1.5 text-gray-500">
-        {slugLabels.category[item.categorySlug] ?? item.categorySlug}
-      </td>
-      <td className="px-3 py-1.5">
-        {item.rarity ? (
-          <span className={`rounded border px-1.5 py-0 text-xs ${RARITY_TONE[item.rarity]}`}>
-            {RARITY_LABEL[item.rarity]}
+    <>
+      <tr
+        onClick={onToggleExpand}
+        className="cursor-pointer border-b border-gray-200 hover:bg-gray-50"
+        aria-expanded={expanded}
+      >
+        <td className="px-3 py-1.5">
+          <span aria-hidden className="mr-1 inline-block w-3 text-center text-gray-300">
+            {expanded ? '▾' : '▸'}
           </span>
-        ) : (
-          <span className="text-gray-300">—</span>
-        )}
-      </td>
-      <td className="px-3 py-1.5 text-gray-500">
-        {item.slotSlug ? slugLabels.slot[item.slotSlug] ?? item.slotSlug : <span className="text-gray-300">—</span>}
-      </td>
-      <td className="px-3 py-1.5 text-right font-mono text-gray-700">
-        {item.priceGp !== null ? formatGp(item.priceGp) : <span className="text-gray-300">—</span>}
-      </td>
-      <td className="px-3 py-1.5 text-right font-mono text-gray-700">
-        {item.weightLb !== null ? item.weightLb : <span className="text-gray-300">—</span>}
-      </td>
-      <td className="px-3 py-1.5 text-gray-500">
-        {item.sourceSlug ? slugLabels.source[item.sourceSlug] ?? item.sourceSlug : <span className="text-gray-300">—</span>}
-      </td>
-      <td className="px-3 py-1.5 text-gray-500">
-        {item.availabilitySlug
-          ? slugLabels.availability[item.availabilitySlug] ?? item.availabilitySlug
-          : <span className="text-gray-300">—</span>}
-      </td>
-    </tr>
+          <Link
+            href={`/c/${campaignSlug}/items/${item.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-gray-900 hover:text-blue-700 hover:underline"
+          >
+            {item.title}
+          </Link>
+        </td>
+        <td className="px-3 py-1.5 text-gray-500">
+          {slugLabels.category[item.categorySlug] ?? item.categorySlug}
+        </td>
+        <td className="px-3 py-1.5">
+          {item.rarity ? (
+            <span className={`rounded border px-1.5 py-0 text-xs ${RARITY_TONE[item.rarity]}`}>
+              {RARITY_LABEL[item.rarity]}
+            </span>
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
+        </td>
+        <td className="px-3 py-1.5 text-gray-500">
+          {item.slotSlug ? slugLabels.slot[item.slotSlug] ?? item.slotSlug : <span className="text-gray-300">—</span>}
+        </td>
+        <td className="px-3 py-1.5 text-right font-mono text-gray-700">
+          {item.priceGp !== null ? formatGp(item.priceGp) : <span className="text-gray-300">—</span>}
+        </td>
+        <td className="px-3 py-1.5 text-right font-mono text-gray-700">
+          {item.weightLb !== null ? item.weightLb : <span className="text-gray-300">—</span>}
+        </td>
+        <td className="px-3 py-1.5 text-gray-500">
+          {item.sourceSlug ? slugLabels.source[item.sourceSlug] ?? item.sourceSlug : <span className="text-gray-300">—</span>}
+        </td>
+        <td className="px-3 py-1.5 text-gray-500">
+          {item.availabilitySlug
+            ? slugLabels.availability[item.availabilitySlug] ?? item.availabilitySlug
+            : <span className="text-gray-300">—</span>}
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="border-b border-gray-200 bg-gray-50">
+          <td colSpan={8} className="px-6 py-2 text-sm text-gray-700">
+            {item.description ? (
+              <div className="whitespace-pre-wrap">{item.description}</div>
+            ) : (
+              <span className="italic text-gray-400">Описание не заполнено.</span>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
