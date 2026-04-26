@@ -99,25 +99,22 @@ export default function ItemFormPage({
   const [description, setDescription] = useState(initial.description ?? '')
   const [sourceDetail, setSourceDetail] = useState(initial.sourceDetail ?? '')
   /**
-   * Spec-016. true (default) — price is governed by /items/settings
-   * defaults table; bulk apply will overwrite. false — DM явно
-   * opt-out, цена защищена. Render как inverted checkbox в UI.
+   * 5e «Требует настройки». Set explicitly via checkbox; attunement
+   * for SRD items is also pre-marked at seed level.
    */
-  const [useDefaultPrice, setUseDefaultPrice] = useState(
-    initial.useDefaultPrice ?? true,
+  const [requiresAttunement, setRequiresAttunement] = useState(
+    initial.requiresAttunement ?? false,
   )
 
   /**
-   * Apply rarity change and, if the price field is empty AND the item
-   * is not opted out (FR-006), prefill from the DM-curated defaults.
-   * We deliberately don't overwrite a non-empty price field — user
-   * intent wins. We also don't clear the price when rarity goes back
-   * to '' or to a tier with no default; once the user (or autofill)
-   * types something, it stays.
+   * Apply rarity change and prefill price from defaults if empty.
+   * `use_default_price` is now auto-managed (computed server-side
+   * at create/update by comparing price vs baseline), so the prefill
+   * is always active — no opt-out gate.
    */
   function handleRarityChange(next: Rarity | '') {
     setRarity(next)
-    if (useDefaultPrice && priceGp.trim() === '') {
+    if (priceGp.trim() === '') {
       const def = lookupDefaultPrice(defaultPrices, categorySlug, next)
       if (def !== null) setPriceGp(String(def))
     }
@@ -125,13 +122,11 @@ export default function ItemFormPage({
 
   /**
    * Same defaulting on category change — switching to/from
-   * `consumable` flips the bucket, so an empty price field should
-   * pick up the new bucket's value if a rarity is already chosen.
-   * Suppressed when opted out (FR-006).
+   * `consumable` flips the bucket. Always active (auto-flag).
    */
   function handleCategoryChange(next: string) {
     setCategorySlug(next)
-    if (useDefaultPrice && priceGp.trim() === '') {
+    if (priceGp.trim() === '') {
       const def = lookupDefaultPrice(defaultPrices, next, rarity)
       if (def !== null) setPriceGp(String(def))
     }
@@ -153,7 +148,7 @@ export default function ItemFormPage({
       srdSlug: srdSlug.trim() === '' ? null : srdSlug.trim(),
       description: description.trim() === '' ? null : description,
       sourceDetail: sourceDetail.trim() === '' ? null : sourceDetail.trim(),
-      useDefaultPrice,
+      requiresAttunement,
     }
 
     startTransition(async () => {
@@ -266,6 +261,21 @@ export default function ItemFormPage({
               </option>
             ))}
           </select>
+          <label className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={requiresAttunement}
+              onChange={(e) => setRequiresAttunement(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-gray-300"
+            />
+            <span>Требует настройки</span>
+            <span
+              className="cursor-help text-gray-400"
+              title="5e «Требует настройки» (attunement). Магические предметы, требующие настройки на одного владельца."
+            >
+              ⓘ
+            </span>
+          </label>
         </Field>
 
         <Field label="Цена, gp">
@@ -277,21 +287,6 @@ export default function ItemFormPage({
             onChange={(e) => setPriceGp(e.target.value)}
             className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           />
-          <label className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
-            <input
-              type="checkbox"
-              checked={!useDefaultPrice}
-              onChange={(e) => setUseDefaultPrice(!e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-gray-300"
-            />
-            <span>Не использовать стандартную цену</span>
-            <span
-              className="cursor-help text-gray-400"
-              title="Защищает цену от bulk apply на странице настроек. Поставь, если у предмета story-justified цена."
-            >
-              ⓘ
-            </span>
-          </label>
         </Field>
 
         <Field label="Вес, lb">
@@ -457,5 +452,5 @@ export const EMPTY_PAYLOAD: ItemPayload = {
   srdSlug: null,
   description: null,
   sourceDetail: null,
-  useDefaultPrice: true,
+  requiresAttunement: false,
 }
