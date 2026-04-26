@@ -7,6 +7,7 @@ import TransferRecipientPicker from './transfer-recipient-picker'
 import ShortfallPrompt from './shortfall-prompt'
 import ItemTypeahead from './item-typeahead'
 import {
+  createItemTransfer,
   createTransaction,
   createTransfer,
   deleteTransfer,
@@ -255,6 +256,12 @@ export default function TransactionForm({
     editing?.item_node_id ?? null,
   )
   const [itemQty, setItemQty] = useState<number>(1)
+  // Item counterparty picker (chat 66) — optional «От кого» / «Кому».
+  // When set in non-stash item-action mode, submit dispatches to
+  // `createItemTransfer` instead of `createTransaction`. For
+  // `item-in` the picked PC is the SENDER (актор получает),
+  // for `item-out` the picked PC is the RECIPIENT (актор отдаёт).
+  const [itemCounterpartyPcId, setItemCounterpartyPcId] = useState<string | null>(null)
 
   const loopNumber: number = editing?.loop_number ?? defaultLoopNumber
   const initialDay: number = editing?.day_in_loop ?? defaultDayInLoop
@@ -492,9 +499,7 @@ export default function TransactionForm({
         // entry points. Direction comes from the action-kind:
         //   'item-in'  → positive qty (PC gained the item)
         //   'item-out' → negative qty (PC lost the item)
-        // Bundle (concurrent ±gp) and PC-recipient transfer are
-        // forthcoming in the next pass — for now this writes a single
-        // item row with no money side and no transfer pair.
+        // Bundle (concurrent ±gp) is forthcoming.
         if (!itemName.trim()) {
           setError('Укажите название предмета')
           return
@@ -506,36 +511,66 @@ export default function TransactionForm({
         }
         const direction: 'in' | 'out' =
           initialKind === 'item-out' ? 'out' : 'in'
-        const signedQty = direction === 'in' ? Math.abs(itemQty) : -Math.abs(itemQty)
-        const payload: CreateTransactionInput = {
-          campaignId,
-          actorPcId,
-          kind: 'item',
-          itemName: itemName.trim(),
-          itemNodeId: itemNodeId ?? undefined,
-          itemQty: signedQty,
-          categorySlug: 'loot',
-          comment,
-          loopNumber,
-          dayInLoop,
-          sessionId,
-        }
-        const res = editingId
-          ? await updateTransaction(editingId, {
-              kind: 'item',
-              itemName: itemName.trim(),
-              itemNodeId: itemNodeId ?? undefined,
-              itemQty: signedQty,
-              categorySlug: 'loot',
-              comment,
-              loopNumber,
-              dayInLoop,
-              sessionId,
-            })
-          : await createTransaction(payload)
-        if (!res.ok) {
-          setError(res.error)
-          return
+
+        // Counterparty path (chat 66): when an "От кого / Кому" PC is
+        // picked, write a paired item-transfer instead of a one-sided
+        // row. Sender/recipient roles flip with `direction`. Editing
+        // existing rows still falls through to the single-row update
+        // path — transfer-pair editing has its own dedicated flow.
+        if (itemCounterpartyPcId && !editingId) {
+          const senderPcId =
+            direction === 'in' ? itemCounterpartyPcId : actorPcId
+          const recipientPcId =
+            direction === 'in' ? actorPcId : itemCounterpartyPcId
+          const res = await createItemTransfer({
+            campaignId,
+            senderPcId,
+            recipientPcId,
+            itemName: itemName.trim(),
+            itemNodeId: itemNodeId ?? undefined,
+            qty: Math.abs(itemQty),
+            categorySlug: 'transfer',
+            comment,
+            loopNumber,
+            dayInLoop,
+            sessionId,
+          })
+          if (!res.ok) {
+            setError(res.error)
+            return
+          }
+        } else {
+          const signedQty = direction === 'in' ? Math.abs(itemQty) : -Math.abs(itemQty)
+          const payload: CreateTransactionInput = {
+            campaignId,
+            actorPcId,
+            kind: 'item',
+            itemName: itemName.trim(),
+            itemNodeId: itemNodeId ?? undefined,
+            itemQty: signedQty,
+            categorySlug: 'loot',
+            comment,
+            loopNumber,
+            dayInLoop,
+            sessionId,
+          }
+          const res = editingId
+            ? await updateTransaction(editingId, {
+                kind: 'item',
+                itemName: itemName.trim(),
+                itemNodeId: itemNodeId ?? undefined,
+                itemQty: signedQty,
+                categorySlug: 'loot',
+                comment,
+                loopNumber,
+                dayInLoop,
+                sessionId,
+              })
+            : await createTransaction(payload)
+          if (!res.ok) {
+            setError(res.error)
+            return
+          }
         }
       } else {
         // transfer
@@ -617,6 +652,7 @@ export default function TransactionForm({
     editingTransferGroupId,
     initialTransferDirection,
     initialKind,
+    itemCounterpartyPcId,
     itemName,
     itemNodeId,
     itemQty,
@@ -773,6 +809,21 @@ export default function TransactionForm({
               className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
             />
           </div>
+          {/* Item counterparty picker (chat 66) — optional «От кого / Кому».
+              When set, submit dispatches to createItemTransfer. Hidden in
+              stash-pinned mode (the stash IS the counterparty there) and
+              in edit mode (transfer-pair editing has its own flow). */}
+          {!stashPinned && !editingId && (
+            <TransferRecipientPicker
+              campaignId={campaignId}
+              excludeId={actorPcId}
+              value={itemCounterpartyPcId}
+              onChange={setItemCounterpartyPcId}
+              disabled={busy}
+              label={initialKind === 'item-out' ? 'Кому передан' : 'От кого получен'}
+              clearLabel="— без передачи (просто запись) —"
+            />
+          )}
         </>
       ) : (
         /* Money/transfer amount input */
