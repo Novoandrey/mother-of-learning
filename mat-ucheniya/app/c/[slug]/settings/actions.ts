@@ -130,14 +130,27 @@ export async function applyItemDefaultPrices(
 
   const admin = createAdminClient()
 
-  // Load all items для кампании. JOIN на nodes — campaign_id живёт
-  // на nodes, не на item_attributes.
+  // Load all items для кампании. Two-step (вместо embed-filter
+  // `nodes!inner.campaign_id` — supabase-js silently возвращает 0
+  // строк в некоторых релизах при таком embed-eq комбо).
+  const { data: nodeIds, error: nodesErr } = await admin
+    .from('nodes')
+    .select('id')
+    .eq('campaign_id', campaign.id)
+
+  if (nodesErr) {
+    return { ok: false, error: `Не удалось загрузить ноды: ${nodesErr.message}` }
+  }
+
+  const ids = (nodeIds ?? []).map((r) => (r as { id: string }).id)
+  if (ids.length === 0) {
+    return { ok: true, plan: { updates: [], skippedByFlag: 0, skippedByRarity: 0, skippedByMissingCell: 0, unchanged: 0 } }
+  }
+
   const { data, error } = await admin
     .from('item_attributes')
-    .select(
-      'node_id, category_slug, rarity, price_gp, use_default_price, nodes!inner(campaign_id)',
-    )
-    .eq('nodes.campaign_id', campaign.id)
+    .select('node_id, category_slug, rarity, price_gp, use_default_price')
+    .in('node_id', ids)
 
   if (error) {
     return { ok: false, error: `Не удалось загрузить каталог: ${error.message}` }
