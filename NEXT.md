@@ -2,9 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-27 (chat 76 — spec-018 dnd.su scraper в
-> проде; 50 миграций 056-105, 844 предмета из dnd.su + 274
-> hand-curated SRD = 1118 в mat-ucheniya; version 0.7.0).
+> Last updated: 2026-04-27 (chat 77 — spec-019
+> starter-setup overview + apply на одной странице в проде;
+> 0 миграций; version 0.7.1).
 
 ## В проде сейчас
 
@@ -486,12 +486,43 @@
 **Последняя применённая миграция:** `105_dndsu_xanathars-guide-to-everything_items.sql`
 (chat 76). Все миграции 047–105 применены.
 
+- **spec-019 Starter Setup Overview (chat 77)** — _в проде_.
+  Pure UI-слой над spec-012, миграций 0. Page
+  `/accounting/starter-setup` переписана: apply section сверху
+  (primary loop status + кнопка `<ApplyStarterSetupButtonClient>`
+  + optional unapplied backlog list) + tabs «Кампания / Персонажи»
+  снизу. «Кампания» — три старые карточки (loan amount + stash
+  seed coins + stash seed items). «Персонажи» — стопка
+  `<PcStarterConfigBlock mode="dm">` × N с RU-collation sort и
+  empty state. Tabs local state (паттерн `<StashPageTabs>`),
+  default `campaign`. На `/loops` `<LoopStartSetupBanner>`
+  снят, заменён на DM-only inline info-line с link'ом на
+  Бухгалтерию. Read-side: один новый
+  `getCampaignLoopSetupStatuses(campaignId)` (batched IN-query
+  по `transactions.autogen_source_node_id`), всё остальное
+  реюзит существующие queries/actions/components без правок.
+  3 новых файла, 1 удалён, 2 модифицированы. Lint+build не
+  гонял локально (FS-issues), юзер проверил на Vercel. Hands-off
+  для DM в mat-ucheniya: 29 PC настраиваются с одной страницы
+  ~5 мин вместо ~15 мин через 29 переходов на /catalog.
+
 ## Следующий приоритет
 
-**Spec-019 «Карта мира»** — фундаментальная фича, ~5–7 рабочих
-дней. План в `backlog.md` (промоутирована из IDEA-054 в chat 49,
-номер сдвинут с 018 на 019 в chat 75 когда dnd.su scraper занял
-018-й слот).
+**Spec-020 «PC Holdings Overview»** (chat 77 promote) — sibling
+к spec-019: одностраничный DM-tool, показывающий **текущее**
+состояние всех PC (баланс + инвентарь + collapsed-by-default
+история транзакций под катом). 0 миграций ожидается, чистый
+UI-слой над существующими read-queries (`getWallet`, inventory
+из transactions, `getLedgerPage`). Реюз `<WalletBlock>`,
+`<InventoryGrid>`, `<LedgerList fixedActorNodeId={pcId}>`. Lazy
+load транзакций — query летит только при раскрытии аккордеона
+(иначе 29 ledger-запросов на page-load). Spec пишется в этом же
+чате после close-out spec-019.
+
+**Spec-021 «Карта мира»** (была spec-019, потом spec-020,
+теперь spec-021) — фундаментальная фича, ~5–7 рабочих дней.
+План в `backlog.md` (промоутирована из IDEA-054 в chat 49,
+перенумерована трижды: chat 75 → 019, chat 77 → 021).
 
 Грубый скоп: canvas → пины (PCs/locations) → travel edges → фильтры
 по сессиям/петлям. Schema impact: новая таблица `map_pins` (или
@@ -501,19 +532,15 @@
 50 миграций, 844 предмета, three-layer pipeline (Python scraper →
 JSON intermediate → TS codegen). Detail в chatlog/2026-04-27-chat76-spec018-implement.md.
 
-### После spec-019
+### После spec-021
 
-В порядке приоритета (юзер подтвердил в chat 75):
-1. **spec-020** «Стартовый набор: single-page editor» (1–2 дня;
-   table-grid PC × loan/inventory/save, чистый UI слой над
-   spec-012 actions, миграций 0).
-2. **spec-021+** «Квесты» — после реворка энкаунтеров (encounter
+В порядке приоритета:
+1. **spec-022+** «Квесты» — после реворка энкаунтеров (encounter
    rework был в backlog'е, перенумерован), т.к. quest =
    nodeType родственный encounter, проектировать отдельно от
    него рискованно.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
-
 - **UX полишинг** — будет приходить инкрементально по запросу
   пользователя. Все механизмы в порядке: pending/approved/rejected
   rendering, queue tab, badge, toast, multi-row form, withdraw,
@@ -529,19 +556,20 @@ JSON intermediate → TS codegen). Detail в chatlog/2026-04-27-chat76-spec018-i
 
 ### Кандидаты после следующих 2-3 спек
 
-Из backlog'а (entries есть, spec.md нет):
-- **spec-022** (encounter rework, был spec-019 до chat 75),
-  **spec-023** (DM sandbox, был spec-020), **spec-024** (DM session
-  control, был spec-022), **spec-025** (movement timeline, был
-  spec-023), **spec-026** (часы/проекты, был spec-024),
-  **spec-027+** (character-sheet/mobile epic, был spec-025+).
-  _Все номера сдвинуты на +1 относительно chat 74._
-- **IDEA-055** (DM rename/delete на encounter page, ~30 мин) —
-  новая в chat 50.
-- **IDEA-056** (после Phase A scraper'а — Phase B structured
-  abilities extraction для encounter assistant) — отложена в
-  spec-018 § Out of scope; всплывёт когда появится consumer
-  (encounter assistant).
+Из backlog'а (entries есть, spec.md нет). Номера каждой
+сдвинулись на +1 после chat 77 (spec-019 starter-overview занял
+019, spec-020 holdings — 020, карта — 021). Финализируем номер
+когда берём в работу:
+
+- **encounter rework**
+- **DM sandbox** (черновики энкаунтеров/локаций)
+- **DM session control + movement events**
+- **movement timeline view**
+- **часы/проекты**
+- **character-sheet/mobile epic** (большая, серия спек)
+- **IDEA-055** (DM rename/delete на encounter page, ~30 мин)
+- **IDEA-056** (Phase B structured abilities extraction для
+  encounter assistant — ждёт consumer'а)
 
 **Параллельный долг (мелкие):**
 - T044 spec-012 manual walkthrough — 10 Acceptance Scenarios.
