@@ -45,7 +45,7 @@ export const getSidebarData = (campaignId: string) =>
           .select('id, title, type:node_types(slug)')
           .eq('campaign_id', campaignId)
           .order('title')
-          .limit(500),
+          .range(0, 9999),
       ])
 
       type NodeRow = {
