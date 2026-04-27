@@ -24,6 +24,7 @@ function item(partial: Partial<ItemNode>): ItemNode {
     srdSlug: null,
     description: null,
     sourceDetail: null,
+    dndsuUrl: null,
     useDefaultPrice: true,
     ...partial,
   };

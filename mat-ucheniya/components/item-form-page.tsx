@@ -98,6 +98,7 @@ export default function ItemFormPage({
   const [srdSlug, setSrdSlug] = useState(initial.srdSlug ?? '')
   const [description, setDescription] = useState(initial.description ?? '')
   const [sourceDetail, setSourceDetail] = useState(initial.sourceDetail ?? '')
+  const [dndsuUrl, setDndsuUrl] = useState(initial.dndsuUrl ?? '')
   /**
    * 5e «Требует настройки». Set explicitly via checkbox; attunement
    * for SRD items is also pre-marked at seed level.
@@ -148,6 +149,7 @@ export default function ItemFormPage({
       srdSlug: srdSlug.trim() === '' ? null : srdSlug.trim(),
       description: description.trim() === '' ? null : description,
       sourceDetail: sourceDetail.trim() === '' ? null : sourceDetail.trim(),
+      dndsuUrl: dndsuUrl.trim() === '' ? null : dndsuUrl.trim(),
       requiresAttunement,
     }
 
@@ -351,6 +353,17 @@ export default function ItemFormPage({
             className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
           />
         </Field>
+
+        <Field label="Ссылка на dnd.su">
+          <input
+            type="url"
+            value={dndsuUrl}
+            onChange={(e) => setDndsuUrl(e.target.value)}
+            placeholder="https://dnd.su/items/94-ring-of-protection/"
+            maxLength={300}
+            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900"
+          />
+        </Field>
       </div>
 
       <Field label="Описание">
@@ -452,5 +465,6 @@ export const EMPTY_PAYLOAD: ItemPayload = {
   srdSlug: null,
   description: null,
   sourceDetail: null,
+  dndsuUrl: null,
   requiresAttunement: false,
 }

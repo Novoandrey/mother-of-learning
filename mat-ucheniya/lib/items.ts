@@ -63,6 +63,8 @@ function hydrate(node: NodeRow, attrs: ItemAttrsRow | null): ItemNode | null {
     typeof fields.description === 'string' ? fields.description : null;
   const sourceDetail =
     typeof fields.source_detail === 'string' ? fields.source_detail : null;
+  const dndsuUrl =
+    typeof fields.dndsu_url === 'string' ? fields.dndsu_url : null;
 
   return {
     id: node.id,
@@ -80,6 +82,7 @@ function hydrate(node: NodeRow, attrs: ItemAttrsRow | null): ItemNode | null {
     srdSlug,
     description,
     sourceDetail,
+    dndsuUrl,
   };
 }
 
