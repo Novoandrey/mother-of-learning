@@ -136,7 +136,7 @@ export async function applyItemDefaultPrices(
 
   const admin = createAdminClient()
 
-  // Load all item_attributes для кампании одним embed-запросом.
+  // Load all item_attributes для кампании embed-запросом, с pagination.
   // Старая реализация шла в два шага (nodes → IN-query на attrs по
   // массиву node_id) — после spec-018 это ломалось дважды:
   //   1) nodes без range(0, 9999) обрезались на 1000 строк → часть
@@ -144,19 +144,8 @@ export async function applyItemDefaultPrices(
   //   2) IN-clause из 1100+ UUIDов давал URL ~42KB → PostgREST
   //      возвращал 400 Bad Request.
   // !inner join на item_attributes сам по себе фильтрует на nodes
-  // типа item (FK существует только для них), .range покрывает cap.
-  const { data, error } = await admin
-    .from('nodes')
-    .select(
-      'attrs:item_attributes!inner(node_id, category_slug, rarity, price_gp, use_default_price)',
-    )
-    .eq('campaign_id', campaign.id)
-    .range(0, 9999)
-
-  if (error) {
-    return { ok: false, error: `Не удалось загрузить каталог: ${error.message}` }
-  }
-
+  // типа item (FK существует только для них). Pagination обходит
+  // server-side db-max-rows клэмп (Supabase default ~1000).
   type Row = {
     node_id: string
     category_slug: string
@@ -166,8 +155,29 @@ export async function applyItemDefaultPrices(
   }
   type EmbedRow = { attrs: Row | Row[] | null }
 
+  const PAGE_SIZE = 1000
+  const MAX_PAGES = 10
+  const allEmbed: EmbedRow[] = []
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const from = page * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    const { data, error } = await admin
+      .from('nodes')
+      .select(
+        'attrs:item_attributes!inner(node_id, category_slug, rarity, price_gp, use_default_price)',
+      )
+      .eq('campaign_id', campaign.id)
+      .range(from, to)
+    if (error) {
+      return { ok: false, error: `Не удалось загрузить каталог: ${error.message}` }
+    }
+    const rows = (data ?? []) as EmbedRow[]
+    allEmbed.push(...rows)
+    if (rows.length < PAGE_SIZE) break
+  }
+
   const items: ApplyPlanItem[] = []
-  for (const raw of (data ?? []) as EmbedRow[]) {
+  for (const raw of allEmbed) {
     // !inner gives a single row but supabase-js may serialise it as
     // either an object or a 1-element array depending on the version.
     const attrs = Array.isArray(raw.attrs) ? raw.attrs[0] : raw.attrs

@@ -34,30 +34,50 @@ export const getSidebarData = (campaignId: string) =>
   unstable_cache(
     async (): Promise<SidebarDataset> => {
       const admin = createAdminClient()
-      const [typesRes, nodesRes] = await Promise.all([
-        admin
-          .from('node_types')
-          .select('id, slug, label, icon')
-          .eq('campaign_id', campaignId)
-          .order('sort_order'),
-        admin
-          .from('nodes')
-          .select('id, title, type:node_types(slug)')
-          .eq('campaign_id', campaignId)
-          .order('title')
-          .range(0, 9999),
-      ])
 
-      type NodeRow = {
+      // Paginated nodes load: Supabase's project-level db-max-rows
+      // (default 1000) clamps server-side regardless of the client's
+      // .range() request. mat-ucheniya passes that cap post-spec-018,
+      // so we loop until a page comes back smaller than the request.
+      // Hard ceiling at ~10k rows (PAGE_SIZE * MAX_PAGES) is the same
+      // as before — at that point we'd want a count-only sidebar.
+      const PAGE_SIZE = 1000
+      const MAX_PAGES = 10
+      type RawNodeRow = {
         id: string
         title: string
         type: { slug: string } | { slug: string }[] | null
       }
+      const allNodeRows: RawNodeRow[] = []
+      const typesPromise = admin
+        .from('node_types')
+        .select('id, slug, label, icon')
+        .eq('campaign_id', campaignId)
+        .order('sort_order')
+
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE_SIZE
+        const to = from + PAGE_SIZE - 1
+        const { data, error } = await admin
+          .from('nodes')
+          .select('id, title, type:node_types(slug)')
+          .eq('campaign_id', campaignId)
+          .order('title')
+          .range(from, to)
+        if (error) throw error
+        const rows = (data ?? []) as RawNodeRow[]
+        allNodeRows.push(...rows)
+        if (rows.length < PAGE_SIZE) break
+      }
+
+      const typesRes = await typesPromise
+
+      type NodeRow = RawNodeRow
       // Filter encounter mirror nodes (spec-013): they exist as nodes
       // for the autogen badge / ledger source-id linkage but should
       // never appear in the sidebar — the encounter is navigated to
       // via the Encounters list, not the catalog.
-      const nodes = ((nodesRes.data ?? []) as NodeRow[])
+      const nodes = (allNodeRows as NodeRow[])
         .filter((n) => {
           const t = Array.isArray(n.type) ? n.type[0] : n.type
           return t?.slug !== 'encounter'

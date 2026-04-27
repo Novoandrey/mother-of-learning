@@ -118,44 +118,10 @@ export async function getCatalogItems(
   // `!inner` makes the join required so we drop nodes lacking attrs
   // and PostgREST evaluates attribute filters in SQL (not after).
   //
-  // `.range(0, 9999)` bypasses Supabase's default 1000-row cap; with
-  // ~1100+ items in mat-ucheniya post-spec-018 the catalog needs the
-  // higher ceiling. NFR-001 (< 500 ms TTFB at 500 items) still holds —
-  // the bottleneck was multiple round-trips, not row count.
-  let query = supabase
-    .from('nodes')
-    .select(
-      `
-      id, campaign_id, title, fields,
-      type:node_types!inner(slug),
-      attrs:item_attributes!inner(
-        node_id, category_slug, rarity, price_gp, weight_lb,
-        slot_slug, source_slug, availability_slug,
-        use_default_price, requires_attunement
-      )
-    `,
-    )
-    .eq('campaign_id', campaignId)
-    .eq('type.slug', 'item')
-    .order('title', { ascending: true })
-    .range(0, 9999);
-
-  if (filters.q && filters.q.length > 0) {
-    query = query.ilike('title', `%${filters.q}%`);
-  }
-  if (filters.category) query = query.eq('attrs.category_slug', filters.category);
-  if (filters.rarity) query = query.eq('attrs.rarity', filters.rarity);
-  if (filters.slot) query = query.eq('attrs.slot_slug', filters.slot);
-  if (filters.source) query = query.eq('attrs.source_slug', filters.source);
-  if (filters.availability) {
-    query = query.eq('attrs.availability_slug', filters.availability);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(`getCatalogItems: ${error.message}`);
-  }
-
+  // Pagination: Supabase project sets db-max-rows ≈ 1000, server-side
+  // clamp regardless of client .range(). mat-ucheniya passes that cap
+  // post-spec-018, so we loop pages until a page comes back smaller
+  // than PAGE_SIZE. Hard ceiling at PAGE_SIZE * MAX_PAGES = 10 000.
   type Embedded = {
     id: string;
     campaign_id: string;
@@ -164,8 +130,51 @@ export async function getCatalogItems(
     attrs: ItemAttrsRow | ItemAttrsRow[] | null;
   };
 
+  const PAGE_SIZE = 1000;
+  const MAX_PAGES = 10;
+  const allRows: Embedded[] = [];
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    let query = supabase
+      .from('nodes')
+      .select(
+        `
+        id, campaign_id, title, fields,
+        type:node_types!inner(slug),
+        attrs:item_attributes!inner(
+          node_id, category_slug, rarity, price_gp, weight_lb,
+          slot_slug, source_slug, availability_slug,
+          use_default_price, requires_attunement
+        )
+      `,
+      )
+      .eq('campaign_id', campaignId)
+      .eq('type.slug', 'item')
+      .order('title', { ascending: true })
+      .range(from, to);
+
+    if (filters.q && filters.q.length > 0) {
+      query = query.ilike('title', `%${filters.q}%`);
+    }
+    if (filters.category) query = query.eq('attrs.category_slug', filters.category);
+    if (filters.rarity) query = query.eq('attrs.rarity', filters.rarity);
+    if (filters.slot) query = query.eq('attrs.slot_slug', filters.slot);
+    if (filters.source) query = query.eq('attrs.source_slug', filters.source);
+    if (filters.availability) {
+      query = query.eq('attrs.availability_slug', filters.availability);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(`getCatalogItems: ${error.message}`);
+    const rows = (data ?? []) as Embedded[];
+    allRows.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+
   const out: ItemNode[] = [];
-  for (const row of (data ?? []) as Embedded[]) {
+  for (const row of allRows) {
     const attrs = unwrapOne(row.attrs);
     const item = hydrate(
       {
