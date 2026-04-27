@@ -271,3 +271,14 @@ def test_parse_item_skips_5e24():
 def test_parse_item_returns_empty_for_non_item_page():
     records = parse_item("# Just an article\n\nText.\n", "https://dnd.su/articles/1/")
     assert records == []
+
+
+def test_parse_item_returns_empty_for_empty_card():
+    """Akmon-style page: H1 navigation present, but the H2 item card with
+    type/rarity bullet is missing — content was likely migrated to 5e24.
+    Parser must return [] without crashing."""
+    records = parse_item(
+        load("2107-akmon-empty-card.md"),
+        "https://dnd.su/items/2107-akmon-hammer-of-purphoros/",
+    )
+    assert records == []

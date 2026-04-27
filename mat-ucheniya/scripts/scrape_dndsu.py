@@ -58,6 +58,10 @@ SCRIPT_DIR = Path(__file__).parent
 DEFAULT_CACHE_DIR = SCRIPT_DIR / "dndsu-cache"
 DEFAULT_OUTPUT = SCRIPT_DIR / "dndsu_items.json"
 
+# Module-level logger so pure-fn helpers (parse_item) can surface skip
+# reasons without taking a logger argument.
+log = logging.getLogger("scrape_dndsu")
+
 # ---------------------------------------------------------------------------
 # Vocabulary maps (Russian dnd.su strings -> our enum slugs)
 # ---------------------------------------------------------------------------
@@ -128,9 +132,9 @@ SOURCE_BOOKS: dict[str, str] = {
     "XGE": "Xanathar's Guide to Everything",
     "TCE": "Tasha's Cauldron of Everything",
     "VRGR": "Van Richten's Guide to Ravenloft",
-    "IDRotF": "Icewind Dale: Rime of the Frostmaiden",
+    "IDRF": "Icewind Dale: Rime of the Frostmaiden",
     "WBtW": "The Wild Beyond the Witchlight",
-    "BGDIA": "Baldur's Gate: Descent into Avernus",
+    "BGDA": "Baldur's Gate: Descent into Avernus",
     "CoS": "Curse of Strahd",
     "EGtW": "Explorer's Guide to Wildemount",
     "ERLW": "Eberron: Rising from the Last War",
@@ -163,6 +167,7 @@ SOURCE_BOOKS: dict[str, str] = {
     "LMoP": "Lost Mine of Phandelver",
     "SKT": "Storm King's Thunder",
     "RoT": "The Rise of Tiamat",
+    "IMR": "Infernal Machine Rebuild",
 }
 
 
@@ -500,19 +505,26 @@ def parse_item(md: str, url: str) -> list[ItemRecord]:
     """Parse one item-page markdown into 0..N ItemRecord entries.
 
     Returns:
-        []  for non-item pages or 5e24 pages (edition gate).
+        []  for non-item pages or 5e24 pages (edition gate) or empty cards.
         [r] for ordinary single-record items.
         [r, r, r] for umbrella items (one per rarity tier).
+
+    Skip reasons are logged at DEBUG (expected: missing heading) or INFO
+    (noteworthy: heading present but body emptied — likely migrated to 5e24).
     """
     header = parse_header(md)
     if header is None:
+        log.debug("skip %s: no item heading", url)
         return []
     if header["edition"] == "5e24":
+        log.debug("skip %s: 5e24 edition", url)
         return []
 
     bullet = parse_first_bullet(md)
     if bullet is None:
-        # Page recognised as item but no recognisable type/rarity line.
+        # Heading exists but type/rarity bullet does not — page exists but
+        # body is empty (e.g. content moved to next.dnd.su).
+        log.info("skip %s: heading present but no type/rarity bullet (empty card)", url)
         return []
 
     price_text = parse_price(md)
@@ -614,7 +626,6 @@ class Scraper:
         self.refresh = refresh
         self._last_fetch_at: float = 0.0
         cache_dir.mkdir(parents=True, exist_ok=True)
-        self.log = logging.getLogger("scrape_dndsu")
 
     # -- discover_urls ------------------------------------------------------
 
@@ -636,7 +647,7 @@ class Scraper:
             urls = [u for u in urls if self._url_id(u) >= self.from_id]
         if self.limit is not None:
             urls = urls[: self.limit]
-        self.log.info("discover_urls: %d URLs", len(urls))
+        log.info("discover_urls: %d URLs", len(urls))
         return urls
 
     @staticmethod
@@ -655,13 +666,13 @@ class Scraper:
             cache_path.unlink()
 
         if cache_path.exists():
-            self.log.debug("cache hit: %s", url)
+            log.debug("cache hit: %s", url)
             return cache_path.read_text(encoding="utf-8")
 
         html = self._fetch_raw(url)
         markdown = self._html_to_markdown(html)
         cache_path.write_text(markdown, encoding="utf-8")
-        self.log.debug("cache miss -> saved: %s", url)
+        log.debug("cache miss -> saved: %s", url)
         return markdown
 
     def _fetch_raw(self, url: str) -> str:
@@ -683,7 +694,7 @@ class Scraper:
                 if resp.status_code == 200:
                     return resp.text
                 if resp.status_code in (429, 500, 502, 503, 504):
-                    self.log.warning(
+                    log.warning(
                         "fetch %s -> %d, retrying in %ds (attempt %d/%d)",
                         url,
                         resp.status_code,
@@ -696,7 +707,7 @@ class Scraper:
                 resp.raise_for_status()
             except requests.RequestException as exc:  # type: ignore
                 last_exc = exc
-                self.log.warning(
+                log.warning(
                     "fetch %s raised %s, retrying in %ds", url, exc, backoff
                 )
                 time.sleep(backoff)
@@ -742,29 +753,49 @@ class Scraper:
     def run(self) -> None:
         urls = self.discover_urls()
         all_records: list[ItemRecord] = []
+        skipped = 0
         for i, url in enumerate(urls, start=1):
             try:
                 md = self.fetch_or_cached(url)
                 records = parse_item(md, url)
+                if not records:
+                    skipped += 1
                 all_records.extend(records)
                 if i % 50 == 0:
-                    self.log.info("%d/%d processed (%d records)", i, len(urls), len(all_records))
+                    log.info(
+                        "%d/%d processed (%d records, %d skipped)",
+                        i,
+                        len(urls),
+                        len(all_records),
+                        skipped,
+                    )
             except Exception as exc:  # noqa: BLE001
-                self.log.error("failed on %s: %s", url, exc)
+                log.error("failed on %s: %s", url, exc)
         payload = [r.to_dict() for r in all_records]
         self.output_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        self.log.info(
-            "wrote %d records (from %d URLs) to %s",
+        log.info(
+            "wrote %d records (from %d URLs, %d skipped) to %s",
             len(payload),
             len(urls),
+            skipped,
             self.output_path,
         )
         warned = sum(1 for r in all_records if r._warnings)
         if warned:
-            self.log.warning("%d records carry _warnings", warned)
+            log.warning("%d records carry _warnings", warned)
+            unique_badges = sorted(
+                {
+                    w.split(":", 1)[1]
+                    for r in all_records
+                    for w in r._warnings
+                    if w.startswith("unknown_source_badge:")
+                }
+            )
+            if unique_badges:
+                log.warning("unknown source badges: %s", ", ".join(unique_badges))
 
 
 # ---------------------------------------------------------------------------
