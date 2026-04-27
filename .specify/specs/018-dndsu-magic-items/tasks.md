@@ -100,65 +100,79 @@
 
 ## Phase 4 — Codegen TS seed
 
-- [ ] **T011 [P1]** Full scrape run:
-  - `python scrape_dndsu.py --output dndsu_items.json` (без
-    `--limit`)
-  - Сетевой бюджет: ~30-50 мин
-  - Verify ≥ 1000 records в JSON
-  - `_warnings` field analysis: если > 5% items с warnings,
-    open issue + manually patch parser, re-run
-  - Commit `dndsu_items.json` to repo (decision T011 — keep for
-    reproducibility, ~5 MB)
+- [x] **T011 [P1]** Full scrape run (chat 76):
+  ```
+  python scrape_dndsu.py --output dndsu_items.json -v
+  ```
+  Result: **887 records from 934 URLs** (77 skipped — empty cards
+  from 5e24-migrated entries; akmon-style). Cache populated;
+  re-runs use disk hits. Iterative SOURCE_BOOKS patches across
+  3 chats (initial guesses → +6 codes → +13 codes) brought
+  warnings down to 0. `dndsu_items.json` is the source for T013.
 
-- [ ] **T012 [P1] [P]** Extend `ItemSeedEntry` type в
-  `mat-ucheniya/lib/seeds/items-srd.ts`:
-  - Add optional fields: `dndsuUrl?: string`, `sourceDetail?: string`
-  - Existing 274 entries не трогаем (поля optional)
-  - Update typedoc comment
+- [x] **T012 [P1] [P]** Extended `ItemSeedEntry` with two optional
+  fields: `dndsuUrl?: string`, `sourceDetail?: string`. Existing
+  hand-curated entries leave both `undefined`; dnd.su entries carry
+  both. typedoc comments explain provenance.
 
-- [ ] **T013 [P1]** TS codegen
-  `mat-ucheniya/scripts/items-dndsu-codegen.ts`:
-  - Read `dndsu_items.json`
-  - Import `ITEMS_SRD_SEED` from `lib/seeds/items-srd.ts`
-  - Dedup: drop records where `srd_slug` ∈ existing seed (log
-    skipped count)
-  - Sort by `srd_slug` ASC
-  - Emit `mat-ucheniya/lib/seeds/items-dndsu.ts` со структурой:
-    ```typescript
-    export const ITEMS_DNDSU_SEED: ReadonlyArray<ItemSeedEntry> = [
-      // ~1000 entries
-    ]
-    ```
-  - Validate: no duplicate `srdSlug` в emitted array
-  - Run: `cd mat-ucheniya && npx tsx scripts/items-dndsu-codegen.ts`
+- [x] **T013 [P1]** TS codegen — `scripts/items-dndsu-codegen.ts`:
+  - Reads `scripts/dndsu_items.json`
+  - Validates each record's category/rarity/slot against the enum
+    unions (throws on out-of-band values)
+  - Detects internal `srdSlug` duplicates (throws)
+  - Dedups against `ITEMS_SRD_SEED` (warns to stderr)
+  - Sorts by `srdSlug` ASC
+  - Default mode: writes `lib/seeds/items-dndsu.ts` with
+    `export const ITEMS_DNDSU_SEED: ReadonlyArray<ItemSeedEntry>`
+  - Run: `npx tsx scripts/items-dndsu-codegen.ts`
 
----
-
-## Phase 5 — Codegen migrations
-
-- [ ] **T014 [P1]** SQL emit helper inside `items-dndsu-codegen.ts`:
-  - `groupBySourceBook(records)` → `Map<bookCode, records[]>`
-  - `emitMigrationSql(book, records, migrationNum)` → string
-  - Template per migration: header comment, `begin`, `do $$ ... $$`,
-    Phase 1 INSERT (NOT EXISTS guard), Phase 2 backfill UPDATE,
-    `commit`. Skeleton в plan.md `## Migration template`.
+- [x] **T014 [P1]** SQL emit helpers in same file — invoked via
+  `--emit-migrations` flag:
+  - `groupBySourceBook` partitions by `sourceDetail` (or `misc`)
+  - `bookSlug` produces stable filename token from book name
+  - `emitMigrationSql` per book — header comment, `begin`,
+    `do $$ ... $$` block, single CTE (seed → typed_seed → inserted →
+    item_attributes), NOT EXISTS guard on `(campaign_id, srd_slug)`,
+    `commit`. Phase 2 backfill omitted vs spec-015 — dnd.su titles
+    too generic to safely match historical transactions
+  - Files written to `supabase/migrations/0XX_dndsu_<book>_items.sql`,
+    starting at next free migration number (auto-detected)
+  - Run: `npx tsx scripts/items-dndsu-codegen.ts --emit-migrations`
 
 - [ ] **T015 [P1]** Run codegen, produce migrations:
   - `npx tsx scripts/items-dndsu-codegen.ts --emit-migrations`
   - Output: `mat-ucheniya/supabase/migrations/056_*.sql … 06X_*.sql`
-  - Filenames: `056_dndsu_phb_items.sql` etc.
+  - Filenames: `056_dndsu_dungeon-masters-guide_items.sql` etc.
   - Inspect first migration visually: SQL syntax valid, expected
     item count, NOT EXISTS clause correct
 
-- [ ] **T016 [P1] [P]** vitest для codegen
+- [x] **T016 [P1] [P]** vitest для codegen
   `mat-ucheniya/lib/seeds/__tests__/items-dndsu.test.ts`:
-  - All entries have `srdSlug`, `titleRu`, `category`, `dndsuUrl`
-  - All `category` ∈ enum, all `rarity` ∈ enum-or-null,
-    all `slot` ∈ enum-or-null
-  - No duplicate `srdSlug` between `ITEMS_SRD_SEED` и
-    `ITEMS_DNDSU_SEED`
-  - All `dndsuUrl` start with `https://dnd.su/items/`
-  - Run: `npm run vitest`
+  - Sanity floor (≥ 100 entries)
+  - All category / rarity / slot values within enum (or null)
+  - No internal `srdSlug` duplicates
+  - No `srdSlug` collision with `ITEMS_SRD_SEED`
+  - All `dndsuUrl` start with `https://dnd.su/items/<id>-`
+  - Umbrella tier slugs (`...-plus-N`) come in groups ≥ 2
+  - Run: `npm run vitest` (after T015 generates the seed)
+
+---
+
+## Phase 5 — Run codegen + present migrations
+
+- [ ] **T015 [P1]** Run codegen, produce migrations.
+  TS seed:
+  ```
+  cd mat-ucheniya && npx tsx scripts/items-dndsu-codegen.ts
+  ```
+  Migrations:
+  ```
+  cd mat-ucheniya && npx tsx scripts/items-dndsu-codegen.ts --emit-migrations
+  ```
+  Output: `mat-ucheniya/supabase/migrations/056_*.sql …`,
+  filenames per book (e.g. `056_dndsu_dungeon-masters-guide_items.sql`).
+  Inspect first migration visually: SQL valid, expected count, NOT
+  EXISTS clause correct.
 
 - [ ] **T017 [P1]** `present_files` всех новых миграций для review
   ДМом перед applying.

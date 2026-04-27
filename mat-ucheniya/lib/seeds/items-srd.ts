@@ -73,6 +73,21 @@ export type ItemSeedEntry = {
    * here just keep TS in sync. Default false (omit field).
    */
   requiresAttunement?: boolean
+  /**
+   * Canonical dnd.su URL for items imported via spec-018 scraper.
+   * Powers the «Открыть на dnd.su» permalink on the item detail page.
+   * Stored as `nodes.fields.dndsu_url`. Hand-curated SRD entries
+   * (T033) leave this undefined.
+   */
+  dndsuUrl?: string
+  /**
+   * Free-text book name (e.g. "Tasha's Cauldron of Everything"). Lives
+   * in `nodes.fields.source_detail` so it can be filtered/grouped in
+   * the catalog. Hand-curated SRD entries leave this undefined; mig
+   * 056+ items carry it. Per-book filter UI is deferred to a follow-up
+   * spec — see plan.md «Schema impact» (FR-012 amendment).
+   */
+  sourceDetail?: string
 }
 
 export const ITEMS_SRD_SEED: ReadonlyArray<ItemSeedEntry> = [
