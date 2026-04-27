@@ -110,69 +110,73 @@ export async function getCatalogItems(
 ): Promise<ItemNode[]> {
   const supabase = await createClient();
 
-  // Resolve item type id once per call (used for filtering).
-  const { data: itemType } = await supabase
-    .from('node_types')
-    .select('id')
-    .eq('campaign_id', campaignId)
-    .eq('slug', 'item')
-    .maybeSingle();
-
-  if (!itemType) return [];
-
-  // Step 1 — load nodes filtered by name search if any.
-  let nodesQuery = supabase
+  // Single embedded query: nodes -[:type]→ node_types(slug='item')
+  //                       nodes -[:attrs]→ item_attributes
+  // Filters that target attrs are applied via the embed-target syntax
+  // `attrs.<col>=eq.<v>`. Filters on title go on the outer level.
+  //
+  // `!inner` makes the join required so we drop nodes lacking attrs
+  // and PostgREST evaluates attribute filters in SQL (not after).
+  //
+  // `.range(0, 9999)` bypasses Supabase's default 1000-row cap; with
+  // ~1100+ items in mat-ucheniya post-spec-018 the catalog needs the
+  // higher ceiling. NFR-001 (< 500 ms TTFB at 500 items) still holds —
+  // the bottleneck was multiple round-trips, not row count.
+  let query = supabase
     .from('nodes')
-    .select('id, campaign_id, title, fields')
+    .select(
+      `
+      id, campaign_id, title, fields,
+      type:node_types!inner(slug),
+      attrs:item_attributes!inner(
+        node_id, category_slug, rarity, price_gp, weight_lb,
+        slot_slug, source_slug, availability_slug,
+        use_default_price, requires_attunement
+      )
+    `,
+    )
     .eq('campaign_id', campaignId)
-    .eq('type_id', (itemType as { id: string }).id)
-    .order('title', { ascending: true });
+    .eq('type.slug', 'item')
+    .order('title', { ascending: true })
+    .range(0, 9999);
 
   if (filters.q && filters.q.length > 0) {
-    nodesQuery = nodesQuery.ilike('title', `%${filters.q}%`);
+    query = query.ilike('title', `%${filters.q}%`);
   }
-
-  const { data: nodeRows, error: nodesErr } = await nodesQuery;
-  if (nodesErr) {
-    throw new Error(`getCatalogItems (nodes): ${nodesErr.message}`);
-  }
-
-  const nodes = (nodeRows ?? []) as Array<Omit<NodeRow, 'type'>>;
-  if (nodes.length === 0) return [];
-
-  // Step 2 — load matching item_attributes rows in one IN-query.
-  const ids = nodes.map((n) => n.id);
-  let attrsQuery = supabase
-    .from('item_attributes')
-    .select(
-      'node_id, category_slug, rarity, price_gp, weight_lb, slot_slug, source_slug, availability_slug, use_default_price, requires_attunement',
-    )
-    .in('node_id', ids);
-
-  if (filters.category) attrsQuery = attrsQuery.eq('category_slug', filters.category);
-  if (filters.rarity) attrsQuery = attrsQuery.eq('rarity', filters.rarity);
-  if (filters.slot) attrsQuery = attrsQuery.eq('slot_slug', filters.slot);
-  if (filters.source) attrsQuery = attrsQuery.eq('source_slug', filters.source);
+  if (filters.category) query = query.eq('attrs.category_slug', filters.category);
+  if (filters.rarity) query = query.eq('attrs.rarity', filters.rarity);
+  if (filters.slot) query = query.eq('attrs.slot_slug', filters.slot);
+  if (filters.source) query = query.eq('attrs.source_slug', filters.source);
   if (filters.availability) {
-    attrsQuery = attrsQuery.eq('availability_slug', filters.availability);
+    query = query.eq('attrs.availability_slug', filters.availability);
   }
 
-  const { data: attrRows, error: attrsErr } = await attrsQuery;
-  if (attrsErr) {
-    throw new Error(`getCatalogItems (attrs): ${attrsErr.message}`);
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`getCatalogItems: ${error.message}`);
   }
 
-  const attrsByNodeId = new Map<string, ItemAttrsRow>();
-  for (const a of (attrRows ?? []) as ItemAttrsRow[]) {
-    attrsByNodeId.set(a.node_id, a);
-  }
+  type Embedded = {
+    id: string;
+    campaign_id: string;
+    title: string;
+    fields: Record<string, unknown> | null;
+    attrs: ItemAttrsRow | ItemAttrsRow[] | null;
+  };
 
-  // Step 3 — hydrate. Nodes with no attrs row (e.g. deleted attrs
-  // or filtered-out by a non-q filter) are silently dropped.
   const out: ItemNode[] = [];
-  for (const n of nodes) {
-    const node: NodeRow = { ...n, type: null };
-    const item = hydrate(node, attrsByNodeId.get(n.id) ?? null);
+  for (const row of (data ?? []) as Embedded[]) {
+    const attrs = unwrapOne(row.attrs);
+    const item = hydrate(
+      {
+        id: row.id,
+        campaign_id: row.campaign_id,
+        title: row.title,
+        fields: row.fields,
+        type: null,
+      },
+      attrs,
+    );
     if (item) out.push(item);
   }
   return out;
