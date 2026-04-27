@@ -581,7 +581,11 @@ def parse_item(md: str, url: str) -> list[ItemRecord]:
             warnings.append(f"unknown_rarity:{bullet['rarity_phrase']!r}")
         return [
             ItemRecord(
-                srd_slug=f"dndsu-{item_id}-{url_slug}",
+                # url_slug is the natural English kebab-case (e.g.
+                # "ring-of-protection"). Used directly — collisions with
+                # the hand-curated ITEMS_SRD_SEED are resolved at codegen
+                # time (dnd.su entry drops, SRD wins).
+                srd_slug=url_slug,
                 title_ru=header["title_ru"],
                 rarity=rarity,
                 _warnings=warnings,
@@ -600,11 +604,16 @@ def parse_item(md: str, url: str) -> list[ItemRecord]:
         else None
     )
 
+    # URL slug for umbrellas often carries trailing tier markers
+    # (e.g. "weapon-1-2-3", "wand-of-the-war-mage-1-2-3"). Strip them so
+    # per-tier slugs read naturally as "<base>-plus-N".
+    base_slug = re.sub(r"(?:-\d+)+$", "", url_slug)
+
     records: list[ItemRecord] = []
     for plus_n, rarity_slug in bullet["tiers"]:
         records.append(
             ItemRecord(
-                srd_slug=f"dndsu-{item_id}-{url_slug}-plus-{plus_n}",
+                srd_slug=f"{base_slug}-plus-{plus_n}",
                 title_ru=f"{base_title}, +{plus_n}",
                 rarity=rarity_slug,
                 _warnings=list(warnings),

@@ -149,7 +149,7 @@ def test_parse_item_adamantine_armor_full():
     assert len(records) == 1
     r = records[0]
     assert isinstance(r, ItemRecord)
-    assert r.srd_slug == "dndsu-1-adamantine-armor"
+    assert r.srd_slug == "adamantine-armor"
     assert r.title_ru == "Адамантиновый доспех"
     assert r.title_en == "Adamantine armor"
     assert r.category == "armor"
@@ -174,7 +174,7 @@ def test_parse_item_weapon_of_warning_full():
     )
     assert len(records) == 1
     r = records[0]
-    assert r.srd_slug == "dndsu-161-weapon-of-warning"
+    assert r.srd_slug == "weapon-of-warning"
     assert r.title_ru == "Оружие предупреждения"
     assert r.title_en == "Weapon of warning"
     assert r.category == "weapon"
@@ -207,9 +207,9 @@ def test_parse_item_weapon_1_2_3_emits_three_records():
     assert rarities == ["uncommon", "rare", "very-rare"]
     slugs = [r.srd_slug for r in records]
     assert slugs == [
-        "dndsu-160-weapon-1-2-3-plus-1",
-        "dndsu-160-weapon-1-2-3-plus-2",
-        "dndsu-160-weapon-1-2-3-plus-3",
+        "weapon-plus-1",
+        "weapon-plus-2",
+        "weapon-plus-3",
     ]
     # Shared fields:
     for r in records:
@@ -237,9 +237,9 @@ def test_parse_item_bloodwell_vial_emits_three_records_with_shared_attunement():
     assert rarities == ["uncommon", "rare", "very-rare"]
     slugs = [r.srd_slug for r in records]
     assert slugs == [
-        "dndsu-2489-bloodwell-vial-plus-1",
-        "dndsu-2489-bloodwell-vial-plus-2",
-        "dndsu-2489-bloodwell-vial-plus-3",
+        "bloodwell-vial-plus-1",
+        "bloodwell-vial-plus-2",
+        "bloodwell-vial-plus-3",
     ]
     for r in records:
         assert r.category == "wondrous"
