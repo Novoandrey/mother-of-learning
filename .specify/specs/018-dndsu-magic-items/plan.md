@@ -212,14 +212,24 @@ class Scraper:
     rate_limit_seconds: float = 1.0
     user_agent: str = "MoL spec-018 research bot (https://github.com/...)"
 
-    def discover_urls(self) -> list[str]: ...   # Plan A/B/C from above
+    def discover_urls(self) -> list[str]: ...   # Plan A confirmed (T001)
     def fetch_or_cached(self, url: str) -> str: # cache-first
-    def parse_item(self, html: str) -> ItemRecord: ...
+    def parse_item(self, html: str) -> list[ItemRecord]:  # 0..N records
     def run(self) -> None:
         urls = self.discover_urls()
-        records = [self.parse_item(self.fetch_or_cached(u)) for u in urls]
+        records = [
+            r
+            for u in urls
+            for r in self.parse_item(self.fetch_or_cached(u))
+        ]
         write_json(records, "dndsu_items.json")
 ```
+
+**Note (post-T001 amendment, chat 76)**: `parse_item` returns
+`list[ItemRecord]` — empty list for skipped pages (wrong edition),
+single-item list for normal items, multi-item list for umbrellas
+(see «Umbrella items» below). Original signature was
+`Optional[ItemRecord]`; widened to handle tier expansion.
 
 ### `ItemRecord` shape (intermediate JSON)
 
@@ -323,6 +333,66 @@ extending = editing dict + re-running.)
 | `…`   | (fall back to badge code)              |
 
 (Final list determined empirically — scraper logs unknown badges.)
+
+### Umbrella items — tier expansion (post-T001 amendment, chat 76)
+
+Some dnd.su pages bundle multiple rarity tiers under one URL. First
+bullet matches:
+
+```
+<тип>, редкость варьируется (+1 X, +2 Y, +3 Z[, требуется настройка ...])
+```
+
+Confirmed examples (recon T001):
+
+- `/items/160-weapon-1-2-3/` — title «Оружие, +1, +2, +3»
+- `/items/2489-bloodwell-vial/` — title «Флакон с кровью»
+
+**Decision: split into N records, one per tier.** Different rarity →
+different price → different availability — single-record loses
+critical info that the catalog must expose.
+
+**Detection**: regex on first bullet:
+`редкость варьируется \(((?:\+\d+\s+[а-яё ]+,?\s*){2,})(?:,\s*требуется[^)]*)?\)`
+
+Capture the tier list, parse into `[(plus_n, rarity_word), ...]`.
+
+**Per-tier emit rules**:
+
+| Field | Rule |
+|---|---|
+| `title_ru` | `<base>, +N` where base = strip trailing `, ?\+\d+(, ?\+\d+)*` from page title |
+| `title_en` | same approach on English title |
+| `rarity` | from tier word via rarity vocabulary |
+| `requires_attunement` | shared flag from same bullet — applies to all tiers |
+| `srd_slug` | `dndsu-{id}-{slug}-plus-{N}` (e.g. `dndsu-160-weapon-plus-1`) |
+| `dndsu_url` | shared umbrella URL across tiers |
+| `description_ru` | shared body — body itself describes per-tier rule |
+| `category` / `slot` | from same first bullet (shared) |
+| `source_book*` / `edition` | shared |
+| `price_range_text` | shared if present (often umbrella has no price line) |
+
+**Non-umbrella items keep concrete rarity** in first bullet → single
+record path. The fallback rarity vocabulary entry for `качество
+варьируется` (rarity=null) handles the rare edge where umbrella regex
+doesn't match but rarity is still variable.
+
+**Parser flow**:
+
+```python
+def parse_item(html: str) -> list[ItemRecord]:
+    if edition_5e24(html): return []
+    base = parse_header_and_body(html)  # shared fields
+    first_bullet = base.first_bullet_text
+    tiers = match_umbrella_pattern(first_bullet)  # [(N, rarity), ...] or []
+    if tiers:
+        return [
+            ItemRecord(**{**base.shared, "title_ru": f"{base.base_title}, +{n}",
+                          "rarity": r, "srd_slug": f"{base.slug}-plus-{n}"})
+            for (n, r) in tiers
+        ]
+    return [ItemRecord(**base.shared, rarity=base.concrete_rarity)]
+```
 
 ---
 

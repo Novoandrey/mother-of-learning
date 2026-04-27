@@ -13,109 +13,88 @@
 
 ## Phase 1 — Recon spike
 
-- [ ] **T001 [P1]** dnd.su list discovery. Open `https://dnd.su/items/`
-  в браузере, DevTools Network tab. Найти XHR/fetch который грузит
-  список items. Document findings:
-  - **Plan A** найден: записать endpoint URL, response shape (JSON
-    array? paged? what fields).
-  - **Plan A** не найден, переход к **Plan B**: probe `/items/1/`,
-    `/items/2/` без slug — есть 301 redirect на `/items/{id}-{slug}/`?
-    Если да — sequential iteration работает.
-  - Если ни A ни B — **Plan C**: пометить что нужен Playwright,
-    bump effort estimate.
+- [x] **T001 [P1]** dnd.su list discovery. Plan A confirmed —
+  `/piece/items/index-list/` returns full HTML index (934 items,
+  OPFS-cached client-side). Snapshot committed at
+  `mat-ucheniya/scripts/dndsu-recon-snapshot.html`. Findings + split
+  strategy for umbrella items in `mat-ucheniya/scripts/dndsu-recon.md`.
 
-  Output: `mat-ucheniya/scripts/dndsu-recon.md` (~0.5 страницы) с
-  выбранной стратегией + 1-2 sample URL, на которых проверена.
+- [x] **T002 [P1]** Sample item fixtures saved в
+  `mat-ucheniya/scripts/dndsu-cache-fixtures/` (committed).
+  **Format: `.md` (markdown extraction)** — а не `.html`. Reason:
+  fetched через web_fetch tool (markdown extraction), не через
+  raw HTTP. Production `scrape_dndsu.py` (T005) делает
+  HTML→markdown preprocessing (BeautifulSoup отрезает
+  header/aside/footer + html2text/markdownify), парсер работает
+  на унифицированной markdown-форме.
 
-- [ ] **T002 [P1]** Сохранить 5 sample item HTML страниц в
-  `mat-ucheniya/scripts/dndsu-cache-fixtures/` (committed, не
-  gitignored — это test fixtures). Покрытие:
-  - `94-ring-of-protection.html` — rare ring + attunement
-  - `1-?` — common wondrous без attunement
-  - `?-flaming-sword` (или аналог) — magic weapon +1
-  - `?-vorpal-sword` (или legendary) — legendary
-  - `?-?` — edge case: no price line / unusual structure
+  Захвачено 4/5 (chat 76):
+  - `1-adamantine-armor.md` — uncommon armor, no attunement, generic
+  - `160-weapon-1-2-3.md` — **umbrella** (3 tiers, no attunement)
+  - `2489-bloodwell-vial.md` — **umbrella** (3 tiers, attunement сорсэрером)
+  - `161-weapon-of-warning.md` — non-umbrella generic weapon enchant
+    (concrete uncommon, requires attunement)
 
-  Скачать вручную через браузер `Save Page As` или `curl` — главное
-  чтобы они оказались в репо для unit-тестов парсера.
+  Missing 5th (`94-ring-of-protection.md` для rare + ring slot
+  coverage) — добавит юзер вручную через `Save Page As` либо T011
+  full scrape подберёт автоматически. Текущих 4 хватает для
+  umbrella vs single-record split testing в T010.
 
 ---
 
 ## Phase 2 — Scraper infrastructure
 
-- [ ] **T003 [P1]** Skeleton `mat-ucheniya/scripts/scrape_dndsu.py`:
-  - `argparse`: `--refresh`, `--output`, `--limit N`, `--from-id`,
-    `--cache-dir`
-  - Empty class `Scraper` с конструктором + конфиг
-  - Cache directory под `scripts/dndsu-cache/`
-  - Добавить `dndsu-cache/` в `.gitignore`
-  - `if __name__ == "__main__":` block
+- [x] **T003 [P1]** Skeleton `mat-ucheniya/scripts/scrape_dndsu.py`:
+  argparse (`--refresh`, `--output`, `--limit`, `--from-id`,
+  `--cache-dir`, `-v`), `Scraper` class shell, default cache dir
+  `scripts/dndsu-cache/`, gitignore'd, `__main__` entry. Done.
 
-- [ ] **T004 [P1]** Implement `Scraper.discover_urls()` per T001
-  decision. Возвращает `list[str]` полных URL'ов.
-  - Plan A: 1 fetch + parse JSON
-  - Plan B: iterate IDs, 1 req/s, capture 200-redirected URLs
-  - Поддерживать `--from-id` для resume
+- [x] **T004 [P1]** `Scraper.discover_urls()` per Plan A:
+  single GET to `/piece/items/index-list/`, BeautifulSoup
+  `.list-item__spell a.list-item-wrapper` → 934 hrefs. `--from-id`
+  filter applied client-side. Verified against snapshot (no network):
+  selector returns all 934 cards.
 
-- [ ] **T005 [P1]** Implement `Scraper.fetch_or_cached(url)`:
-  - SHA1(url) → cache filename
-  - Cache hit → read from disk
-  - Miss → HTTP GET (requests library), 1 req/s sleep, save to cache
-  - Retry on 429/5xx с exponential backoff (1s, 2s, 4s, 8s; max 4
-    retries)
-  - User-Agent: `"MoL spec-018 research bot
-    (https://github.com/Novoandrey/mother-of-learning)"`
-  - `--refresh` flag invalidates cache (deletes file before fetch)
-  - Logging: hit / miss / fetch time
+- [x] **T005 [P1]** `Scraper.fetch_or_cached(url)`:
+  SHA1 cache key, hit → markdown read, miss → HTTP GET (1 req/s,
+  retry on 429/5xx с exp backoff `[1,2,4,8]`s), strip nav/aside/
+  footer/script via BeautifulSoup, html2text → markdown, save to
+  cache. `--refresh` invalidates per-url cache.
 
-- [ ] **T006 [P1] [P]** Implement `Scraper.parse_item(html)` —
-  header section parsing:
-  - Extract `title_ru`, `title_en`, `source_book_short`, `edition`
-    из `<h2>` блока
-  - Edition gate: skip if edition != `5e14` (return None)
-  - Extract `dndsu_url` из canonical link / og:url meta
+- [x] **T006 [P1] [P]** `parse_item(md, url) -> list[ItemRecord]`:
+  line-based header split (replaces monolithic regex — too many
+  optional fields confused engine), edition gate (5e24 → `[]`),
+  delegates to `parse_first_bullet` for umbrella vs single dispatch.
 
-  Returns `ItemRecord | None` (skip ⇒ None).
+- [x] **T007 [P1]** `parse_first_bullet`: UMBRELLA_RE first
+  (literal "редкость варьируется" anchor, captures tier list),
+  fallback SINGLE_BULLET_RE (rarity stems enumerated, `.+?` for
+  type_clause to allow parenthetical commas, e.g. «Доспех (средний
+  или тяжёлый, кроме шкурного)»). Rarity vocabulary order:
+  `необычн` before `обычн`, `очень редк` before `редк` (substring
+  trap fix).
 
----
+- [x] **T008 [P1]** `map_category` / `map_slot` (top-level lookups
+  with order-sensitive matching), weapon-shape inference (двуручн
+  → `2-handed`, лук/арбалет/метательн → `ranged`, default `1-handed`).
+  Unknown badges → `_warnings` field.
 
-## Phase 3 — Classification rules
+- [x] **T009 [P1]** Description + price parsing:
+  `PRICE_RE` captures `**Рекомендованная стоимость:**` bullet,
+  `parse_description` collects body between item-title H2 and next
+  H2, filters out `[Распечатать]`, image bullets, type/rarity
+  bullet, and price bullet. Source-book mapping: 41 codes in
+  `SOURCE_BOOKS` dict (DMG, PHB, XGE, TCE, VRGR, …), unknown →
+  `_warnings`.
 
-- [ ] **T007 [P1]** Implement bullet-1 line parser
-  (type/rarity/attunement):
-  - Locate first bullet после image
-  - Regex: `^(.+?), ([а-яё ]+?)( \(требуется настройк[аи]\))?\.?$`
-  - Map captured Russian rarity → enum (см. `## Classification rules`
-    в plan.md)
-  - `requires_attunement` = bool(group 3 не пуст)
-  - Edge: rarity «качество варьируется» → `rarity = None`
-
-- [ ] **T008 [P1]** Category + slot mapping:
-  - Python dict `CATEGORY_MAP` (тип → category_slug, fallback
-    `magic-item`)
-  - Python dict `SLOT_MAP` (тип → slot_slug, fallback `null`)
-  - Special handling for `Оружие (X)` patterns — parse parenthetical
-    to determine `1-handed`/`2-handed`/`ranged`/`versatile`
-  - Logging: unknown category / slot strings → `_warnings` field
-    в record
-
-- [ ] **T009 [P1]** Description + price-range parser:
-  - Locate `**Рекомендованная стоимость:**` bullet, capture remainder
-    text → `price_range_text`
-  - Description: collect all `<p>` / `<li>` between header bullets
-    and `## Комментарии` heading
-  - Strip HTML, decode entities, preserve `\n\n` between paragraphs
-  - Inline emphasis (italics around spell names) → keep as plain text
-  - Source-book mapping: `DMG` → `Dungeon Master's Guide` etc.
-    (table в plan.md). Unknown badges → store badge as-is + warning.
-
-- [ ] **T010 [P1] [P]** Parser unit tests
-  `mat-ucheniya/scripts/test_scrape_dndsu.py` (pytest):
-  - 5 тестов на 5 fixtures из T002
-  - Each verifies all 13 fields в ItemRecord
-  - Tests против 5e24 fixture (если есть): должен вернуть None
-  - Run: `cd mat-ucheniya/scripts && pytest test_scrape_dndsu.py`
-  - All 5+ passing — иначе stop until parser fixed
+- [x] **T010 [P1] [P]** Parser unit tests
+  `mat-ucheniya/scripts/test_scrape_dndsu.py`: **17 tests, all
+  passing** (`pytest test_scrape_dndsu.py -v`). Coverage: 4
+  helper-fn tests, 5 header/first-bullet structural tests, 2
+  non-umbrella full ItemRecord assertions, 2 umbrella expansion
+  assertions (3 records each, distinct slugs/titles/rarities,
+  shared attunement/url/description), 2 edition-gate / non-item
+  rejection tests. Synthetic 5e24 fixture → `[]`.
 
 ---
 
