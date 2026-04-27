@@ -56,6 +56,7 @@ export default async function EditItemPage({
         srdSlug: item.srdSlug,
         description: item.description,
         sourceDetail: item.sourceDetail,
+        dndsuUrl: item.dndsuUrl,
         requiresAttunement: item.requiresAttunement,
       }}
       categories={categories}
