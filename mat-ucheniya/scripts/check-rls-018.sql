@@ -215,14 +215,16 @@ begin
   limit 1;
 
   insert into transactions (
-    campaign_id, kind, day_number, loop_number, actor_node_id,
-    item_node_id, item_qty, item_name
+    campaign_id, kind, day_in_loop, loop_number, actor_pc_id,
+    item_node_id, item_qty, item_name, category_slug, author_user_id
   )
   values (
     v_campaign_id, 'item', 1, 1,
-    (select id from nodes
-      where campaign_id = v_campaign_id and type_slug = 'pc' limit 1),
-    v_node_id_for_setnull, 1, 'smoke-test-item'
+    (select n.id from nodes n
+       inner join node_types nt on nt.id = n.type_id
+       where n.campaign_id = v_campaign_id and nt.slug = 'pc'
+       limit 1),
+    v_node_id_for_setnull, 1, 'smoke-test-item', 'other', v_dm_user_id
   )
   returning id into v_tx_id;
 
@@ -248,14 +250,16 @@ begin
 
   begin
     insert into transactions (
-      campaign_id, kind, day_number, loop_number, actor_node_id,
-      item_node_id, amount_cp
+      campaign_id, kind, day_in_loop, loop_number, actor_pc_id,
+      item_node_id, amount_cp, category_slug, author_user_id
     )
     values (
       v_campaign_id, 'money', 1, 1,
-      (select id from nodes
-        where campaign_id = v_campaign_id and type_slug = 'pc' limit 1),
-      v_node_id_dndsu, 100
+      (select n.id from nodes n
+         inner join node_types nt on nt.id = n.type_id
+         where n.campaign_id = v_campaign_id and nt.slug = 'pc'
+         limit 1),
+      v_node_id_dndsu, 100, 'other', v_dm_user_id
     );
   exception
     when check_violation or others then
