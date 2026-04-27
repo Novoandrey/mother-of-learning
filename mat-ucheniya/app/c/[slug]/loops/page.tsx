@@ -7,7 +7,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { LoopProgressBar } from '@/components/loop-progress-bar'
-import { LoopStartSetupBanner } from '@/components/loop-start-setup-banner'
+import { getMembership } from '@/lib/auth'
 
 export async function generateMetadata({
   params,
@@ -32,6 +32,13 @@ export default async function LoopsPage({
   if (!campaign) notFound()
 
   const loops = await getLoops(campaign.id)
+
+  // Spec-019 — DM gate for the redirect note that replaces the
+  // (now-removed) loop-start-setup-banner. `getMembership` returns
+  // null for unauthed/non-member; safe to call here without
+  // requireAuth. We only need a boolean.
+  const membership = await getMembership(campaign.id)
+  const isDM = membership?.role === 'dm' || membership?.role === 'owner'
 
   const currentLoop = sp.loop
     ? (loops.find((l) => l.number === parseInt(sp.loop!)) ?? loops.find((l) => l.status === 'current') ?? loops[0])
@@ -149,15 +156,23 @@ export default async function LoopsPage({
               )}
             </div>
 
-            {/* Spec-012 T028: DM-only starter-setup apply banner.
-                Self-gating — returns null for non-DM or when the loop
-                already has autogen rows. Sits above the progress bar
-                so the "Применить" CTA is the first actionable element. */}
-            <LoopStartSetupBanner
-              loopNodeId={currentLoop.id}
-              campaignSlug={slug}
-              campaignId={campaign.id}
-            />
+            {/* Spec-019 — старый <LoopStartSetupBanner> снят. Apply
+                стартового сетапа теперь живёт на /accounting/starter-setup
+                рядом с настройками. Здесь — тонкий redirect-note для
+                DM, чтобы привычка к старому месту не приводила в
+                пустоту. */}
+            {isDM && (
+              <p className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                Стартовый сетап настраивается и применяется в{' '}
+                <Link
+                  href={`/c/${slug}/accounting/starter-setup`}
+                  className="text-blue-600 hover:underline"
+                >
+                  Бухгалтерии
+                </Link>
+                .
+              </p>
+            )}
 
             {/* Progress bar (spec-009 T017). Sits between the loop header
                 and the sessions list. Hidden for length_days <= 0, which

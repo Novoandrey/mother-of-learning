@@ -447,6 +447,66 @@ export async function getLoopSetupStatus(
   return { hasAutogenRows: (data ?? []).length > 0 }
 }
 
+// ─────────────────────────── Per-campaign batch loop status ───────────────────────────
+
+/**
+ * Spec-019 — per-loop apply status for the entire campaign in one
+ * batched query. Feeds `<StarterSetupApplySection>` on
+ * `/accounting/starter-setup`.
+ *
+ * Strategy: load the campaign's loops via `getLoops`, then a single
+ * IN-query against `transactions` selecting only `autogen_source_node_id`
+ * filtered to spec-012 wizard keys. Rolls up to one entry per loop.
+ *
+ * Performance: 1-row-per-loop max from `getLoops` (cheap), one
+ * IN-query that returns at most ~120 rows (4 wizards × ~30 PCs per
+ * loop × number of loops; PostgREST handles thousands fine). Expect
+ * < 5 ms on realistic campaigns.
+ */
+export type LoopSetupStatusEntry = {
+  loopId: string
+  loopNumber: number
+  /** True iff there's at least one spec-012 autogen tx tied to this loop. */
+  hasAutogenRows: boolean
+}
+
+export async function getCampaignLoopSetupStatuses(
+  campaignId: string,
+): Promise<LoopSetupStatusEntry[]> {
+  // Lazy import to avoid a circular dependency between starter-setup
+  // and loops (loops.ts pulls in node-types which pulls in… it's
+  // simpler to just deref it here).
+  const { getLoops } = await import('./loops')
+  const loops = await getLoops(campaignId)
+  if (loops.length === 0) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('autogen_source_node_id')
+    .in(
+      'autogen_source_node_id',
+      loops.map((l) => l.id),
+    )
+    .in('autogen_wizard_key', SPEC_012_WIZARD_KEYS)
+
+  if (error) {
+    throw new Error(`getCampaignLoopSetupStatuses failed: ${error.message}`)
+  }
+
+  const appliedIds = new Set(
+    (data ?? []).map(
+      (r) => (r as { autogen_source_node_id: string }).autogen_source_node_id,
+    ),
+  )
+
+  return loops.map((l) => ({
+    loopId: l.id,
+    loopNumber: l.number,
+    hasAutogenRows: appliedIds.has(l.id),
+  }))
+}
+
 // NOTE: `getExistingAutogenRows` and `getTombstones` were moved to
 // `lib/autogen-reconcile.ts` in spec-013 T004 (carve-out refactor).
 // They live there as `loadExistingAutogenRows` / `loadTombstones`
