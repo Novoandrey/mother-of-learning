@@ -875,6 +875,14 @@ Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
 ---
 
 ## Ideas
+### IDEA-057 [P3] Энкаунтер: Турбобабка
+- Boss-encounter: «Турбобабка». Вибрирует энергией Dan Da Dan,
+  саундтрек обязателен (e.g. «Otonoke» опенинг или Soramimi
+  Cake) — DM ставит на колонке когда ролл инициативы.
+- Mechanics TBD: high movement speed, AoE «бабкин крик»,
+  resistance to fear, weakness to confused-young-people-attacks.
+- Источник: chat 78 (живая идея пользователя).
+
 ### IDEA-042 [P3] PC session history — full list with expand/collapse
 - Сейчас на карточке PC в рамках spec-009 показывается только
   character frontier текущей петли + до 3 последних сессий.
