@@ -136,27 +136,22 @@ export async function applyItemDefaultPrices(
 
   const admin = createAdminClient()
 
-  // Load all items для кампании. Two-step (вместо embed-filter
-  // `nodes!inner.campaign_id` — supabase-js silently возвращает 0
-  // строк в некоторых релизах при таком embed-eq комбо).
-  const { data: nodeIds, error: nodesErr } = await admin
-    .from('nodes')
-    .select('id')
-    .eq('campaign_id', campaign.id)
-
-  if (nodesErr) {
-    return { ok: false, error: `Не удалось загрузить ноды: ${nodesErr.message}` }
-  }
-
-  const ids = (nodeIds ?? []).map((r) => (r as { id: string }).id)
-  if (ids.length === 0) {
-    return { ok: true, plan: { updates: [], skippedByFlag: 0, skippedByRarity: 0, skippedByMissingCell: 0, unchanged: 0 } }
-  }
-
+  // Load all item_attributes для кампании одним embed-запросом.
+  // Старая реализация шла в два шага (nodes → IN-query на attrs по
+  // массиву node_id) — после spec-018 это ломалось дважды:
+  //   1) nodes без range(0, 9999) обрезались на 1000 строк → часть
+  //      items не попадала в IN-список;
+  //   2) IN-clause из 1100+ UUIDов давал URL ~42KB → PostgREST
+  //      возвращал 400 Bad Request.
+  // !inner join на item_attributes сам по себе фильтрует на nodes
+  // типа item (FK существует только для них), .range покрывает cap.
   const { data, error } = await admin
-    .from('item_attributes')
-    .select('node_id, category_slug, rarity, price_gp, use_default_price')
-    .in('node_id', ids)
+    .from('nodes')
+    .select(
+      'attrs:item_attributes!inner(node_id, category_slug, rarity, price_gp, use_default_price)',
+    )
+    .eq('campaign_id', campaign.id)
+    .range(0, 9999)
 
   if (error) {
     return { ok: false, error: `Не удалось загрузить каталог: ${error.message}` }
@@ -169,23 +164,29 @@ export async function applyItemDefaultPrices(
     price_gp: number | string | null
     use_default_price: boolean
   }
+  type EmbedRow = { attrs: Row | Row[] | null }
 
-  const items: ApplyPlanItem[] = (data ?? []).map((raw) => {
-    const r = raw as Row
+  const items: ApplyPlanItem[] = []
+  for (const raw of (data ?? []) as EmbedRow[]) {
+    // !inner gives a single row but supabase-js may serialise it as
+    // either an object or a 1-element array depending on the version.
+    const attrs = Array.isArray(raw.attrs) ? raw.attrs[0] : raw.attrs
+    if (!attrs) continue
+    const r = attrs
     const price =
       r.price_gp === null
         ? null
         : typeof r.price_gp === 'string'
           ? parseFloat(r.price_gp)
           : r.price_gp
-    return {
+    items.push({
       itemId: r.node_id,
       categorySlug: r.category_slug,
       rarity: (r.rarity as Rarity | null) ?? null,
       priceGp: price,
       useDefaultPrice: r.use_default_price,
-    }
-  })
+    })
+  }
 
   const plan = computeApplyPlan(items, campaign.settings.item_default_prices)
 

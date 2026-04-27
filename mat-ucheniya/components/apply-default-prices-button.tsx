@@ -34,10 +34,11 @@ export default function ApplyDefaultPricesButton({ slug }: Props) {
       !confirm(
         'Применить таблицу стандартных цен ко всем предметам кампании?\n\n' +
           'Будут перезаписаны цены у item\'ов, у которых:\n' +
-          '  • use default price = true (галочка «Не использовать стандарт» снята)\n' +
+          '  • цена пуста ИЛИ совпадает со старым стандартом\n' +
+          '    (флаг auto-managed при сохранении)\n' +
           '  • rarity ∈ common…legendary\n' +
           '  • в таблице есть значение для (bucket, rarity)\n\n' +
-          'Items с opt-out, artifact, без rarity, или без значения в таблице — не трогаются.',
+          'Items с DM-set ценой, artifact, без rarity, или без значения в таблице — не трогаются.',
       )
     ) {
       return
