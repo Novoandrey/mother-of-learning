@@ -110,10 +110,15 @@ export default async function CatalogPage({
   // Count nodes per type for the home view
   const typeCounts: Record<string, number> = {}
   if (!isSearching && nodeTypes) {
+    // .range(0, 9999) bypasses Supabase's default 1000-row cap; with
+    // ~1100+ items in mat-ucheniya post-spec-018 the sidebar count
+    // would otherwise be silently truncated to whatever the first
+    // 1000 nodes happen to be (alphabetical, so item count drops).
     const { data: allNodes } = await supabase
       .from('nodes')
       .select('type_id')
       .eq('campaign_id', campaign.id)
+      .range(0, 9999)
     if (allNodes) {
       for (const n of allNodes) {
         typeCounts[n.type_id] = (typeCounts[n.type_id] || 0) + 1
