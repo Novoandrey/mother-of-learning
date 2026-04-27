@@ -2,9 +2,10 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-27 (chat 74 — SRD seed batches 049-054 +
-> spec-016 follow-up: attunement column + auto-managed price flag;
-> version 0.6.0)
+> Last updated: 2026-04-27 (chat 75 — spec-018 dnd.su magic items
+> scraper: Specify+Clarify+Plan+Tasks готовы, Implement пока не
+> стартовал; spec-018 «Карта мира» сдвинулась на 019 (одобрено
+> юзером в начале chat 75); version 0.6.0)
 
 ## В проде сейчас
 
@@ -397,20 +398,54 @@
 
 ## Следующий приоритет
 
-**Spec-018 «Карта мира»** — фундаментальная фича, ~5–7 дней.
-Карта-канвас, путевые точки (waypoints), фильтры по сессиям.
-Spec.md ещё не написан — стартуем с Specify фазы.
+**Spec-018 «dnd.su magic items scraper»** — Implement-фаза (T001+).
+Specify + Clarify + Plan + Tasks готовы (chat 75). 25 задач в 8
+фазах, ~2 рабочих дня + 30-50 мин сетевого бюджета на первый
+scrape (1 req/s × ~1500 items).
 
-Связь:
-- Поглощает IDEA-054 (PC↔Location граф).
-- Откроет дорогу spec-022 (DM session control + movement events)
-  и spec-023 (timeline view).
+**Что сделано в chat 75:**
+- `.specify/specs/018-dndsu-magic-items/spec.md` (574 строки,
+  status=Clarified) — 7 клерификаций решены: sibling
+  `items-dndsu.ts` seed, per-source-book миграции 056+, gitignored
+  HTML cache, `price_gp=NULL` (DMG ranges), нет `scraped_at`,
+  editable `dndsu_url`, defer perf на каталог.
+- `.specify/specs/018-dndsu-magic-items/plan.md` (583 строки) —
+  архитектура: Python скрейпер → JSON intermediate → TS codegen
+  → seed + миграции. Schema impact = 0 (всё в `nodes.fields`
+  JSONB). FR-012 narrowed на этапе плана: используем существующий
+  `source_slug='srd-5e'` bucket + `source_detail` для имени книги,
+  не плодим новые `item-source` slugs. 3 discovery плана (JSON API
+  → sequential ID → headless), решается в T001.
+- `.specify/specs/018-dndsu-magic-items/tasks.md` (293 строки) —
+  25 задач: Phase 1 recon (T001-T002), Phase 2 scraper infra
+  (T003-T006), Phase 3 classification (T007-T010), Phase 4 codegen
+  TS seed (T011-T013), Phase 5 codegen migrations (T014-T017),
+  Phase 6 apply+verify (T018-T020), Phase 7 UI (T021-T023, может
+  параллельно с Phase 6), Phase 8 close-out (T024-T025).
 
-Phasing предложение (обсудим в Clarify):
-1. Canvas скелет + панорамирование/zoom
-2. Локации как пины с иерархией
-3. Пути между локациями (travel time edges)
-4. Фильтры по сессиям + история перемещений PC
+**Где остановились:** в начале Implement, перед T001. T001 — recon
+spike: открыть `https://dnd.su/items/` в браузере с DevTools,
+найти как грузится список items, выбрать Plan A (JSON API) / B
+(sequential ID) / C (headless). **Требует участия юзера** —
+браузер недоступен из bash.
+
+**Phase B (structured action / bonus / reaction extraction)
+осознанно отложена** — будет отдельной спекой когда появится
+энкаунтер-помощник как consumer.
+
+### После spec-018
+
+В порядке приоритета (юзер подтвердил в chat 75):
+1. **spec-019** «Карта мира» (была spec-018 до chat 75; ~5–7 дней,
+   фундаментальная фича; план: canvas → пины → travel edges →
+   фильтры по сессиям).
+2. **spec-020** «Стартовый набор: single-page editor» (1–2 дня;
+   table-grid PC × loan/inventory/save, чистый UI слой над
+   spec-012 actions, миграций 0).
+3. **spec-021+** «Квесты» — после реворка энкаунтеров (spec-019
+   encounter rework был в backlog'е, перенумерован), т.к. quest
+   = nodeType родственный encounter, проектировать отдельно от
+   него рискованно.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 
@@ -427,16 +462,21 @@ Phasing предложение (обсудим в Clarify):
   не в спеке (см. plan.md «Out of scope»). Если возникнет —
   заводить отдельный backlog item.
 
-### Кандидаты после следующей спеки
+### Кандидаты после следующих 2-3 спек
 
 Из backlog'а (entries есть, spec.md нет):
-- **spec-019** (encounter rework), **spec-020** (DM sandbox),
-  **spec-022** (DM session control), **spec-023** (movement
-  timeline), **spec-024** (часы/проекты), **spec-025+**
-  (character-sheet/mobile epic). _Все номера сдвинуты на +1
-  относительно chat 71 — новый spec-016 встал перед «Сборами»._
+- **spec-022** (encounter rework, был spec-019 до chat 75),
+  **spec-023** (DM sandbox, был spec-020), **spec-024** (DM session
+  control, был spec-022), **spec-025** (movement timeline, был
+  spec-023), **spec-026** (часы/проекты, был spec-024),
+  **spec-027+** (character-sheet/mobile epic, был spec-025+).
+  _Все номера сдвинуты на +1 относительно chat 74 — spec-018
+  занят dnd.su scraper'ом, карта едет на 019._
 - **IDEA-055** (DM rename/delete на encounter page, ~30 мин) —
   новая в chat 50.
+- **IDEA-056** (после Phase A scraper'а — Phase B structured
+  abilities extraction для encounter assistant) — новая в
+  chat 75. Делаем не сейчас, см. spec-018 § Out of scope.
 
 **Параллельный долг (мелкие):**
 - T044 spec-012 manual walkthrough — 10 Acceptance Scenarios.
@@ -449,10 +489,10 @@ Phasing предложение (обсудим в Clarify):
 - Bulk-edit ещё нет (часть старого IDEA-043) — может всплыть
   отдельно если будет запрос.
 - **IDEA-054 PROMOTED (chat 49)** — 🗺️ PC↔Location граф разъехался
-  на spec-018 (карта) + spec-022 (DM session control + movement
-  events) + spec-023 (timeline view). Историческая запись
-  осталась в backlog'е. _Номера сдвинуты на +1 относительно
-  chat 71._
+  на spec-019 (карта, был spec-018) + spec-024 (DM session control
+  + movement events, был spec-022) + spec-025 (timeline view, был
+  spec-023). Историческая запись осталась в backlog'е. _Номера
+  сдвинуты на +1 относительно chat 71+74._
 
 ### Параллельные кандидаты
 
