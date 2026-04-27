@@ -125,15 +125,18 @@ SLOT_MAP: list[tuple[str, str]] = [
 
 # Source-code badge -> human-readable book name.
 # Codes ending in `14` are 5e14 books; `24` would mean 5e24 (we skip those).
-# dnd.su uses ALL-UPPERCASE acronyms without lowercase connector letters
-# (BPGG, not BPGotG). Camel-case aliases kept where original guess differed,
-# so cache-rerun produces no surprises if a page used the alternate spelling.
+# dnd.su uses ALL-UPPERCASE acronyms without lowercase connector letters,
+# with a few exceptions (HaT has a lowercase 'a' for "among"). Convention is
+# inconsistent for prefixed books — sometimes the prefix is dropped (RLW for
+# "Eberron: Rising from the Last War") and sometimes kept (IDRF for "Icewind
+# Dale: Rime of the Frostmaiden"). Codes here are the dict iteratively
+# extended after each scrape run via the "unknown source badges" warning.
 SOURCE_BOOKS: dict[str, str] = {
     # Core
     "DMG": "Dungeon Master's Guide",
     "PHB": "Player's Handbook",
     "MM": "Monster Manual",
-    # Sourcebooks (all-caps, observed in smoke + best-guess from convention)
+    # Sourcebooks
     "XGE": "Xanathar's Guide to Everything",
     "TCE": "Tasha's Cauldron of Everything",
     "VRGR": "Van Richten's Guide to Ravenloft",
@@ -142,7 +145,7 @@ SOURCE_BOOKS: dict[str, str] = {
     "BGDA": "Baldur's Gate: Descent into Avernus",
     "COS": "Curse of Strahd",
     "EGW": "Explorer's Guide to Wildemount",
-    "ERLW": "Eberron: Rising from the Last War",
+    "RLW": "Eberron: Rising from the Last War",
     "FTD": "Fizban's Treasury of Dragons",
     "GGR": "Guildmasters' Guide to Ravnica",
     "MTF": "Mordenkainen's Tome of Foes",
@@ -150,29 +153,42 @@ SOURCE_BOOKS: dict[str, str] = {
     "AI": "Acquisition Incorporated",
     "VGM": "Volo's Guide to Monsters",
     "BPGG": "Bigby Presents: Glory of the Giants",
-    "TBMT": "The Book of Many Things",
+    "BMT": "The Book of Many Things",
     "JRC": "Journeys through the Radiant Citadel",
     "KGV": "Keys from the Golden Vault",
     "SAS": "Spelljammer: Adventures in Space",
-    "PSAM": "Planescape: Adventures in the Multiverse",
+    "PAM": "Planescape: Adventures in the Multiverse",
     "HDQ": "Hoard of the Dragon Queen",
     "SCC": "Strixhaven: A Curriculum of Chaos",
     "TYP": "Tales from the Yawning Portal",
     "TOA": "Tomb of Annihilation",
+    "OTA": "Out of the Abyss",
     "WDH": "Waterdeep: Dragon Heist",
     "WDMM": "Waterdeep: Dungeon of the Mad Mage",
-    "VER": "Vecna: Eve of Ruin",
-    "DSDQ": "Dragonlance: Shadow of the Dragon Queen",
+    "V": "Vecna: Eve of Ruin",
+    "SDQ": "Dragonlance: Shadow of the Dragon Queen",
     "CM": "Candlekeep Mysteries",
     "CRCN": "Critical Role: Call of the Netherdeep",
     "GOS": "Ghosts of Saltmarsh",
-    "OOTA": "Out of the Abyss",
-    "POTA": "Princes of the Apocalypse",
-    "PAB": "Phandelver and Below: The Shattered Obelisk",
+    "POA": "Princes of the Apocalypse",
+    "PBSO": "Phandelver and Below: The Shattered Obelisk",
     "LMOP": "Lost Mine of Phandelver",
     "SKT": "Storm King's Thunder",
     "ROT": "The Rise of Tiamat",
+    "DLCT": "Descent into the Lost Caverns of Tsojcanth",
+    "QIS": "Quest from the Infinite Staircase",
+    # Softcover adventures + supplements
+    "EKDC": "Essentials Kit: Divine Contention",
+    "EKSDW": "Essentials Kit: Sleeping Dragon's Wake",
+    "HT": "Hunt for the Thessalhydra",
     "IMR": "Infernal Machine Rebuild",
+    "LDR": "The Lost Dungeon of Rickedness: Big Rick Energy",
+    "HaT": "Honor among Thieves",
+    "MC": "Monstrous Compendium",
+    "AL": "Adventurers League",
+    # Unmapped — DDHC observed but no clear match in the source dropdown.
+    # TODO: confirm and rename or drop. Sample item URL: see scrape warnings.
+    "DDHC": "Unknown D&D supplement (DDHC)",
 }
 
 
