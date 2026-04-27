@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
+import { ExternalLink } from 'lucide-react'
 
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getMembership, requireAuth } from '@/lib/auth'
@@ -126,6 +127,19 @@ export default async function ItemPage({
         {item.sourceDetail && (
           <div className="sm:col-span-2 lg:col-span-4">
             <Stat label="Источник, детали" value={item.sourceDetail} />
+          </div>
+        )}
+        {item.dndsuUrl && (
+          <div className="sm:col-span-2 lg:col-span-4">
+            <a
+              href={item.dndsuUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Открыть на dnd.su
+            </a>
           </div>
         )}
       </section>

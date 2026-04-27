@@ -27,6 +27,7 @@ function payload(partial: Partial<ItemPayload> = {}): ItemPayload {
     srdSlug: 'longsword',
     description: null,
     sourceDetail: null,
+    dndsuUrl: null,
     useDefaultPrice: true,
     ...partial,
   };
@@ -52,6 +53,7 @@ describe('validateItemPayload — happy path', () => {
           srdSlug: null,
           description: null,
           sourceDetail: null,
+          dndsuUrl: null,
         }),
         SLUGS,
       ),

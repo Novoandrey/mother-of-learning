@@ -56,6 +56,13 @@ export type ItemNode = {
   description: string | null;
   /** Free-form source detail beyond the slug (e.g. "Tasha's, p. 142"). */
   sourceDetail: string | null;
+  /**
+   * Canonical permalink to the dnd.su page for this item, populated
+   * by spec-018 import migrations (056+) and by the «Источник» field
+   * in the item edit form. Powers the «Открыть на dnd.su» link on
+   * the item detail page. Hand-curated SRD entries leave this `null`.
+   */
+  dndsuUrl: string | null;
 };
 
 /**
@@ -144,6 +151,12 @@ export type ItemPayload = {
   srdSlug: string | null;
   description: string | null;
   sourceDetail: string | null;
+  /**
+   * Canonical https://dnd.su/items/... permalink. Free-form string;
+   * we do not enforce URL syntax server-side so DMs can paste any
+   * ссылка including future moves to next.dnd.su or homebrew pages.
+   */
+  dndsuUrl: string | null;
   /**
    * 5e «Требует настройки». Set by DM via form checkbox. Independent
    * of price autoflag (different concept).

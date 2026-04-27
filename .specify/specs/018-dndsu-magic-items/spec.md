@@ -193,6 +193,20 @@ description for DM reference. New non-magical items (rare on
 dnd.su but possible — e.g. supplement gear) keep their stated
 price as a point if dnd.su gives one.
 
+### Q8 (post-clarify, plan-time) — FR-012 narrowed
+
+**Answer:** No new per-book source slugs are added to the
+`categories` table. All imported items reuse `source_slug='srd-5e'`
+(the bucket already populated by mig 044). The book name lives in
+`nodes.fields.source_detail` and is shown on the item detail page.
+
+**Rationale:** The `item-source` scope was meant for filter-chip
+groupings; with 41 distinct books from dnd.su, a chip per book
+clutters the catalog. A per-book filter UI can be added in a
+follow-up spec when actually needed. Keeping a single bucket also
+keeps the existing source-slug filter on `/items?source=srd-5e`
+compatible. See plan.md `## Schema impact` for the schema decision.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — DM finds a magic item by name (Priority: P1)
@@ -428,12 +442,14 @@ etc.) that the source page contains.
   shape, stored in `nodes.fields.dndsu_url` (JSONB), so the catalog
   can show a "Источник" link back to dnd.su. No new column on
   `item_attributes`. No `scraped_at` timestamp (resolved Q3).
-- **FR-012**: System MUST extend the `categories` table seed (scope
-  `item-source`) with new source slugs for any books not yet
-  represented (likely `phb`, `dmg`, `xge`, `tce`, `vrgr`, `imr`,
-  others — actual list determined by what dnd.su exposes). The
-  `seedCampaignCategories` extension covers new campaigns; existing
-  campaigns get the new slugs in the migration.
+- **FR-012** (amended at plan-time, T024 implemented): All imported
+  items reuse the existing `source_slug='srd-5e'` bucket — no new
+  per-book source slugs are added to the `categories` table. The
+  human book name (e.g. "Tasha's Cauldron of Everything") lives in
+  `nodes.fields.source_detail` and is exposed on the item detail
+  page. A per-book filter chip can be added in a follow-up spec when
+  multiple books are large enough to warrant grouping in the catalog
+  UI.
 - **FR-013**: System MUST classify each item into one of the
   existing category slugs (`weapon`, `armor`, `consumable`,
   `magic-item`, `wondrous`, `tool`, `treasure`, `misc`). Magic

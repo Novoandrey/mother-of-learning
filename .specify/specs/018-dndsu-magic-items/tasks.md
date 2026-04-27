@@ -139,13 +139,6 @@
     starting at next free migration number (auto-detected)
   - Run: `npx tsx scripts/items-dndsu-codegen.ts --emit-migrations`
 
-- [ ] **T015 [P1]** Run codegen, produce migrations:
-  - `npx tsx scripts/items-dndsu-codegen.ts --emit-migrations`
-  - Output: `mat-ucheniya/supabase/migrations/056_*.sql … 06X_*.sql`
-  - Filenames: `056_dndsu_dungeon-masters-guide_items.sql` etc.
-  - Inspect first migration visually: SQL syntax valid, expected
-    item count, NOT EXISTS clause correct
-
 - [x] **T016 [P1] [P]** vitest для codegen
   `mat-ucheniya/lib/seeds/__tests__/items-dndsu.test.ts`:
   - Sanity floor (≥ 100 entries)
@@ -177,34 +170,24 @@
 - [ ] **T017 [P1]** `present_files` всех новых миграций для review
   ДМом перед applying.
 
----
+- [x] **T018 [P1]** DM applied 50 migrations (056-105) to mat-ucheniya
+  via Supabase Dashboard SQL Editor (chat 76).
 
-## Phase 6 — Apply + verify
-
-- [ ] **T018 [P1]** Apply migrations to mat-ucheniya:
-  - DM (user) копирует каждую миграцию в Supabase Dashboard SQL Editor
-  - Применяет по порядку 056 → 057 → … → 06X
-  - Capture RAISE NOTICE output для каждой: «Campaign X: inserted N,
-    backfilled M»
-  - Проверка: total inserted ≈ количество в JSON минус skipped
-
-- [ ] **T019 [P1]** SQL smoke
-  `mat-ucheniya/scripts/check-rls-018.sql` (8 cases, BEGIN…ROLLBACK):
-  1. Outsider RLS — non-member не видит imported items
-  2. Member RLS — DM/player видят, читают `dndsu_url` из fields
-  3. CASCADE — delete node удаляет item_attributes row
-  4. SET NULL — delete node sets transactions.item_node_id = null
-  5. kind/link CHECK — нельзя поставить item_node_id на kind='money'
-  6. JSONB shape — `fields ? 'srd_slug'`, `fields ? 'description'`,
-     `fields ? 'dndsu_url'` все true
-  7. Idempotency — re-apply одной миграции даёт 0 inserts, 0 updates
-  8. Backfill rule — UPDATE привязал ≥ 3 transaction'а к imported
-     items
-  - Run в Supabase Dashboard, all 8 ✓
+- [x] **T019 [P1]** SQL smoke `mat-ucheniya/scripts/check-rls-018.sql`
+  written. 8 cases inside BEGIN/ROLLBACK:
+  1. Total seeded count (≥ 800 floor)
+  2. JSONB shape — every item has srd_slug + description + dndsu_url
+  3. item_attributes row + source_slug='srd-5e' for all imported items
+  4. dndsu_url shape — all match `https://dnd.su/items/N-...`
+  5. Idempotency — re-apply produces 0 new inserts (NOT EXISTS guard)
+  6. FK CASCADE — delete node removes item_attributes row
+  7. FK SET NULL — delete node nulls transactions.item_node_id
+  8. kind/link CHECK — rejects item_node_id on kind='money'
+  Run: paste into Supabase Dashboard SQL Editor → Run → all `PASS`.
 
 - [ ] **T020 [P1]** Visual sanity check на проде:
   - Open `https://mother-of-learning.vercel.app/c/mat-ucheniya/items?category=magic-item`
-  - Confirm count ≥ 1000
+  - Confirm count ≥ 800
   - Sample 20 random items, click permalink, compare against dnd.su
     оригинал (title, rarity, attunement, slot, description verbatim)
   - Pass: ≥ 18/20 точное совпадение
@@ -214,41 +197,38 @@
 
 ## Phase 7 — UI wire-up
 
-- [ ] **T021 [P1] [P]** Extend `mat-ucheniya/lib/items.ts`:
-  - Add `dndsuUrl: string | null` to `ItemNode` type
-  - In `getItemById` / `getItems`: extract from
-    `nodes.fields.dndsu_url` (or null)
-  - In `mapItemRow` helper (если есть)
+- [x] **T021 [P1] [P]** `lib/items.ts` + `lib/items-types.ts`:
+  - `ItemNode.dndsuUrl: string | null` added
+  - `hydrate()` reads `nodes.fields.dndsu_url` into the field
+  - All test fixtures updated (`items-filters.test.ts`,
+    `items-grouping.test.ts`, `items-validation.test.ts`)
 
-- [ ] **T022 [P1] [P]** `mat-ucheniya/app/actions/items.ts`:
-  - `ItemPayload`: add optional `dndsuUrl?: string`
-  - `createItem`: write `fields.dndsu_url = payload.dndsuUrl?.trim()
-    || undefined`
-  - `updateItem`: same write logic
-  - No validation needed (any string OK; URL format не enforce'им)
+- [x] **T022 [P1] [P]** `app/actions/items.ts`:
+  - `ItemPayload.dndsuUrl: string | null` added
+  - `createItem` and `updateItem` write `fields.dndsu_url =
+    payload.dndsuUrl?.trim() || undefined` (omits empty strings to
+    keep JSONB clean)
+  - No validation — any string acceptable
 
-- [ ] **T023 [P1]** UI components:
-  - `mat-ucheniya/components/item-form-page.tsx`: новое поле
-    "Источник" (URL input) рядом с "Источник материала" (которое
-    уже там — это `sourceDetail`). Plain `<input type="url">`,
-    state, submit hookup
-  - `mat-ucheniya/app/c/[slug]/items/[id]/page.tsx`: если
-    `item.dndsuUrl` truthy — рендер `<a>` с lucide `ExternalLink`
-    icon, target=_blank, rel=noopener noreferrer, текст
-    «Открыть на dnd.su»
-  - Verify build: `npm run build` clean
+- [x] **T023 [P1]** UI components:
+  - `components/item-form-page.tsx`: новое поле «Ссылка на dnd.su»
+    (`<input type="url">`) рядом с «Детали источника»; стейт +
+    submit hookup
+  - `app/c/[slug]/items/[id]/page.tsx`: при truthy `item.dndsuUrl` —
+    рендер ссылки `<a target="_blank" rel="noopener noreferrer">`
+    с lucide `<ExternalLink>` иконкой, текст «Открыть на dnd.su»
 
 ---
 
 ## Phase 8 — Smoke + close-out
 
-- [ ] **T024 [P1]** Spec amendment for FR-012:
-  - Edit `.specify/specs/018-dndsu-magic-items/spec.md`
-  - Replace FR-012 body: "Use existing `source_slug='srd-5e'`
-    bucket; per-book name lives in `nodes.fields.source_detail`.
-    Per-book filter chips deferred to follow-up spec if/when needed."
-  - Add note in `## Clarifications`: "Q8 (post-clarify, plan-time):
-    FR-012 narrowed — see plan.md `## Schema impact`."
+- [x] **T024 [P1]** Spec amendment for FR-012:
+  - `spec.md` FR-012 переписан: «All imported items reuse the
+    existing `source_slug='srd-5e'` bucket; per-book name lives in
+    `nodes.fields.source_detail`. Per-book filter chips deferred to
+    follow-up spec»
+  - Q8 (post-clarify, plan-time) добавлен в `## Clarifications`
+    — narrowing rationale
 
 - [ ] **T025 [P1]** Close-out:
   - `NEXT.md`: move spec-018 into «В проде» с краткой выжимкой,

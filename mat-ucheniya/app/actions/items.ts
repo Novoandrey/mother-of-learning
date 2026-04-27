@@ -225,6 +225,9 @@ export async function createItemAction(
   if (payload.sourceDetail && payload.sourceDetail.trim()) {
     fields.source_detail = payload.sourceDetail.trim()
   }
+  if (payload.dndsuUrl && payload.dndsuUrl.trim()) {
+    fields.dndsu_url = payload.dndsuUrl.trim()
+  }
 
   // Step 1 — insert nodes row. We need its generated id for the
   // FK on item_attributes, so this is sequential, not parallel.
@@ -304,6 +307,9 @@ export async function updateItemAction(
   if (payload.description && payload.description.trim()) fields.description = payload.description
   if (payload.sourceDetail && payload.sourceDetail.trim()) {
     fields.source_detail = payload.sourceDetail.trim()
+  }
+  if (payload.dndsuUrl && payload.dndsuUrl.trim()) {
+    fields.dndsu_url = payload.dndsuUrl.trim()
   }
 
   const { error: nodeErr } = await admin
