@@ -40,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# spec-018 dnd.su scraper cache (regenerated; fixtures in scripts/dndsu-cache-fixtures/ are committed)
+/scripts/dndsu-cache/
+
+# Python bytecode (used by scrape_dndsu.py + tests)
+__pycache__/
+*.pyc
