@@ -156,9 +156,10 @@ export default async function ItemsSettingsPage({
           {isManager && (
             <div className="mt-4 border-t border-gray-100 pt-4">
               <p className="mb-2 text-xs text-gray-500">
-                Spec-016 — применить таблицу выше ко всем существующим
-                предметам каталога. Защищены items с галочкой
-                «Не использовать стандарт» в форме предмета.
+                Применить таблицу выше ко всем существующим предметам
+                каталога. Не трогаются items, у которых DM руками
+                поставил цену, отличную от стандартной (флаг ставится
+                автоматически при сохранении).
               </p>
               <ApplyDefaultPricesButton slug={slug} />
             </div>
