@@ -2,10 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-27 (chat 75 — spec-018 dnd.su magic items
-> scraper: Specify+Clarify+Plan+Tasks готовы, Implement пока не
-> стартовал; spec-018 «Карта мира» сдвинулась на 019 (одобрено
-> юзером в начале chat 75); version 0.6.0)
+> Last updated: 2026-04-27 (chat 76 — spec-018 dnd.su scraper в
+> проде; 50 миграций 056-105, 844 предмета из dnd.su + 274
+> hand-curated SRD = 1118 в mat-ucheniya; version 0.7.0).
 
 ## В проде сейчас
 
@@ -391,60 +390,126 @@
   пересекается с use_default_price, который остаётся про базовую
   цену vs кампейн-стандарт.
 
+- **spec-018 dnd.su magic items scraper (chat 75-76)** — _полностью
+  в проде._ 50 миграций 056-105 применены. 844 предмета из dnd.su
+  (5e14 only) + 274 hand-curated SRD = 1118 в `mat-ucheniya`.
+
+  **Phase 1-3 (chat 75-76):** Python scraper `scripts/scrape_dndsu.py`
+  читает `https://dnd.su/piece/items/index-list/` (полный 720KB
+  index за один GET), потом по 1 req/s обходит 934 item-страницы с
+  HTML→markdown через html2text, SHA1-cache в `scripts/dndsu-cache/`.
+  Парсер: `parse_item(md, url) -> list[ItemRecord]` — pure function
+  с line-based header parser, регекс на первый-bullet
+  type/rarity/attunement, umbrella expansion (один item с
+  `редкость варьируется` → N records по rarity tier), SOURCE_BOOKS
+  map на 41 книгу, edition gate (5e24 → skip), empty-card detection
+  (heading без bullet → skip с INFO log). 18/18 pytest tests на 5
+  fixtures.
+
+  **Phase 4-5 (chat 76):** TS codegen `scripts/items-dndsu-codegen.ts`
+  читает intermediate `dndsu_items.json` → `lib/seeds/items-dndsu.ts`
+  (844 entries, sibling к `items-srd.ts`) + `--emit-migrations` за
+  per-book SQL. Дедуп: 2 internal (`staff-of-defense`,
+  `spider-staff` — переиздания LMOP↔PBSO, оставляем первое
+  вхождение с warn) + 41 collision с hand-curated SRD (SRD wins —
+  у них curated `priceGp`).
+
+  **Слаги**: чистый kebab-case URL-slug (`adamantine-armor`,
+  `bloodwell-vial-plus-1`). Префикс `dndsu-{id}-` отвергнут после
+  ревью. Для umbrella items стрипается `-1-2-3` суффикс из
+  URL-slug перед `-plus-N`.
+
+  **Phase 6-7 (chat 76):** UI wire-up. `ItemNode.dndsuUrl` +
+  `ItemPayload.dndsuUrl: string | null`, `hydrate()` читает
+  `nodes.fields.dndsu_url`, create/update actions пишут
+  `fields.dndsu_url` (омит пустых строк). Item form: новое
+  `<input type="url">` поле «Ссылка на dnd.su» рядом с «Детали
+  источника». Item detail page: ссылка «Открыть на dnd.su» с
+  lucide `<ExternalLink>` иконкой (target=_blank, rel=noopener).
+
+  **FR-012 narrowed (T024):** новые per-book source slugs не
+  плодятся в `categories(scope='item-source')`. Все imported items
+  reuse `source_slug='srd-5e'` bucket; имя книги в
+  `nodes.fields.source_detail`. Q8 в `## Clarifications`.
+
+  **Phase 2 backfill `transactions.item_node_id` намеренно
+  пропущен** для dnd.su entries — русские названия слишком общие
+  («Жезл», «Кольцо», «Свиток...»), backfill по `LOWER(item_name)`
+  match налепил бы false positives. DM руками связывает через UI
+  каталога. SRD seed (mig 044) backfill остаётся, имена там
+  специфичные.
+
+  **Smoke (T019):** `scripts/check-rls-018.sql` (8 кейсов в
+  BEGIN/ROLLBACK) — total count, JSONB shape, attrs row + source,
+  dndsu_url URL shape, idempotency, FK CASCADE/SET NULL,
+  kind/link CHECK. Все ✓ после двух итераций (column names
+  `day_in_loop`/`actor_pc_id`/required `category_slug`+
+  `author_user_id`; `status='pending'` чтобы обойти
+  `transactions_approval_consistency` constraint из mig 042).
+
+  **Bug-fix цикл после применения (chat 76):** три отдельных бага
+  обнаружены через user feedback:
+  1. **/items падает 500** — `getCatalogItems` шла в два шага
+     (nodes → IN-query на attrs). С 1118 UUIDов в IN URL ~42KB,
+     PostgREST давится. Переписал на embed `!inner` (тот же
+     паттерн что в `searchItemsForTypeahead`).
+  2. **Сайдбар показывает 396/822 вместо 1118** — Supabase в
+     проекте включён server-side `db-max-rows = 1000` клэмп,
+     `.range(0, 9999)` его НЕ обходит. Pagination loop в трёх
+     местах (`sidebar-cache`, `getCatalogItems`,
+     `applyItemDefaultPrices`): крутимся по страницам 1000 rows,
+     hard cap 10k.
+  3. **«Применить ко всем» Bad Request** — тот же URL-overflow от
+     `.in('node_id', [1118 UUIDов])` в bulk-apply action.
+     Чинится тем же embed + pagination переходом.
+
+  Заодно legacy-текст про несуществующую галочку «Не использовать
+  стандарт» убран из settings page и confirm dialog —
+  `use_default_price` стал auto-managed ещё в chat 74, copy
+  отстала.
+
+  **Reproducibility:** `scripts/dndsu_items.json` (2.0 MB,
+  887 records) committed. `scripts/dndsu-recon-snapshot.html`
+  (720 KB, 934 items) committed. Cache dir
+  `scripts/dndsu-cache/` gitignored. Re-scrape: `python3
+  scripts/scrape_dndsu.py`, потом `npx tsx
+  scripts/items-dndsu-codegen.ts --emit-migrations`.
+
+  **DDHC TODO:** `099_dndsu_unknown-dd-supplement-ddhc_items.sql`
+  применилась, 6 items сидят с `source_detail = 'Unknown D&D
+  supplement (DDHC)'`. Когда узнаем что за DDHC — обновим строку
+  в `SOURCE_BOOKS` и перегенерим миграцию (или пропатчим
+  UPDATE'ом).
+
 **Vercel:** https://mother-of-learning.vercel.app/
 **GitHub:** https://github.com/Novoandrey/mother-of-learning
-**Последняя применённая миграция:** `055_attunement_and_price_autoflag.sql`
-(chat 74). Все миграции 047–055 применены.
+**Последняя применённая миграция:** `105_dndsu_xanathars-guide-to-everything_items.sql`
+(chat 76). Все миграции 047–105 применены.
 
 ## Следующий приоритет
 
-**Spec-018 «dnd.su magic items scraper»** — Implement-фаза (T001+).
-Specify + Clarify + Plan + Tasks готовы (chat 75). 25 задач в 8
-фазах, ~2 рабочих дня + 30-50 мин сетевого бюджета на первый
-scrape (1 req/s × ~1500 items).
+**Spec-019 «Карта мира»** — фундаментальная фича, ~5–7 рабочих
+дней. План в `backlog.md` (промоутирована из IDEA-054 в chat 49,
+номер сдвинут с 018 на 019 в chat 75 когда dnd.su scraper занял
+018-й слот).
 
-**Что сделано в chat 75:**
-- `.specify/specs/018-dndsu-magic-items/spec.md` (574 строки,
-  status=Clarified) — 7 клерификаций решены: sibling
-  `items-dndsu.ts` seed, per-source-book миграции 056+, gitignored
-  HTML cache, `price_gp=NULL` (DMG ranges), нет `scraped_at`,
-  editable `dndsu_url`, defer perf на каталог.
-- `.specify/specs/018-dndsu-magic-items/plan.md` (583 строки) —
-  архитектура: Python скрейпер → JSON intermediate → TS codegen
-  → seed + миграции. Schema impact = 0 (всё в `nodes.fields`
-  JSONB). FR-012 narrowed на этапе плана: используем существующий
-  `source_slug='srd-5e'` bucket + `source_detail` для имени книги,
-  не плодим новые `item-source` slugs. 3 discovery плана (JSON API
-  → sequential ID → headless), решается в T001.
-- `.specify/specs/018-dndsu-magic-items/tasks.md` (293 строки) —
-  25 задач: Phase 1 recon (T001-T002), Phase 2 scraper infra
-  (T003-T006), Phase 3 classification (T007-T010), Phase 4 codegen
-  TS seed (T011-T013), Phase 5 codegen migrations (T014-T017),
-  Phase 6 apply+verify (T018-T020), Phase 7 UI (T021-T023, может
-  параллельно с Phase 6), Phase 8 close-out (T024-T025).
+Грубый скоп: canvas → пины (PCs/locations) → travel edges → фильтры
+по сессиям/петлям. Schema impact: новая таблица `map_pins` (или
+`nodes.fields.map_position`?) — решается в Specify.
 
-**Где остановились:** в начале Implement, перед T001. T001 — recon
-spike: открыть `https://dnd.su/items/` в браузере с DevTools,
-найти как грузится список items, выбрать Plan A (JSON API) / B
-(sequential ID) / C (headless). **Требует участия юзера** —
-браузер недоступен из bash.
+**Что было сделано в spec-018** (для контекста, если понадобится):
+50 миграций, 844 предмета, three-layer pipeline (Python scraper →
+JSON intermediate → TS codegen). Detail в chatlog/2026-04-27-chat76-spec018-implement.md.
 
-**Phase B (structured action / bonus / reaction extraction)
-осознанно отложена** — будет отдельной спекой когда появится
-энкаунтер-помощник как consumer.
-
-### После spec-018
+### После spec-019
 
 В порядке приоритета (юзер подтвердил в chat 75):
-1. **spec-019** «Карта мира» (была spec-018 до chat 75; ~5–7 дней,
-   фундаментальная фича; план: canvas → пины → travel edges →
-   фильтры по сессиям).
-2. **spec-020** «Стартовый набор: single-page editor» (1–2 дня;
+1. **spec-020** «Стартовый набор: single-page editor» (1–2 дня;
    table-grid PC × loan/inventory/save, чистый UI слой над
    spec-012 actions, миграций 0).
-3. **spec-021+** «Квесты» — после реворка энкаунтеров (spec-019
-   encounter rework был в backlog'е, перенумерован), т.к. quest
-   = nodeType родственный encounter, проектировать отдельно от
+2. **spec-021+** «Квесты» — после реворка энкаунтеров (encounter
+   rework был в backlog'е, перенумерован), т.к. quest =
+   nodeType родственный encounter, проектировать отдельно от
    него рискованно.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
@@ -470,18 +535,30 @@ spike: открыть `https://dnd.su/items/` в браузере с DevTools,
   control, был spec-022), **spec-025** (movement timeline, был
   spec-023), **spec-026** (часы/проекты, был spec-024),
   **spec-027+** (character-sheet/mobile epic, был spec-025+).
-  _Все номера сдвинуты на +1 относительно chat 74 — spec-018
-  занят dnd.su scraper'ом, карта едет на 019._
+  _Все номера сдвинуты на +1 относительно chat 74._
 - **IDEA-055** (DM rename/delete на encounter page, ~30 мин) —
   новая в chat 50.
 - **IDEA-056** (после Phase A scraper'а — Phase B structured
-  abilities extraction для encounter assistant) — новая в
-  chat 75. Делаем не сейчас, см. spec-018 § Out of scope.
+  abilities extraction для encounter assistant) — отложена в
+  spec-018 § Out of scope; всплывёт когда появится consumer
+  (encounter assistant).
 
 **Параллельный долг (мелкие):**
 - T044 spec-012 manual walkthrough — 10 Acceptance Scenarios.
   Я (Claude) автоматизировать не могу, проверка вручную DM'ом.
 - IDEA-055 DM rename/delete кнопки.
+
+### Хвосты spec-018 (не блокеры)
+
+- **DDHC source name** — мигр 099 села с `source_detail = 'Unknown
+  D&D supplement (DDHC)'` для 6 items. Когда юзер узнает что за
+  книга — заменить строку в `SOURCE_BOOKS` и перезапустить
+  codegen (или просто `UPDATE` поверху).
+- **Pagination hard cap 10k нод** — если кампания вырастет за
+  10000 нод (не близко: сейчас ~1200), три pagination-loop'а
+  упрутся. Тогда нужно: (a) count-only sidebar с on-demand
+  title fetching per group, (b) infinite-scroll или page param
+  на `/items`, (c) embed-side фильтрация attrs до клиента.
 
 ### Последняя строка хвостов
 
@@ -491,8 +568,7 @@ spike: открыть `https://dnd.su/items/` в браузере с DevTools,
 - **IDEA-054 PROMOTED (chat 49)** — 🗺️ PC↔Location граф разъехался
   на spec-019 (карта, был spec-018) + spec-024 (DM session control
   + movement events, был spec-022) + spec-025 (timeline view, был
-  spec-023). Историческая запись осталась в backlog'е. _Номера
-  сдвинуты на +1 относительно chat 71+74._
+  spec-023). Историческая запись осталась в backlog'е.
 
 ### Параллельные кандидаты
 

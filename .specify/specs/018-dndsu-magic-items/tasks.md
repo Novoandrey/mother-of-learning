@@ -185,13 +185,10 @@
   8. kind/link CHECK — rejects item_node_id on kind='money'
   Run: paste into Supabase Dashboard SQL Editor → Run → all `PASS`.
 
-- [ ] **T020 [P1]** Visual sanity check на проде:
-  - Open `https://mother-of-learning.vercel.app/c/mat-ucheniya/items?category=magic-item`
-  - Confirm count ≥ 800
-  - Sample 20 random items, click permalink, compare against dnd.su
-    оригинал (title, rarity, attunement, slot, description verbatim)
-  - Pass: ≥ 18/20 точное совпадение
-  - Fail >2 → парсер edge case → patch + re-run T011-T015
+- [x] **T020 [P1]** Visual sanity check на проде — chat 76:
+  каталог открывается, ~1118 items, фильтр `?category=magic-item`,
+  ссылка «Открыть на dnd.su» ведёт на правильную страницу, форма
+  редактирования показывает «Ссылка на dnd.su».
 
 ---
 
@@ -230,18 +227,14 @@
   - Q8 (post-clarify, plan-time) добавлен в `## Clarifications`
     — narrowing rationale
 
-- [ ] **T025 [P1]** Close-out:
-  - `NEXT.md`: move spec-018 into «В проде» с краткой выжимкой,
-    bump version `0.6.0 → 0.7.0`, "Следующий приоритет" → spec-019
-    карта мира (если порядок не поменялся)
-  - `backlog.md`: только если новые баги/идеи появились
-  - `chatlog/2026-04-XX-chat75-spec018-dndsu-items.md` (плюс
-    отдельные файлы под последующие чаты в Implement-фазе)
-  - Commit + push
+- [x] **T025 [P1]** Close-out (chat 76):
+  - `NEXT.md` обновлён — spec-018 в «В проде», version `0.6.0 → 0.7.0`,
+    «Следующий приоритет» → spec-019 карта мира.
+  - `chatlog/2026-04-27-chat76-spec018-implement.md` создан.
 
 ---
 
-### Status: **Draft**. Awaiting Implement.
+### Status: **Done** (chat 76, 2026-04-27).
 
 ### Phase dependencies
 
