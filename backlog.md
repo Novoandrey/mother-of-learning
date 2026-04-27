@@ -947,6 +947,25 @@ Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
 - Источник: chat 78 (пользователь зафиксировал параллельно
   с IDEA-057).
 
+### IDEA-060 [P3] Энкаунтер: Кубик сенобитов
+- **Тип**: контент, артефакт + триггер призыва.
+- Кубик-головоломка из «Восставшей из ада» (LeMarchand's
+  Configuration / Lament Configuration). Когда PC решает
+  его — призываются сенобиты, которые «have such sights to
+  show you». Не agressive-by-default — они приходят торговать:
+  предлагают опыт/мощь в обмен на плоть/душу.
+- Mechanics TBD:
+  - Сам кубик: предмет с DC-чеком (Investigation/Arcana?)
+    на «решение». Можно случайно решить за время
+    долгого rest'а.
+  - При решении: enkaunter spawn'ится автоматом на месте.
+    Сенобиты не initiate combat — open negotiation.
+  - Если PC отказывается / атакует первым — combat
+    encounter (high CR, fear-aura, chains AoE).
+  - Если соглашается на сделку — ongoing curse / boon.
+- Источник: chat 78 (пользователь, серия творческих
+  encounter-идей).
+
 ### Будущие encounter-идеи приходят сюда
 - Фиксируй конкретных боссов / лорные хуки / механики как
   IDEA-NNN [P3].
@@ -956,6 +975,7 @@ Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
 
 ---
 
+## Features
 
 ### FEAT-001 [P3] Edge type constraints (allowed source/target types)
 - **Feature**: 001-entity-graph
