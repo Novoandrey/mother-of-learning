@@ -139,14 +139,30 @@ function dedupAgainstSrd(entries: ItemSeedEntry[]): {
   return { kept, dropped }
 }
 
-function detectInternalDuplicates(entries: ItemSeedEntry[]): string[] {
-  const seen = new Set<string>()
-  const dups: string[] = []
+function dedupInternal(entries: ItemSeedEntry[]): {
+  kept: ItemSeedEntry[]
+  dropped: { srdSlug: string; reason: string }[]
+} {
+  const seen = new Map<string, ItemSeedEntry>()
+  const dropped: { srdSlug: string; reason: string }[] = []
   for (const e of entries) {
-    if (seen.has(e.srdSlug)) dups.push(e.srdSlug)
-    seen.add(e.srdSlug)
+    const prev = seen.get(e.srdSlug)
+    if (prev) {
+      // Same English-derived slug from a different dnd.su URL — typically
+      // a re-release (e.g. "Staff of Defense" appears in both LMOP and
+      // PBSO). Keep the first occurrence; the second loses with a note
+      // so the maintainer can investigate if needed.
+      const prevBook = prev.sourceDetail ?? '?'
+      const dupBook = e.sourceDetail ?? '?'
+      dropped.push({
+        srdSlug: e.srdSlug,
+        reason: `kept ${prevBook}, dropped ${dupBook} (${e.dndsuUrl})`,
+      })
+    } else {
+      seen.set(e.srdSlug, e)
+    }
   }
-  return dups
+  return { kept: Array.from(seen.values()), dropped }
 }
 
 // ---------------------------------------------------------------------------
@@ -422,18 +438,23 @@ function main(): void {
   const emitMigrations = process.argv.includes('--emit-migrations')
 
   const raw = loadJson()
-  const entries = raw.map(rawToSeedEntry)
+  const rawEntries = raw.map(rawToSeedEntry)
 
-  const internalDups = detectInternalDuplicates(entries)
-  if (internalDups.length > 0) {
-    throw new Error(
-      `Internal duplicates in dndsu_items.json: ` +
-        `${internalDups.slice(0, 5).join(', ')}` +
-        `${internalDups.length > 5 ? '…' : ''}`,
+  const { kept: deduped, dropped: internalDropped } = dedupInternal(rawEntries)
+  if (internalDropped.length > 0) {
+    console.error(
+      `Internal dedup: dropped ${internalDropped.length} duplicate slugs ` +
+        `(re-releases across multiple books):`,
     )
+    for (const d of internalDropped.slice(0, 10)) {
+      console.error(`  ${d.srdSlug}  ${d.reason}`)
+    }
+    if (internalDropped.length > 10) {
+      console.error(`  … +${internalDropped.length - 10} more`)
+    }
   }
 
-  const { kept, dropped } = dedupAgainstSrd(entries)
+  const { kept, dropped } = dedupAgainstSrd(deduped)
   if (dropped.length > 0) {
     console.error(
       `Dropped ${dropped.length} entries already in ITEMS_SRD_SEED: ` +
