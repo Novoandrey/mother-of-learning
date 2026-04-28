@@ -1,9 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from './toast-provider'
+import { useFormDraft } from '@/hooks/use-form-draft'
+
+type ChronicleDraft = {
+  title: string
+  content: string
+  loopNumber: string
+  gameDate: string
+}
+
+function formatDraftTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('ru-RU', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
 
 type Chronicle = {
   id: string
@@ -217,6 +239,48 @@ function ChronicleForm({
   const [gameDate, setGameDate] = useState(initial?.game_date || '')
   const [saving, setSaving] = useState(false)
 
+  // ── Local autosave for the chronicle form ──────────────────────────
+  // Two key spaces:
+  //  - edit mode keys by chronicle id (one draft per existing entry)
+  //  - create mode keys by host node id (one draft per "+ Добавить" UI)
+  // Pristine state (matches `initial`) is treated as empty so we don't
+  // pollute storage with a snapshot identical to what's already in DB.
+  const initialSnapshot = useMemo<ChronicleDraft>(
+    () => ({
+      title: initial?.title || '',
+      content: initial?.content || '',
+      loopNumber: initial?.loop_number?.toString() || '',
+      gameDate: initial?.game_date || '',
+    }),
+    [initial],
+  )
+  const draftSnapshot = useMemo<ChronicleDraft>(
+    () => ({ title, content, loopNumber, gameDate }),
+    [title, content, loopNumber, gameDate],
+  )
+  const isDraftEmpty = useCallback(
+    (v: ChronicleDraft) =>
+      v.title === initialSnapshot.title &&
+      v.content === initialSnapshot.content &&
+      v.loopNumber === initialSnapshot.loopNumber &&
+      v.gameDate === initialSnapshot.gameDate,
+    [initialSnapshot],
+  )
+  const draftKey = isEdit
+    ? `mat-uch:draft:chr:edit:${initial!.id}`
+    : `mat-uch:draft:chr:new:${nodeId}`
+  const draftHook = useFormDraft<ChronicleDraft>({
+    key: draftKey,
+    value: draftSnapshot,
+    isEmpty: isDraftEmpty,
+    onRestore: (v) => {
+      setTitle(v.title)
+      setContent(v.content)
+      setLoopNumber(v.loopNumber)
+      setGameDate(v.gameDate)
+    },
+  })
+
   const handleSubmit = async () => {
     if (!title.trim()) return
     setSaving(true)
@@ -241,6 +305,8 @@ function ChronicleForm({
       })
       if (!res.ok) throw new Error('Save failed')
       const data = await res.json()
+      // Server has it now — drop the local snapshot.
+      draftHook.clearDraft()
       onSaved(data)
     } catch (err) {
       console.error('Failed to save chronicle:', err)
@@ -249,8 +315,40 @@ function ChronicleForm({
     }
   }
 
+  // Cancel = explicit "I don't want this". Wipe the local draft so
+  // the next time this form mounts (re-open / refresh) we don't show
+  // a stale Restore prompt for content the user has already abandoned.
+  const handleCancel = () => {
+    draftHook.discardDraft()
+    onCancel()
+  }
+
   return (
     <div className="space-y-3">
+      {draftHook.pendingDraft && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+          <span className="min-w-0 text-amber-900">
+            📝 Найден несохранённый черновик от{' '}
+            <span className="font-medium">
+              {formatDraftTime(draftHook.pendingDraft.savedAt)}
+            </span>
+          </span>
+          <div className="flex flex-shrink-0 gap-2">
+            <button
+              onClick={draftHook.restoreDraft}
+              className="rounded bg-amber-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+            >
+              Восстановить
+            </button>
+            <button
+              onClick={draftHook.discardDraft}
+              className="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-800 transition-colors hover:bg-amber-100"
+            >
+              Отбросить
+            </button>
+          </div>
+        </div>
+      )}
       <input
         type="text"
         value={title}
@@ -281,7 +379,7 @@ function ChronicleForm({
         placeholder="Текст записи (Markdown)..."
         className="min-h-[150px] w-full resize-y rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
       />
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <button
           onClick={handleSubmit}
           disabled={saving || !title.trim()}
@@ -290,11 +388,19 @@ function ChronicleForm({
           {saving ? 'Сохраняю...' : isEdit ? 'Обновить' : 'Добавить'}
         </button>
         <button
-          onClick={onCancel}
+          onClick={handleCancel}
           className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Отмена
         </button>
+        {draftHook.lastSavedAt && !draftHook.pendingDraft && (
+          <span
+            className="text-xs text-gray-400"
+            title={`Локальный черновик · ${new Date(draftHook.lastSavedAt).toLocaleString('ru-RU')}`}
+          >
+            Автосохранено
+          </span>
+        )}
       </div>
     </div>
   )
