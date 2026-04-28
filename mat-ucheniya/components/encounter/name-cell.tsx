@@ -56,6 +56,10 @@ export function NameCell({ value, onCommit, onInspect, disabled, className = '' 
 
   // Distinguish single vs double click with a short timer.
   function handleClick(e: React.MouseEvent) {
+    // Whatever happens here, the parent <td> also has an onClick that
+    // calls onInspect. Stop the bubble so we don't fire it twice (or
+    // worse, race the deferred single-click against the bubbled one).
+    e.stopPropagation()
     if (editing || disabled) return
     // Double click fired if detail === 2
     if (e.detail === 2) {

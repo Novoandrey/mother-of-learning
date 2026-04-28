@@ -477,9 +477,22 @@ export const EncounterGrid = forwardRef<EncounterGridHandle, Props>(function Enc
                     />
                   </td>
 
-                  {/* Name + role dot + statblock link */}
+                  {/* Name + role dot + statblock link.
+
+                      Whole-cell click triggers `onInspect` so the DM
+                      can open the statblock panel by tapping anywhere
+                      in the row — not just the small name span. The
+                      role dot, stat-link, and NameCell's span/input
+                      all stop propagation so they keep their own
+                      semantics (cycle role / open dnd.su / inspect or
+                      edit on the name itself) without double-firing. */}
                   <td
-                    className={`px-3 py-1 align-middle ${CELL}`}
+                    onClick={
+                      !done && onInspect ? () => onInspect(p.id) : undefined
+                    }
+                    className={`px-3 py-1 align-middle ${CELL} ${
+                      !done && onInspect ? 'cursor-pointer' : ''
+                    }`}
                     style={{ ...CELL_STYLE, borderBottom: '1px solid var(--gray-200)' }}
                   >
                     <div className="flex items-center gap-1.5">
