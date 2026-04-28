@@ -1,14 +1,36 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NodeFormField } from './node-form-field'
 import { ParticipantsPicker } from './participants-picker'
 import { useNodeForm, type ExistingNode } from '@/hooks/use-node-form'
+import { useFormDraft } from '@/hooks/use-form-draft'
 import { TEXTAREA_FIELDS, fieldPriority } from '@/lib/node-form-constants'
 import { validateDayRange } from '@/lib/session-validation'
 import { createClient } from '@/lib/supabase/client'
 import { updateSessionParticipants } from '@/app/actions/sessions'
 import { DEFAULT_LOOP_LENGTH_DAYS } from '@/lib/loop-length'
+
+type DraftSnapshot = {
+  title: string
+  fields: Record<string, string>
+  content: string
+  participantIds: string[]
+}
+
+function formatDraftTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('ru-RU', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
 
 type Props = {
   campaignId: string
@@ -27,6 +49,13 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
   const [participantIds, setParticipantIds] = useState<string[]>([])
   const [dayError, setDayError] = useState<string | null>(null)
 
+  // Bridge: useNodeForm fires `onBeforeRedirect` after a successful
+  // save but before the redirect — that's the moment to wipe the
+  // local-storage draft. We can't pass `clearDraft` directly because
+  // it doesn't exist until useFormDraft runs below, so we route
+  // through a ref that's filled in once both hooks have run.
+  const draftClearRef = useRef<() => void>(() => {})
+
   const f = useNodeForm({
     campaignId,
     campaignSlug,
@@ -34,8 +63,12 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
     preselectedType,
     onBeforeRedirect: async (nodeId, typeSlug) => {
       // Only sessions store participants; no-op otherwise.
-      if (typeSlug !== 'session') return
-      await updateSessionParticipants(nodeId, participantIds)
+      if (typeSlug === 'session') {
+        await updateSessionParticipants(nodeId, participantIds)
+      }
+      // Save succeeded (and side-effects too) — the draft is now safely
+      // committed. Drop it so next visit doesn't show a stale prompt.
+      draftClearRef.current()
     },
   })
 
@@ -103,6 +136,64 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
     setDayError(err)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSession, f.fields.day_from, f.fields.day_to, loopLength])
+
+  // ── Local draft autosave ───────────────────────────────────────────
+  // localStorage-backed safety net for in-progress edits — survives
+  // tab close, browser crash, OS reboot. Keyed per-node-id (edit) or
+  // per-(campaign, type-slug) (create), so two parallel "new session"
+  // tabs would collide; that's an acceptable trade vs. random IDs that
+  // never get cleaned up.
+  //
+  // Disabled until `selectedType` is known so the very first auto-write
+  // captures real form state (with type defaults applied) rather than
+  // the brief empty render that precedes type loading.
+  const draftKey = useMemo(() => {
+    if (!f.selectedType) return null
+    if (editNode?.id) return `mat-uch:draft:edit:${editNode.id}`
+    return `mat-uch:draft:new:${campaignId}:${f.selectedType.slug}`
+  }, [f.selectedType, editNode?.id, campaignId])
+
+  const draftValue = useMemo<DraftSnapshot>(
+    () => ({
+      title: f.title,
+      fields: f.fields,
+      content: f.content,
+      participantIds,
+    }),
+    [f.title, f.fields, f.content, participantIds],
+  )
+
+  const isDraftEmpty = useCallback((v: DraftSnapshot) => {
+    if (v.title.trim()) return false
+    if (v.content.trim()) return false
+    if (v.participantIds.length > 0) return false
+    for (const k of Object.keys(v.fields)) {
+      const fv = v.fields[k]
+      if (typeof fv === 'string' && fv.trim()) return false
+    }
+    return true
+  }, [])
+
+  const draft = useFormDraft<DraftSnapshot>({
+    key: draftKey,
+    value: draftValue,
+    enabled: !!f.selectedType,
+    isEmpty: isDraftEmpty,
+    onRestore: (d) => {
+      f.setTitle(d.title ?? '')
+      // Merge into existing field shape so any newly-added fields stay
+      // at their defaults rather than being wiped to undefined.
+      f.setFields({ ...f.fields, ...(d.fields ?? {}) })
+      f.setContent(d.content ?? '')
+      setParticipantIds(d.participantIds ?? [])
+    },
+  })
+
+  // Wire the clearDraft callback into the ref consumed by
+  // useNodeForm.onBeforeRedirect.
+  useEffect(() => {
+    draftClearRef.current = draft.clearDraft
+  }, [draft.clearDraft])
 
   // ── Submit gate: block on day-range error; let hook handle the rest ─
   function handleSubmitClick() {
@@ -202,6 +293,33 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Draft restore banner — shown when localStorage has an
+              unrecovered snapshot for this form key. */}
+          {draft.pendingDraft && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+              <span className="min-w-0 text-amber-900">
+                📝 Найден несохранённый черновик от{' '}
+                <span className="font-medium">
+                  {formatDraftTime(draft.pendingDraft.savedAt)}
+                </span>
+              </span>
+              <div className="flex flex-shrink-0 gap-2">
+                <button
+                  onClick={draft.restoreDraft}
+                  className="rounded bg-amber-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+                >
+                  Восстановить
+                </button>
+                <button
+                  onClick={draft.discardDraft}
+                  className="rounded border border-amber-300 px-2.5 py-1 text-xs text-amber-800 transition-colors hover:bg-amber-100"
+                >
+                  Отбросить
+                </button>
+              </div>
+            </div>
+          )}
+
           {!f.isEdit && (
             <div className="flex items-center gap-2">
               <button onClick={() => f.setSelectedType(null)} className="text-sm text-gray-400 hover:text-gray-600">
@@ -392,6 +510,14 @@ export function CreateNodeForm({ campaignId, campaignSlug, editNode, preselected
             >
               Отмена
             </button>
+            {draft.lastSavedAt && !draft.pendingDraft && (
+              <span
+                className="text-xs text-gray-400"
+                title={`Локальный черновик · ${new Date(draft.lastSavedAt).toLocaleString('ru-RU')}`}
+              >
+                Автосохранено
+              </span>
+            )}
             {f.isEdit && (
               <button
                 onClick={f.handleDelete}
