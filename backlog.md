@@ -3,7 +3,7 @@
 Master backlog for cross-feature ideas, bugs, and improvements.
 Single source of truth — все баги, фичи, идеи живут здесь.
 
-Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
+Updated: 2026-04-28 (chat 78 — концепт-редактор поверх spec-020 sandbox)
 
 ---
 
@@ -139,6 +139,39 @@ Updated: 2026-04-23 (chat 33 — Бухгалтерия roadmap)
     заранее).
   - **Не зависит** от spec-013/014/015 — sandbox это
     visibility-слой над любыми нодами, ортогонален бухгалтерии.
+- **Концепт-редактор поверх sandbox** (chat 78): data-model
+  уже готов — `node_types` + `nodes.fields` JSONB + edges =
+  zettelkasten без миграций, новые типы создаются из UI
+  (`createCustomType` в `hooks/use-node-form.ts`). Базовый
+  markdown-редактор тоже есть (`components/markdown-content.tsx`,
+  textarea + react-markdown + remark-gfm). Дозревает четырьмя
+  ортогональными слоями поверх visibility-флага:
+  1. **Supabase Storage**: bucket `concept-images`, RLS по
+     `campaign_id`, server action `uploadImage`, paste-from-
+     clipboard / drag-and-drop в редактор. Единственная
+     «настоящая» миграция спеки — всё остальное code-only.
+  2. **Wikilinks `[[Title]]`**: remark-плагин, резолв на
+     `nodes.title` per-campaign, автокомплит при вводе.
+     Backlinks-панель — бесплатно поверх.
+  3. **Структурированные поля per node_type**: расширить
+     `default_fields` со схемой (типа `{stats: {ac: 'number',
+     hp: 'number'}, lore: 'markdown'}`). Рендер — отдельные
+     карточки «Статы» (типизированный JSON) и «Описание»
+     (markdown body). Игровые статы перестают мешаться с прозой.
+  4. **Editor v2 (опц.)**: тулбар / slash-commands. Низкий
+     приоритет — для одиночного DM textarea + preview хватает.
+- **Первые тестовые концепты** (когда фича уедет): Декан
+  академии Сиори ← Декан из «Community»; бар «Золотой петух» ←
+  MacLaren's из «How I Met Your Mother».
+- **Зависимости**: ждёт после текущего инвентаря, DB security
+  pass, улучшения item search и наполнения истории транзакций
+  5-й петли.
+- **«Без миграций по команде»**: архитектурно уже работает —
+  `INSERT INTO node_types` + `INSERT INTO nodes` с произвольным
+  JSONB. Открытый вопрос — как Claude / другие DM дотягиваются
+  до БД без UI. Варианты: CLI по `SUPABASE_SERVICE_ROLE_KEY`
+  (паттерн в `scripts/lib/invalidate-sidebar-remote.ts`), MCP-
+  server, или обычные DM-server-actions. Ортогонально sandbox.
 - **Не в спеке**: версионирование драфтов («черновик v2
   поверх v1»), expiry / TTL драфтов, collaborative editing
   драфтов несколькими DM (хотя RLS уже даст «всем DM
