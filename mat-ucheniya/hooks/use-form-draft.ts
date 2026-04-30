@@ -79,9 +79,24 @@ export function useFormDraft<T>({
   // see its current value without re-running every time the banner
   // toggles (which would re-arm the debounce timer for nothing).
   const pendingRef = useRef<Draft<T> | null>(null)
-  pendingRef.current = pendingDraft
+  // Mirror pendingDraft into the ref via effect — mutating .current in
+  // the render body trips react-hooks/refs and can desync if React
+  // bails out of a render (Strict Mode, suspense). Effect-based mirror
+  // is the same pattern used by draftClearRef in create-node-form.tsx.
+  useEffect(() => {
+    pendingRef.current = pendingDraft
+  }, [pendingDraft])
 
   // ── Read once per (enabled, key) pair ──
+  // Reads from localStorage and pushes the result into local state.
+  // The lint rule `react-hooks/set-state-in-effect` warns about every
+  // setState-in-effect call, but here we genuinely need to sync local
+  // state with an external system (localStorage) on mount and when the
+  // form's key changes. The "right" replacement is useSyncExternalStore,
+  // but localStorage doesn't emit events and JSON.parse returns a fresh
+  // object each call — that requires manual snapshot memoisation and is
+  // a bigger refactor. Tracked as TECH-021 (chat 80).
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!enabled || !key) return
     if (hasReadRef.current === key) return
@@ -113,6 +128,7 @@ export function useFormDraft<T>({
       setPendingDraft(null)
     }
   }, [enabled, key, isEmpty])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ── Debounced write on every value change ──
   useEffect(() => {

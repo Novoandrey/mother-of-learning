@@ -1168,7 +1168,7 @@ ultrareview-1 значительный: lint с 44 → 1, два больших 
 
 Найденное в этом проходе:
 
-### TECH-014 [P2] Ref-mutation в render body — `hooks/use-form-draft.ts:82`
+### TECH-014 [P2] Ref-mutation в render body — `hooks/use-form-draft.ts:82` ✅ зафикшен в chat 80
 - **Feature**: form draft autosave (chat 79).
 - `pendingRef.current = pendingDraft` стоит в теле компонента,
   а не в effect/handler. Lint его ловит:
@@ -1182,6 +1182,24 @@ ultrareview-1 значительный: lint с 44 → 1, два больших 
   pendingRef.current = pendingDraft }, [pendingDraft])` —
   как уже сделано на 195-й строке для `draftClearRef`
   в `create-node-form.tsx`.
+
+### TECH-021 [P3] `useSyncExternalStore` рефактор для `use-form-draft`
+- **Feature**: dev hygiene, всплыло из TECH-014 фикса.
+- Read-effect в `use-form-draft.ts` (`useEffect` на строке ~107)
+  читает localStorage и кладёт результат в local state через
+  `setPendingDraft(...)`. Lint правило
+  `react-hooks/set-state-in-effect` на это ругается, что
+  технически справедливо: setState-in-effect = cascading renders.
+  В chat 80 закрыто `eslint-disable react-hooks/set-state-in-effect`
+  block с пояснением — потому что это легитимная синхронизация
+  с external system (localStorage), не баг.
+- **Чистый фикс**: переписать на `useSyncExternalStore`.
+  Сложности: localStorage не эмитит events (нужен либо
+  `'storage'` event listener для cross-tab sync, либо noop
+  subscribe), `JSON.parse` возвращает новый объект каждый вызов
+  → нужна мемоизация snapshot для стабильной reference equality.
+- Не срочно — текущая реализация корректна, просто lint-rule
+  её не любит.
 
 ### TECH-015 [P2] Миграция 029 хардкодит `slug='mat-ucheniya'` для electives
 - **Feature**: open-source / multi-campaign support.
@@ -1256,7 +1274,7 @@ ultrareview-1 значительный: lint с 44 → 1, два больших 
   зелено, локально красно. Vitest 410/410 runtime-passes.
 - **Фикс**: пройти 5 тест-файлов и обновить типы в фикстурах.
 
-### TECH-020 [P3] Lint warning — unused `bookKey`
+### TECH-020 [P3] Lint warning — unused `bookKey` ✅ зафикшен в chat 80
 - `scripts/items-dndsu-codegen.ts:314`. Снять переменную или
   префиксом `_bookKey` обозначить как намеренно неиспользуемую.
 
