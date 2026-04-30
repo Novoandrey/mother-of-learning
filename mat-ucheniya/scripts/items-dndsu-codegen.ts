@@ -311,7 +311,7 @@ function emitMigrationSql(args: {
   entries: ItemSeedEntry[]
   migrationNum: number
 }): string {
-  const { bookKey, bookName, entries, migrationNum } = args
+  const { bookName, entries, migrationNum } = args
   const seedRows = entries
     .map((e) => `      (${tupleFor(e)})`)
     .join(',\n')
