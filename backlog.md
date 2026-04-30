@@ -1247,7 +1247,7 @@ ultrareview-1 значительный: lint с 44 → 1, два больших 
   (`useTransactionFormState`). Не быстрый рефактор — отдельная
   сессия, не часть полишинга по аудиту.
 
-### TECH-018 [P3] Dead components — 6 файлов, ~470 строк
+### TECH-018 [P3] Dead components — 6 файлов, ~470 строк ✅ зафикшен в chat 80
 - **Feature**: cleanup.
 - Никаких импортов, никаких упоминаний в коде:
   - `components/category-dropdown.tsx` (103 строки)

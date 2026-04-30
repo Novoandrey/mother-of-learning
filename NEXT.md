@@ -40,8 +40,11 @@
   `aggregateStashLegs` (pure, 9 тестов), `computeShortfall` (pure, 7
   тестов). Wallet-block переименован `pcId`→`actorNodeId` — тот же
   компонент рендерится и для PC, и для stash. Forward-compat с
-  spec-015: `InventoryGrid` параметризуется `keyFn` для будущего
-  `itemNodeId`. Catalog роут stash-ноды редиректит на `/accounting/stash`.
+  spec-015: `InventoryGrid` параметризовался `keyFn` для будущего
+  `itemNodeId` — фактически реализовано: spec-015 Phase 7 заменил
+  `<InventoryGrid>` на `<InventoryTab>`, оригинальный компонент
+  удалён в chat 80 (TECH-018). Catalog роут stash-ноды редиректит
+  на `/accounting/stash`.
 - **spec-011 polish Slice A (chat 42)**: универсальный
   `<TransactionRow>` — one-line layout, цвета `emerald-700 / red-700 /
   gray-700`, prefix `+/−/×`, WCAG AAA контрасты, day chip `д.N·с.M`,
