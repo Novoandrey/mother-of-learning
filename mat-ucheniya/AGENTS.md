@@ -24,6 +24,33 @@ them are mostly `export const dynamic = 'force-dynamic'`, so they don't
 need explicit invalidation. If you add caching to a new table, document
 its invalidation contract here.
 
+## Server actions: auth gating is mandatory
+
+All server actions in `app/actions/*.ts` use `createAdminClient()`
+(service role) for writes — this **bypasses RLS**. RLS still protects
+direct client reads from `lib/queries/*`, but write paths run as
+admin. Therefore:
+
+**Every new exported server action MUST start with an auth check.**
+Use one of:
+
+- `resolveAuth(campaignId)` — local helper in `app/actions/transactions.ts`
+  and `app/actions/approval.ts`. Returns `{ ok, userId, role }` or
+  `{ ok: false, error }`. Preferred when the action needs the role
+  to branch (player vs DM).
+- `getMembership(campaignId)` from `@/lib/auth` — for actions that
+  only need to confirm "is this user a member of this campaign".
+- `canEditNode(nodeId, campaignId, userId, role)` from `@/lib/auth`
+  — for per-node gating that mirrors the RLS policy `can_edit_node`.
+
+Player-acting-on-PC actions also need `isPcOwner(pcId, userId)` — see
+`createTransaction` for the canonical pattern (campaign membership +
+role check + ownership check before write).
+
+If the action is a thin wrapper that delegates to another already-gated
+action (`stash.ts` → `transactions.ts`), document this in the file
+header — the lack of own gates needs to be visible at code review.
+
 ## Current-phase priorities: data → desktop UX → mobile
 
 The app is used by one DM (owner) on a desktop browser and a handful
