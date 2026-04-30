@@ -277,6 +277,8 @@ describe('identifyAffectedRows', () => {
     }
     const desired: DesiredRow = {
       ...existing,
+      actorPcId: pcId(1), // narrow string | null → string for DesiredRow
+      kind: 'item' as const, // narrow money|item|transfer → money|item
       itemQty: 2,
     }
     const diff: RowDiff = {

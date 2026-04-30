@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { diffRowSets } from '../starter-setup-diff'
 import { canonicalKey } from '../starter-setup-resolver'
 import type {
-  CoinSet,
   DesiredRow,
   ExistingAutogenRow,
   WizardKey,
 } from '../starter-setup'
+import type { CoinSet } from '../transactions'
 
 // ─────────────────────────── fixtures ───────────────────────────
 

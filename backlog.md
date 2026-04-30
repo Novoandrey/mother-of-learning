@@ -1262,7 +1262,7 @@ ultrareview-1 значительный: lint с 44 → 1, два больших 
   про «Forward-compat с spec-015: `InventoryGrid` параметризуется
   `keyFn`».
 
-### TECH-019 [P3] TypeScript ошибки в 5 тестовых файлах
+### TECH-019 [P3] TypeScript ошибки в 5 тестовых файлах ✅ зафикшен в chat 80
 - **Feature**: dev hygiene.
 - `npx tsc --noEmit` падает с 5 ошибками — все в `lib/__tests__/`.
   Прод-типы ушли вперёд, тесты не обновили:
