@@ -1201,7 +1201,7 @@ ultrareview-1 значительный: lint с 44 → 1, два больших 
 - Не срочно — текущая реализация корректна, просто lint-rule
   её не любит.
 
-### TECH-015 [P2] Миграция 029 хардкодит `slug='mat-ucheniya'` для electives
+### TECH-015 [P2] Миграция 029 хардкодит `slug='mat-ucheniya'` для electives ✅ зафикшен в chat 80
 - **Feature**: open-source / multi-campaign support.
 - `029_electives.sql` создаёт `node_type 'elective'` и
   `edge_type 'has_elective'` только для `c.slug='mat-ucheniya'`.
@@ -1214,7 +1214,7 @@ ultrareview-1 значительный: lint с 44 → 1, два больших 
   добавить эти типы в `seedCampaignSrd` чтобы новые кампании
   получали их при `initializeCampaignFromTemplate`.
 
-### TECH-016 [P2] Dead search infrastructure — `nodes.search_vector`
+### TECH-016 [P2] Dead search infrastructure — `nodes.search_vector` ✅ зафикшен в chat 80 (Variant A)
 - **Feature**: cleanup / open-source unblock.
 - `nodes.search_vector tsvector` + GIN-индекс `idx_nodes_search`
   + триггер `update_node_search_vector` обновляются на каждом

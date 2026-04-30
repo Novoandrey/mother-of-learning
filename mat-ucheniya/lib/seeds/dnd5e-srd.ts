@@ -91,6 +91,17 @@ const NODE_TYPES: SrdNodeTypeSpec[] = [
     default_fields: {},
     sort_order: 60,
   },
+  // Electives. Migration 029 seeded this only for mat-ucheniya;
+  // migration 110 backfills existing campaigns and this entry catches
+  // future ones via initializeCampaignFromTemplate (TECH-015, chat 80).
+  // Free-form `kind` field — DMs label courses however suits their world.
+  {
+    slug: 'elective',
+    label: 'Факультатив',
+    icon: '🎓',
+    default_fields: { kind: '', link: '', comment: '' },
+    sort_order: 100,
+  },
 ]
 
 // 14 base SRD conditions. The historical "Истощённый" node was replaced by
@@ -455,6 +466,28 @@ export async function seedCampaignSrd(
       throw new Error(`seedCampaignSrd: failed to insert nodes: ${insertNodesErr.message}`)
     }
     result.nodes_inserted = toInsert.length
+  }
+
+  // -- 4. Edge types -------------------------------------------------------
+  //
+  // `has_elective` (PC → elective). Pairs with the `elective` node_type
+  // above. Idempotent — `(campaign_id, slug)` is unique per the partial
+  // index `idx_edge_types_campaign`.
+  const { error: insertEdgeTypesErr } = await supabase.from('edge_types').upsert(
+    [
+      {
+        campaign_id: campaignId,
+        slug: 'has_elective',
+        label: 'взял факультатив',
+        is_base: false,
+      },
+    ],
+    { onConflict: 'campaign_id,slug', ignoreDuplicates: true },
+  )
+  if (insertEdgeTypesErr) {
+    throw new Error(
+      `seedCampaignSrd: failed to insert edge_types: ${insertEdgeTypesErr.message}`,
+    )
   }
 
   return result
