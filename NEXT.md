@@ -2,9 +2,11 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-28 (chat 79 — form draft autosave
-> для всех длинно-печатных полей в проде; 0 миграций;
-> version unchanged).
+> Last updated: 2026-04-30 (chat 80 — ultrareview-2 polish:
+> 6 dead components removed, dead search infra dropped, electives
+> backfilled for all campaigns, AGENTS server-action auth contract
+> added; 2 миграций (109 drop search infra, 110 backfill electives);
+> version 0.7.1 → 0.8.0).
 
 ## В проде сейчас
 
@@ -525,6 +527,38 @@
   На Save и на Cancel черновик чистится; ребут/краш —
   единственный сценарий, когда баннер сработает. 0 миграций,
   0 серверных изменений.
+
+- **Ultrareview-2 polish (chat 80)** — второй проход аудита через
+  год после первого. Прогресс с ultrareview-1: lint 44 → 1 (теперь
+  0), 7 `set-state-in-effect` → 0, два больших open-source
+  блокера закрыты. Закрыто в этом чате:
+  * **TECH-014** — ref-mutation в render body `use-form-draft.ts`
+    (повторение паттерна BUG-014).
+  * **TECH-015** — миграция 110 backfill `elective` node_type +
+    `has_elective` edge_type для всех кампаний; `seedCampaignSrd`
+    расширен — новые кампании получают electives end-to-end.
+  * **TECH-016** — миграция 109 drop dead search infra
+    (`nodes.search_vector` + GIN-индекс + триггер + функция;
+    никто не читал, реальный поиск через `.ilike`). Попутно
+    закрыт хардкод `to_tsvector('russian')` из ultrareview-1.
+  * **TECH-018** — удалены 6 dead components (~470 строк):
+    category-dropdown, inventory-grid (+row), search-input,
+    type-filter, encounter/row-actions-menu.
+  * **TECH-019** — синхронизированы типы в 5 тестовых файлах
+    (`requiresAttunement`, `useDefaultPrice`, `actorPcId`,
+    `CoinSet` import path).
+  * **TECH-020** — снят unused `bookKey` в codegen-скрипте.
+  * **AGENTS contract** — дописан server-action auth contract
+    рядом с sidebar invalidation contract.
+
+  Отложено как **TECH-017** (P3): рефактор `transaction-form.tsx`
+  (947 строк, 15 useState) в `useReducer` — отдельная сессия.
+
+  Отложено как **TECH-021** (P3, всплыл при фиксе TECH-014):
+  `useSyncExternalStore` рефактор `use-form-draft` для устранения
+  block-level eslint-disable.
+
+  Build clean, vitest 410/410, lint 0/0, tsc strict 0/0.
 
 ## Следующий приоритет
 
