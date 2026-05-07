@@ -1,4 +1,4 @@
-# Spec-021 — Wiki / Markdown editor
+# [draft] Spec-021 — Wiki / Markdown editor
 
 > Заглушка. Содержание будет наполняться постепенно.
 

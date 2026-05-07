@@ -1,4 +1,4 @@
-# West marches mode
+# [draft] West marches mode
 
 > Заглушка. Содержание будет наполняться постепенно.
 

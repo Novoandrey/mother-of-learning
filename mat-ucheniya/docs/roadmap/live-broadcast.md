@@ -1,4 +1,4 @@
-# Live broadcast и spectators
+# [draft] Live broadcast и spectators
 
 > Заглушка. Содержание будет наполняться постепенно.
 

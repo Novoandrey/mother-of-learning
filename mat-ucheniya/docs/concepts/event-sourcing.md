@@ -1,4 +1,4 @@
-# Event sourcing
+# [draft] Event sourcing
 
 > Заглушка. Содержание будет наполняться постепенно.
 
