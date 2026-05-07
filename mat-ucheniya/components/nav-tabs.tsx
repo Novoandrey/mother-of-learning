@@ -19,7 +19,6 @@ const TABS: Tab[] = [
   { key: 'skladchina', href: 'skladchina', label: 'Складчина', icon: '🤝' },
   { key: 'items', href: 'items', label: 'Предметы', icon: '🎒' },
   { key: 'members', href: 'members', label: 'Участники', icon: '👥' },
-  { key: 'tasks', href: 'tasks', label: 'Задачи', icon: '📌' },
   { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️' },
 ]
 
