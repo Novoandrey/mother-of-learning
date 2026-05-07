@@ -125,10 +125,10 @@ export default async function DocsLayout({
             </Link>
             <div className="flex items-center gap-4">
               <Link
-                href="/"
+                href="/login"
                 className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
               >
-                К кампаниям
+                Войти
               </Link>
               <UserMenu />
             </div>

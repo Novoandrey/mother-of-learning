@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { LoginForm } from './login-form'
 import { APP_NAME, APP_LOGIN_SUBTITLE } from '@/lib/branding'
 
@@ -28,6 +29,18 @@ export default function LoginPage() {
           {APP_LOGIN_SUBTITLE}
         </p>
         <LoginForm />
+        <div
+          className="mt-5 pt-4 text-center border-t"
+          style={{ borderColor: 'var(--gray-100)' }}
+        >
+          <Link
+            href="/docs"
+            className="text-[12px] hover:underline"
+            style={{ color: 'var(--gray-500)' }}
+          >
+            📖 Документация проекта
+          </Link>
+        </div>
       </div>
     </div>
   )
