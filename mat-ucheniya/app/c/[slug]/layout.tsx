@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { NavTabs } from '@/components/nav-tabs'
 import { CampaignSidebarAside } from '@/components/campaign-sidebar-aside'
 import { UserMenu } from '@/components/user-menu'
+import { SiteBrand } from '@/components/site-brand'
 import { getMembership, requireAuth } from '@/lib/auth'
 import { getSidebarData } from '@/lib/sidebar-cache'
 import { getPendingCount } from '@/lib/approval-queries'
@@ -41,15 +42,19 @@ export default async function CampaignLayout({
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* Top bar: campaign name + create + user menu */}
+      {/* Top bar: site brand + campaign name + create + user menu */}
       <header className="flex-shrink-0 border-b border-gray-200 bg-white">
         <div className="px-4 py-2 flex items-center justify-between gap-4">
-          <Link
-            href={`/c/${slug}/catalog`}
-            className="font-semibold text-base hover:text-blue-600 transition-colors"
-          >
-            {campaign.name}
-          </Link>
+          <div className="flex items-center gap-5 min-w-0">
+            <SiteBrand />
+            <span className="text-gray-300" aria-hidden>•</span>
+            <Link
+              href={`/c/${slug}/catalog`}
+              className="font-semibold text-base text-gray-900 hover:text-blue-600 transition-colors truncate"
+            >
+              {campaign.name}
+            </Link>
+          </div>
           <div className="flex items-center gap-4">
             <Link
               href={`/c/${slug}/catalog/new`}
