@@ -66,12 +66,20 @@ export default async function EncounterPage({
     .order('initiative', { ascending: false, nullsFirst: false })
     .order('sort_order', { ascending: true })
 
-  // Catalog nodes for adding participants
+  // Catalog nodes for adding participants.
+  //
+  // .range(0, 9999) — PostgREST's default response cap is 1000 rows.
+  // The mat-ucheniya catalog already exceeds that (~1200+ nodes after
+  // spec-018 items seed), so without an explicit upper bound late-
+  // alphabet creatures (e.g. "Ужас", "Халорин") silently fall off and
+  // never reach the participant picker. 10k matches the documented
+  // pagination ceiling in NEXT.md "Хвосты spec-018".
   const { data: catalogNodes } = await supabase
     .from('nodes')
     .select('id, title, fields, type:node_types(slug, label)')
     .eq('campaign_id', campaign.id)
     .order('title')
+    .range(0, 9999)
 
   type CatalogNode = {
     id: string
