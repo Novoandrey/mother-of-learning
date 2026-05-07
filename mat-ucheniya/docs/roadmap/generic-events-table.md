@@ -1,4 +1,4 @@
-# Generic events table
+# [draft] Generic events table
 
 > Заглушка. Содержание будет наполняться постепенно.
 

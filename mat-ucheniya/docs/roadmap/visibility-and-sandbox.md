@@ -1,4 +1,4 @@
-# Spec-022 — Visibility / sandbox / approval
+# [draft] Spec-022 — Visibility / sandbox / approval
 
 > Заглушка. Содержание будет наполняться постепенно.
 

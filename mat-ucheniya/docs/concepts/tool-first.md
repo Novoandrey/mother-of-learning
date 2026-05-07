@@ -1,4 +1,4 @@
-# Tool-first, simulation-second
+# [draft] Tool-first, simulation-second
 
 > Заглушка. Содержание будет наполняться постепенно.
 

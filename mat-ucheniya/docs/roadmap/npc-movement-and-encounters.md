@@ -1,4 +1,4 @@
-# NPC движение и encounter rework
+# [draft] NPC движение и encounter rework
 
 > Заглушка. Содержание будет наполняться постепенно.
 

@@ -1,4 +1,4 @@
-# Spec-kit workflow
+# [draft] Spec-kit workflow
 
 > Заглушка. Содержание будет наполняться постепенно.
 
