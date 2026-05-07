@@ -52,6 +52,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Remember the user's most recent campaign so cross-cutting routes
+  // (notably /docs) can rehydrate the campaign chrome (top bar + nav
+  // tabs) without forcing the URL to encode a slug. Cookie lasts 30
+  // days and gets refreshed on every campaign hit.
+  const campaignMatch = pathname.match(/^\/c\/([^/]+)/)
+  if (campaignMatch) {
+    response.cookies.set('current_campaign_slug', campaignMatch[1], {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+      sameSite: 'lax',
+      httpOnly: false,
+    })
+  }
+
   return response
 }
 
