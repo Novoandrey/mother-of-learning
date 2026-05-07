@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { getDocsTree } from '@/lib/docs'
 import { DocsTreeNav } from '@/components/docs-tree-nav'
 import { UserMenu } from '@/components/user-menu'
+import { SiteBrand } from '@/components/site-brand'
 import { NavTabs } from '@/components/nav-tabs'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getCurrentUserAndProfile, getMembership } from '@/lib/auth'
@@ -84,12 +85,16 @@ export default async function DocsLayout({
         <>
           <header className="flex-shrink-0 border-b border-gray-200 bg-white">
             <div className="px-4 py-2 flex items-center justify-between gap-4">
-              <Link
-                href={`/c/${ctx.slug}/catalog`}
-                className="font-semibold text-base hover:text-blue-600 transition-colors"
-              >
-                {ctx.name}
-              </Link>
+              <div className="flex items-center gap-5 min-w-0">
+                <SiteBrand />
+                <span className="text-gray-300" aria-hidden>•</span>
+                <Link
+                  href={`/c/${ctx.slug}/catalog`}
+                  className="font-semibold text-base text-gray-900 hover:text-blue-600 transition-colors truncate"
+                >
+                  {ctx.name}
+                </Link>
+              </div>
               <div className="flex items-center gap-4">
                 <Link
                   href={`/c/${ctx.slug}/catalog/new`}
@@ -110,11 +115,8 @@ export default async function DocsLayout({
       ) : (
         <header className="flex-shrink-0 border-b border-gray-200 bg-white">
           <div className="px-4 py-2 flex items-center justify-between gap-4">
-            <Link
-              href="/docs"
-              className="font-semibold text-base hover:text-blue-600 transition-colors"
-            >
-              📖 Документация
+            <Link href="/docs" className="hover:opacity-80 transition-opacity">
+              <SiteBrand />
             </Link>
             <div className="flex items-center gap-4">
               <Link
