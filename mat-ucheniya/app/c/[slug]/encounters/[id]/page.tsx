@@ -66,18 +66,40 @@ export default async function EncounterPage({
     .order('initiative', { ascending: false, nullsFirst: false })
     .order('sort_order', { ascending: true })
 
-  // Catalog nodes for adding participants.
+  // Catalog nodes for adding participants, conditions, and effects.
   //
-  // .range(0, 9999) — PostgREST's default response cap is 1000 rows.
-  // The mat-ucheniya catalog already exceeds that (~1200+ nodes after
-  // spec-018 items seed), so without an explicit upper bound late-
-  // alphabet creatures (e.g. "Ужас", "Халорин") silently fall off and
-  // never reach the participant picker. 10k matches the documented
-  // pagination ceiling in NEXT.md "Хвосты spec-018".
+  // Filter at query time by the 5 needed type slugs instead of fetching
+  // every node in the campaign. Two reasons:
+  //
+  // 1. Supabase Cloud enforces `db_max_rows = 1000` server-side. The
+  //    mat-ucheniya catalog is ~1200+ nodes after spec-018 items seed,
+  //    so an unfiltered fetch silently drops late-alphabet rows
+  //    (e.g. "Ужас", "Халорин"). `.range()` doesn't help — the server
+  //    cap is enforced before the client range applies.
+  //
+  // 2. Downstream code only ever consumes these 5 slugs:
+  //      - character / npc / creature → AddParticipantRow picker
+  //      - condition                  → conditions cell autocomplete
+  //      - effect                     → effects cell autocomplete
+  //    No point shipping 800+ items / locations / spells over the wire
+  //    just to drop them in JS.
+  //
+  // Resolve type_ids first (a 5-row lookup), then `.in('type_id', ...)`
+  // on nodes. .range(0, 9999) kept as belt-and-suspenders.
+  const PICKER_SLUGS = ['character', 'npc', 'creature', 'condition', 'effect']
+  const { data: pickerTypes } = await supabase
+    .from('node_types')
+    .select('id, slug')
+    .eq('campaign_id', campaign.id)
+    .in('slug', PICKER_SLUGS)
+
+  const pickerTypeIds = (pickerTypes ?? []).map((t: { id: string }) => t.id)
+
   const { data: catalogNodes } = await supabase
     .from('nodes')
     .select('id, title, fields, type:node_types(slug, label)')
     .eq('campaign_id', campaign.id)
+    .in('type_id', pickerTypeIds.length ? pickerTypeIds : ['00000000-0000-0000-0000-000000000000'])
     .order('title')
     .range(0, 9999)
 
