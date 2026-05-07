@@ -3,7 +3,18 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-type Tab = { key: string; href: string; label: string; icon: string }
+type Tab = {
+  key: string
+  /**
+   * `href` is normally a relative segment appended to `/c/<slug>/`
+   * (e.g. `'catalog'`). For tabs that point outside the campaign
+   * (the public docs section), set an absolute path starting with
+   * `/` (e.g. `'/docs'`) — it is rendered as-is.
+   */
+  href: string
+  label: string
+  icon: string
+}
 
 // Spec-006 increment 3: all tabs are visible to all campaign members
 // (owner / dm / player). Players see /members and /settings read-only;
@@ -19,6 +30,7 @@ const TABS: Tab[] = [
   { key: 'skladchina', href: 'skladchina', label: 'Складчина', icon: '🤝' },
   { key: 'items', href: 'items', label: 'Предметы', icon: '🎒' },
   { key: 'members', href: 'members', label: 'Участники', icon: '👥' },
+  { key: 'docs', href: '/docs', label: 'Документация', icon: '📖' },
   { key: 'settings', href: 'settings', label: 'Настройки', icon: '⚙️' },
 ]
 
@@ -44,7 +56,8 @@ export function NavTabs({
   return (
     <div className="flex items-center gap-0 border-b border-gray-200 bg-white px-2">
       {TABS.map((tab) => {
-        const href = `/c/${campaignSlug}/${tab.href}`
+        const isAbsolute = tab.href.startsWith('/')
+        const href = isAbsolute ? tab.href : `/c/${campaignSlug}/${tab.href}`
         const isActive = pathname.startsWith(href)
         const showBadge =
           tab.key === 'accounting' && showAccountingBadge && accountingPendingCount > 0

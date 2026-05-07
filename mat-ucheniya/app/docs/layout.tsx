@@ -49,7 +49,7 @@ export default async function DocsLayout({
       </header>
 
       <div className="flex flex-1 min-h-0">
-        <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto py-3 px-2">
+        <aside className="w-80 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto py-3 px-2">
           <DocsTreeNav rootIndex={rootIndex} topLevel={topLevel} />
         </aside>
 
