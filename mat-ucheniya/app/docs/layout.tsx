@@ -5,6 +5,7 @@ import { getDocsTree } from '@/lib/docs'
 import { DocsTreeNav } from '@/components/docs-tree-nav'
 import { UserMenu } from '@/components/user-menu'
 import { SiteBrand } from '@/components/site-brand'
+import { APP_NAME } from '@/lib/branding'
 import { NavTabs } from '@/components/nav-tabs'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { getCurrentUserAndProfile, getMembership } from '@/lib/auth'
@@ -87,13 +88,17 @@ export default async function DocsLayout({
             <div className="px-4 py-2 flex items-center justify-between gap-4">
               <div className="flex items-center gap-5 min-w-0">
                 <SiteBrand />
-                <span className="text-gray-300" aria-hidden>•</span>
-                <Link
-                  href={`/c/${ctx.slug}/catalog`}
-                  className="font-semibold text-base text-gray-900 hover:text-blue-600 transition-colors truncate"
-                >
-                  {ctx.name}
-                </Link>
+                {ctx.name !== APP_NAME && (
+                  <>
+                    <span className="text-gray-300" aria-hidden>•</span>
+                    <Link
+                      href={`/c/${ctx.slug}/catalog`}
+                      className="font-semibold text-base text-gray-900 hover:text-blue-600 transition-colors truncate"
+                    >
+                      {ctx.name}
+                    </Link>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 <Link
