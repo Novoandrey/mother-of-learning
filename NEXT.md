@@ -2,13 +2,13 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-04-30 (chat 81 — IDEA-063 «Сиория»,
-> IDEA-064 тасктрекер закреплён за spec-022; нумерация после
-> spec-020 уточнена. Parallel chat 80 — ultrareview-2 polish:
-> 6 dead components removed, dead search infra dropped, electives
-> backfilled for all campaigns, AGENTS server-action auth contract
-> added; 2 миграций (109 drop search infra, 110 backfill electives);
-> version 0.7.1 → 0.8.0).
+> Last updated: 2026-05-07 (chat 82 — публичный раздел `/docs` с
+> 63 stub-файлами, удалён прототип `/c/[slug]/tasks` (kanban),
+> nav-tab «Задачи» снят, Documentation-link в campaign top bar,
+> HANDOFF от @andrey интегрирован: 5 новых концептов
+> (tool-first, time-as-resource, world-as-observation-log,
+> dm-as-demiurge, engine-vs-content) + north-star.md;
+> 9 roadmap-пивотов под движок+контент-паки. Версия 0.8.0 → 0.9.0).
 
 ## В проде сейчас
 
@@ -562,6 +562,34 @@
 
   Build clean, vitest 410/410, lint 0/0, tsc strict 0/0.
 
+- **Документация `/docs` (chat 82)** — _в проде_. Top-level публичный
+  раздел, доступен без авторизации. Tree-sidebar в стиле git-дерева
+  слева, rendered markdown справа. 63 stub-файла под пятью верхним
+  папкам: `concepts/` (фундамент: pillars, two-modes, node-graph,
+  event-sourcing, persistence-scope, visibility, dm-as-demiurge,
+  tool-first, time-as-resource, world-as-observation-log, loop-as-core,
+  engine-vs-content, roles-and-clients, north-star), `features/` (одна
+  папка на фичу: catalog, loops, encounters, accounting +
+  starter-setup + approval-queue + technical, inventory + pricing +
+  technical, stash-and-skladchina, chronicles, electives, monsters,
+  auth-and-membership), `architecture/` (stack, sidebar-cache,
+  form-drafts, testing, style-tokens), `process/` (spec-kit,
+  versioning, git-and-staging — TBD, chatlog-and-memory), `roadmap/`
+  (near-term, in-progress, postponed, engine-pivot, tick-time-model,
+  generic-events-table, locations-hex-and-point, time-and-modifiers,
+  npc-movement-and-encounters, audit-log-and-safety, content-packs,
+  west-marches, live-broadcast, wiki-editor, visibility-and-sandbox,
+  quests, player-mobile). Каждый stub: H1 + один абзац описания + список
+  «что планируется в статье». HANDOFF от @andrey интегрирован как
+  long-term vision. Реализация: `lib/docs.ts` (filesystem reader),
+  `app/docs/[[...slug]]/page.tsx` (catch-all server component с
+  ReactMarkdown + remarkGfm + breadcrumbs + prose-стили из
+  `@tailwindcss/typography`), `app/docs/layout.tsx` (top bar + tree
+  sidebar), `components/docs-tree-nav.tsx` (client tree с usePathname
+  highlight). Удалено: `app/c/[slug]/tasks/` (kanban прототип, 6 файлов,
+  ~750 строк design-package порта). Nav-tab «📌 Задачи» снят. В
+  campaign top bar добавлен link «📖 Документация» → /docs.
+
 ## Следующий приоритет
 
 **Spec-020 «PC Holdings Overview»** (chat 77 promote) — sibling
@@ -585,14 +613,14 @@ backlog'е (раздел spec-020 sandbox с расширением «конце
 поверх sandbox»). Markdown editor держит slot 021 даже пока папка
 не создана — следующая работа над ним стартует с этого номера.
 
-**Spec-022 «Тасктрекер»** (chat 80, IDEA-064 promote) — матрица
-«проект × статус» с pre-seed'ом из текущих specs/идей и автосинком
-статуса карточек из Claude-чатов. Карточки — ноды разных типов
-(не отдельный node_type), флаг «требует внимания» + проект +
-статус + assignee. Pre-seed «Приложение»: эпики / спеки / мелкие
-идеи как три группы. Автосинк — три варианта (Claude write
-напрямую / клиент derive из source-файлов / MCP-сервер с явными
-операциями), решается на Plan'е. Спецификация — в новом чате.
+**Spec-022 «Тасктрекер» — отменён (chat 82).** Заменён публичным
+разделом `/docs` (63 stub-файла + tree-sidebar + рендер MD), куда
+теперь стекается состояние проекта (что в проде, что под капотом,
+roadmap, processes, концепты). HANDOFF от пользователя инкорпорирован
+как north-star vision: 5 новых концептов + 9 roadmap-пунктов под
+engine-pivot. Подробнее см. `docs/concepts/north-star.md` и
+`docs/roadmap/engine-pivot.md`. Slot 022 свободен для следующей
+большой фичи.
 
 **Spec-023 «Карта мира»** (была spec-019, потом spec-020,
 потом spec-021, теперь spec-023) — фундаментальная фича,
