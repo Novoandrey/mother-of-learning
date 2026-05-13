@@ -9,6 +9,7 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useToast } from './toast-provider'
+import { FIELD_LABELS, URL_FIELDS, HIDDEN_FIELDS } from '@/lib/node-form-constants'
 
 type Edge = {
   id: string
@@ -69,28 +70,6 @@ type Props = {
   canEdit?: boolean
 }
 
-const HIDDEN_FIELDS = ['tags']
-
-// Human-readable field labels
-const FIELD_LABELS: Record<string, string> = {
-  description: 'Описание',
-  status: 'Статус',
-  player: 'Игрок',
-  number: 'Номер петли',
-  session_number: 'Номер сессии',
-  loop_number: 'Петля',
-  recap: 'Рекап',
-  dm_notes: 'Заметки ДМа',
-  played_at: 'Дата игры',
-  game_date: 'Игровая дата',
-  notes: 'Заметки',
-  title: 'Подзаголовок',
-  max_hp: 'Макс. HP',
-  statblock_url: 'Ссылка на статблок',
-  armor_class: 'Класс брони',
-  challenge_rating: 'Показатель опасности',
-}
-
 const STATUS_LABELS: Record<string, string> = {
   past: 'Прошедшая',
   current: 'Текущая',
@@ -108,8 +87,6 @@ function formatFieldValue(key: string, value: unknown): string {
   if (key === 'loop_number' && str) return `Петля ${str}`
   return str
 }
-
-const URL_FIELDS = ['statblock_url', 'link', 'url']
 
 function isComplex(value: unknown): boolean {
   return value !== null && typeof value === 'object'
