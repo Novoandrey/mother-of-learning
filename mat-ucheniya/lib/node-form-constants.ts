@@ -42,12 +42,21 @@ export const FIELD_LABELS: Record<string, string> = {
   skills: 'Навыки/особенности',
   appearances: 'Появления',
   old_notes: 'Старые заметки',
+  // Keys imported by mig 114 (session recaps) from the "Рекапы" sheet.
+  time_range: 'Время',
+  materials: 'Материалы',
+  materials_url: 'Ссылка на материалы',
+  perks: 'Плюшки',
+  achievements: 'Достижения',
+  new_npcs_raw: 'Новые НПС/монстры',
 }
 
 export const TEXTAREA_FIELDS = [
   'description', 'recap', 'dm_notes', 'notes',
   // Imported richer text fields (mig 112/113)
   'familiar', 'skills', 'appearances', 'old_notes',
+  // Imported (mig 114, session recaps)
+  'materials', 'perks', 'achievements', 'new_npcs_raw',
 ]
 export const NUMBER_FIELDS = [
   'number', 'session_number', 'max_hp', 'armor_class',
@@ -59,6 +68,8 @@ export const URL_FIELDS = [
   'statblock_url', 'link', 'url',
   // Imported (mig 112/113)
   'wiki_url', 'art_url', 'ai_art_url',
+  // Imported (mig 114)
+  'materials_url',
 ]
 export const DATE_FIELDS = ['played_at']
 export const HIDDEN_FIELDS = [
