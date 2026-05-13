@@ -227,6 +227,21 @@ export function useNodeForm({
     setError('')
 
     const cleanFields: Record<string, unknown> = {}
+
+    // Preserve fields not declared in the type's `default_fields` — the
+    // form only edits the declared set, so without this, saving an edit
+    // would silently strip every other key in `nodes.fields` (e.g. all
+    // the rich data imported in bulk by migrations 112/113 from the
+    // player Google Sheet — wiki_url, art_url, age, region, group, …).
+    // The Wiki Editor in spec-021 will eventually replace this form
+    // with type-aware controls; until then this is the guard.
+    if (editNode?.fields && selectedType?.default_fields) {
+      const editable = new Set(Object.keys(selectedType.default_fields))
+      for (const [k, v] of Object.entries(editNode.fields)) {
+        if (!editable.has(k)) cleanFields[k] = v
+      }
+    }
+
     Object.entries(fields).forEach(([k, v]) => {
       const trimmed = v.trim()
       if (trimmed) {
