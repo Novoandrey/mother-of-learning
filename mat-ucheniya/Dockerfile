@@ -15,9 +15,14 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-# NOTE: NEXT_PUBLIC_* must be present at build time (Next inlines them).
-# Set them in Dokploy's Environment before the build.
+# NEXT_PUBLIC_* are inlined into the client bundle AT BUILD TIME, so they
+# must be present during `npm run build`. Dokploy passes the app's env vars
+# as build args; declare the ones the browser bundle needs.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 FROM base AS runner
