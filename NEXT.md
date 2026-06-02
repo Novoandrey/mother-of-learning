@@ -12,7 +12,7 @@
 > v0.29.7 на `panel.theloopers.org` (2FA, 3000 закрыт), приложение из
 > `main` задеплоено на `https://staging.theloopers.org` (HTTPS, смотрит на
 > managed Supabase), переживает reboot. Активный следующий — **024
-> (self-hosted Supabase); бокс уже rescale-нут до CPX32 (8 ГБ / 160 ГБ).** География:
+> (self-hosted Supabase); бокс уже rescale-нут до CPX32 (8 ГБ / 40 ГБ SSD).** География:
 > мать учения за рубежом (вне РФ); проекты с ПД РФ — отдельный российский
 > бокс (152-ФЗ). Порядок:
 > 023→027 → 022 → R2+портреты. Заведён repo-root `infra/` под
@@ -608,7 +608,7 @@
 реально использует только Postgres + Auth (GoTrue) + PostgREST + RLS
 (76 политик, `auth.uid()` ×22) + RPC; Storage / Realtime / Edge Functions —
 ноль. Дроп-ин путь — self-hosted Supabase Docker-стек без переписывания
-кода. **PaaS: Dokploy.** VPS: Hetzner **CPX32** (4 vCPU AMD / 8 ГБ / 160 ГБ, Helsinki) — rescale с CX23 сделан
+кода. **PaaS: Dokploy.** VPS: Hetzner **CPX32** (4 vCPU AMD / 8 ГБ / 40 ГБ, Helsinki, +2 ГБ swap) — rescale с CX23 сделан
 перед 024. Исполняет оператор (Andrey + Степан) на своём сервере; Claude
 поставляет спеки/runbook'и/скрипты, оператор катает (`git pull`) и
 присылает логи.
@@ -637,14 +637,20 @@
   передаётся), иначе 500 «URL and Key are required».
 - ⏭️ **024 Self-hosted Supabase (trimmed)** — АКТИВНЫЙ следующий. Обрезанный
   стек (Postgres + GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
-  ✅ Бокс rescale-нут до **CPX32** (8 ГБ / 160 ГБ, AMD x86_64) — 024 разблокирован.
-  на 4 ГБ Supabase + Next + сборки не влезут.
+  ✅ Бокс rescale-нут до **CPX32** (4 vCPU AMD / 8 ГБ / **40 ГБ** SSD) — 024
+  разблокирован. Swap 2 ГБ добавлен. **Пре-проверка перед 026 (совет
+  Степана):** подняв стек, свериться `\dx` (расширения: pgcrypto,
+  uuid-ossp, pgjwt, pg_graphql, pgsodium…) и `\dn` (схемы: auth, storage,
+  extensions, graphql, realtime) self-hosted ↔ прод; доустановить
+  недостающее ДО миграции данных, иначе `pg_restore` в 026 упадёт.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
   drill «снёс → поднял». Ключевой ops-навык.
 - **026 Data & auth migration** — схема + данные + `auth.users` (хеши
   паролей) в self-hosted инстанс, параллельно проду.
 - **027 Cutover & decommission** — переключить env, end-to-end проверка,
-  откат, погасить managed Supabase.
+  откат. **managed Supabase НЕ гасить сразу** — держать грейс-период
+  (~1–2 недели) как revert/эталон, гасить только после стабильности
+  (совет Степана).
 
 Переносимые runbook'и (023, бэкапы 025, будущий R2) → repo-root `infra/`
 (физически отделены от app-specific, чтобы вырезка в отдельный `infra`-репо
