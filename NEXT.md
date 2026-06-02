@@ -615,7 +615,7 @@
 размещается. Та же Dokploy-методичка переиспользуется на обоих боксах.
 
 Атомарная разбивка (по зависимостям):
-- **023 Server & PaaS foundation** — бокс (Hetzner CX33) + Dokploy +
+- **023 Server & PaaS foundation** — бокс (Hetzner CX23 сейчас, Helsinki; rescale до 8 ГБ на 024) + Dokploy +
   reverse-proxy + авто-SSL + git-деплой staging `mat-ucheniya`.
   **Clarified** (chat 83): Dokploy; Next тоже переезжает с Vercel
   (фронт+бэк); свой дешёвый зарубежный домен (Cloudflare Registrar,

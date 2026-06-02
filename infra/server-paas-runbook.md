@@ -31,9 +31,16 @@ Subdomain plan (theloopers.org):
 
 ## Step 1 — Provision the VPS
 
-- [ ] Create a **Hetzner Cloud CX33** server, image **Ubuntu 24.04 LTS**,
-      EU location, and attach your SSH key during creation (so root login
-      is key-only from the start).
+- [ ] Create a **Hetzner Cloud CX23** server (2 vCPU / 4 GB / 40 GB,
+      Cost-Optimized, x86), image **Ubuntu 24.04 LTS**, **Helsinki** (EU),
+      and attach your SSH key during creation (so root login is key-only
+      from the start).
+      - NB: CX33 (8 GB) was the original target but Cost-Optimized is
+        "limited availability"; CX23 (4 GB) is enough for THIS slice
+        (Dokploy + Next staging, no Supabase yet). **Rescale up at slice
+        024** when self-hosted Supabase lands (power off → change type →
+        power on; if CX33 still limited, target Regular-Performance CPX31,
+        8 GB). Disk can only grow on rescale, never shrink.
 - [ ] Note `<SERVER_IP>`. Confirm SSH: `ssh root@<SERVER_IP>`.
 - [ ] **Fallback access (FR-005):** confirm the Hetzner web **Console**
       works (Cloud console → server → Console) so a bad firewall rule

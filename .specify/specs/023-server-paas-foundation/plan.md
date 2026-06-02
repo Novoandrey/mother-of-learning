@@ -13,7 +13,7 @@
 | Решение | Выбор | Почему |
 |---|---|---|
 | PaaS | **Dokploy** | Легче Coolify (~350 МБ idle), Docker+Traefik под капотом; one-line install ставит Docker Swarm + Traefik + postgres:16 + redis:7 (служебные для самого Dokploy). |
-| VPS | **Hetzner CX33** (4 vCPU / 8 ГБ / 80 ГБ NVMe), **Ubuntu 24.04 LTS** | Подтверждён в Clarify; влезает Dokploy + обрезанный Supabase (024) + Next-рантайм. Dokploy требует ≥2 ГБ RAM / ≥30 ГБ диск — запас большой. |
+| VPS | **Hetzner CX23** сейчас (2 vCPU / 4 ГБ / 40 ГБ NVMe, Helsinki), **rescale до 8 ГБ на 024** | CX33 (8 ГБ) — целевой, но Cost-Optimized «limited availability»; в наличии только CX23. 4 ГБ хватает для среза 023 (Dokploy + Next-staging, Supabase ещё нет). На 024 (self-hosted Supabase) — rescale вверх (CX33, либо always-available CPX31). Dokploy требует ≥2 ГБ / ≥30 ГБ — проходим. Ubuntu 24.04 LTS. |
 | Reverse-proxy + SSL | **Traefik (встроен в Dokploy)** + Let's Encrypt | Из коробки; не поднимаем отдельный прокси. Traefik владеет портами 80/443 — приложения объявляют порт через `expose`, не биндят 80/443. |
 | DNS + регистратор | **Cloudflare** (at-cost ~$10/год) | Одна экосистема с R2; A-записи в режиме **DNS-only (серое облако)** на старте, чтобы Traefik прошёл ACME-валидацию Let's Encrypt; проксирование (оранжевое облако) — опционально позже. |
 | Схема доменов | `staging.<domain>` → приложение; `panel.<domain>` → дашборд Dokploy (HTTPS); **apex остаётся на Vercel до cutover (027)** | Переключение прода = одно осознанное действие в конце, а не «уронили живой домен на середине переезда». |
