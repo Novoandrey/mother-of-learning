@@ -95,3 +95,24 @@ PWA, без App Store/Google Play; (3) разобраться, дешевле л
   бокс, apex на cutover). **spec-023 → Clarified, ready for Plan.**
 - Домен — судить по цене **продления**, не первого года (промо $1 у
   GoDaddy/IONOS/Namecheap с продлением $14-20 — ловушка).
+
+## Update (Plan для 023) — chat 83
+
+- **spec-023 → Plan готов.** `.specify/specs/023-server-paas-foundation/plan.md`
+  (решения + обоснования + риски + maps-to-spec) и исполняемый
+  `infra/server-paas-runbook.md` (10 шагов).
+- Решения Plan: Dokploy (one-line install: Docker Swarm + Traefik +
+  postgres16 + redis7; ≥2 ГБ/30 ГБ, порты 80/443/3000); Hetzner CX33
+  Ubuntu 24.04; Traefik+Let's Encrypt; Cloudflare DNS (A-записи DNS-only
+  для ACME); `staging.<domain>` → апп, `panel.<domain>` → дашборд, apex на
+  Vercel до cutover; сборка через Dockerfile (Next 16 `output: standalone`)
+  из сабдира `mat-ucheniya/`; staging смотрит на текущий managed Supabase
+  (self-hosted — 024); доступ к дашборду через SSH-туннель, порт 3000
+  закрыт в ufw, затем panel за HTTPS + 2FA.
+- **Build authority:** Vercel CI → серверная Docker-сборка Dokploy
+  (ENOTEMPTY песочницы больше не на пути; Claude не собирает локально).
+- Готовые к Implement файлы (в runbook'е): `mat-ucheniya/Dockerfile`,
+  `.dockerignore`, правка `next.config.ts` (standalone). Коммитит Claude на
+  Implement; прогон runbook'а — оператор.
+- Гейт: после Plan — Tasks/Implement по явному «го». Для одного инфра-среза
+  runbook уже упорядочен (чекбоксы) → отдельный tasks.md опционален.

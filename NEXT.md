@@ -619,7 +619,10 @@
   reverse-proxy + авто-SSL + git-деплой staging `mat-ucheniya`.
   **Clarified** (chat 83): Dokploy; Next тоже переезжает с Vercel
   (фронт+бэк); свой дешёвый зарубежный домен (Cloudflare Registrar,
-  DNS позже). Готов к Plan.
+  DNS позже). **Plan готов (chat 83):** `.specify/specs/023-*/plan.md` +
+  исполняемый `infra/server-paas-runbook.md` (10 шагов: провижн+хардненинг
+  → Dokploy → SSL → staging-деплой `mat-ucheniya` на поддомен → reboot/
+  бэкап-конфига). Дальше — оператор катает runbook; Tasks опциональны.
 - **024 Self-hosted Supabase (trimmed)** — обрезанный стек (Postgres +
   GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный

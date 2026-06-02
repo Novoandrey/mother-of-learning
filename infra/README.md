@@ -36,8 +36,8 @@ same Dokploy + give it its own DB + its own bucket.
 
 ## Status (chat 83, 2026-06-02)
 
-Planning done; runbooks not written yet (they're Plan-phase output, after
-Clarify). Decisions locked so far:
+`server-paas-runbook.md` written (spec-023 Plan); backups/R2 runbooks come
+later (025 / portraits). Decisions locked so far:
 
 - **PaaS: Dokploy.**
 - **Object storage: Cloudflare R2** (managed, even though the rest is
@@ -53,8 +53,8 @@ them and pastes logs back for debugging. The hands-on ops reps are the point.
 
 ## Planned contents
 
-- `server-paas-runbook.md` — provision + harden VPS, install Dokploy, SSL,
-  deploy hello-world (from spec-023 Plan).
+- ✅ `server-paas-runbook.md` — provision + harden VPS, install Dokploy, SSL,
+  deploy `mat-ucheniya` staging (from spec-023 Plan). **Written.**
 - `backup-restore-runbook.md` — automated off-box backups + verified
   restore drill (from spec-025 Plan).
 - `r2-object-storage-runbook.md` — R2 account, bucket-per-project, scoped
