@@ -62,16 +62,18 @@ chown -R andrey:andrey /home/andrey/.ssh
 chmod 700 /home/andrey/.ssh
 chmod 600 /home/andrey/.ssh/authorized_keys
 
-# 2.3 Lock down SSH: key-only, no root login
-#   edit /etc/ssh/sshd_config (or a drop-in in /etc/ssh/sshd_config.d/):
-#     PermitRootLogin no
-#     PasswordAuthentication no
-#     PubkeyAuthentication yes
-sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-# IMPORTANT: open a SECOND terminal and confirm `ssh <user>@<SERVER_IP>`
-# works BEFORE closing root, or you can lock yourself out.
-systemctl restart ssh
+# 2.3 Lock down SSH: key-only, no root login.
+#   Use a high-priority drop-in: it sorts before 50-cloud-init.conf (which
+#   on cloud images may re-enable PasswordAuthentication). sshd reads the
+#   Include glob near the top and "first value wins", so 00-* wins.
+cat > /etc/ssh/sshd_config.d/00-hardening.conf <<'EOF'
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+EOF
+sshd -t && systemctl restart ssh     # sshd -t validates config before restart
+# VERIFY before closing root: in a NEW terminal, `ssh <user>@<SERVER_IP>`
+# still works AND `ssh root@<SERVER_IP>` is now refused.
 
 # 2.4 Firewall — allow SSH FIRST, then enable. Do NOT open 3000.
 apt install ufw -y
