@@ -221,19 +221,33 @@ npm-debug.log*
 
 ## Step 7 — Create the app in Dokploy
 
-- [ ] New **Project** → **Application** → source **GitHub**, repo
+- [ ] New **Project** → **Application**. Source: connect **GitHub** (App)
+      or use **Git** (repo is public, plain URL works), repo
       `Novoandrey/mother-of-learning`, branch `main`.
-- [ ] **Build type: Dockerfile.** Set **build context / path** to the
-      monorepo subdir `mat-ucheniya` and Dockerfile `mat-ucheniya/Dockerfile`.
-- [ ] **Environment** (point at the EXISTING managed Supabase — staging,
-      read-mostly; self-hosted comes in 024). Set BEFORE first build so
-      `NEXT_PUBLIC_*` are inlined:
+- [ ] **Build Path** (the Docker build context) = `/mat-ucheniya` (the
+      monorepo subdir — this is what makes `COPY package.json` find it).
+- [ ] **Build Type: Dockerfile.** Docker File = `Dockerfile` (relative to
+      Build Path). Leave **Docker Context Path** empty (defaults to `.` =
+      Build Path) and **Docker Build Stage** empty (uses the last stage =
+      `runner`).
+- [ ] **Environment** (runtime) — point at the EXISTING managed Supabase
+      (staging, read-mostly; self-hosted comes in 024). Set, then **Save**:
       ```
-      NEXT_PUBLIC_SUPABASE_URL=...        # current managed project
+      NEXT_PUBLIC_SUPABASE_URL=...        # current managed project, https://…, no trailing /
       NEXT_PUBLIC_SUPABASE_ANON_KEY=...
       SUPABASE_SERVICE_ROLE_KEY=...
-      APP_URL=https://staging.<domain>
       ```
+- [ ] ⚠️ **Build-time Arguments** (separate box on the Environment tab) —
+      Dokploy does **NOT** auto-pass Environment vars to the Docker build.
+      `NEXT_PUBLIC_*` are inlined at build, so they must ALSO be duplicated
+      here (matching the Dockerfile `ARG`s), then **Save**:
+      ```
+      NEXT_PUBLIC_SUPABASE_URL=...
+      NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+      ```
+      (Skip the service-role key here — it's runtime-only.) Symptom if you
+      forget: app builds, container starts, but the first request 500s with
+      "Your project's URL and Key are required to create a Supabase client".
 - [ ] **Domain**: add `staging.<domain>`, container port **3000**, enable
       **HTTPS (Let's Encrypt)**.
 
