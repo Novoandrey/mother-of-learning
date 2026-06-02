@@ -98,12 +98,14 @@ must be refused; `ssh <user>@<SERVER_IP>` works by key only; and
 ## Step 3 — Install Dokploy
 
 ```bash
-# Run as root. Installs Docker (if absent) + Swarm + Traefik + postgres + redis.
-curl -sSL https://dokploy.com/install.sh | sh
-# add your user to docker group (so you can run docker without sudo later)
-usermod -aG docker <user>
-# verify services
-docker service ls    # expect dokploy, dokploy-postgres, dokploy-redis, traefik
+# You're now `andrey` (root SSH was disabled in Step 2), so use sudo.
+# Installs Docker (if absent) + Swarm + Traefik + postgres + redis.
+curl -sSL https://dokploy.com/install.sh | sudo sh
+# add your user to docker group (so you can run docker without sudo later;
+# takes effect after you log out and back in)
+sudo usermod -aG docker andrey
+# verify services (sudo until you've re-logged in)
+sudo docker service ls   # expect dokploy, dokploy-postgres, dokploy-redis, traefik
 ```
 
 ## Step 4 — Secure dashboard access (no public port 3000)
