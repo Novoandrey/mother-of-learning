@@ -1,6 +1,6 @@
 # Runbook: Server & PaaS foundation (spec-023)
 
-Executable steps for standing up the box. **Operator (Andrey + Степан)
+Executable steps for standing up the box. **Operator (Andrey + Леша)
 runs these on the server; Claude can't SSH in.** Paste errors/logs back to
 Claude for debugging. Tied to `.specify/specs/023-server-paas-foundation/`.
 

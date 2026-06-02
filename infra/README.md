@@ -48,7 +48,7 @@ later (025 / portraits). Decisions locked so far:
 ## Division of labor
 
 Claude can't SSH into the server. Claude produces the artifacts here (runbooks,
-scripts, compose files, drill procedures); the operator (Andrey + Степан) runs
+scripts, compose files, drill procedures); the operator (Andrey + Леша) runs
 them and pastes logs back for debugging. The hands-on ops reps are the point.
 
 ## Planned contents

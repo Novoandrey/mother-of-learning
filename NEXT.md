@@ -609,7 +609,7 @@
 (76 политик, `auth.uid()` ×22) + RPC; Storage / Realtime / Edge Functions —
 ноль. Дроп-ин путь — self-hosted Supabase Docker-стек без переписывания
 кода. **PaaS: Dokploy.** VPS: Hetzner **CPX32** (4 vCPU AMD / 8 ГБ / 40 ГБ, Helsinki, +2 ГБ swap) — rescale с CX23 сделан
-перед 024. Исполняет оператор (Andrey + Степан) на своём сервере; Claude
+перед 024. Исполняет оператор (Andrey + Леша) на своём сервере; Claude
 поставляет спеки/runbook'и/скрипты, оператор катает (`git pull`) и
 присылает логи.
 
@@ -639,18 +639,21 @@
   стек (Postgres + GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
   ✅ Бокс rescale-нут до **CPX32** (4 vCPU AMD / 8 ГБ / **40 ГБ** SSD) — 024
   разблокирован. Swap 2 ГБ добавлен. **Пре-проверка перед 026 (совет
-  Степана):** подняв стек, свериться `\dx` (расширения: pgcrypto,
+  Леши):** подняв стек, свериться `\dx` (расширения: pgcrypto,
   uuid-ossp, pgjwt, pg_graphql, pgsodium…) и `\dn` (схемы: auth, storage,
   extensions, graphql, realtime) self-hosted ↔ прод; доустановить
   недостающее ДО миграции данных, иначе `pg_restore` в 026 упадёт.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
   drill «снёс → поднял». Ключевой ops-навык.
 - **026 Data & auth migration** — схема + данные + `auth.users` (хеши
-  паролей) в self-hosted инстанс, параллельно проду.
+  паролей) в self-hosted инстанс, параллельно проду. **Чек-лист (совет
+  Леши):** после импорта данных проверить и синхронизировать sequences
+  (`setval` по `max(id)`) — иначе из-за старых значений id ловим duplicate
+  key на следующих вставках.
 - **027 Cutover & decommission** — переключить env, end-to-end проверка,
   откат. **managed Supabase НЕ гасить сразу** — держать грейс-период
   (~1–2 недели) как revert/эталон, гасить только после стабильности
-  (совет Степана).
+  (совет Леши).
 
 Переносимые runbook'и (023, бэкапы 025, будущий R2) → repo-root `infra/`
 (физически отделены от app-specific, чтобы вырезка в отдельный `infra`-репо
