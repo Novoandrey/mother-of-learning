@@ -6,11 +6,14 @@
 > Эпик spec-023→027: съезд с managed Supabase на свой сервер ради
 > DevOps-навыка. PaaS = Dokploy (выбран). Self-hosted Supabase —
 > дроп-ин (аудит: реально исп. Postgres + Auth + PostgREST + RLS + RPC;
-> НЕ исп. Storage / Realtime / Edge). Созданы spec-022 (Player Mobile
-> Mode, PWA) и spec-023 (Server & PaaS foundation) — оба Specify,
-> awaiting Clarify. Порядок: 023→027 → 022 → R2+портреты. Заведён
-> repo-root `infra/` под переносимые runbook'и. Картинки → Cloudflare
-> R2 (managed, позже, открывающим шагом фичи портретов). Версия 0.9.0.)
+> НЕ исп. Storage / Realtime / Edge). spec-022 (Player Mobile Mode, PWA)
+> — Specify/awaiting Clarify. spec-023 (Server & PaaS foundation) —
+> Clarified: Dokploy, полный переезд с Vercel (фронт+бэк), Hetzner CX33,
+> свой дешёвый зарубежный домен. География: мать учения за рубежом (вне
+> РФ); проекты с ПД РФ — отдельный российский бокс (152-ФЗ). Порядок:
+> 023→027 → 022 → R2+портреты. Заведён repo-root `infra/` под
+> переносимые runbook'и. Картинки → Cloudflare R2 (managed, позже,
+> открывающим шагом фичи портретов). Версия 0.9.0.)
 
 ## В проде сейчас
 
@@ -604,10 +607,19 @@
 (Andrey + Степан) на своём сервере; Claude поставляет спеки/runbook'и/
 скрипты, оператор катает (`git pull`) и присылает логи.
 
+**География (риск-аудит chat 83):** мать учения — **за рубежом**
+(EU/Hetzner), вне юрисдикции РФ (чувствительный контент: рекапы могут
+касаться ЛГБТ-тем, что в РФ — зона «экстремизма»; + минимум ПД россиян).
+Проекты с ПД граждан РФ — отдельный **российский бокс** (152-ФЗ требует
+локализации), вне этого эпика; ЛГБТ/чувствительный контент в РФ не
+размещается. Та же Dokploy-методичка переиспользуется на обоих боксах.
+
 Атомарная разбивка (по зависимостям):
-- **023 Server & PaaS foundation** — бокс + Dokploy + reverse-proxy +
-  авто-SSL + git-деплой hello-world. Spec готов (Specify); Dokploy
-  зафиксирован; остаток Clarify: Next с Vercel или только бэкенд, домен/VPS.
+- **023 Server & PaaS foundation** — бокс (Hetzner CX33) + Dokploy +
+  reverse-proxy + авто-SSL + git-деплой staging `mat-ucheniya`.
+  **Clarified** (chat 83): Dokploy; Next тоже переезжает с Vercel
+  (фронт+бэк); свой дешёвый зарубежный домен (Cloudflare Registrar,
+  DNS позже). Готов к Plan.
 - **024 Self-hosted Supabase (trimmed)** — обрезанный стек (Postgres +
   GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
