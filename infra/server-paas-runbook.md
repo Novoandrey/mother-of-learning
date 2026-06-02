@@ -105,7 +105,9 @@ curl -sSL https://dokploy.com/install.sh | sudo sh
 # takes effect after you log out and back in)
 sudo usermod -aG docker andrey
 # verify services (sudo until you've re-logged in)
-sudo docker service ls   # expect dokploy, dokploy-postgres, dokploy-redis, traefik
+sudo docker service ls   # expect dokploy, dokploy-postgres, dokploy-redis (1/1)
+# Traefik runs as a plain container (not a swarm service) — verify with:
+sudo docker ps | grep -i traefik
 ```
 
 ## Step 4 — Secure dashboard access (no public port 3000)
