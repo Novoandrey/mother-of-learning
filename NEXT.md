@@ -8,11 +8,11 @@
 > дроп-ин (аудит: реально исп. Postgres + Auth + PostgREST + RLS + RPC;
 > НЕ исп. Storage / Realtime / Edge). spec-022 (Player Mobile Mode, PWA)
 > — Specify/awaiting Clarify. **spec-023 (Server & PaaS foundation) —
-> ГОТОВ и в проде:** бокс Hetzner CX23 (Helsinki) захардненен, Dokploy
+> ГОТОВ и в проде:** бокс Hetzner CPX32 (Helsinki, ресайз с CX23) захардненен, Dokploy
 > v0.29.7 на `panel.theloopers.org` (2FA, 3000 закрыт), приложение из
 > `main` задеплоено на `https://staging.theloopers.org` (HTTPS, смотрит на
 > managed Supabase), переживает reboot. Активный следующий — **024
-> (self-hosted Supabase), перед ним rescale бокса до 8 ГБ.** География:
+> (self-hosted Supabase); бокс уже rescale-нут до CPX32 (8 ГБ / 160 ГБ).** География:
 > мать учения за рубежом (вне РФ); проекты с ПД РФ — отдельный российский
 > бокс (152-ФЗ). Порядок:
 > 023→027 → 022 → R2+портреты. Заведён repo-root `infra/` под
@@ -608,7 +608,7 @@
 реально использует только Postgres + Auth (GoTrue) + PostgREST + RLS
 (76 политик, `auth.uid()` ×22) + RPC; Storage / Realtime / Edge Functions —
 ноль. Дроп-ин путь — self-hosted Supabase Docker-стек без переписывания
-кода. **PaaS: Dokploy.** VPS: Hetzner **CX23** (Helsinki) — rescale до 8 ГБ
+кода. **PaaS: Dokploy.** VPS: Hetzner **CPX32** (4 vCPU AMD / 8 ГБ / 160 ГБ, Helsinki) — rescale с CX23 сделан
 перед 024. Исполняет оператор (Andrey + Степан) на своём сервере; Claude
 поставляет спеки/runbook'и/скрипты, оператор катает (`git pull`) и
 присылает логи.
@@ -622,7 +622,7 @@
 
 Атомарная разбивка (по зависимостям):
 - ✅ **023 Server & PaaS foundation — ГОТОВО (chat 83), в проде.** Бокс
-  Hetzner CX23 (Helsinki, Ubuntu 24.04), хардненинг (sudo-юзер, SSH
+  Hetzner CPX32 (Helsinki, Ubuntu 24.04; ресайз с CX23 под 024), хардненинг (sudo-юзер, SSH
   key-only, ufw 22/80/443, fail2ban, unattended-upgrades), Dokploy v0.29.7
   (Docker Swarm + Traefik). Дашборд на `https://panel.theloopers.org` за
   логином + 2FA, порт 3000 закрыт (Docker обходил ufw — погасили через
@@ -637,7 +637,7 @@
   передаётся), иначе 500 «URL and Key are required».
 - ⏭️ **024 Self-hosted Supabase (trimmed)** — АКТИВНЫЙ следующий. Обрезанный
   стек (Postgres + GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
-  **Перед 024: rescale бокса до 8 ГБ** (CX33, либо always-available CPX31) —
+  ✅ Бокс rescale-нут до **CPX32** (8 ГБ / 160 ГБ, AMD x86_64) — 024 разблокирован.
   на 4 ГБ Supabase + Next + сборки не влезут.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
   drill «снёс → поднял». Ключевой ops-навык.

@@ -161,3 +161,10 @@ PWA, без App Store/Google Play; (3) разобраться, дешевле л
   репойнт env staging-приложения с managed на self-hosted.
 - Дашборд: `https://panel.theloopers.org` (2FA). Сервер: `ssh andrey@37.27.254.49`.
 - Откат 023 (SC-005) при случае проверить (Deployments → прошлый деплой).
+
+## Update (rescale под 024) — chat 83
+
+- Бокс отресайзен **CX23 → CPX32** (4 vCPU AMD EPYC / 8 ГБ / 160 ГБ, Helsinki).
+  Та же x86_64-архитектура (Intel CX → AMD CPX), тот же IP 37.27.254.49,
+  данные/конфиги/сертификаты целы, ребут пережит. Пререк «8 ГБ под 024»
+  закрыт — 024 разблокирован.
