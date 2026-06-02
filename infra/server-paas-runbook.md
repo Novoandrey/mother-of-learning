@@ -122,7 +122,9 @@ ssh -L 3000:localhost:3000 <user>@<SERVER_IP>
 ```
 
 - [ ] In the browser: create the **admin account** (first user).
-- [ ] Enable **2FA** on the admin account (Settings → Profile/Security).
+- [ ] Enable **2FA** on the admin account: click your avatar/account →
+      **Profile** → **Enable 2FA** (password → scan TOTP QR → enter code →
+      save backup codes). (There is no "Security" tab; it lives in Profile.)
 - [ ] In Cloudflare DNS: add an **A record** `panel` → `<SERVER_IP>`,
       **DNS-only (grey cloud)**.
 - [ ] In Dokploy: **Settings → Web Server** → set server domain to
@@ -132,8 +134,19 @@ ssh -L 3000:localhost:3000 <user>@<SERVER_IP>
       suspenders to unpublish it from Swarm:
       `docker service update --publish-rm "published=3000,target=3000,mode=host" dokploy`
 
-✅ **SC-003 check:** `https://panel.<domain>` works behind login + 2FA;
-`curl -v http://<SERVER_IP>:3000 --connect-timeout 5` from outside **times out**.
+✅ **SC-003 check:** `https://panel.<domain>` works behind login + 2FA.
+**Verify 3000 is NOT public** — Docker can punch through ufw by editing
+iptables directly, so don't assume the firewall closed it. Test from a
+machine OTHER than the box (e.g. your laptop, not via the tunnel):
+- Windows: `Test-NetConnection -ComputerName <SERVER_IP> -Port 3000`
+  → want **`TcpTestSucceeded : False`** (closed). `True` = exposed, must fix.
+- macOS/Linux: `curl -v http://<SERVER_IP>:3000 --connect-timeout 5`
+  → want a **timeout**, not an HTML response.
+
+If 3000 IS reachable, close it at the Docker level (it bypassed ufw):
+`sudo docker service update --publish-rm "published=3000,target=3000,mode=host" dokploy`
+then re-test. (After this, the dashboard is reachable only via the SSH
+tunnel and, once set, via panel.<domain> through Traefik on 443.)
 
 ## Step 5 — DNS for the app
 
