@@ -132,6 +132,7 @@ FROM node:20-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
+RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -150,6 +151,8 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# /docs reads .md from disk at runtime (lib/docs.ts) — ship the folder.
+COPY --from=builder /app/docs ./docs
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]
@@ -160,9 +163,11 @@ CMD ["node", "server.js"]
 node_modules
 .next
 .git
-npm-debug.log
 .env*
+npm-debug.log*
+.DS_Store
 ```
+> NB: don't ignore `*.md` — `/docs` ships 63 markdown files read at runtime.
 
 ## Step 7 — Create the app in Dokploy
 
