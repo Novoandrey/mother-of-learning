@@ -143,10 +143,13 @@ machine OTHER than the box (e.g. your laptop, not via the tunnel):
 - macOS/Linux: `curl -v http://<SERVER_IP>:3000 --connect-timeout 5`
   → want a **timeout**, not an HTML response.
 
-If 3000 IS reachable, close it at the Docker level (it bypassed ufw):
+If 3000 IS reachable, close it at the Docker level (it bypassed ufw) —
+but do this **only after panel.<domain> is live (Step 4b)**, because
+unpublishing 3000 also removes the SSH-tunnel path to it:
 `sudo docker service update --publish-rm "published=3000,target=3000,mode=host" dokploy`
-then re-test. (After this, the dashboard is reachable only via the SSH
-tunnel and, once set, via panel.<domain> through Traefik on 443.)
+then re-test. (After this, the dashboard is reachable only via panel.<domain>
+through Traefik on 443; Traefik reaches Dokploy over the internal Docker
+network, not the host port.)
 
 ## Step 5 — DNS for the app
 
