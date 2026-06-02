@@ -7,10 +7,14 @@
 > DevOps-навыка. PaaS = Dokploy (выбран). Self-hosted Supabase —
 > дроп-ин (аудит: реально исп. Postgres + Auth + PostgREST + RLS + RPC;
 > НЕ исп. Storage / Realtime / Edge). spec-022 (Player Mobile Mode, PWA)
-> — Specify/awaiting Clarify. spec-023 (Server & PaaS foundation) —
-> Clarified: Dokploy, полный переезд с Vercel (фронт+бэк), Hetzner CX33,
-> свой дешёвый зарубежный домен. География: мать учения за рубежом (вне
-> РФ); проекты с ПД РФ — отдельный российский бокс (152-ФЗ). Порядок:
+> — Specify/awaiting Clarify. **spec-023 (Server & PaaS foundation) —
+> ГОТОВ и в проде:** бокс Hetzner CX23 (Helsinki) захардненен, Dokploy
+> v0.29.7 на `panel.theloopers.org` (2FA, 3000 закрыт), приложение из
+> `main` задеплоено на `https://staging.theloopers.org` (HTTPS, смотрит на
+> managed Supabase), переживает reboot. Активный следующий — **024
+> (self-hosted Supabase), перед ним rescale бокса до 8 ГБ.** География:
+> мать учения за рубежом (вне РФ); проекты с ПД РФ — отдельный российский
+> бокс (152-ФЗ). Порядок:
 > 023→027 → 022 → R2+портреты. Заведён repo-root `infra/` под
 > переносимые runbook'и. Картинки → Cloudflare R2 (managed, позже,
 > открывающим шагом фичи портретов). Версия 0.9.0.)
@@ -597,15 +601,17 @@
 
 ## Следующий приоритет
 
-**Эпик «Переезд на свою инфру» (spec-023 → 027)** — активный приоритет
-(chat 83). Съезд с managed Supabase на собственный сервер ради DevOps-
-навыка (бэкапы, падения, восстановление). Аудит: приложение реально
-использует только Postgres + Auth (GoTrue) + PostgREST + RLS (76 политик,
-`auth.uid()` ×22) + RPC; Storage / Realtime / Edge Functions — ноль.
-Дроп-ин путь — self-hosted Supabase Docker-стек без переписывания кода.
-**PaaS: Dokploy** (выбран). VPS-кандидат: Hetzner CX33. Исполняет оператор
-(Andrey + Степан) на своём сервере; Claude поставляет спеки/runbook'и/
-скрипты, оператор катает (`git pull`) и присылает логи.
+**Эпик «Переезд на свою инфру» (spec-023 → 027)** — в работе (chat 83).
+**023 готов и в проде** (бокс + Dokploy + SSL + staging-деплой приложения);
+активный следующий — 024. Съезд с managed Supabase на собственный сервер
+ради DevOps-навыка (бэкапы, падения, восстановление). Аудит: приложение
+реально использует только Postgres + Auth (GoTrue) + PostgREST + RLS
+(76 политик, `auth.uid()` ×22) + RPC; Storage / Realtime / Edge Functions —
+ноль. Дроп-ин путь — self-hosted Supabase Docker-стек без переписывания
+кода. **PaaS: Dokploy.** VPS: Hetzner **CX23** (Helsinki) — rescale до 8 ГБ
+перед 024. Исполняет оператор (Andrey + Степан) на своём сервере; Claude
+поставляет спеки/runbook'и/скрипты, оператор катает (`git pull`) и
+присылает логи.
 
 **География (риск-аудит chat 83):** мать учения — **за рубежом**
 (EU/Hetzner), вне юрисдикции РФ (чувствительный контент: рекапы могут
@@ -615,16 +621,24 @@
 размещается. Та же Dokploy-методичка переиспользуется на обоих боксах.
 
 Атомарная разбивка (по зависимостям):
-- **023 Server & PaaS foundation** — бокс (Hetzner CX23 сейчас, Helsinki; rescale до 8 ГБ на 024) + Dokploy +
-  reverse-proxy + авто-SSL + git-деплой staging `mat-ucheniya`.
-  **Clarified** (chat 83): Dokploy; Next тоже переезжает с Vercel
-  (фронт+бэк); свой дешёвый зарубежный домен (Cloudflare Registrar,
-  DNS позже). **Plan готов (chat 83):** `.specify/specs/023-*/plan.md` +
-  исполняемый `infra/server-paas-runbook.md` (10 шагов: провижн+хардненинг
-  → Dokploy → SSL → staging-деплой `mat-ucheniya` на поддомен → reboot/
-  бэкап-конфига). Дальше — оператор катает runbook; Tasks опциональны.
-- **024 Self-hosted Supabase (trimmed)** — обрезанный стек (Postgres +
-  GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
+- ✅ **023 Server & PaaS foundation — ГОТОВО (chat 83), в проде.** Бокс
+  Hetzner CX23 (Helsinki, Ubuntu 24.04), хардненинг (sudo-юзер, SSH
+  key-only, ufw 22/80/443, fail2ban, unattended-upgrades), Dokploy v0.29.7
+  (Docker Swarm + Traefik). Дашборд на `https://panel.theloopers.org` за
+  логином + 2FA, порт 3000 закрыт (Docker обходил ufw — погасили через
+  `--publish-rm`). Приложение задеплоено из `main` (Dockerfile, Build Path
+  `/mat-ucheniya`, standalone) на `https://staging.theloopers.org` по HTTPS,
+  смотрит на текущий managed Supabase (read-mostly). Переживает reboot
+  (сервисы 1/1 сами). SC-001..004,006 ✅; SC-005 (откат) — возможность есть
+  (Dokploy хранит деплои), деструктивный тест отложен; SC-007 (бэкап) —
+  конфиг воспроизводим из git+runbook, авто-бэкапы = срез 025.
+  Гранд-нюанс для следующего раза → в runbook: в Dokploy `NEXT_PUBLIC_*`
+  надо дублировать в **Build-time Arguments** (Environment в билд не
+  передаётся), иначе 500 «URL and Key are required».
+- ⏭️ **024 Self-hosted Supabase (trimmed)** — АКТИВНЫЙ следующий. Обрезанный
+  стек (Postgres + GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
+  **Перед 024: rescale бокса до 8 ГБ** (CX33, либо always-available CPX31) —
+  на 4 ГБ Supabase + Next + сборки не влезут.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
   drill «снёс → поднял». Ключевой ops-навык.
 - **026 Data & auth migration** — схема + данные + `auth.users` (хеши

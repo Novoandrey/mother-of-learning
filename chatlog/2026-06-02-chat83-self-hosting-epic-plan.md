@@ -116,3 +116,48 @@ PWA, без App Store/Google Play; (3) разобраться, дешевле л
   Implement; прогон runbook'а — оператор.
 - Гейт: после Plan — Tasks/Implement по явному «го». Для одного инфра-среза
   runbook уже упорядочен (чекбоксы) → отдельный tasks.md опционален.
+
+## Update (spec-023 ИМПЛЕМЕНТ — live) — chat 83
+
+Прошли весь runbook вживую с оператором (PowerShell, Hetzner). spec-023 → **в проде**.
+
+- **Бокс:** Hetzner **CX23** (2 vCPU / 4 ГБ / 40 ГБ, Helsinki, Cost-Optimized —
+  CX33 был «limited availability»), Ubuntu 24.04.4. IP 37.27.254.49.
+- **Хардненинг:** sudo-юзер `andrey`, SSH key-only (drop-in
+  `00-hardening.conf`: PermitRootLogin no + PasswordAuthentication no —
+  cloud-init не перебил), ufw 22/80/443 (3000 НЕ открыт), fail2ban,
+  unattended-upgrades. root-вход отрублен, проверено.
+- **Dokploy v0.29.7** (Docker Swarm + Traefik + postgres16 + redis7).
+  Traefik — контейнер, не swarm-сервис. Дашборд: первичная регистрация
+  через SSH-туннель, затем `https://panel.theloopers.org` (Settings → Web
+  Server) + 2FA. **3000 торчал в интернет** (Docker обошёл ufw, проверено
+  `Test-NetConnection` → True) → погасили `docker service update
+  --publish-rm "published=3000,target=3000,mode=host" dokploy` → стало False.
+- **Домен:** theloopers.org (Cloudflare registrar+DNS). A-записи `panel`,
+  `staging` → IP, DNS-only (серое облако) для ACME. apex — пока на Vercel.
+- **Приложение:** GitHub App, репо public, branch main, Build Path
+  `/mat-ucheniya`, Build Type Dockerfile (`Dockerfile`, контекст/стейдж
+  пустые). Dockerfile (standalone, libc6-compat, ships `docs/`) собрался на
+  4 ГБ без OOM (~60 c). Деплой на `https://staging.theloopers.org` (HTTPS,
+  container port 3000), смотрит на текущий managed Supabase (read-mostly).
+- **Грабли (записаны в runbook):** в Dokploy `NEXT_PUBLIC_*` НЕ передаются
+  из Environment в сборку — их надо дублировать в **Build-time Arguments**,
+  иначе билд проходит, но рантайм 500 «Your project's URL and Key are
+  required». После дублирования + Rebuild — логин заработал.
+- **Reboot-тест (SC-006):** после `sudo reboot` ufw active, fail2ban active,
+  все сервисы 1/1 (вкл. `matucheniya-staging-azupkl`), оба сайта живы.
+- **SC:** 001..004,006 ✅. 005 (откат) — возможность есть (Dokploy хранит
+  деплои), деструктивный тест отложен. 007 (бэкап) — конфиг воспроизводим
+  из git+runbook; авто-бэкапы базы = срез 025.
+- **App-код:** добавлены `mat-ucheniya/Dockerfile`, `.dockerignore`,
+  `next.config.ts` `output: 'standalone'` + build-args для NEXT_PUBLIC.
+  (Vercel-прод от standalone не пострадал.)
+- **Коммиты:** runbook/Dockerfile/NEXT итерации (~2e64221 … b6c8125 серия).
+
+## Что помнить следующему чату (для 024)
+- **Перед 024 — rescale бокса до 8 ГБ** (CX33 если появится, либо
+  always-available CPX31). На 4 ГБ Supabase-стек + Next + сборки не влезут.
+- 024 = self-hosted Supabase (trimmed) на `db.theloopers.org`, потом
+  репойнт env staging-приложения с managed на self-hosted.
+- Дашборд: `https://panel.theloopers.org` (2FA). Сервер: `ssh andrey@37.27.254.49`.
+- Откат 023 (SC-005) при случае проверить (Deployments → прошлый деплой).

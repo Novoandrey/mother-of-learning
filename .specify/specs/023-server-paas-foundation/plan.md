@@ -2,7 +2,7 @@
 
 **Feature Branch**: `023-server-paas-foundation`
 **Phase**: Plan
-**Status**: Plan draft — awaiting Tasks/Implement go
+**Status**: ✅ Implemented (2026-06-02, chat 83) — box live, staging deployed over HTTPS, survives reboot. 024 is next (rescale box to 8 GB first).
 **Spec**: `./spec.md` (Clarified, chat 83)
 **Runbook (исполняемый)**: `infra/server-paas-runbook.md` — конкретные
 команды/конфиги, по которым катает оператор. `plan.md` — решения и
