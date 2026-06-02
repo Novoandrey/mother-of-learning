@@ -52,11 +52,15 @@ Subdomain plan (theloopers.org):
 # 2.1 Update
 apt update && apt upgrade -y
 
-# 2.2 Non-root sudo user
-adduser <user>                      # set a password
-usermod -aG sudo <user>
-# copy your SSH key to the new user:
-rsync --archive --chown=<user>:<user> ~/.ssh /home/<user>
+# 2.2 Non-root sudo user (example user: andrey)
+adduser andrey                      # set a password (used for sudo)
+usermod -aG sudo andrey
+# copy root's authorized_keys to the new user so key login works:
+mkdir -p /home/andrey/.ssh
+cp /root/.ssh/authorized_keys /home/andrey/.ssh/
+chown -R andrey:andrey /home/andrey/.ssh
+chmod 700 /home/andrey/.ssh
+chmod 600 /home/andrey/.ssh/authorized_keys
 
 # 2.3 Lock down SSH: key-only, no root login
 #   edit /etc/ssh/sshd_config (or a drop-in in /etc/ssh/sshd_config.d/):
