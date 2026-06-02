@@ -11,7 +11,11 @@ Conventions: `<domain>` = your domain; `<SERVER_IP>` = box public IP;
 
 ## Step 0 — Prerequisites (do before touching the box)
 
-- [ ] Hetzner account; SSH **public** key ready (`~/.ssh/id_ed25519.pub`).
+- [ ] **Create a Hetzner Cloud account** (console.hetzner.cloud) and add a
+      payment method. New here → expect ID/payment verification, which can
+      take a few minutes to a day before you can spin up servers.
+- [ ] SSH **public** key ready (`~/.ssh/id_ed25519.pub`). If you don't have
+      one: `ssh-keygen -t ed25519`.
 - [ ] Domain registered (Cloudflare Registrar recommended) and its DNS
       managed in Cloudflare.
 - [ ] Decide subdomains: `panel.<domain>` (Dokploy UI), `staging.<domain>`
