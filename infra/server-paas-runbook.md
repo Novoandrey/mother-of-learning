@@ -4,8 +4,15 @@ Executable steps for standing up the box. **Operator (Andrey + Степан)
 runs these on the server; Claude can't SSH in.** Paste errors/logs back to
 Claude for debugging. Tied to `.specify/specs/023-server-paas-foundation/`.
 
-Conventions: `<domain>` = your domain; `<SERVER_IP>` = box public IP;
-`<user>` = your non-root sudo user. Run as root unless noted.
+Conventions: `<domain>` = **theloopers.org** (Cloudflare registrar + DNS);
+`<SERVER_IP>` = box public IP; `<user>` = your non-root sudo user. Run as
+root unless noted.
+
+Subdomain plan (theloopers.org):
+- `panel.theloopers.org` → Dokploy dashboard (HTTPS)
+- `staging.theloopers.org` → the app (staging deploy, this slice)
+- `db.theloopers.org` → self-hosted Supabase (later, slice 024)
+- apex `theloopers.org` → stays on Vercel until cutover (027)
 
 ---
 
@@ -18,8 +25,9 @@ Conventions: `<domain>` = your domain; `<SERVER_IP>` = box public IP;
       one: `ssh-keygen -t ed25519`.
 - [ ] Domain registered (Cloudflare Registrar recommended) and its DNS
       managed in Cloudflare.
-- [ ] Decide subdomains: `panel.<domain>` (Dokploy UI), `staging.<domain>`
-      (the app). Apex `<domain>` stays on Vercel for now.
+- [ ] Subdomains decided (theloopers.org): `panel` (Dokploy UI), `staging`
+      (app), `db` (Supabase, later). Apex stays on Vercel for now. Nothing
+      to add in DNS yet — A-records come at Steps 4–5.
 
 ## Step 1 — Provision the VPS
 
