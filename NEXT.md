@@ -2,13 +2,15 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-05-07 (chat 82 — публичный раздел `/docs` с
-> 63 stub-файлами, удалён прототип `/c/[slug]/tasks` (kanban),
-> nav-tab «Задачи» снят, Documentation-link в campaign top bar,
-> HANDOFF от @andrey интегрирован: 5 новых концептов
-> (tool-first, time-as-resource, world-as-observation-log,
-> dm-as-demiurge, engine-vs-content) + north-star.md;
-> 9 roadmap-пивотов под движок+контент-паки. Версия 0.8.0 → 0.9.0).
+> Last updated: 2026-06-02 (chat 83 — план переезда на свою инфру.
+> Эпик spec-023→027: съезд с managed Supabase на свой сервер ради
+> DevOps-навыка. PaaS = Dokploy (выбран). Self-hosted Supabase —
+> дроп-ин (аудит: реально исп. Postgres + Auth + PostgREST + RLS + RPC;
+> НЕ исп. Storage / Realtime / Edge). Созданы spec-022 (Player Mobile
+> Mode, PWA) и spec-023 (Server & PaaS foundation) — оба Specify,
+> awaiting Clarify. Порядок: 023→027 → 022 → R2+портреты. Заведён
+> repo-root `infra/` под переносимые runbook'и. Картинки → Cloudflare
+> R2 (managed, позже, открывающим шагом фичи портретов). Версия 0.9.0.)
 
 ## В проде сейчас
 
@@ -592,56 +594,59 @@
 
 ## Следующий приоритет
 
-**Spec-020 «PC Holdings Overview»** (chat 77 promote) — sibling
-к spec-019: одностраничный DM-tool, показывающий **текущее**
-состояние всех PC (баланс + инвентарь + collapsed-by-default
-история транзакций под катом). 0 миграций ожидается, чистый
-UI-слой над существующими read-queries (`getWallet`, inventory
-из transactions, `getLedgerPage`). Реюз `<WalletBlock>`,
-`<InventoryGrid>`, `<LedgerList fixedActorNodeId={pcId}>`. Lazy
-load транзакций — query летит только при раскрытии аккордеона
-(иначе 29 ledger-запросов на page-load). Spec пишется в этом же
-чате после close-out spec-019.
+**Эпик «Переезд на свою инфру» (spec-023 → 027)** — активный приоритет
+(chat 83). Съезд с managed Supabase на собственный сервер ради DevOps-
+навыка (бэкапы, падения, восстановление). Аудит: приложение реально
+использует только Postgres + Auth (GoTrue) + PostgREST + RLS (76 политик,
+`auth.uid()` ×22) + RPC; Storage / Realtime / Edge Functions — ноль.
+Дроп-ин путь — self-hosted Supabase Docker-стек без переписывания кода.
+**PaaS: Dokploy** (выбран). VPS-кандидат: Hetzner CX33. Исполняет оператор
+(Andrey + Степан) на своём сервере; Claude поставляет спеки/runbook'и/
+скрипты, оператор катает (`git pull`) и присылает логи.
 
-**Spec-021 «Wiki / Markdown editor»** (concept-editor, в работе) —
-дизайн-пак от Claude Design получен (SPEC.md, HANDOFF.md, JSX
-frames, editor.css), четыре ортогональных слоя поверх sandbox
-(Storage / wikilinks / inline create / annotation triggers).
-Спека сама ещё не оформлена в `.specify/specs/021-*`. Подробности
-плана — в `chatlog/2026-04-28-chat78-concept-editor-plan.md` и в
-backlog'е (раздел spec-020 sandbox с расширением «концепт-редактор
-поверх sandbox»). Markdown editor держит slot 021 даже пока папка
-не создана — следующая работа над ним стартует с этого номера.
+Атомарная разбивка (по зависимостям):
+- **023 Server & PaaS foundation** — бокс + Dokploy + reverse-proxy +
+  авто-SSL + git-деплой hello-world. Spec готов (Specify); Dokploy
+  зафиксирован; остаток Clarify: Next с Vercel или только бэкенд, домен/VPS.
+- **024 Self-hosted Supabase (trimmed)** — обрезанный стек (Postgres +
+  GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
+- **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
+  drill «снёс → поднял». Ключевой ops-навык.
+- **026 Data & auth migration** — схема + данные + `auth.users` (хеши
+  паролей) в self-hosted инстанс, параллельно проду.
+- **027 Cutover & decommission** — переключить env, end-to-end проверка,
+  откат, погасить managed Supabase.
 
-**Spec-022 «Тасктрекер» — отменён (chat 82).** Заменён публичным
-разделом `/docs` (63 stub-файла + tree-sidebar + рендер MD), куда
-теперь стекается состояние проекта (что в проде, что под капотом,
-roadmap, processes, концепты). HANDOFF от пользователя инкорпорирован
-как north-star vision: 5 новых концептов + 9 roadmap-пунктов под
-engine-pivot. Подробнее см. `docs/concepts/north-star.md` и
-`docs/roadmap/engine-pivot.md`. Slot 022 свободен для следующей
-большой фичи.
+Переносимые runbook'и (023, бэкапы 025, будущий R2) → repo-root `infra/`
+(физически отделены от app-specific, чтобы вырезка в отдельный `infra`-репо
+была чистым copy-paste). App-specific (024/026/027) — в `.specify/specs/`.
+«Общей инфры-сервиса» нет: один бокс + Dokploy (многопроектный) + общий
+R2-аккаунт; у каждого проекта свой бэкенд/БД/бакет. Второй проект = в тот
+же Dokploy + своя БД + свой бакет.
 
-**Spec-023 «Карта мира»** (была spec-019, потом spec-020,
-потом spec-021, теперь spec-023) — фундаментальная фича,
-~5–7 рабочих дней. План в `backlog.md` (промоутирована из IDEA-054
-в chat 49, перенумерована: chat 75 → 019, chat 77 → 021,
-chat 80 → 023).
+### После переезда
 
-Грубый скоп: canvas → пины (PCs/locations) → travel edges → фильтры
-по сессиям/петлям. Schema impact: новая таблица `map_pins` (или
-`nodes.fields.map_position`?) — решается в Specify.
+1. **Spec-022 «Player Mobile Mode» (PWA)** — режим игрока mobile-first,
+   MVP (чарник / деньги / предметы, без картинок). Spec готов (Specify,
+   awaiting Clarify). US4 живой энкаунтер — P2, кандидат на отдельную спеку.
+2. **R2-runbook + портреты** — R2 поднимается открывающим шагом фичи
+   портретов (первый потребитель картинок), сразу после мобильного MVP.
+   R2 — кросс-проектный runbook (в `infra/`, не в specs); портреты —
+   маленький app-side спек.
 
-**Что было сделано в spec-018** (для контекста, если понадобится):
-50 миграций, 844 предмета, three-layer pipeline (Python scraper →
-JSON intermediate → TS codegen). Detail в chatlog/2026-04-27-chat76-spec018-implement.md.
+### Дальняя очередь (независимы, встраиваются по вкусу)
 
-### После spec-023
+- **Spec-020 «PC Holdings Overview»** — DM-дашборд текущего состояния всех
+  PC; spec + plan готовы, имплементация не начата, 0 миграций.
+- **Spec-021 «Wiki / Markdown editor»** — дизайн-пак от Claude Design
+  получен; папка `.specify/specs/021-*` не создана; держит slot 021.
+- **«Карта мира»** — фундаментальная фича (~5-7 дней), промоут из IDEA-054.
+  **Номер переназначается при промоушене** (старый pencil «023» занят
+  инфра-эпиком; вероятно 028+). Грубо: canvas → пины → travel edges →
+  фильтры по сессиям/петлям; schema — `map_pins` vs `nodes.fields`.
+- **Квесты** — после реворка энкаунтеров (quest = nodeType родственный
+  encounter).
 
-В порядке приоритета:
-1. **Квесты** — после реворка энкаунтеров (encounter rework был
-   в backlog'е, перенумерован), т.к. quest = nodeType родственный
-   encounter, проектировать отдельно от него рискованно.
 
 ### spec-014 хвосты (не блокеры — happy flow подтверждён в проде)
 - **UX полишинг** — будет приходить инкрементально по запросу
