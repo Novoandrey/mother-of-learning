@@ -12,20 +12,19 @@
 
 ## Setup / подготовка
 
-- [ ] **T001** 🧑 Решить путь Studio: **A** публичный HTTPS на
-      `db.theloopers.org` или **B** SSH-туннель. → Step 0. (FR-005)
-      _Блокирует:_ T006/T007 (нужны только для A).
-- [ ] **T002** 🧑 Склонировать официальный `supabase/docker` на боксе,
-      `cp .env.example .env`. → Step 1.
-- [ ] **T003** 🧑 Сгенерировать свежие секреты (`POSTGRES_PASSWORD`,
+- [x] **T001** ✅ Путь Studio: **A** — публичный HTTPS на
+      `db.theloopers.org` + basic-auth (chat 84). _Steps 5–6 в игре._
+- [x] **T002** ✅ Официальный `supabase/docker` склонирован, `cp .env.example
+      .env` сделан (chat 84).
+- [x] **T003** ✅ Секреты сгенерированы и получены (`POSTGRES_PASSWORD`,
       `JWT_SECRET`, `PG_META_CRYPTO_KEY`, `ANON_KEY`, `SERVICE_ROLE_KEY`,
-      `DASHBOARD_*`), занести в Dokploy env; проверить, что `.env` покрывает
-      все `${VAR}` обрезанного compose. → Step 2. (FR-008) _Dep:_ T002.
-- [ ] **T004** 🧑 Обрезать compose: **db→PG17 ДО первого старта**; снять
-      realtime/storage/imgproxy/functions/analytics/vector/supavisor; чинить
-      `studio.depends_on: analytics`; снять host-порты `kong`/`db`; **оставить
-      db init-скрипты** (`roles.sql`/`jwt.sql` обязательны). → Step 3.
-      (FR-001/002/006/007; PG17) _Dep:_ T002.
+      `DASHBOARD_*`) — chat 84. _Должны лежать в `.env` / Dokploy env._
+- [x] **T004** ✅ Обрезанный compose **собран Claude** →
+      `docker-compose.yml` в этой папке (db→PG17 `17.6.1.132`; сняты
+      realtime/storage/imgproxy/functions/analytics/vector/supavisor +
+      их depends_on; studio без analytics/LOGFLARE; host-порты kong сняты;
+      db init-скрипты сохранены). YAML валиден, 6 сервисов. Оператору —
+      положить файл вместо `docker/docker-compose.yml` (Step 3). (chat 84)
 
 ## Bring-up
 

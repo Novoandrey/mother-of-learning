@@ -111,6 +111,14 @@ comm -23 \
 
 ## Step 3 — Trim the stack + override db (the edits)  · 🐧 SERVER
 
+**Easiest:** use the **pre-trimmed `docker-compose.yml`** from the spec
+folder (`.specify/specs/024-self-hosted-supabase/docker-compose.yml`) — drop
+it into your cloned `supabase/docker/` **replacing the original**; your
+`.env` and `volumes/` stay untouched. It already contains every edit below
+(6 services: db/auth/rest/kong/studio/meta; db pinned to PG17; host ports
+and unused services removed). The list below is kept as **reference / for
+doing it by hand**:
+
 Edit `docker/docker-compose.yml`:
 
 **a) Override db image to PG17** (default ships PG15 `15.8.1.085`; prod is
