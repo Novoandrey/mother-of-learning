@@ -67,7 +67,8 @@ Helsinki) из 023, отресайженный с CX23 под Supabase, +2 ГБ 
 #### Acceptance Scenarios
 
 1. **Ядро здорово** — Postgres, Auth (GoTrue), PostgREST, API-gateway
-   (Kong) и Studio запущены и в состоянии healthy.
+   (Kong), Studio и postgres-meta (зависимость Studio) запущены и в
+   состоянии healthy.
 2. **Лишнее отсутствует — после подтверждения** — Storage, Realtime,
    Edge Functions, imgproxy, analytics/Vector не запущены; исключение
    каждого подтверждено отсутствием использования в приложении. Realtime
@@ -151,7 +152,8 @@ Helsinki) из 023, отресайженный с CX23 под Supabase, +2 ГБ 
 
 - **FR-001**: На боксе из 023 через Dokploy поднят self-hosted Supabase-
   стек, содержащий только используемые приложением продукты: Postgres,
-  Auth (GoTrue), PostgREST, API-gateway (Kong), Studio.
+  Auth (GoTrue), PostgREST, API-gateway (Kong), Studio — плюс postgres-meta
+  (обязательная зависимость Studio для SQL/table-редактора).
 - **FR-002**: Продукты, которые приложение не использует — Storage,
   Realtime, Edge Functions, imgproxy, analytics/Vector — исключаются из
   стека **только после подтверждения**, что приложение их не задействует.
@@ -164,9 +166,11 @@ Helsinki) из 023, отресайженный с CX23 под Supabase, +2 ГБ 
 
 ### Доступ и безопасность
 
-- **FR-005**: Studio доступен только по HTTPS на (под)домене за
-  авторизацией (кандидат — `db.theloopers.org`), не по голому IP, не
-  анонимно.
+- **FR-005**: Studio доступен только по **аутентифицированному
+  шифрованному каналу** — либо публичный HTTPS на (под)домене за
+  авторизацией (кандидат — `db.theloopers.org`), либо SSH-туннель (как
+  панель Dokploy в 023). Не по голому IP, не анонимно. Какой из двух —
+  решает оператор при реализации.
 - **FR-006**: Работоспособность API-gateway (Kong → GoTrue/PostgREST)
   подтверждена **изнутри** — проверками из Docker-сети / с бокса. Наружу
   gateway в 024 **не публикуется**; публичный HTTPS-доступ к API
@@ -267,10 +271,12 @@ Studio↔meta — ручная пересборка этого слоя ровн
 ## Success Criteria
 
 1. **SC-001**: `docker ps` / Dokploy показывает Postgres, GoTrue,
-   PostgREST, Kong, Studio как healthy; Storage/Realtime/Edge/imgproxy/
-   Vector отсутствуют.
-2. **SC-002**: Studio открывается по HTTPS на (под)домене с валидным
-   сертификатом и требует авторизацию.
+   PostgREST, Kong, Studio, postgres-meta как healthy; Storage/Realtime/
+   Edge/imgproxy/Vector отсутствуют.
+2. **SC-002**: Studio доступен только аутентифицированно и шифрованно по
+   выбранному пути — **(публичный)** HTTPS на (под)домене с валидным
+   сертификатом + авторизация, **либо** через SSH-туннель (наружу не
+   опубликован).
 3. **SC-003**: API-gateway подтверждён изнутри — Auth- и REST-эндпоинты
    отвечают из Docker-сети / с бокса; наружу не опубликованы (публичный
    HTTPS-доступ к API — на cutover 027).
@@ -287,7 +293,10 @@ Studio↔meta — ручная пересборка этого слоя ровн
    - Postgres отвечает изнутри Docker-сети / с бокса;
    - порт 5432 снаружи по-прежнему закрыт.
 6. **SC-006**: `\dx` self-hosted ⊇ `\dx` прод (diff пустой либо
-   зафиксирован); `\dn` совпадает.
+   зафиксирован); `\dn` сверены **по scope будущего restore** — in-scope
+   схемы присутствуют, out-of-scope расхождения (схемы неиспользуемых
+   продуктов) классифицированы и зафиксированы в `parity-report.md` (не
+   строгое равенство).
 7. **SC-007**: Версия Postgres self-hosted совместима с прод; зафиксирована
    в runbook.
 8. **SC-008**: Прод managed-Supabase и `staging.theloopers.org` (023)
