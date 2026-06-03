@@ -17,9 +17,38 @@ trim rationale are in `research.md`.
 Scope reminder: **no data, no backups, no cutover.** Prod managed Supabase
 and the staging app stay untouched.
 
+## Where to run each command (read first)
+
+Three different places — **every step below is tagged** with one of these:
+
+- 🖥️ **LOCAL** — your **Windows PowerShell** on your laptop (NOT SSH'd in).
+  Used for the SSH connection itself and for the *external* checks
+  (`Test-NetConnection`, `curl` from outside the box).
+- 🐧 **SERVER** — inside the **SSH session on the box** (bash). Get there
+  from PowerShell:
+  ```powershell
+  ssh <user>@<SERVER_IP>     # 🖥️ run once in LOCAL PowerShell; after this the prompt is 🐧 SERVER
+  ```
+  Everything `docker …`, `git clone`, `nano`, `openssl`, `sudo …` is 🐧 SERVER.
+- 🌐 **WEB** — a **browser**: Dokploy (`panel.theloopers.org`), Cloudflare
+  DNS, Supabase prod dashboard. No terminal at all.
+
+| Step | Where |
+|---|---|
+| 0 | decision (tunnel command in path B = 🖥️ LOCAL) |
+| 1–3 | 🐧 SERVER |
+| 4 | 🌐 WEB (Dokploy) + 🐧 SERVER (git push) |
+| 5 | 🌐 WEB (Cloudflare + Dokploy) |
+| 6 | 🐧 SERVER (htpasswd, edit file) + 🌐 WEB (Dokploy field) |
+| 7 | 🖥️ LOCAL (external checks) + 🐧 SERVER (inside checks) |
+| 8 | 🐧 SERVER (already done in-sandbox) |
+| 9 | 🐧 SERVER (self-hosted) + 🌐 WEB (prod SQL editor) |
+| 10 | 🐧 SERVER (reboot + checks) + 🖥️ LOCAL (external 5432) |
+| 11 | 🌐 WEB (open staging + prod) |
+
 ---
 
-## Step 0 — Decide how Studio is reached
+## Step 0 — Decide how Studio is reached  (decision)
 
 Both paths satisfy FR-005 (authenticated, encrypted channel) — pick one:
 - **A — public HTTPS** on `db.theloopers.org` + basic-auth (Steps 5–6).
@@ -27,7 +56,7 @@ Both paths satisfy FR-005 (authenticated, encrypted channel) — pick one:
   `ssh -L 3000:localhost:<studio-host-port> <user>@<SERVER_IP>`. If you pick
   this, **skip Steps 5–6** (and SC-002 is met via the tunnel, not a subdomain).
 
-## Step 1 — Get the official compose on the box
+## Step 1 — Get the official compose on the box  · 🐧 SERVER
 
 ```bash
 # as <user>, in a working dir (e.g. /home/<user>)
@@ -39,7 +68,7 @@ This is the official **stable** compose; it ships supporting files
 (`volumes/api/kong.yml`, seed SQL, etc.) we need. We trim it and override
 the db image below.
 
-## Step 2 — Generate fresh secrets (FR-008)
+## Step 2 — Generate fresh secrets (FR-008)  · 🐧 SERVER
 
 ```bash
 openssl rand -base64 32   # -> POSTGRES_PASSWORD
@@ -80,7 +109,7 @@ comm -23 \
 # Anything printed that has a ${VAR:-default} in the compose is fine; the rest must be set.
 ```
 
-## Step 3 — Trim the stack + override db (the edits)
+## Step 3 — Trim the stack + override db (the edits)  · 🐧 SERVER
 
 Edit `docker/docker-compose.yml`:
 
@@ -132,18 +161,18 @@ dashboard; drop orphan volumes (`deno-cache`).
 Sanity: `docker compose config` parses with no missing-service /
 missing-volume errors.
 
-## Step 4 — Bring the stack up via Dokploy (Q1=A)
+## Step 4 — Bring the stack up via Dokploy (Q1=A)  · 🌐 WEB + 🐧 SERVER
 
 Recommended: **Git compose source** (brings the `volumes/` support files):
-- [ ] Push the edited `supabase/docker` contents to a repo Dokploy can read
-      (**do NOT commit `.env`**).
-- [ ] ⚠️ Confirm `.env` is git-ignored before pushing (the official
+- [ ] 🐧 SERVER — push the edited `supabase/docker` contents to a repo
+      Dokploy can read (**do NOT commit `.env`**).
+- [ ] 🐧 SERVER — confirm `.env` is git-ignored before pushing (official
       `docker/.gitignore` covers it — verify: `git check-ignore docker/.env`
-      should print the path). Honors FR-008 (secrets not in git).
-- [ ] Dokploy → New Project → **Compose** → Git source → compose path =
-      the docker dir.
-- [ ] Put the secrets from Step 2 in the compose **Environment** tab.
-- [ ] Deploy.
+      prints the path). Honors FR-008 (secrets not in git).
+- [ ] 🌐 WEB — Dokploy → New Project → **Compose** → Git source → compose
+      path = the docker dir.
+- [ ] 🌐 WEB — put the secrets from Step 2 in the compose **Environment** tab.
+- [ ] 🌐 WEB — Deploy.
 
 (Raw-YAML paste also exists, but it has no repo context for the relative
 `./volumes/...` files Kong needs — prefer Git.)
@@ -154,17 +183,17 @@ Wait for healthy: **db, auth, rest, kong, studio, meta**.
 meta healthy; realtime/storage/imgproxy/functions/analytics/vector/supavisor
 absent.
 
-## Step 5 — Studio over HTTPS  [skip if SSH tunnel]
+## Step 5 — Studio over HTTPS  · 🌐 WEB  [skip if SSH tunnel]
 
 - [ ] Cloudflare DNS: A record `db` → `<SERVER_IP>`, **DNS-only (grey cloud)**.
 - [ ] Dokploy → compose app → **Domains** → add `db.theloopers.org`,
       **service = studio**, **port = 3000**, enable **HTTPS (Let's Encrypt)**.
 - [ ] **Preview Compose** to confirm labels target `studio:3000`.
 
-## Step 6 — Basic-auth in front of Studio (FR-005)  [skip if SSH tunnel]
+## Step 6 — Basic-auth in front of Studio (FR-005)  · 🐧 SERVER + 🌐 WEB  [skip if SSH tunnel]
 
 Dokploy has **no basic-auth UI for compose services** — add a Traefik
-file-provider middleware by hand:
+file-provider middleware by hand. 🐧 **SERVER:**
 ```bash
 htpasswd -nbB <studio-user> '<studio-pass>'      # bcrypt; copy the "user:$2y$..." line
 sudo nano /etc/dokploy/traefik/dynamic/middlewares.yml
@@ -177,29 +206,29 @@ http:
         users:
           - "<paste the htpasswd line>"
 ```
-- [ ] Dokploy → Domains → `db.theloopers.org` → **Middlewares** → reference
-      `studio-auth`.
-- [ ] `https://db.theloopers.org` prompts for credentials, then loads Studio
-      with a valid cert.
+- [ ] 🌐 WEB — Dokploy → Domains → `db.theloopers.org` → **Middlewares** →
+      reference `studio-auth`.
+- [ ] 🌐 WEB — `https://db.theloopers.org` prompts for credentials, then
+      loads Studio with a valid cert.
 
 ✅ **SC-002 check:** Studio on `db.theloopers.org` over HTTPS, behind auth.
 
-## Step 7 — Verify API internal-only + 5432 closed (FR-006/FR-007)
+## Step 7 — Verify API internal-only + 5432 closed (FR-006/FR-007)  · 🖥️ LOCAL + 🐧 SERVER
 
-From your **laptop** (not the box):
-- [ ] `curl -v https://db.theloopers.org/rest/v1/ --connect-timeout 5` —
+🖥️ **LOCAL** — in your **Windows PowerShell** (NOT in the SSH session; the
+point is to test from outside the box):
+- [ ] `curl.exe -v https://db.theloopers.org/rest/v1/ --connect-timeout 5` —
       that host routes to **Studio**, not Kong, so:
       - **Expected (pass):** `401` Basic Auth challenge, or `404`/HTML/Next
         from Studio.
       - **Unacceptable (fail):** PostgREST JSON or its headers / any real
         REST API response — would mean the API is exposed. Investigate.
-- [ ] `Test-NetConnection <SERVER_IP> -Port 8000` (Win) /
-      `curl -v http://<SERVER_IP>:8000 --connect-timeout 5` → **closed/timeout**.
-      If reachable, a `ports:` slipped through (Step 3d) → remove it.
-- [ ] Port 5432: `Test-NetConnection <SERVER_IP> -Port 5432` / curl →
-      **closed/timeout**.
+- [ ] `Test-NetConnection <SERVER_IP> -Port 8000` → **closed/timeout**
+      (`TcpTestSucceeded : False`). If it succeeds, a `ports:` slipped
+      through (Step 3d) → remove it.
+- [ ] `Test-NetConnection <SERVER_IP> -Port 5432` → **closed/timeout**.
 
-API works **inside** the network (proof), on the box:
+🐧 **SERVER** — in the SSH session, prove the API works *inside* the network:
 ```bash
 docker exec supabase-kong curl -s -o /dev/null -w "%{http_code}\n" http://auth:9999/health   # GoTrue
 docker exec supabase-kong curl -s -o /dev/null -w "%{http_code}\n" http://rest:3000/          # PostgREST
@@ -208,7 +237,7 @@ docker exec supabase-kong curl -s -o /dev/null -w "%{http_code}\n" http://rest:3
 ✅ **SC-003/SC-004 check:** Auth/REST answer inside; 8000 & 5432 unreachable
 from outside; port scan shows only 22/80/443.
 
-## Step 8 — Confirm Realtime/Edge truly unused (FR-002)
+## Step 8 — Confirm Realtime/Edge truly unused (FR-002)  · 🐧 SERVER (done)
 
 Justifies the Step 3b removal. In the app repo (`mat-ucheniya`):
 > ✅ Already audited in-sandbox (chat 84): **0 hits** across 260 ts/tsx
@@ -221,16 +250,16 @@ grep -rn "\.channel(\|removeChannel\|postgres_changes\|\.broadcast\|\.functions\
 - [ ] No real matches → exclusion confirmed. Any genuine usage → re-add that
       service to the compose and redeploy.
 
-## Step 9 — Parity vs prod (FR-009..011) — the 026 de-risk
+## Step 9 — Parity vs prod (FR-009..011) — the 026 de-risk  · 🐧 SERVER + 🌐 WEB
 
-On the **self-hosted** db (box):
+🐧 **SERVER** — on the self-hosted db:
 ```bash
 docker exec -it supabase-db psql -U postgres -c "show server_version;"
 docker exec -it supabase-db psql -U postgres -c "\dx"
 docker exec -it supabase-db psql -U postgres -c "\dn"
 ```
-Run the same three on **prod** (Supabase SQL editor, or psql via the Session
-pooler URI). Compare:
+🌐 **WEB** — run the same three on **prod** (Supabase Dashboard → SQL editor).
+Compare:
 - [ ] `server_version`: both 17.x (self-hosted ≥ prod patch).
 - [ ] `\dx`: every prod extension exists self-hosted (pgcrypto, uuid-ossp,
       pgjwt, pg_graphql, pgsodium, …). Install missing (`create extension …`)
@@ -252,22 +281,23 @@ pooler URI). Compare:
 ✅ **SC-006/SC-007 check:** extensions/schemas parity proven; PG version
 compatible & recorded → 026 `pg_restore` won't trip on a missing extension.
 
-## Step 10 — Reboot resilience (SC-005)
+## Step 10 — Reboot resilience (SC-005)  · 🐧 SERVER + 🖥️ LOCAL
 
+🐧 **SERVER:**
 ```bash
 sudo reboot
 ```
-After reboot:
+After reboot (reconnect SSH), 🐧 **SERVER:**
 - [ ] all target containers healthy (`docker compose ps`)
-- [ ] Studio loads (`https://db.theloopers.org`)
+- [ ] Studio loads (`https://db.theloopers.org` — open in 🌐 browser)
 - [ ] Auth inside: `docker exec supabase-kong curl -s -o /dev/null -w "%{http_code}\n" http://auth:9999/health`
 - [ ] REST inside: `docker exec supabase-kong curl -s -o /dev/null -w "%{http_code}\n" http://rest:3000/`
 - [ ] Postgres inside: `docker exec supabase-db pg_isready -U postgres`
-- [ ] 5432 still closed from outside
+- [ ] 🖥️ LOCAL — `Test-NetConnection <SERVER_IP> -Port 5432` still closed
 
 ✅ **SC-005 check:** stack self-starts; all probes pass post-reboot.
 
-## Step 11 — Confirm prod + staging untouched (SC-008)
+## Step 11 — Confirm prod + staging untouched (SC-008)  · 🌐 WEB
 
 The new instance is parallel; 023's deploy must be unaffected.
 - [ ] `https://staging.theloopers.org` still loads and authenticates (it
