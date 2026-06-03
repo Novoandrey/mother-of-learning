@@ -88,7 +88,7 @@ Edit `docker/docker-compose.yml`:
 PG17, and a PG17 dump can't restore into PG15):
 ```yaml
 db:
-  image: supabase/postgres:17.6.1.104   # verify exact tag on hub.docker.com/r/supabase/postgres/tags (≥ prod, 17.6.1.x)
+  image: supabase/postgres:17.6.1.132   # any public 17.6.1.x = PostgreSQL 17.6 (same as prod's .104; 4th segment is the Supabase image build, not the PG patch) → restore-compatible. Pick the latest 17.6.1.x at hub.docker.com/r/supabase/postgres/tags
 ```
 > ⚠️ **Must be done BEFORE the first `up`.** Postgres initializes its data
 > dir on first boot to the image's **major** version. Here the data dir is a
@@ -211,6 +211,9 @@ from outside; port scan shows only 22/80/443.
 ## Step 8 — Confirm Realtime/Edge truly unused (FR-002)
 
 Justifies the Step 3b removal. In the app repo (`mat-ucheniya`):
+> ✅ Already audited in-sandbox (chat 84): **0 hits** across 260 ts/tsx
+> files; the app uses only PostgREST (`.from`/`.rpc`) + `auth.*`. Re-run on
+> the box to double-check if you like:
 ```bash
 grep -rn "\.channel(\|removeChannel\|postgres_changes\|\.broadcast\|\.functions\.invoke(\|/functions/v1/" \
   --include="*.ts" --include="*.tsx" .
