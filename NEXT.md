@@ -2,7 +2,9 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-06-02 (chat 83 — план переезда на свою инфру.
+> Last updated: 2026-06-03 (chat 84 — spec-024 self-hosted Supabase
+> спланирован: Specify→Clarify→Plan→Analyze→Tasks; прогон `runbook.md` на
+> боксе предстоит. chat 83 — план переезда на свою инфру.
 > Эпик spec-023→027: съезд с managed Supabase на свой сервер ради
 > DevOps-навыка. PaaS = Dokploy (выбран). Self-hosted Supabase —
 > дроп-ин (аудит: реально исп. Postgres + Auth + PostgREST + RLS + RPC;
@@ -12,7 +14,8 @@
 > v0.29.7 на `panel.theloopers.org` (2FA, 3000 закрыт), приложение из
 > `main` задеплоено на `https://staging.theloopers.org` (HTTPS, смотрит на
 > managed Supabase), переживает reboot. Активный следующий — **024
-> (self-hosted Supabase); бокс уже rescale-нут до CPX32 (8 ГБ / 40 ГБ SSD).** География:
+> (self-hosted Supabase): spec/plan/research/runbook/tasks готовы в
+> `.specify/specs/024-…`, оператор катает `runbook.md` на боксе.** География:
 > мать учения за рубежом (вне РФ); проекты с ПД РФ — отдельный российский
 > бокс (152-ФЗ). Порядок:
 > 023→027 → 022 → R2+портреты. Заведён repo-root `infra/` под
@@ -601,7 +604,7 @@
 
 ## Следующий приоритет
 
-**Эпик «Переезд на свою инфру» (spec-023 → 027)** — в работе (chat 83).
+**Эпик «Переезд на свою инфру» (spec-023 → 027)** — в работе (chat 83–84).
 **023 готов и в проде** (бокс + Dokploy + SSL + staging-деплой приложения);
 активный следующий — 024. Съезд с managed Supabase на собственный сервер
 ради DevOps-навыка (бэкапы, падения, восстановление). Аудит: приложение
@@ -635,14 +638,26 @@
   Гранд-нюанс для следующего раза → в runbook: в Dokploy `NEXT_PUBLIC_*`
   надо дублировать в **Build-time Arguments** (Environment в билд не
   передаётся), иначе 500 «URL and Key are required».
-- ⏭️ **024 Self-hosted Supabase (trimmed)** — АКТИВНЫЙ следующий. Обрезанный
-  стек (Postgres + GoTrue + PostgREST + Kong + Studio), пустой и здоровый.
-  ✅ Бокс rescale-нут до **CPX32** (4 vCPU AMD / 8 ГБ / **40 ГБ** SSD) — 024
-  разблокирован. Swap 2 ГБ добавлен. **Пре-проверка перед 026 (совет
-  Леши):** подняв стек, свериться `\dx` (расширения: pgcrypto,
-  uuid-ossp, pgjwt, pg_graphql, pgsodium…) и `\dn` (схемы: auth, storage,
-  extensions, graphql, realtime) self-hosted ↔ прод; доустановить
-  недостающее ДО миграции данных, иначе `pg_restore` в 026 упадёт.
+- ⏭️ **024 Self-hosted Supabase (trimmed)** — АКТИВНЫЙ.
+  **Specify→Clarify→Plan→Analyze→Tasks готовы (chat 84)** →
+  `.specify/specs/024-self-hosted-supabase/` (spec/plan/research/runbook/
+  tasks). Осталось: оператор катает `runbook.md` на боксе (Step 0–11),
+  затем close-out (T015: версия-бамп, NEXT, chatlog). Обрезанный стек
+  (Postgres + GoTrue + PostgREST + Kong + Studio + postgres-meta), пустой и
+  здоровый, параллельно проду; бокс CPX32 готов.
+  Решения Clarify: **API наружу НЕ публикуем** (вариант B — проверка
+  изнутри; публичный HTTPS на 027); **Studio** — публичный HTTPS на
+  `db.theloopers.org` ИЛИ SSH-туннель (выбор оператора); секреты — Dokploy
+  env, не в git.
+  ⚠️ **Находка:** дефолтный compose на **PG15** (`15.8.1.085`), прод на
+  **PG17** (`17.6.1.104`) → db-образ **обязательно override на 17.x ДО
+  первого старта** (data-dir = bind-mount `volumes/db/data`; PG17 не примет
+  PG15-кластер — иначе чистить и пересоздавать).
+  **Пре-проверка перед 026 (Леша):** свериться `\dx` (расширения:
+  pgcrypto, uuid-ossp, pgjwt, pg_graphql, pgsodium…) и `\dn` (схемы: auth,
+  storage, extensions, graphql, realtime) self-hosted ↔ прод; доустановить
+  недостающее ДО миграции данных, иначе `pg_restore` в 026 упадёт; схемы
+  удалённых продуктов классифицировать по restore-scope.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
   drill «снёс → поднял». Ключевой ops-навык.
 - **026 Data & auth migration** — схема + данные + `auth.users` (хеши
