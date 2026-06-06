@@ -55,13 +55,14 @@ Conventions:
       nano ~/.config/rclone/rclone.conf
       ```
       (Remote name must stay `r2` to match the scripts.)
-- [ ] **✅ check — access works:**
+- [ ] **✅ check — access works** (scoped token: test INSIDE the bucket — NOT
+      `rclone lsd r2:`, which needs account-level ListBuckets and returns 403):
       ```bash
-      rclone lsd r2:                       # lists buckets → mat-ucheniya-backups
       echo hello > /tmp/t.txt
       rclone copy /tmp/t.txt r2:mat-ucheniya-backups/_probe/
-      rclone ls r2:mat-ucheniya-backups/_probe/   # shows t.txt
+      rclone ls r2:mat-ucheniya-backups/_probe/   # shows "6 t.txt"
       rclone delete r2:mat-ucheniya-backups/_probe/
+      rm /tmp/t.txt
       ```
 
 ## Step 3 — Deploy backup.sh + first manual run (tasks T004 → T005)
