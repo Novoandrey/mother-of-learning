@@ -133,10 +133,14 @@ the prune removes it:
 
 ## Step 6 — Restore drill «снёс → поднял» (tasks T009 → T010 → T011)
 
-> ⚠ The reload strategy below is `restore.sh`'s default (strategy **b** — tolerate
-> "already exists", fine on the EMPTY stack). On the drill, confirm it leaves the
-> stack healthy; if not, switch to (a) or (c) per the script's RESTORE STRATEGY
-> block, then finalize this step.
+> ⚠ DRILL FINDING (chat 85): this logical-dump restore is NOT the path for
+> Supabase. It proved the stop→restore→healthy + rollback mechanics (18s) on the
+> empty stack, but a logical reload can't restore real Supabase data — the dump
+> under `postgres` misses supabase_admin-owned tables (auth.users), and the
+> reload conflicts on ownership + duplicate schema_migrations (Supabase cli#3532).
+> **026 switches the backup method to physical** (cold data-dir copy vs
+> pg_basebackup). The R2/rclone pipeline, rotation, cron, and rollback all carry
+> over; only the dump/restore core changes.
 
 The drill destroys the DB and brings it back from a backup. `restore.sh` already:
 pulls the latest dump → `gunzip -t` + free-space guard → stops the stack and

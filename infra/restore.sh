@@ -6,10 +6,14 @@
 # slice 025 the target is the EMPTY stack from 024 — there is NO app data at
 # risk, the point is to rehearse the mechanics and surface the restore pain.
 #
-# ⚠ DRAFT until the drill (task T010) picks the init-conflict workaround. A fresh
-#   supabase-db container re-creates Supabase roles via its init-scripts, so a
-#   plain pg_dumpall reload emits "role already exists". See RESTORE STRATEGY
-#   below. The operator confirms timing (stop→healthy) by hand per the runbook.
+# ⚠ DRILL FINDING (025, chat 85): a logical pg_dumpall reload is NOT the path for
+#   self-hosted Supabase. (1) Under `postgres` (no superuser here) the dump can't
+#   read supabase_admin-owned tables (auth.users etc). (2) Reloading into a
+#   self-initialised stack conflicts on ownership + duplicate schema_migrations
+#   (Supabase cli#3532 → pg_basebackup). 026 switches to a PHYSICAL method.
+#   This script still PROVED the stop→restore→healthy + rollback mechanics on the
+#   empty stack (18s). Strategy (b) below tolerated the errors only because the
+#   empty stack's objects are identical; it does NOT restore real data.
 #
 # Usage:
 #   COMPOSE_DIR=/path/to/supabase/docker ./restore.sh [daily/2026-06-07-0300.sql.gz]

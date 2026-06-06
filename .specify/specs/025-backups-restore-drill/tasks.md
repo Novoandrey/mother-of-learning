@@ -84,3 +84,27 @@
 runbook Step за Step'ом; оператор кидает вывод/ошибки в чат, Claude разбирает,
 правит скрипты/runbook. Задача `[x]` — когда её ✅-check пройден. Drill (T010) —
 точка, где вскрываем и чиним боль восстановления на пустом стеке.
+
+---
+
+## Close-out status (chat 85)
+
+- **T001–T003** ✅ R2 bucket + scoped token, rclone, access verified.
+- **T004–T005** ✅ `backup.sh` written + first run uploaded. ⚠ but see finding:
+  dump under `postgres` is **incomplete** (can't read supabase_admin-owned
+  tables) — fine on empty stack, must change before 026.
+- **T006–T008** ✅ rotation (30/28) in `backup.sh`; daily cron active; prune
+  verified (old removed, recent kept).
+- **T009** ✅ `restore.sh` + drill section written.
+- **T010** ✅ drill run — **surfaced the key finding** (logical method unsuitable
+  for Supabase restore: ownership conflicts + duplicate schema_migrations,
+  Supabase cli#3532). This was the drill's purpose.
+- **T011** ✅ stop→healthy = 18s (< 5 min); rollback to `data.old` verified.
+- **T012** ✅ runbook written; finalized with the finding instead of "strategy b
+  as final" (logical restore is not the path for Supabase).
+- **T013** ✅ close-out: finding recorded in spec/plan/tasks, NEXT updated,
+  chatlog added, committed. Version NOT bumped (infra, app code unchanged).
+
+**025 closed.** Backup pipeline + restore/rollback mechanics proven on the empty
+stack. The dump/restore **core is redefined in 026** (physical method) — entry
+point, not a leftover. Stack rolled back to clean 024 state, healthy.

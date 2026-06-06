@@ -116,3 +116,25 @@
 - Финальное расписание/таймзона cron и место лог-файла на боксе.
 - Нужен ли отдельный `restore.sh`/`rotate.sh` или удобнее блоками в `backup.sh`
   + runbook (решаем на Implement по факту размера).
+
+---
+
+## Post-drill revision (chat 85) — method changes in 026
+
+The drill invalidated this plan's logical-dump baseline for Supabase restore
+(see `spec.md` → Drill outcome). The "open HOW-detail" about the init conflict
+turned out to be not a fixable detail but a sign the method is wrong for
+self-hosted Supabase:
+
+- `pg_dumpall -U postgres` can't read `supabase_admin`-owned tables (auth.users
+  password hashes silently excluded).
+- Logical reload into a self-initialising stack conflicts on ownership +
+  duplicate `schema_migrations` (Supabase cli#3532 → use `pg_basebackup`).
+
+**Carries over as-is:** R2 + scoped token, rclone pipeline, rotation (30/28),
+daily cron, and the stop → restore → healthy + rollback mechanics (drill: 18s).
+
+**Changes in 026:** dump/restore core → **physical** backup. Weigh cold data-dir
+copy (simple; brief stop-the-stack downtime per backup) vs `pg_basebackup`
+(no downtime; replication setup). Pick on a fresh head, then re-snapshot and
+re-drill against real data.

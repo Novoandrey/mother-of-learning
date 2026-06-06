@@ -2,7 +2,16 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-06-06 (chat 84 — **spec-024 self-hosted Supabase ГОТОВ
+> Last updated: 2026-06-06 (chat 85 — **spec-025 backups & restore-drill
+> ЗАКРЫТ**: off-box бэкапы в R2 + ротация (30/28) + ночной cron работают;
+> механика «снёс→поднял» = 18 сек; путь назад проверен. **Находка drill'а:**
+> логический `pg_dumpall` НЕ годится для restore self-hosted Supabase — под
+> `postgres` (лишён супер-прав) дамп не читает supabase_admin-таблицы (вкл.
+> `auth.users` с паролями), а накат в самоинициализирующийся стек конфликтует
+> по владельцам + duplicate schema_migrations (Supabase cli#3532 → pg_basebackup).
+> **Первый шаг 026 — сменить метод бэкапа на физический** (cold-copy data-dir vs
+> pg_basebackup); R2/rclone-pipeline, ротация, cron, rollback переиспользуются.
+> chat 84 — **spec-024 self-hosted Supabase ГОТОВ
 > и работает**: обрезанный стек (db/auth/rest/kong/studio/meta) поднят на
 > боксе через `docker compose`, db на PG17, паритет с продом доказан
 > (`parity-report.md`), reboot переживает, Studio доступен по SSH-туннелю
@@ -17,8 +26,10 @@
 > `main` задеплоено на `https://staging.theloopers.org` (HTTPS, смотрит на
 > managed Supabase), переживает reboot. **spec-024 (self-hosted Supabase) —
 > ГОТОВ:** пустой обрезанный стек живёт на боксе параллельно проду, паритет
-> доказан; приложение всё ещё на managed до cutover (027). Активный
-> следующий — **025 (бэкапы + restore-drill)** на этом пустом стеке.
+> доказан; приложение всё ещё на managed до cutover (027). **spec-025 (бэкапы +
+> restore-drill) ЗАКРЫТ (chat 85)** — pipeline и механика доказаны, но ядро
+> dump/restore переопределяется в 026 (физический метод; находка выше). Активный
+> следующий — **026 (data & auth migration)**, открывается сменой метода бэкапа.
 > География:
 > мать учения за рубежом (вне РФ); проекты с ПД РФ — отдельный российский
 > бокс (152-ФЗ). Порядок:
@@ -658,16 +669,22 @@
   override на PG17 **до первого старта** (data-dir — bind-mount); `realtime`
   схему создаёт init-скрипт даже без сервиса; `storage`/`realtime` — вне
   restore-scope (app не использует).
-- ⏭️ **025 Backups & restore drill** — АКТИВНЫЙ следующий. Авто-бэкапы
-  off-box + проверенный drill «снёс → поднял» на этом пустом стеке.
-  Ключевой ops-навык.
-- **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
-  drill «снёс → поднял». Ключевой ops-навык.
-- **026 Data & auth migration** — схема + данные + `auth.users` (хеши
-  паролей) в self-hosted инстанс, параллельно проду. **Чек-лист (совет
-  Леши):** после импорта данных проверить и синхронизировать sequences
-  (`setval` по `max(id)`) — иначе из-за старых значений id ловим duplicate
-  key на следующих вставках.
+- ✅ **025 Backups & restore drill** — ЗАКРЫТ (chat 85). Off-box бэкапы R2 +
+  ротация (30/28) + ночной cron работают; механика «снёс→поднял» = 18 сек;
+  путь назад проверен. Артефакты: `infra/{backup.sh,restore.sh,rclone.conf.example,
+  backup-restore-runbook.md}`. **Находка drill'а:** логический `pg_dumpall` НЕ
+  годится для restore Supabase (под `postgres` не читает supabase_admin-таблицы
+  вкл. `auth.users`; накат в самоинициализирующийся стек конфликтует по
+  владельцам + duplicate `schema_migrations` — Supabase cli#3532 → pg_basebackup).
+  Pipeline/ротация/cron/rollback переиспользуются; ядро dump/restore меняется в 026.
+- ⏭️ **026 Data & auth migration** — АКТИВНЫЙ следующий. **ПЕРВЫЙ шаг — сменить
+  метод бэкапа на физический** (cold-copy data-dir с краткой остановкой стека vs
+  `pg_basebackup` без downtime — взвесить трейдоффы), затем пере-снять бэкап и
+  пере-прогнать drill уже с реальными данными. Текущему `backup.sh` для реальных
+  данных НЕ доверять (дамп под postgres неполон). Далее — схема + данные +
+  `auth.users` (хеши паролей) в self-hosted, параллельно проду. **Чек-лист
+  (совет Леши):** после импорта проверить/синхронизировать sequences (`setval`
+  по `max(id)`) — иначе duplicate key на следующих вставках.
 - **027 Cutover & decommission** — переключить env, end-to-end проверка,
   откат. **managed Supabase НЕ гасить сразу** — держать грейс-период
   (~1–2 недели) как revert/эталон, гасить только после стабильности
