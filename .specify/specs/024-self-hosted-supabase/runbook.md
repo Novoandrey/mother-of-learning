@@ -48,6 +48,41 @@ Three different places — **every step below is tagged** with one of these:
 
 ---
 
+## Connecting & where things live (quick re-entry)
+
+Forgot where everything is? Start here.
+
+**The box** (Hetzner CPX32) is **always on** — you don't "start" it (unless
+you powered it off in the Hetzner Cloud console → power it back on there).
+After a reboot, Docker + Dokploy + all apps auto-restart (`restart:
+unless-stopped`), so normally nothing needs starting by hand.
+
+**Connect to the box** — 🖥️ LOCAL PowerShell:
+```powershell
+ssh <user>@<SERVER_IP>      # your <user> + IP from the Hetzner console / 023 setup; root login is disabled
+```
+
+**Web UIs** — 🌐 browser:
+- **Dokploy** (deploy / start / stop apps with buttons): `https://panel.theloopers.org`
+- **Staging app** (023): `https://staging.theloopers.org`
+- **Supabase Studio** (after you deploy it, path A): `https://db.theloopers.org`
+
+**See what's running** — 🐧 SERVER:
+```bash
+docker ps                                    # all containers on the box
+cd ~/supabase/docker && docker compose ps    # just the Supabase stack (once created)
+free -h                                      # RAM / swap
+```
+
+**Start / restart the Supabase stack:**
+- 🌐 Dokploy → your Compose app → **Deploy** / **Redeploy**, or
+- 🐧 SERVER: `cd ~/supabase/docker && docker compose up -d`  (stop: `docker compose down`)
+
+**Where you are in the plan:** open `tasks.md`, find the first unchecked
+`[ ]`. Done so far: **T001–T004**. Next: **T005** — deploy the stack (Step 4).
+
+---
+
 ## Step 0 — Decide how Studio is reached  (decision)
 
 Both paths satisfy FR-005 (authenticated, encrypted channel) — pick one:
