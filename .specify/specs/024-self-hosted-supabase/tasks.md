@@ -55,9 +55,9 @@
       расширения self-hosted ⊇ прод (доустанавливать нечего; extra pg_net);
       все прод-схемы присутствуют self-hosted (extras — суперсет). **Блокеров
       для 026 нет.** Отчёт → `parity-report.md`. (FR-009/010/011, SC-006/007)
-- [ ] **T011** 🧑 Reboot-resilience чек-лист (контейнеры/Studio/Auth/REST/
-      Postgres/5432). → Step 10. (FR-004, SC-005) _Dep:_ T005 (лучше после
-      T008/T010).
+- [x] **T011** ✅ Reboot-тест пройден (chat 84): после `sudo reboot` все 6
+      сервисов поднялись сами, healthy; `pg_isready` → accepting; studio-порт
+      `127.0.0.1:8001` пережил ребут. (FR-004, SC-005)
 - [ ] **T012** 🧑 [P] Прод managed + `staging.theloopers.org` нетронуты.
       → Step 11. (SC-008) _Dep:_ T005.
 
