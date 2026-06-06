@@ -57,6 +57,12 @@ Conventions:
       (Remote name must stay `r2` to match the scripts. The template already
       includes `no_check_bucket = true` — required for bucket-scoped tokens,
       which can't create or head buckets.)
+- [ ] **Make the config readable by root** — cron (Step 4) and `sudo` run the
+      backup as root, so the config must live in root's home too, not only yours:
+      ```bash
+      sudo mkdir -p /root/.config/rclone
+      sudo cp ~/.config/rclone/rclone.conf /root/.config/rclone/rclone.conf
+      ```
 - [ ] **✅ check — access works** (scoped token: test INSIDE the bucket — NOT
       `rclone lsd r2:`, which needs account-level ListBuckets and returns 403):
       ```bash
