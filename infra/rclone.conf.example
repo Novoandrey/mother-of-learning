@@ -17,3 +17,6 @@ secret_access_key = <R2_SECRET_ACCESS_KEY>
 endpoint = https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com
 region = auto
 acl = private
+# Bucket-scoped tokens can't CreateBucket/HeadBucket; the bucket already
+# exists, so skip the check (else rclone 403s on the first upload).
+no_check_bucket = true

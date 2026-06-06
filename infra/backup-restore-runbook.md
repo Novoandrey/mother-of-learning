@@ -54,7 +54,9 @@ Conventions:
       # edit: access_key_id, secret_access_key, endpoint(<ACCOUNT_ID>)
       nano ~/.config/rclone/rclone.conf
       ```
-      (Remote name must stay `r2` to match the scripts.)
+      (Remote name must stay `r2` to match the scripts. The template already
+      includes `no_check_bucket = true` — required for bucket-scoped tokens,
+      which can't create or head buckets.)
 - [ ] **✅ check — access works** (scoped token: test INSIDE the bucket — NOT
       `rclone lsd r2:`, which needs account-level ListBuckets and returns 403):
       ```bash
