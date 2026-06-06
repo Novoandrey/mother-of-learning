@@ -28,9 +28,12 @@
 
 ## Bring-up
 
-- [ ] **T005** 🧑 Поднять стек в Dokploy (Git-источник; `.env` в
-      `.gitignore`); дождаться healthy: db, auth, rest, kong, studio, meta.
-      → Step 4. (FR-001, SC-001; FR-008) _Dep:_ T003, T004.
+- [x] **T005** ✅ Стек поднят (chat 84) через `docker compose up -d` прямо
+      на боксе (не через Dokploy). Все 6 healthy/up: db (PG17), auth, rest,
+      kong, studio, meta (SC-001). Host-порты Kong/db не опубликованы —
+      SC-004 подтверждён по `docker ps`. _NB: т.к. деплой не через Dokploy,
+      публичный Studio (Step 5/6) потребует либо пересоздать как Dokploy-app,
+      либо SSH-туннель (путь B) — решим отдельно, для проверок не нужно._
 
 ## Доступ к Studio (путь A; для B закрывается в T001/Step 0)
 
