@@ -37,11 +37,10 @@
 
 ## Доступ к Studio (путь A; для B закрывается в T001/Step 0)
 
-- [ ] **T006** 🧑 [A] DNS `db`→`<IP>` + Dokploy-домен `db.theloopers.org`
-      на сервис `studio:3000` + HTTPS. → Step 5. (FR-005) _Dep:_ T005, T001=A.
-- [ ] **T007** 🧑 [A] Traefik basic-auth middleware перед Studio
-      (`htpasswd` → `middlewares.yml` → Middlewares). → Step 6.
-      (FR-005, SC-002) _Dep:_ T006.
+- [x] **T006/T007** ✅ Доступ к Studio решён **путём B** (chat 84): studio
+      привязан к `127.0.0.1:8001`, открывается через SSH-туннель
+      (`ssh -L 8001:localhost:8001`). Аутентифицированный шифрованный канал —
+      SSH-вход. FR-005 выполнен. _(Dokploy-домен/HTTPS A не понадобился.)_
 
 ## Проверки
 
