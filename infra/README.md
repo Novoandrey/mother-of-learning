@@ -36,8 +36,8 @@ same Dokploy + give it its own DB + its own bucket.
 
 ## Status (chat 83, 2026-06-02)
 
-`server-paas-runbook.md` written (spec-023 Plan); backups/R2 runbooks come
-later (025 / portraits). Decisions locked so far:
+`server-paas-runbook.md` (023) + `backup-restore-runbook.md` (025) written;
+R2 runbook comes later (portraits). Decisions locked so far:
 
 - **PaaS: Dokploy.**
 - **Object storage: Cloudflare R2** (managed, even though the rest is
@@ -55,8 +55,9 @@ them and pastes logs back for debugging. The hands-on ops reps are the point.
 
 - ✅ `server-paas-runbook.md` — provision + harden VPS, install Dokploy, SSL,
   deploy `mat-ucheniya` staging (from spec-023 Plan). **Written.**
-- `backup-restore-runbook.md` — automated off-box backups + verified
-  restore drill (from spec-025 Plan).
+- ✅ `backup-restore-runbook.md` — automated off-box backups + verified
+  restore drill (spec-025). **Written** (+ `backup.sh`, `restore.sh`,
+  `rclone.conf.example`). The drill itself is run by the operator on the box.
 - `r2-object-storage-runbook.md` — R2 account, bucket-per-project, scoped
   tokens, presigned-upload + serve helper, custom domain + transforms
   (written with the portraits feature).

@@ -1,0 +1,19 @@
+# infra/rclone.conf.example — template for the R2 remote used by backup.sh /
+# restore.sh.
+#
+# Setup on the box:
+#   1. Get the scoped R2 token + account id (runbook Step 1 / task T001).
+#   2. Copy this file to ~/.config/rclone/rclone.conf and fill in the values.
+#   3. Do NOT commit the real rclone.conf — secrets live only on the box.
+#
+# The remote name "r2" must match RCLONE_REMOTE in the scripts (default: r2).
+
+[r2]
+type = s3
+provider = Cloudflare
+env_auth = false
+access_key_id = <R2_ACCESS_KEY_ID>
+secret_access_key = <R2_SECRET_ACCESS_KEY>
+endpoint = https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com
+region = auto
+acl = private
