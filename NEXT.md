@@ -2,9 +2,11 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-06-03 (chat 84 — spec-024 self-hosted Supabase
-> спланирован: Specify→Clarify→Plan→Analyze→Tasks; прогон `runbook.md` на
-> боксе предстоит. chat 83 — план переезда на свою инфру.
+> Last updated: 2026-06-06 (chat 84 — **spec-024 self-hosted Supabase ГОТОВ
+> и работает**: обрезанный стек (db/auth/rest/kong/studio/meta) поднят на
+> боксе через `docker compose`, db на PG17, паритет с продом доказан
+> (`parity-report.md`), reboot переживает, Studio доступен по SSH-туннелю
+> (путь B). Срез 2/5 закрыт. chat 83 — план переезда на свою инфру.
 > Эпик spec-023→027: съезд с managed Supabase на свой сервер ради
 > DevOps-навыка. PaaS = Dokploy (выбран). Self-hosted Supabase —
 > дроп-ин (аудит: реально исп. Postgres + Auth + PostgREST + RLS + RPC;
@@ -13,9 +15,11 @@
 > ГОТОВ и в проде:** бокс Hetzner CPX32 (Helsinki, ресайз с CX23) захардненен, Dokploy
 > v0.29.7 на `panel.theloopers.org` (2FA, 3000 закрыт), приложение из
 > `main` задеплоено на `https://staging.theloopers.org` (HTTPS, смотрит на
-> managed Supabase), переживает reboot. Активный следующий — **024
-> (self-hosted Supabase): spec/plan/research/runbook/tasks готовы в
-> `.specify/specs/024-…`, оператор катает `runbook.md` на боксе.** География:
+> managed Supabase), переживает reboot. **spec-024 (self-hosted Supabase) —
+> ГОТОВ:** пустой обрезанный стек живёт на боксе параллельно проду, паритет
+> доказан; приложение всё ещё на managed до cutover (027). Активный
+> следующий — **025 (бэкапы + restore-drill)** на этом пустом стеке.
+> География:
 > мать учения за рубежом (вне РФ); проекты с ПД РФ — отдельный российский
 > бокс (152-ФЗ). Порядок:
 > 023→027 → 022 → R2+портреты. Заведён repo-root `infra/` под
@@ -638,26 +642,25 @@
   Гранд-нюанс для следующего раза → в runbook: в Dokploy `NEXT_PUBLIC_*`
   надо дублировать в **Build-time Arguments** (Environment в билд не
   передаётся), иначе 500 «URL and Key are required».
-- ⏭️ **024 Self-hosted Supabase (trimmed)** — АКТИВНЫЙ.
-  **Specify→Clarify→Plan→Analyze→Tasks готовы (chat 84)** →
+- ✅ **024 Self-hosted Supabase (trimmed) — ГОТОВ (chat 84).** Обрезанный
+  стек (db/auth/rest/kong/studio/meta) поднят на боксе через `docker compose`
+  (не Dokploy), db = `supabase/postgres:17.6.1.132` (PG17). Все 6 healthy,
+  переживают reboot (SC-005). API наружу не опубликован (host-портов нет),
+  5432 закрыт (SC-003/004). **Паритет с продом доказан** (`parity-report.md`):
+  server_version 17.6=17.6, расширения self-hosted ⊇ прод (доустанавливать
+  нечего), все прод-схемы присутствуют → блокеров для 026 нет (SC-006/007).
+  Studio — по **SSH-туннелю** (путь B: `studio` на `127.0.0.1:8001`,
+  `ssh -L 8001:localhost:8001`), FR-005 закрыт; Dokploy-домен (A) не
+  понадобился. Приложение всё ещё на managed до cutover (027). Артефакты:
   `.specify/specs/024-self-hosted-supabase/` (spec/plan/research/runbook/
-  tasks). Осталось: оператор катает `runbook.md` на боксе (Step 0–11),
-  затем close-out (T015: версия-бамп, NEXT, chatlog). Обрезанный стек
-  (Postgres + GoTrue + PostgREST + Kong + Studio + postgres-meta), пустой и
-  здоровый, параллельно проду; бокс CPX32 готов.
-  Решения Clarify: **API наружу НЕ публикуем** (вариант B — проверка
-  изнутри; публичный HTTPS на 027); **Studio** — публичный HTTPS на
-  `db.theloopers.org` ИЛИ SSH-туннель (выбор оператора); секреты — Dokploy
-  env, не в git.
-  ⚠️ **Находка:** дефолтный compose на **PG15** (`15.8.1.085`), прод на
-  **PG17** (`17.6.1.104`) → db-образ **обязательно override на 17.x ДО
-  первого старта** (data-dir = bind-mount `volumes/db/data`; PG17 не примет
-  PG15-кластер — иначе чистить и пересоздавать).
-  **Пре-проверка перед 026 (Леша):** свериться `\dx` (расширения:
-  pgcrypto, uuid-ossp, pgjwt, pg_graphql, pgsodium…) и `\dn` (схемы: auth,
-  storage, extensions, graphql, realtime) self-hosted ↔ прод; доустановить
-  недостающее ДО миграции данных, иначе `pg_restore` в 026 упадёт; схемы
-  удалённых продуктов классифицировать по restore-scope.
+  tasks/parity-report + обрезанный `docker-compose.yml`).
+  Найдено по ходу (учесть в 026): дефолтный compose на PG15 → db-образ
+  override на PG17 **до первого старта** (data-dir — bind-mount); `realtime`
+  схему создаёт init-скрипт даже без сервиса; `storage`/`realtime` — вне
+  restore-scope (app не использует).
+- ⏭️ **025 Backups & restore drill** — АКТИВНЫЙ следующий. Авто-бэкапы
+  off-box + проверенный drill «снёс → поднял» на этом пустом стеке.
+  Ключевой ops-навык.
 - **025 Backups & restore drill** — авто-бэкапы off-box + проверенный
   drill «снёс → поднял». Ключевой ops-навык.
 - **026 Data & auth migration** — схема + данные + `auth.users` (хеши

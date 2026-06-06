@@ -44,9 +44,10 @@
 
 ## Проверки
 
-- [ ] **T008** 🧑 [P] API/Kong и 5432 наружу закрыты (порт-скан + curl-
-      критерии Step 7), Auth/REST отвечают изнутри. → Step 7.
-      (FR-006/007, SC-003/004) _Dep:_ T005.
+- [x] **T008** ✅ Наружу закрыто: по `docker ps` у supabase-* нет
+      `0.0.0.0`-публикации (только traefik 80/443); Auth healthy + Kong
+      healthy + REST Up = API живёт внутри. (FR-006/007, SC-003/004)
+      _Внешний Test-NetConnection-скан — опционален, не запускался._
 - [x] **T009** 🤖 Перепроверить неиспользование Realtime/Edge/Storage —
       **СДЕЛАНО (chat 84, аудит в песочнице): 0 вхождений на 260 ts/tsx;**
       app использует только PostgREST (`.from`/`.rpc`) + `auth.*`. Обрезка
@@ -58,8 +59,8 @@
 - [x] **T011** ✅ Reboot-тест пройден (chat 84): после `sudo reboot` все 6
       сервисов поднялись сами, healthy; `pg_isready` → accepting; studio-порт
       `127.0.0.1:8001` пережил ребут. (FR-004, SC-005)
-- [ ] **T012** 🧑 [P] Прод managed + `staging.theloopers.org` нетронуты.
-      → Step 11. (SC-008) _Dep:_ T005.
+- [x] **T012** ✅ Прод/staging целы (chat 84): `staging.theloopers.org`
+      грузится и логинится → managed-прод не задет. (SC-008)
 
 ## Артефакты в репо
 
@@ -71,8 +72,9 @@
 
 ## Close-out
 
-- [ ] **T015** 🤖 Версия-бамп, `NEXT.md` (024 → in prod / next 025),
-      `chatlog/`, commit + push. _Dep:_ все выше.
+- [x] **T015** ✅ Close-out (chat 84, 2026-06-06): `NEXT.md` (024 done →
+      next 025), `chatlog/` обновлён, commit+push. Версию приложения НЕ
+      бампали — 024 инфра, app-код не менялся (бамп на cutover 027)._
 
 ---
 

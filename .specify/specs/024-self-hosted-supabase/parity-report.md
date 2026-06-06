@@ -1,6 +1,6 @@
 # Parity report — self-hosted ↔ prod (spec-024, Step 9)
 
-Date: 2026-06-03 (chat 84). Method: `show server_version;` +
+Date: 2026-06-06 (chat 84). Method: `show server_version;` +
 `select … from pg_extension` + `select … from pg_namespace`, same SQL on both
 sides. Self-hosted PG = `supabase/postgres:17.6.1.132`.
 

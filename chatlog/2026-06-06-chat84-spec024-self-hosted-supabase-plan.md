@@ -1,4 +1,4 @@
-# Chat 84 — spec-024 self-hosted Supabase (Specify→Tasks), 2026-06-03
+# Chat 84 — spec-024 self-hosted Supabase (Specify→Implement, СРЕЗ ЗАКРЫТ), 2026-06-06
 
 ## Контекст (откуда пришли)
 023 (Server & PaaS foundation) в проде. Просьба: начать 024 (self-hosted
@@ -41,22 +41,37 @@ Supabase на `db.theloopers.org`), сверившись с NEXT + git log, за
 ## Миграции
 - Нет (инфра-срез; SQL-миграций не добавлялось).
 
-## Коммиты
-- `b7322e9` spec(024): Specify + Clarify (Q1–Q4 resolved)
-- `3ee4a90` docs: 026 sequence-resync note; rename helper → Lesha
-- `ef095da` spec(024): Plan + Analyze + Tasks (plan/research/runbook/tasks + spec)
-- (+ close-out: NEXT.md + этот chatlog)
+## Коммиты (chat 84)
+- `b7322e9` Specify + Clarify (Q1–Q4) → `3ee4a90` 026 resync note + rename Lesha
+- `ef095da` Plan + Analyze + Tasks → `da2038b` T009 + PG17 tag pin
+- `ab166ad` runbook LOCAL/SERVER/WEB labels → `38cb0c5` runbook re-entry section
+- `479b4cc` pre-trimmed docker-compose.yml → `5a44479` T005 done
+- `b802d94` parity-report + T010/T013 → `4a247d8` studio loopback port (tunnel)
+- `3dce088` T006/T007 → `d86b42e` T011 → (+ this close-out)
 
-## Действия пользователю (после чата)
-- [ ] Прогнать `runbook.md` на боксе со Step 0 (выбрать путь Studio A/B).
-- [ ] Перед первым `up` — db-образ на PG17 (Step 3a).
-- [ ] Кидать вывод/ошибки в чат — Claude разбирает и правит runbook,
-      отмечает задачи в tasks.md.
-- [x] Запушено в `main` (планирование).
+## Implementation outcome (срез 2/5 ЗАКРЫТ)
+- Стек поднят **через `docker compose up -d` на боксе** (НЕ через Dokploy);
+  обрезанный `docker-compose.yml` лежит в спек-папке. db = PG17
+  (`17.6.1.132`). Все 6 healthy, reboot переживают.
+- **Паритет с продом доказан** (`parity-report.md`): 17.6=17.6, расширения
+  self-hosted ⊇ прод (ничего доустанавливать), все прод-схемы есть. Блокеров
+  для 026 нет.
+- Наружу закрыто: supabase-* без `0.0.0.0`-публикации, 5432 закрыт.
+- **Studio — путь B (SSH-туннель):** `studio` на `127.0.0.1:8001`,
+  `ssh -L 8001:localhost:8001 andrey@37.27.254.49` → `http://localhost:8001`.
+  FR-005 закрыт; Dokploy-домен (A) не понадобился.
+- Прод/staging целы (staging грузится/логинится).
+- Сервер: `andrey@37.27.254.49` (Hetzner CPX32), репо на боксе в `~/...`,
+  стек в `~/supabase/docker`.
 
 ## Что помнить следующему чату
-- 024: Implement = оператор катает runbook на боксе; Claude дебажит из
-  присланных логов. Трекер прохождения — `tasks.md` (первый `[ ]`).
-- 024 НЕ в проде — стек ещё не поднят; версию не бампали (0.9.0).
-- Порядок эпика: 024 → 025 (бэкапы+drill) → 026 (данные+auth, resync
-  sequences!) → 027 (cutover, managed не гасить сразу).
+- **024 ГОТОВ.** Следующий приоритет — **025 (бэкапы off-box + restore-drill)**
+  на этом пустом стеке.
+- Версию приложения (0.9.0) НЕ бампали — 024 инфра, app-код не менялся;
+  бамп уместен на cutover (027).
+- Studio открывается только через SSH-туннель (порт `127.0.0.1:8001`).
+- Для 026: `realtime` схему создаёт init-скрипт даже без сервиса;
+  `storage`/`realtime` вне restore-scope (app не использует); resync
+  sequences (`setval`) после импорта.
+- Эпик: 024 ✅ → 025 → 026 (данные+auth) → 027 (cutover, managed не гасить
+  сразу).

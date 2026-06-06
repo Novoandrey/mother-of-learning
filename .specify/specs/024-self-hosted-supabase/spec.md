@@ -1,8 +1,10 @@
 # Feature Specification: Self-hosted Supabase (своя инфра, срез 2/5)
 
 **Feature Branch**: `024-self-hosted-supabase`
-**Created**: 2026-06-03
-**Status**: ✅ Clarify complete (2026-06-03, Session 1: Q1–Q4 resolved) — awaiting Plan
+**Created**: 2026-06-06
+**Status**: ✅ Implemented (chat 84, 2026-06-06) — self-hosted stack live &
+parity-proven on the box; app still on managed Supabase until cutover (027).
+Specify→Clarify→Plan→Analyze→Tasks→Implement done.
 **Input**: Продолжение эпика «Переезд на свою инфру». 023 (фундамент:
 бокс + Dokploy + SSL + staging-деплой) **готов и в проде**. Следующий
 шаг — поднять на том же боксе **self-hosted Supabase**, чтобы потом (026)
@@ -231,7 +233,7 @@ Helsinki) из 023, отресайженный с CX23 под Supabase, +2 ГБ 
 
 ## Clarifications
 
-### Session 1 (2026-06-03)
+### Session 1 (2026-06-06)
 
 **Q2: API-gateway — публиковать наружу (A) или проверять изнутри (B)?**
 → **B.** В 024 приложение всё ещё смотрит на managed-Supabase, внешнего
