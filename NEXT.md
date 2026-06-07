@@ -2,7 +2,18 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-06-06 (chat 85 — **spec-025 backups & restore-drill
+> Last updated: 2026-06-07 (chat 86 — **spec-026 data & auth migration ЗАКРЫТ**:
+> реальные прод-данные + `auth.users` (27 юзеров, bcrypt-хеши) перенесены на
+> self-hosted Supabase **параллельно проду** (cutover отдельно — 027). Метод
+> бэкапа сменён на **физический** (cold-copy data-dir + pgsodium-ключ из
+> `db-config`-volume); логический `pg_dumpall` выкинут (не читал self-hosted
+> `auth.users`). counts self-hosted **==** managed по всем выборочным таблицам
+> (nodes 1601, edges 667, item_attributes 1118, auth.users/identities 27/27);
+> целостность 0 сирот; 27/27 хешей; реальный игрок залогинился текущим паролем;
+> RLS-спот admin=1601/anon=0. Физ-drill на реальных данных: restore stop→healthy
+> **~20 сек**. version-gap (10 пустых внутренних таблиц новее нашего стека +
+> `storage.*`) заглушён в `data.sql`. Активный следующий — **027 cutover**.
+> Версию НЕ бампали (инфра; бамп на 027). chat 85 — **spec-025 backups & restore-drill
 > ЗАКРЫТ**: off-box бэкапы в R2 + ротация (30/28) + ночной cron работают;
 > механика «снёс→поднял» = 18 сек; путь назад проверен. **Находка drill'а:**
 > логический `pg_dumpall` НЕ годится для restore self-hosted Supabase — под
@@ -619,9 +630,8 @@
 
 ## Следующий приоритет
 
-**Эпик «Переезд на свою инфру» (spec-023 → 027)** — в работе (chat 83–84).
-**023 готов и в проде** (бокс + Dokploy + SSL + staging-деплой приложения);
-активный следующий — 024. Съезд с managed Supabase на собственный сервер
+**Эпик «Переезд на свою инфру» (spec-023 → 027)** — в работе (chat 83–86).
+**023/024/025/026 готовы**; активный следующий — **027 (cutover & decommission)**. Съезд с managed Supabase на собственный сервер
 ради DevOps-навыка (бэкапы, падения, восстановление). Аудит: приложение
 реально использует только Postgres + Auth (GoTrue) + PostgREST + RLS
 (76 политик, `auth.uid()` ×22) + RPC; Storage / Realtime / Edge Functions —
@@ -677,18 +687,30 @@
   вкл. `auth.users`; накат в самоинициализирующийся стек конфликтует по
   владельцам + duplicate `schema_migrations` — Supabase cli#3532 → pg_basebackup).
   Pipeline/ротация/cron/rollback переиспользуются; ядро dump/restore меняется в 026.
-- ⏭️ **026 Data & auth migration** — АКТИВНЫЙ следующий. **ПЕРВЫЙ шаг — сменить
-  метод бэкапа на физический** (cold-copy data-dir с краткой остановкой стека vs
-  `pg_basebackup` без downtime — взвесить трейдоффы), затем пере-снять бэкап и
-  пере-прогнать drill уже с реальными данными. Текущему `backup.sh` для реальных
-  данных НЕ доверять (дамп под postgres неполон). Далее — схема + данные +
-  `auth.users` (хеши паролей) в self-hosted, параллельно проду. **Чек-лист
-  (совет Леши):** после импорта проверить/синхронизировать sequences (`setval`
-  по `max(id)`) — иначе duplicate key на следующих вставках.
-- **027 Cutover & decommission** — переключить env, end-to-end проверка,
-  откат. **managed Supabase НЕ гасить сразу** — держать грейс-период
-  (~1–2 недели) как revert/эталон, гасить только после стабильности
-  (совет Леши).
+- ✅ **026 Data & auth migration — ГОТОВ (chat 86).** Реальные прод-данные +
+  `auth.users` (27 юзеров, bcrypt-хеши) перенесены на self-hosted **параллельно
+  проду**, managed не тронут. **Метод бэкапа сменён на физический** (cold-copy
+  data-dir + pgsodium-ключ из `db-config`-volume); логический `pg_dumpall`
+  выкинут. Перенос: `supabase db dump` ×3 → `psql` под `supabase_admin` с
+  `session_replication_role=replica` (хеши не перешифровываются) → resync
+  sequences. version-gap (3 новых `auth.*` + весь `storage.*` — пустые таблицы,
+  которых нет в обрезанном 024) заглушён в `data.sql` через dry-run. counts
+  self-hosted **== managed** по всем выборочным таблицам; целостность 0 сирот;
+  27/27 хешей; реальный логин текущим паролем ✓; RLS admin=1601/anon=0. Физ-drill
+  на реальных данных: restore **stop→healthy ~20 сек**. Sequence в скоупе одна
+  (`auth.refresh_tokens` → 153), остальное UUID. Артефакты:
+  `.specify/specs/026-data-auth-migration/` (spec/plan/research/tasks +
+  `scripts/{dump-from-managed,restore-into-selfhosted}.sh` + `resync-sequences.sql`
+  + `check-migration-026.sql` + `migrate-from-managed.md`); физ-`infra/backup.sh`
+  + `infra/restore.sh` (+ runbook обновлён). Версию НЕ бампали.
+- ⏭️ **027 Cutover & decommission — АКТИВНЫЙ следующий.** Переключить приложение
+  (env / Supabase URL+ключи) на self-hosted, end-to-end проверка, отработать
+  откат. **На cutover бампнуть версию** (0.9.0 → дальше — отложено сюда из инфра-
+  спек). **managed Supabase НЕ гасить сразу** — держать грейс-период (~1–2 недели)
+  как revert/эталон, гасить только после стабильности (совет Леши). Self-hosted
+  API наружу пока не опубликован (host-портов нет) — на cutover решить, как
+  приложение в Dokploy достучится до db (общая docker-сеть / внутренний DNS vs
+  публикация kong за Traefik).
 
 Переносимые runbook'и (023, бэкапы 025, будущий R2) → repo-root `infra/`
 (физически отделены от app-specific, чтобы вырезка в отдельный `infra`-репо

@@ -56,8 +56,11 @@ them and pastes logs back for debugging. The hands-on ops reps are the point.
 - ✅ `server-paas-runbook.md` — provision + harden VPS, install Dokploy, SSL,
   deploy `mat-ucheniya` staging (from spec-023 Plan). **Written.**
 - ✅ `backup-restore-runbook.md` — automated off-box backups + verified
-  restore drill (spec-025). **Written** (+ `backup.sh`, `restore.sh`,
-  `rclone.conf.example`). The drill itself is run by the operator on the box.
+  restore drill. **Written** (+ `backup.sh`, `restore.sh`, `rclone.conf.example`).
+  Method finalized in **spec-026 = PHYSICAL** (cold-copy data-dir + pgsodium-key
+  volume; the 025 logical `pg_dumpall` was abandoned — couldn't capture
+  self-hosted `auth.users`). Re-proven on REAL data 2026-06-07: stop → healthy
+  in ~20 s. The drill is run by the operator on the box.
 - `r2-object-storage-runbook.md` — R2 account, bucket-per-project, scoped
   tokens, presigned-upload + serve helper, custom domain + transforms
   (written with the portraits feature).

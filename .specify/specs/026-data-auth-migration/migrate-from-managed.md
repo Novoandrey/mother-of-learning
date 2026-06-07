@@ -5,8 +5,8 @@ managed Supabase into the self-hosted 024 stack — **parallel to prod, no
 cutover** (cutover is 027). Operator (Andrey + Леша) runs these on the box;
 Claude can't SSH in — paste logs/errors back for debugging.
 
-> ⚠ DRAFT until the run. Timings (Phase D) and the date are filled in on the
-> first pass, then this runbook is finalized (T014).
+**Status:** executed end-to-end on 2026-06-07 (chat 86). All four user stories
+verified green on the box (see Phase E checks).
 
 **Execution-context labels:** 🖥️ LOCAL (your machine) · 🐧 SERVER (SSH on the box)
 · 🌐 WEB (browser).
@@ -135,7 +135,7 @@ it (this is what 025 could only do on an empty stack).
 - [ ] **✅ check** — after restore: `SELECT 1` OK; counts == `before.txt`;
       `auth.users` count > 0 with non-empty hashes; Auth/REST containers reach
       healthy (give them a few seconds). _(T010)_
-- [ ] 🐧 Record **stop → healthy** time: ______  ·  **date:** ______
+- [ ] 🐧 Record **stop → healthy** time: **~20 s** (`real 0m19.796s`, 2026-06-07)
 - [ ] 🐧 Verify the way back (< 1 min):
       ```bash
       # ROLLBACK form (only if a restore goes bad):
@@ -178,9 +178,28 @@ it (this is what 025 could only do on an empty stack).
       what we're proving). _(T013)_
 - [ ] 🐧 **RLS spot-check** — a query as `authenticated` respects policy like
       prod (e.g. a member sees their campaign rows; an outsider doesn't).
-- [ ] 🤖 Finalize this runbook (fill Phase D timing/date) +
-      `verification-checklist.md`; update `infra/backup-restore-runbook.md`
-      (physical method) and `infra/README.md`. _(T014)_
+- [x] 🤖 Finalized 2026-06-07 (chat 86): Phase D timing filled (~20 s);
+      `infra/backup-restore-runbook.md` switched to the physical method;
+      `infra/README.md` updated. _(T014)_
+
+### Run results (2026-06-07, chat 86)
+
+- version-gap: 10 empty internal tables absent from the trimmed 024 stack were
+  commented out of `data.sql` — 3 newer auth (`custom_oauth_providers`,
+  `webauthn_challenges`, `webauthn_credentials`) + all `storage.*` (storage
+  service was dropped in 024). No app data affected.
+- counts self-hosted **== managed** on all 12 sampled tables (diff empty):
+  nodes 1601, edges 667, item_attributes 1118, categories 35, node_types 18,
+  encounters 14, campaigns 1, transactions 1, accounting_player_state 0,
+  **auth.users 27, auth.identities 27**.
+- auth hashes: **27 / 27** non-empty; one real player logged in to self-hosted
+  GoTrue with their current password (`provider=email`, `amr=password`).
+- integrity: orphan edges / item_attributes / dangling item links all **0**;
+  write-smoke (BEGIN…ROLLBACK insert into `nodes`) succeeded.
+- sequences: 1 owned sequence in scope (`auth.refresh_tokens_id_seq` → 153);
+  everything else is UUID-keyed, so the trap doesn't apply.
+- physical backup/restore drill on real data: backup captured data-dir +
+  `supabase_db-config` (pgsodium key); restore **stop → healthy in ~20 s**.
 
 ---
 

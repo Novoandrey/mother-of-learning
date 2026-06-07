@@ -2,24 +2,35 @@
 
 Executable steps for automated off-box backups + a verified restore drill of the
 self-hosted Supabase from 024. **Operator (Andrey + Леша) runs these on the box;
-Claude can't SSH in.** Paste errors/logs back to Claude for debugging. Tied to
-`.specify/specs/025-backups-restore-drill/`.
+Claude can't SSH in.** Paste errors/logs back to Claude for debugging. Started in
+`.specify/specs/025-backups-restore-drill/`; the backup/restore **method** was
+finalized in spec-026.
 
-**This whole runbook runs against the EMPTY 024 stack** — no app data at risk.
-The point is the ops muscle: prove backups land off-box and that a restore
-actually works, so the cutover (027) has a tested rollback.
+> **Method = PHYSICAL (cold-copy), since 026.** The original 025 logical
+> `pg_dumpall` path was abandoned: the drill proved it can't back up self-hosted
+> Supabase — under `postgres` (superuser stripped) the dump misses
+> `supabase_admin`-owned tables (`auth.users` with password hashes), and a reload
+> conflicts on ownership + duplicate `schema_migrations` (Supabase cli#3532).
+> `backup.sh`/`restore.sh` now stop the db, tar/untar the on-disk data directory
+> (+ the `db-config` pgsodium-key volume), and swap it back. The R2/rclone
+> pipeline, rotation, cron, and rollback are unchanged from 025. **Re-proven on
+> REAL data 2026-06-07 (chat 86): stop → healthy in ~20 s.**
+
+Steps 1–2 + 4–5 (R2 bucket, rclone, cron, rotation) are method-agnostic and
+still apply as written. Steps 3 (backup) and 6 (restore drill) below are the
+physical versions.
 
 Conventions:
 - Scripts live in this folder (`infra/backup.sh`, `infra/restore.sh`); deploy a
   copy to the box (e.g. `/opt/infra/`).
-- `<COMPOSE_DIR>` = the `supabase/docker` clone on the box (from 024).
-- Container `supabase-db`, superuser `postgres`, `PGPASSWORD` already set inside
-  the container (so `docker exec … pg_dumpall` needs no password).
-- Backups go to R2 bucket `mat-ucheniya-backups` (`daily/` + `weekly/`).
+- `<COMPOSE_DIR>` = the `supabase/docker` clone on the box (from 024). Both
+  scripts require it: `sudo COMPOSE_DIR=<COMPOSE_DIR> /opt/infra/backup.sh`.
+- Container `supabase-db`. `pg_isready`/connection health uses `postgres`; reads
+  of `auth.*` use the real superuser **`supabase_admin`** (`postgres` had
+  superuser stripped on self-hosted Supabase).
+- Backups go to R2 bucket `mat-ucheniya-backups` (`daily/` + `weekly/`), as a
+  pair per run: `<ts>.data.tar.gz` + `<ts>.dbconfig.tar.gz`.
 - Run docker/log steps with `sudo` as needed.
-
-> ⚠ Step 6 (restore strategy) is a **draft** until the drill is run — the init
-> conflict is picked there, then this runbook + `restore.sh` are finalized.
 
 ---
 
@@ -73,30 +84,30 @@ Conventions:
       rm /tmp/t.txt
       ```
 
-## Step 3 — Deploy backup.sh + first manual run (tasks T004 → T005)
+## Step 3 — Deploy backup.sh + first manual run
 
-- [ ] Copy `backup.sh` to the box and make it executable:
+- [ ] Copy the scripts to the box and make them executable:
       ```bash
-      sudo mkdir -p /opt/infra && sudo cp backup.sh rclone.conf.example /opt/infra/
-      sudo chmod +x /opt/infra/backup.sh
+      sudo mkdir -p /opt/infra && sudo cp backup.sh restore.sh rclone.conf.example /opt/infra/
+      sudo chmod +x /opt/infra/backup.sh /opt/infra/restore.sh
       ```
-- [ ] **Manual run** (sudo for docker + /var/log):
+- [ ] **Manual run** (physical = brief db stop; needs COMPOSE_DIR):
       ```bash
-      sudo /opt/infra/backup.sh
+      sudo COMPOSE_DIR=<COMPOSE_DIR> /opt/infra/backup.sh
       ```
-- [ ] **✅ check — backup landed and is valid:**
+- [ ] **✅ check — backup pair landed and is valid:**
       ```bash
-      # uploaded, non-empty:
-      rclone ls r2:mat-ucheniya-backups/daily/
-      # pull it back and verify integrity + roles:
-      rclone copy "r2:mat-ucheniya-backups/daily/$(rclone lsf r2:mat-ucheniya-backups/daily/ | sort | tail -1)" /tmp/chk/
-      f=$(ls /tmp/chk/*.sql.gz); gunzip -t "$f" && echo "gzip OK"
-      gunzip -c "$f" | grep -m1 'CREATE ROLE' && echo "roles present"
+      # uploaded, non-empty — expect a .data.tar.gz AND a .dbconfig.tar.gz:
+      rclone lsf r2:mat-ucheniya-backups/daily/ | tail
+      # pull the newest data tar back and verify integrity:
+      rclone copy "r2:mat-ucheniya-backups/daily/$(rclone lsf r2:mat-ucheniya-backups/daily/ | grep '\.data\.tar\.gz$' | sort | tail -1)" /tmp/chk/
+      f=$(ls /tmp/chk/*.data.tar.gz); gzip -t "$f" && echo "gzip OK"
+      tar -tzf "$f" | grep -m1 '^data/PG_VERSION$' && echo "data dir present"
       rm -rf /tmp/chk
       ```
-      Expect: a `*.sql.gz` with a timestamped name, `gzip OK`, and at least one
-      `CREATE ROLE` (the Supabase roles — `anon`, `authenticated`,
-      `service_role`, `supabase_*` — are in the dump).
+      Expect: a timestamped `<ts>.data.tar.gz` + `<ts>.dbconfig.tar.gz` pair,
+      `gzip OK`, and the Postgres data dir inside (the byte-exact cluster —
+      roles, `auth.users` hashes, everything — rides along in the data files).
 - [ ] Tail the log: `tail -n 20 /var/log/supabase-backup.log`.
 
 ## Step 4 — Cron schedule (task T007)
@@ -131,40 +142,35 @@ the prune removes it:
 - [ ] **✅ check:** the 40-day-old probe is gone, the recent timestamped dump(s)
       remain.
 
-## Step 6 — Restore drill «снёс → поднял» (tasks T009 → T010 → T011)
+## Step 6 — Restore drill «снёс → поднял» (physical)
 
-> ⚠ DRILL FINDING (chat 85): this logical-dump restore is NOT the path for
-> Supabase. It proved the stop→restore→healthy + rollback mechanics (18s) on the
-> empty stack, but a logical reload can't restore real Supabase data — the dump
-> under `postgres` misses supabase_admin-owned tables (auth.users), and the
-> reload conflicts on ownership + duplicate schema_migrations (Supabase cli#3532).
-> **026 switches the backup method to physical** (cold data-dir copy vs
-> pg_basebackup). The R2/rclone pipeline, rotation, cron, and rollback all carry
-> over; only the dump/restore core changes.
+The drill replaces the live DB with the one from a backup and brings it back.
+`restore.sh` already: pulls the newest `.data.tar.gz` (+ sibling `.dbconfig.tar.gz`)
+→ `gzip -t` + free-space guard → stops the stack and moves the data-dir aside
+(`…/data.old`, the way back) → extracts the tar in its place → restores the
+pgsodium-key volume → brings the stack up → health-checks. Since the data-dir is
+non-empty after extraction, the entrypoint skips re-init (no role/
+`schema_migrations` conflicts — the reason the logical method failed).
 
-The drill destroys the DB and brings it back from a backup. `restore.sh` already:
-pulls the latest dump → `gunzip -t` + free-space guard → stops the stack and
-moves the data-dir aside (`…/data.old`, the way back) → brings up a fresh stack →
-reloads the dump → health-checks.
-
-- [ ] Deploy and run (time it):
+- [ ] Run it (time it):
       ```bash
-      sudo cp restore.sh /opt/infra/ && sudo chmod +x /opt/infra/restore.sh
       time sudo COMPOSE_DIR=<COMPOSE_DIR> /opt/infra/restore.sh
       ```
-- [ ] **✅ check — stack healthy after restore:**
+- [ ] **✅ check — stack healthy + real data after restore:**
       ```bash
       docker ps                                            # supabase-* up/healthy
       docker exec supabase-db pg_isready -U postgres -h localhost
-      docker exec supabase-db psql -U postgres -c '\dn'    # auth, storage, public… present
+      docker exec supabase-db psql -U postgres -c '\dn'    # auth, public… present
       docker exec supabase-db psql -U postgres -d postgres -c \
         "select rolname from pg_roles where rolname in
          ('anon','authenticated','service_role') order by 1;"
+      docker exec supabase-db psql -U supabase_admin -d postgres -tAc \
+        'select count(*) from auth.users;'                 # > 0 on real data
       ```
       Plus: Auth + REST containers reach healthy (give them a few seconds to
-      reconnect after the DB restart).
-- [ ] **✅ record the time** `stop → healthy` (the `time` output). Target < 5 min
-      on the empty stack — this is the future downtime metric for 027.
+      reconnect after the DB restart). The script prints all of this itself.
+- [ ] **✅ record the time** `stop → healthy` (the `time` output). **Measured
+      ~20 s on real data (`real 0m19.796s`, chat 86)** — the downtime metric for 027.
 - [ ] **If the drill is good:** drop the way-back copy:
       ```bash
       sudo rm -rf <COMPOSE_DIR>/volumes/db/data.old
@@ -179,17 +185,29 @@ reloads the dump → health-checks.
 
 ---
 
-## Drill checklist (US3#2 — fill in on the dry-run)
+## Migration: managed → self-hosted (spec-026)
 
-- [ ] Backup uploaded to `daily/`, non-empty, timestamped
-- [ ] `gunzip -t` passes; `CREATE ROLE` present in dump
-- [ ] Cron daily active; log shows runs
-- [ ] Rotation prunes old, keeps recent
-- [ ] Restore: stop → fresh up → reload → healthy
-- [ ] `\dn` schemas + Supabase roles present after restore
-- [ ] Auth/REST healthy after restore
-- [ ] Way back (`data.old`) restores in < 1 min
-- [ ] **Time stop→healthy: ____ sec**   **Date: ____**
+Loading **real prod data + `auth.users`** from managed into self-hosted is a
+separate, app-specific procedure (dump via `supabase db dump` → replica-restore
+→ resync sequences → verify), documented in
+`.specify/specs/026-data-auth-migration/migrate-from-managed.md`. It uses the
+physical backup/restore above only for its drill step (Phase D) and for
+wipe-and-reload repeatability. Executed green 2026-06-07 (chat 86).
 
-When the checklist passes, slice 025 is done and the operator has a tested
-rollback for the cutover (027).
+---
+
+## Drill checklist
+
+- [x] Backup pair uploaded to `daily/`, non-empty, timestamped (`.data.tar.gz` + `.dbconfig.tar.gz`)
+- [x] `gzip -t` passes; Postgres data dir present in the tar
+- [x] Cron daily active; log shows runs (025, method-agnostic)
+- [x] Rotation prunes old, keeps recent (025, method-agnostic)
+- [x] Restore: stop → swap data-dir → up → healthy
+- [x] `\dn` schemas + Supabase roles present after restore
+- [x] `auth.users` count > 0 after restore (real data)
+- [x] Auth/REST healthy after restore
+- [x] Way back (`data.old`) restores in < 1 min
+- [x] **Time stop→healthy: ~20 sec** (`real 0m19.796s`)   **Date: 2026-06-07**
+
+Checklist green on REAL data (chat 86): the operator has a tested, fast rollback
+for the cutover (027).
