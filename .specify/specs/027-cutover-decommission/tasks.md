@@ -86,6 +86,20 @@
 
 ---
 
+## Phase C.5 — Pre-cutover hardening (BLOCKER, между GATE и Сессией 2)
+
+- [ ] **T026** 🧑 **Ротация демо-ключей/секрета self-hosted** (находка US1, chat 87).
+      `.env` self-hosted содержит демо `JWT_SECRET` + демо `ANON_KEY`/`SERVICE_ROLE_KEY`
+      (`iss=supabase-demo`) → публично известны, подделка service_role обходит RLS.
+      Сгенерить новый `JWT_SECRET` + перевыпустить `ANON_KEY`/`SERVICE_ROLE_KEY`
+      (Supabase key-generator под новый secret), вписать в `~/supabase/docker/.env`,
+      `docker compose up -d` (kong+auth подхватят), затем **обновить env-тройку
+      приложения в Dokploy на новые ключи** (+ Build-time Args). Пароли НЕ ломаются
+      (bcrypt независим от JWT_SECRET) — только перелогин. **Блокирует Сессию 2.**
+      _(Phase C.5, US1-finding; security)_
+- [ ] **CHECKPOINT C.5** — self-hosted на собственном секрете/ключах; приложение
+      на новых ключах; логин игрока всё ещё проходит. Только теперь — Сессия 2.
+
 # ▼ СЕССИЯ 2 — короткое окно обслуживания (только после GATE US1)
 
 ## Phase D — Фриз managed (US2)
