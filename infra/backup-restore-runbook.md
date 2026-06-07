@@ -211,3 +211,14 @@ wipe-and-reload repeatability. Executed green 2026-06-07 (chat 86).
 
 Checklist green on REAL data (chat 86): the operator has a tested, fast rollback
 for the cutover (027).
+
+---
+
+## После spec-027 cutover: self-hosted = боевой
+
+После cutover (027) этот self-hosted-стек на боксе держит **боевые** данные —
+ночной cron-бэкап (`backup.sh`) и ротация (30/28) теперь защищают прод; менять
+скрипты не нужно. Нюанс: физический cold-copy подразумевает краткую остановку
+`db` — на боевом стеке это короткий **ночной** downtime (приемлемо для хобби-
+кампании). Если нужен бэкап без downtime — вариант `pg_basebackup` (опция из
+026). Грейс managed (~1–2 нед) — дополнительный эталон/откат, не замена бэкапам.

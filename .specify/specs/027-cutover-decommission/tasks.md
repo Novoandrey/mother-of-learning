@@ -24,13 +24,13 @@
 
 ## Phase A — Публикация self-hosted API на `db.theloopers.org` (US1)
 
-- [ ] **T001** 🤖 `[P]` `kong-traefik.md` + `compose-override.kong.yml` —
+- [x] **T001** 🤖 `[P]` `kong-traefik.md` + `compose-override.kong.yml` —
       прицепить `supabase-kong` к сети Dokploy (external) + Traefik-лейблы:
       `Host(\`db.theloopers.org\`)`, `loadbalancer.server.port=8000`,
       entrypoint `websecure`, `tls.certresolver=<LE>`. Внутри — шаг **верификации**
       имени сети (`docker network ls`) и имени certresolver.
       _(file: `.specify/specs/027-*/kong-traefik.md` + `compose-override.kong.yml`; Phase A, US1#1, R3)_
-- [ ] **T002** 🤖 `cutover-runbook.md` — мастер copy-paste весь cutover (Phase
+- [x] **T002** 🤖 `cutover-runbook.md` — мастер copy-paste весь cutover (Phase
       A–L), контексты 🖥️/🐧/🌐. **Черновик** выдаётся до Сессии 1; финализируется
       в T024 (тайминги/даты).
       _(file: `.specify/specs/027-*/cutover-runbook.md`; Phase A–L, US1–6)_
@@ -45,12 +45,12 @@
 
 ## Phase B — Rehearsal end-to-end на `staging`→self-hosted (US1)
 
-- [ ] **T004** 🤖 `[P]` `env-matrix.md` — карта env **до/после**: (1) приложение
+- [x] **T004** 🤖 `[P]` `env-matrix.md` — карта env **до/после**: (1) приложение
       в Dokploy — `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY`
       managed→self-hosted **+ дубль `NEXT_PUBLIC_*` в Build-time Arguments**;
       (2) `.env` self-hosted — `API_EXTERNAL_URL`/`SITE_URL`/`ADDITIONAL_REDIRECT_URLS`.
       _(file: `.specify/specs/027-*/env-matrix.md`; Phase B/G, US1, R1/R5)_
-- [ ] **T005** 🤖 `[P]` `verification-checklist.md` — US1 (hairpin curl, логин,
+- [x] **T005** 🤖 `[P]` `verification-checklist.md` — US1 (hairpin curl, логин,
       RLS authenticated/anon, запись через approval, server action/RPC, CORS) +
       US3 (smoke реального игрока, counts, sequence-insert, бэкап-live). Черновик
       до Сессии 1; финал в T024.
@@ -73,7 +73,7 @@
 
 ## Phase C — Dry-run отката (US4)
 
-- [ ] **T009** 🤖 `[P]` `rollback-runbook.md` — **правило** (триггеры отката,
+- [x] **T009** 🤖 `[P]` `rollback-runbook.md` — **правило** (триггеры отката,
       «чистое окно») + copy-paste шаги (env-тройка → managed + apex → Vercel +
       re-enable Vercel prod-деплой).
       _(file: `.specify/specs/027-*/rollback-runbook.md`; Phase C, US4#1/#2, R9)_
@@ -157,13 +157,13 @@
       без ERROR/FATAL); свежий R2-бэкап содержит боевые данные + `auth.users` с
       хешами (на restore); ротация 30/28 цела.
       _(Phase K, US5#2/#3/#4, R10)_
-- [ ] **T021** 🤖 `[P]` Дописать `infra/backup-restore-runbook.md`: self-hosted =
+- [x] **T021** 🤖 `[P]` Дописать `infra/backup-restore-runbook.md`: self-hosted =
       прод после 027; окно ночного cold-copy на боевом стеке.
       _(file: `infra/backup-restore-runbook.md`; Phase K, US5, R10)_
 
 ## Phase L — Decommission + close-out (US6)
 
-- [ ] **T022** 🤖 `[P]` `decommission-checklist.md` — Vercel (вывод сейчас) +
+- [x] **T022** 🤖 `[P]` `decommission-checklist.md` — Vercel (вывод сейчас) +
       `staging` (снять домен/деплой сейчас) + managed (чек-лист, гасить **после
       грейса**, зафиксировать дату старта грейса).
       _(file: `.specify/specs/027-*/decommission-checklist.md`; Phase L, US6#1/#2/#3)_

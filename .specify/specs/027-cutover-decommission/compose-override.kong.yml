@@ -1,0 +1,36 @@
+# compose-override.kong.yml — spec-027 Phase A (T001/T003)
+#
+# Publishes self-hosted Supabase API gateway (kong) at https://db.theloopers.org
+# through the SAME Traefik that Dokploy runs, WITHOUT opening a host port.
+# Only kong is exposed; Postgres (5432) and Studio stay closed (Studio = SSH tunnel).
+#
+# 🐧 SERVER usage (from ~/supabase/docker):
+#   docker compose -f docker-compose.yml -f compose-override.kong.yml up -d kong
+#
+# ⚠️ VERIFY two names on the box BEFORE applying (T003) and substitute below:
+#   1) Dokploy's Traefik network name:   docker network ls    (usually `dokploy-network`)
+#   2) Dokploy's Let's Encrypt resolver: grep -ri certresolver in Dokploy's traefik
+#      config, or Traefik dashboard      (Dokploy default is usually `letsencrypt`)
+# Keep kong on its original `default` network (alias api-gw) AND add it to the
+# Dokploy network so Traefik can route to it.
+
+services:
+  kong:
+    networks:
+      default:
+        aliases:
+          - api-gw
+      dokploy-network: {}            # <-- VERIFY exact name (T003)
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"                                   # <-- VERIFY
+      - "traefik.http.routers.supabase-kong.rule=Host(`db.theloopers.org`)"
+      - "traefik.http.routers.supabase-kong.entrypoints=websecure"
+      - "traefik.http.routers.supabase-kong.tls=true"
+      - "traefik.http.routers.supabase-kong.tls.certresolver=letsencrypt"          # <-- VERIFY
+      - "traefik.http.services.supabase-kong.loadbalancer.server.port=8000"
+
+networks:
+  dokploy-network:
+    external: true
+    # name: dokploy-network          # <-- uncomment + set if the real network name differs
