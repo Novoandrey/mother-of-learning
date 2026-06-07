@@ -4,6 +4,20 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Git workflow (changed chat 88)
+
+Claude works in a **feature branch** and opens a **PR into `main`** — never pushes
+to `main` directly. Andrey reviews and merges; **merge = deploy trigger**
+(`.github/workflows/deploy.yml`: gate `lint`+`typecheck`+`vitest` → Dokploy API).
+- Branch names: `feat/<spec>-<short>`, `fix/<short>`, `chore/<short>`.
+- **Human-owned**: files under `.github/` and the merge itself — the bot PAT lacks
+  `workflow` scope, so GitHub rejects bot pushes to `.github/workflows/*`. Andrey
+  commits/edits those (web UI or own token).
+- Commits authored as `Claude <claude@anthropic.com>`.
+- Specs/docs (`.specify/**`, `NEXT.md`, `chatlog/**`, `*.md`) also go via branch+PR.
+  `deploy.yml` has `paths-ignore` for them so doc merges don't rebuild prod.
+- Once a staging env exists: PRs target `staging` first, then `staging`→`main`.
+
 ## Sidebar cache invalidation
 
 The campaign sidebar (`lib/sidebar-cache.ts`) is `unstable_cache`d for

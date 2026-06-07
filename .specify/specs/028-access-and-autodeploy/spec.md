@@ -3,7 +3,8 @@
 **Feature Branch**: `028-access-and-autodeploy`
 **Created**: 2026-06-07 (folded auto-deploy in + full Specify, chat 88)
 **Status**: US2 auto-deploy **shipped ✓** · US1 access **awaiting SSH keys** ·
-US3 Telegram **Specify** (awaiting its own Clarify/Plan/Tasks)
+US3 Telegram **Plan+Tasks done → Implement** (commit MrBranches `.yml` + 3 secrets;
+operator-owned)
 **Input**: Operationalize the production box for the team. Two slices: (1) give
 trusted collaborators their own operational access to the box; (2) make pushes to
 `main` deploy themselves (Vercel-parity), instead of manual redeploys.
@@ -77,8 +78,10 @@ auto-deploy.
 
 ### User Story 3 — Telegram-уведомления о ветках и мержах (Priority: P3)
 
-> **Статус**: Specify (chat 88, бывш. IDEA-065). Ждёт **своих** Clarify/Plan/Tasks/
-> Implement — US1/US2 уже прошли свой цикл, US3 — отдельный срез, берётся позже.
+> **Статус**: **Plan+Tasks готовы → Implement** (chat 88, бывш. IDEA-065). Clarify
+> пропущен (нечего уточнять — конфиг решён). Implement = добавить готовый
+> MrBranches `.yml` (коммитит оператор — PAT бота без `workflow`-scope) + 3 секрета
+> под новый чат/топик. PR-центричный (под новый branch+PR флоу).
 
 Команда видит в Telegram, когда создана новая ветка и когда что-то влилось в `main`
 (= поехал автодеплой), не заходя в GitHub.
@@ -143,8 +146,9 @@ Telegram-чате появляются два сообщения с авторо
   здесь; read-only путь для Claude — spec-029).
 - **FR-014** (US3): При создании новой ветки система SHOULD слать сообщение в
   заданный Telegram-чат (ветка, автор, ссылка).
-- **FR-015** (US3): При попадании коммита в `main` (мерж/пуш) система SHOULD слать
-  сообщение в Telegram-чат (коммит, автор, ссылка).
+- **FR-015** (US3): При событиях PR (открыт / вмерджен / закрыт без мерджа) система
+  SHOULD слать сообщение в Telegram-чат (PR, автор, ветки head→base, ссылка). Мерж
+  PR в `main` = «доехало до прода» (рядом с автодеплоем US2).
 - **FR-016** (US3): Сбой/недоступность Telegram-нотификатора MUST NOT блокировать
   гейт или деплой (уведомления — best-effort).
 

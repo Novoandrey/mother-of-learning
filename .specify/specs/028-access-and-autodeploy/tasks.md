@@ -71,10 +71,22 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
 
 ## User Story 3 — Telegram notifications (P3)
 
-> 🌱 **Specify только** (chat 88). Tasks появятся после **US3 Plan** (HOW —
-> `notes-plan-input.md` US3). Грубо: workflow на `create` + `push:main` → Telegram
-> Bot API; секреты `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` (оператор);
-> workflow-файл коммитит оператор. Не планируем здесь — отдельным заходом.
+> Готовый бот **MrBranches** (PR-центричный `.yml`). Кодить почти нечего —
+> коммит файла + 3 секрета. Едет вместе с переходом на branch+PR.
+
+- [ ] **T014** [P3] 🌐 (operator) Закоммитить `.github/workflows/telegram-notifications.yml`
+  (готовый MrBranches `.yml`, отдан в чате) — workflow-файл, **коммитит оператор**
+  (PAT бота без `workflow`-scope; web UI / свой токен).
+- [ ] **T015** [P3] 🌐 (operator) GitHub → Settings → Secrets → Actions: добавить
+  `TG_BOT_TOKEN`, `TG_CHAT_ID`, `TG_THREAD_ID` под **новый** чат/топик.
+- [ ] **T016** [P3] [P] 🌐 (operator, бонус) Добавить `paths-ignore`
+  (`**/*.md`, `.specify/**`, `chatlog/**`) в `deploy.yml` (обновлённый файл отдан в
+  чате) — чтобы doc-мержи не передеплоивали прод.
+- [ ] **T017** [P3] 🖥️ (operator) Смоук: запушить ветку + открыть PR в `main` →
+  в Telegram-топике приходят «ветка создана» + «PR открыт»; смерджить → «вмерджен»
+  (US3 AC#1/#2). _depends T014, T015._
+- [ ] **CHECKPOINT US3**: уведомления о ветках/PR-ах идут в Telegram; сбой
+  нотификатора не ломает гейт/деплой (FR-016). Едет на branch+PR-флоу.
 
 ---
 
@@ -95,6 +107,9 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
 | FR-011 не-main не деплоит | T008 (`branches: [main]`) |
 | FR-012 гейт lint+tsc+vitest, красное блокирует | T007, T008, T013 |
 | FR-013 порт БД закрыт наружу | вне scope (already; spec-029 — туннель) |
+| FR-014 уведомление о создании ветки | T014 (MrBranches `.yml`) |
+| FR-015 уведомления о PR (открыт/мердж/закрыт) | T014 |
+| FR-016 нотификатор best-effort, не блокирует | T014 (curl не валит шаг) |
 
 Готово к Implement. Кодовых задач для Claude — две (**T007**, **T008**); остальное
 исполняет оператор. По правилу: в Implement — по одной задаче, отмечая `[x]` и

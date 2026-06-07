@@ -109,3 +109,23 @@ research.md), не делаем.
 - Cloudflare-блок API-вызова (#3542) — **проверить на T013**, при блоке — WAF-rule.
 - Версия Dokploy на боксе — подтвердить, что `application.deploy` API работает
   (см. #3086 — был регресс в одной версии для image-приложений; у нас Dockerfile/git).
+
+---
+
+## US3 — Telegram notifications (Plan, chat 88)
+
+**Решение: готовый бот MrBranches** (у DM уже работает на других проектах) — отдельный
+workflow `.github/workflows/telegram-notifications.yml`, PR-центричный:
+- Триггеры: `push` с `branches-ignore: [main, staging]` → шаг «ветка создана»
+  (`github.event.created == true`); `pull_request: [opened, closed]` → шаги «PR
+  открыт» / «PR вмерджен» / «PR закрыт без мерджа».
+- Шлёт в forum-топик супергруппы через Telegram Bot API `sendMessage`
+  (`chat_id` + `message_thread_id`). Best-effort: при отсутствии секрета curl просто
+  отдаёт 404 и шаг не валит сборку → FR-016.
+- Секреты (оператор): `TG_BOT_TOKEN`, `TG_CHAT_ID`, `TG_THREAD_ID` (под **новый**
+  чат/топик — это всё, что нужно настроить, сам `.yml` готов).
+- Файл **коммитит оператор** (PAT бота без `workflow`-scope).
+- **Связка с флоу**: бот осмыслен только при branch+PR-модели (на прямых пушах в
+  `main` молчит). Поэтому едет вместе с переходом на ветки.
+- **Бонус**: добавить `paths-ignore` (`**/*.md`, `.specify/**`, `chatlog/**`) в
+  `deploy.yml`, чтобы doc-мержи не передеплоивали прод.
