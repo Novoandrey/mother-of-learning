@@ -82,11 +82,15 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
 - [ ] **T016** [P3] [P] 🌐 (operator, бонус) Добавить `paths-ignore`
   (`**/*.md`, `.specify/**`, `chatlog/**`) в `deploy.yml` (обновлённый файл отдан в
   чате) — чтобы doc-мержи не передеплоивали прод.
-- [ ] **T017** [P3] 🖥️ (operator) Смоук: запушить ветку + открыть PR в `main` →
+- [x] **T017** [P3] 🖥️ (operator) Смоук: запушить ветку + открыть PR в `main` →
   в Telegram-топике приходят «ветка создана» + «PR открыт»; смерджить → «вмерджен»
   (US3 AC#1/#2). _depends T014, T015._
-- [ ] **CHECKPOINT US3**: уведомления о ветках/PR-ах идут в Telegram; сбой
+- [x] **CHECKPOINT US3**: уведомления о ветках/PR-ах идут в Telegram; сбой
   нотификатора не ломает гейт/деплой (FR-016). Едет на branch+PR-флоу.
+  ✓ **Verified chat 88**: смоук через `test/bot-smoke-3` — «🌱 создал ветку» легло
+  в нужный топик (после фикса секретов `TG_CHAT_ID=-1002576013907`,
+  `TG_THREAD_ID=17119` + бот добавлен в группу). Branch-created step ✓, PR-шаги
+  пропущены. Бот = **MrBranches**, файл `telegram-notifications.yml` на main.
 
 ---
 

@@ -2,9 +2,8 @@
 
 **Feature Branch**: `028-access-and-autodeploy`
 **Created**: 2026-06-07 (folded auto-deploy in + full Specify, chat 88)
-**Status**: US2 auto-deploy **shipped ✓** · US1 access **awaiting SSH keys** ·
-US3 Telegram **Plan+Tasks done → Implement** (commit MrBranches `.yml` + 3 secrets;
-operator-owned)
+**Status**: US2 auto-deploy **shipped ✓** · US3 Telegram (MrBranches) **shipped ✓**
+(verified chat 88) · US1 access **awaiting SSH keys**
 **Input**: Operationalize the production box for the team. Two slices: (1) give
 trusted collaborators their own operational access to the box; (2) make pushes to
 `main` deploy themselves (Vercel-parity), instead of manual redeploys.
@@ -78,10 +77,9 @@ auto-deploy.
 
 ### User Story 3 — Telegram-уведомления о ветках и мержах (Priority: P3)
 
-> **Статус**: **Plan+Tasks готовы → Implement** (chat 88, бывш. IDEA-065). Clarify
-> пропущен (нечего уточнять — конфиг решён). Implement = добавить готовый
-> MrBranches `.yml` (коммитит оператор — PAT бота без `workflow`-scope) + 3 секрета
-> под новый чат/топик. PR-центричный (под новый branch+PR флоу).
+> **Статус**: **Shipped ✓** (chat 88, бывш. IDEA-065). MrBranches
+> `telegram-notifications.yml` на main + 3 секрета; смоук подтверждён
+> (`test/bot-smoke-3` лёг в нужный топик). Clarify пропущен (конфиг готов).
 
 Команда видит в Telegram, когда создана новая ветка и когда что-то влилось в `main`
 (= поехал автодеплой), не заходя в GitHub.
