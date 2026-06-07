@@ -77,12 +77,13 @@
       «чистое окно») + copy-paste шаги (env-тройка → managed + apex → Vercel +
       re-enable Vercel prod-деплой).
       _(file: `.specify/specs/027-*/rollback-runbook.md`; Phase C, US4#1/#2, R9)_
-- [ ] **T010** 🧑 Dry-run отката на staging: env-тройка self-hosted→managed→
-      self-hosted, redeploy, **засечь время**; вписать тайминг + правило в
-      `rollback-runbook.md`.
-      _(Phase C, US4#3, R9)_
-- [ ] **CHECKPOINT C / 🚦 GATE US1** — rehearsal зелёный + откат отрепетирован →
-      **sign-off оператора** на Сессию 2. Без sign-off дальше не идём.
+- [x] **T010** 🧑 ~~Dry-run отката на staging~~ **ПРОПУЩЕН по решению (chat 87)**:
+      US4 удовлетворён иначе — `rollback-runbook.md` заполнен/корректен, а механика
+      env-swap + redeploy уже доказана в Phase B (managed→self-hosted; обратное —
+      та же операция). _(Phase C, US4#3 → covered; R9)_
+- [x] **CHECKPOINT C / 🚦 GATE US1** — ✅ rehearsal зелёный (hairpin 200, логин/RLS/
+      запись/CORS), rollback-runbook готов (dry-run пропущен, T010). **Sign-off
+      получен (chat 87).** → Сессия 2 (после T026).
 
 ---
 
