@@ -54,7 +54,7 @@ them and pastes logs back for debugging. The hands-on ops reps are the point.
 ## Planned contents
 
 - ✅ `server-access.md` — онбординг коллабораторов на коробку (SSH/панель/Studio),
-  операторские команды add/revoke. Spec: `.specify/specs/028-infra-access/`. **Written.**
+  операторские команды add/revoke. Spec: `.specify/specs/028-access-and-autodeploy/`. **Written.**
 - ✅ `server-paas-runbook.md` — provision + harden VPS, install Dokploy, SSL,
   deploy `mat-ucheniya` staging (from spec-023 Plan). **Written.**
 - ✅ `backup-restore-runbook.md` — automated off-box backups + verified
