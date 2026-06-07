@@ -159,8 +159,13 @@ downtime некритичен).
 
 ## R8 — DNS / Cloudflare: флип apex
 
-**Текущее (проверить на cutover):** apex `theloopers.org` → Vercel (A-record на
-anycast Vercel либо CNAME-flattening). `staging` и `panel` → IP бокса DNS-only.
+**Текущее (проверено chat 87):** apex `theloopers.org` — **записи НЕТ** (`dig`
+пусто; в Cloudflare только `db`/`panel`/`staging`, все DNS-only → IP бокса).
+Прод-адрес игроков сегодня = **`mother-of-learning.vercel.app`** (apex не
+резолвится). → На cutover apex **создаётся с нуля**, это не флип; **адрес для
+игроков сменится** `vercel.app` → `theloopers.org` (сообщить в окне). Откат
+адреса = удалить созданную apex-запись (игроки назад на `vercel.app`, Vercel на
+грейс жив).
 
 **Флип:** изменить apex A-record `theloopers.org` → **`37.27.254.49`**,
 **DNS-only (grey cloud)** (как `staging`/`panel`, чтобы Traefik ACME выдал серт

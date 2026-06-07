@@ -34,7 +34,7 @@
       A–L), контексты 🖥️/🐧/🌐. **Черновик** выдаётся до Сессии 1; финализируется
       в T024 (тайминги/даты).
       _(file: `.specify/specs/027-*/cutover-runbook.md`; Phase A–L, US1–6)_
-- [ ] **T003** 🧑 Верифицировать сеть/certresolver; применить kong-override
+- [x] **T003** 🧑 Верифицировать сеть/certresolver; применить kong-override
       (`docker compose -f docker-compose.yml -f compose-override.kong.yml up -d kong`);
       Cloudflare A `db` → `37.27.254.49` **DNS-only**; дождаться LE-серта.
       ✅: `curl https://db.theloopers.org/auth/v1/health` снаружи → ok; 5432 закрыт;
@@ -55,16 +55,16 @@
       US3 (smoke реального игрока, counts, sequence-insert, бэкап-live). Черновик
       до Сессии 1; финал в T024.
       _(file: `.specify/specs/027-*/verification-checklist.md`; Phase B/H, US1/US3)_
-- [ ] **T006** 🧑 `.env` self-hosted: `API_EXTERNAL_URL=https://db.theloopers.org`,
+- [x] **T006** 🧑 `.env` self-hosted: `API_EXTERNAL_URL=https://db.theloopers.org`,
       `SITE_URL=https://staging.theloopers.org`, `ADDITIONAL_REDIRECT_URLS` += staging;
       `docker compose up -d auth`. Dokploy staging-app: env-тройка → **self-hosted**;
       **`NEXT_PUBLIC_*` в Build-time Arguments**; redeploy.
       _(Phase B, US1, R1/R5; edge: Build-args 023)_
-- [ ] **T007** 🧑 **Hairpin-проверка** из app-контейнера:
+- [x] **T007** 🧑 **Hairpin-проверка** из app-контейнера:
       `curl -sS https://db.theloopers.org/auth/v1/health` → ответ kong, **не
       таймаут**. Фейл → митигация R4 (extra_hosts на Traefik / внутренний путь).
       _(Phase B, US1, R4 — точка боли)_
-- [ ] **T008** 🧑 Приёмка US1 по `verification-checklist.md`: логин игрока текущим
+- [x] **T008** 🧑 Приёмка US1 по `verification-checklist.md`: логин игрока текущим
       паролем; RLS (authenticated видит, anon — нет); запись через approval
       (pending→approve); server action/RPC ок; CORS ок. **Vercel/managed не тронуты.**
       _(Phase B, US1#1–6)_

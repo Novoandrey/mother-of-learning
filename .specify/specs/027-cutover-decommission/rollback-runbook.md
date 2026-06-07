@@ -40,29 +40,32 @@
 Снять фриз managed (если Vercel ещё не выведен — re-enable Vercel prod-деплой;
 managed снова принимает запись).
 
-### Вариант 2 — откат домена (apex → Vercel), если Vercel ещё жив
+### Вариант 2 — снять apex-запись (откат адреса)
 
-🌐 Cloudflare DNS: вернуть apex `theloopers.org` A-запись на прежний Vercel-таргет
-(зафиксировать ДО флипа в T015 — см. ниже). 🌐 Vercel: re-enable production-деплой.
+> **Реальность (chat 87):** у apex `theloopers.org` **нет DNS-записи**; прод-адрес
+> сегодня = `mother-of-learning.vercel.app`. На cutover apex **создаётся с нуля**
+> (T015), это не флип. Поэтому откат адреса = **удалить созданную apex A-запись**
+> в Cloudflare → игроки снова идут на **`mother-of-learning.vercel.app`** (Vercel
+> на грейс-период жив, если не выведен в T023). 🌐 Vercel: убедиться, что
+> production-деплой активен (его на cutover ставят на паузу — re-enable).
 
 ### Частичный откат
 
-- Упал **только домен/DNS**, а приложение на боксе + self-hosted здоровы →
-  откатывать только домен (Вариант 2), не трогая env.
-- Упало **подключение к self-hosted** (hairpin/CORS) → Вариант 1 (env назад),
-  чинить публикацию/hairpin офлайн.
+- Упала **только публикация/подключение к self-hosted** (hairpin/CORS) →
+  Вариант 1 (env назад на managed), чинить офлайн.
+- Приложение на боксе + self-hosted здоровы, но что-то не так с новым адресом →
+  Вариант 2 (снять apex), игроки на `vercel.app`, разбираться без спешки.
 
-## Перед флипом зафиксировать (чтобы было куда откатывать)
+## Зафиксировано (chat 87)
 
-🌐 **До T015** записать текущее значение apex `theloopers.org` (тип записи +
-таргет Vercel) — на случай Варианта 2:
-
-```
-apex theloopers.org  ->  тип: ____  значение: ____________  (Vercel)
-```
-
-И сохранить managed-значения тройки env (из текущего staging/прод-конфига) —
-они нужны для Варианта 1.
+- **apex `theloopers.org`:** записи **НЕТ** (`dig +short theloopers.org A` пусто;
+  в Cloudflare только `db`/`panel`/`staging`). Прод-адрес сегодня =
+  `mother-of-learning.vercel.app`. → На cutover (T015) apex **создаём** A →
+  `37.27.254.49` (DNS-only); откат адреса = **удалить** эту запись (Вариант 2).
+- **managed-значения тройки env** (цель Варианта 1): **НЕ хранить в git** (там
+  `service_role`). Брать из managed Supabase → **Settings → API**
+  (`Project URL`, `anon`, `service_role`) либо из истории деплоев Dokploy
+  (деплой до смены на self-hosted). Держать в локальной заметке/менеджере паролей.
 
 ## Dry-run (T010, на staging, ДО реального cutover)
 
