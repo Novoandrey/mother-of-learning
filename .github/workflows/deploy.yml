@@ -1,0 +1,59 @@
+name: Deploy to prod (gate + Dokploy)
+
+# spec-028 US2: push to main -> quality gate (lint + tsc + vitest) -> on green,
+# trigger a Dokploy deploy via API. Dokploy builds the image on the box.
+# Branch matching here satisfies FR-011 (non-main pushes never deploy).
+
+on:
+  push:
+    branches: [main]
+
+# Least privilege: this workflow only checks out code and calls an external API.
+permissions:
+  contents: read
+
+# Serialize deploys: a second push waits for the first to finish, so the later
+# commit ends up live and there is no half-deploy (spec Edge Cases).
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Quality gate (lint + typecheck + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mat-ucheniya # app lives in a subdir; CI runs here
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20 # match mat-ucheniya/Dockerfile (node:20-alpine)
+          cache: npm
+          cache-dependency-path: mat-ucheniya/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      # NB: no `next build` here on purpose — Dokploy builds the image on the box.
+
+  deploy:
+    name: Trigger Dokploy deploy
+    needs: gate # only runs if the gate is green -> FR-009 / FR-012 / SC-006
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Dokploy deploy API
+        env:
+          DOKPLOY_URL: https://panel.theloopers.org
+          DOKPLOY_API_TOKEN: ${{ secrets.DOKPLOY_API_TOKEN }}
+          DOKPLOY_APP_ID: ${{ secrets.DOKPLOY_APP_ID }}
+        run: |
+          # --fail-with-body: non-2xx -> step fails AND prints the body, which
+          # surfaces a Cloudflare bot-challenge if the proxy blocks us (#3542).
+          curl --fail-with-body -sS -X POST \
+            "$DOKPLOY_URL/api/application.deploy" \
+            -H 'accept: application/json' \
+            -H 'Content-Type: application/json' \
+            -H "x-api-key: $DOKPLOY_API_TOKEN" \
+            -d "{\"applicationId\":\"$DOKPLOY_APP_ID\"}"
