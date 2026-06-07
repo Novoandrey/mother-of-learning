@@ -51,17 +51,20 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
   секреты не вводит._
 - [ ] **T011** [P2] [P] 🌐 (operator) Dokploy: выключить встроенный «Auto Deploy»
   тоггл у приложения, если включён (деплоим из Actions, без двойного выката).
-- [ ] **T012** [P2] 🖥️ (operator) **Позитивный смоук**: тривиальный коммит в
+- [x] **T012** [P2] 🖥️ (operator) **Позитивный смоук**: тривиальный коммит в
   `main` → gate зелёный → Dokploy собирает+выкатывает → прод отражает за ~5 мин
   (US2 AC#1, SC-003). _depends T008, T010._
   - Если deploy-шаг ловит Cloudflare-challenge (research.md #3542) → **T012a** 🌐
     (operator) добавить Cloudflare WAF skip-rule на `/api/application.deploy`,
     перепроверить.
-- [ ] **T013** [P2] 🖥️ (operator) **Негативный смоук**: временный коммит с
+- [x] **T013** [P2] 🖥️ (operator) **Негативный смоук**: временный коммит с
   падающим тестом в `main` → gate красный → job `deploy` НЕ стартует, прод на
   последней исправной версии → откатить коммит (FR-009/FR-012, SC-006, US2 AC#2).
   _depends T012._
-- [ ] **CHECKPOINT US2**: push→зелёное→прод ~5 мин; красный гейт блокирует деплой
+  ✓ **Verified chat 88** (Claude, run 27096111523): временный падающий тест в `main`
+  → gate **failure** (lint ✓ / typecheck ✓ / test ✗), deploy **skipped**, прод не
+  тронут. Тест откачен (`[skip ci]`). Cloudflare деплой не резал — T012a не понадобился.
+- [x] **CHECKPOINT US2**: push→зелёное→прод ~5 мин; красный гейт блокирует деплой
   (прод не падает); rollback в дашборде. US2 демонстрируема независимо.
 
 ---
