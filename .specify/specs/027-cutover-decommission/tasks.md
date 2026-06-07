@@ -133,21 +133,21 @@
 
 ## Phase G — Флип: домен + env приложения (US3)
 
-- [ ] **T015** 🧑 Cloudflare: apex `theloopers.org` A → `37.27.254.49`
+- [x] **T015** 🧑 Cloudflare: apex `theloopers.org` A → `37.27.254.49`
       **DNS-only**.
       _(Phase G, US3#1/#3 — apex-флип уводит боевой трафик с Vercel; формальный вывод деплоя — T023; R8)_
-- [ ] **T016** 🧑 Dokploy app: домен `staging.theloopers.org` → **`theloopers.org`**
+- [x] **T016** 🧑 Dokploy app: домен `staging.theloopers.org` → **`theloopers.org`**
       (apex), port 3000, HTTPS (LE). `NEXT_PUBLIC_SUPABASE_URL` остаётся
       `https://db.theloopers.org` (не меняется). env-тройка уже self-hosted (с
       rehearsal). `.env` self-hosted: `SITE_URL=https://theloopers.org`,
       `ADDITIONAL_REDIRECT_URLS` → apex; `up -d auth`. Дождаться apex-серта + DNS.
       _(Phase G, US3#1/#2, R5/R8)_
-- [ ] **CHECKPOINT G** — apex резолвится в бокс, HTTPS валиден, приложение на
+- [x] **CHECKPOINT G** — apex резолвится в бокс, HTTPS валиден, приложение на
       self-hosted.
 
 ## Phase H — Smoke реального игрока (US3)
 
-- [ ] **T017** 🧑 Существующий игрок на **`https://theloopers.org`**: логин
+- [x] **T017** 🧑 Существующий игрок на **`https://theloopers.org`**: логин
       текущим паролем → читает свои данные → делает запись (полный путь, при
       необходимости с аппрувом). **До анонса «готово».** Фейл → откат (шаги
       `rollback-runbook.md` наготове с Phase C).
@@ -159,11 +159,11 @@
       заморожен/Vercel выведен из тракта; подтвердить отсутствие двойной записи
       (managed боевых записей не получает).
       _(Phase I, US3#5/#6)_
-- [ ] **CHECKPOINT I** — боевой прод на self-hosted; окно закрыто.
+- [x] **CHECKPOINT I** — боевой прод на self-hosted; окно закрыто.
 
 ## Phase J — Бамп версии (US5)
 
-- [ ] **T019** 🤖 `mat-ucheniya/package.json` **0.9.0 → 1.0.0**; commit + push.
+- [x] **T019** 🤖 `mat-ucheniya/package.json` **0.9.0 → 1.0.0**; commit + push.
       _(file: `mat-ucheniya/package.json`; Phase J, US5#1)_
 
 ## Phase K — Бэкап на боевом self-hosted (US5)
