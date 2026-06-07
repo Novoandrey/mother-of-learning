@@ -34,13 +34,16 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
 
 ## User Story 2 — Auto-deploy with gate (P2)
 
-- [ ] **T007** [P2] **(Claude)** Добавить скрипт `"typecheck": "tsc --noEmit"` в
+- [x] **T007** [P2] **(Claude)** Добавить скрипт `"typecheck": "tsc --noEmit"` в
   `mat-ucheniya/package.json`. _Блокер для T008 (workflow его зовёт)._
-- [ ] **T008** [P2] **(Claude)** Создать `.github/workflows/deploy.yml` (корень
+- [x] **T008** [P2] **(Claude)** Создать `.github/workflows/deploy.yml` (корень
   репо): `on: push: branches: [main]`; job **gate** (node 20,
   `working-directory: mat-ucheniya`, `npm ci` → `lint` → `typecheck` → `test`);
   job **deploy** (`needs: gate`) → `POST /api/application.deploy` к Dokploy с
   `x-api-key` + `applicationId` из секретов. _depends T007._
+  ⚠️ Файл **написан и провалидирован**, но **коммитит оператор**: PAT бота без
+  `workflow`-scope — добавить через GitHub web UI (Add file → Create new file) или
+  своим токеном.
 - [ ] **T009** [P2] [P] 🌐 (operator) Dokploy: profile → Generate API Key;
   скопировать `applicationId` из URL приложения. _нужно для T010._
 - [ ] **T010** [P2] 🌐 (operator) GitHub → Settings → Secrets and variables →
