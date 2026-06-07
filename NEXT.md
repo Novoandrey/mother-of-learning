@@ -616,10 +616,11 @@ awaiting **Clarify**). US4 живой энкаунтер — P2. Затем — 
 Слоты 020–029 заняты: **020** PC Holdings (spec+plan готовы), **021** Wiki editor
 (дизайн-пак, папка не создана), **022** Player Mobile (Specify→Clarify), **023–027**
 инфра-эпик ✅, **028** Server ops — доступ команде (Лёша/Никита/Сергей **full-ops**)
-**+ auto-deploy с CI-гейтом**, два user stories, **Clarify закрыт → Plan** (chat 88;
-auto-deploy свёрнут сюда из бывш. стаба 043), **029** Read-only Postgres MCP для
-Claude (мини-спека готова, chat 88). Дальнейшие фичи (черновой порядок по
-зависимостям, финализируется при взятии в работу):
+**+ auto-deploy с CI-гейтом**, два user stories, **Plan+Tasks готовы → Implement**
+(chat 88; план: GitHub Actions gate `lint+tsc+vitest` → Dokploy API deploy;
+кодовых задач Claude — 2 (workflow + typecheck-скрипт), остальное оператор),
+**029** Read-only Postgres MCP для Claude (мини-спека готова, chat 88). Дальнейшие
+фичи (черновой порядок по зависимостям, финализируется при взятии в работу):
 
 | № | Спека | Зависит / зачем |
 |---|---|---|

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `028-access-and-autodeploy`
 **Created**: 2026-06-07 (folded auto-deploy in + full Specify, chat 88)
-**Status**: Clarify resolved — awaiting Plan
+**Status**: Plan + Tasks ready — awaiting Implement
 **Input**: Operationalize the production box for the team. Two slices: (1) give
 trusted collaborators their own operational access to the box; (2) make pushes to
 `main` deploy themselves (Vercel-parity), instead of manual redeploys.
