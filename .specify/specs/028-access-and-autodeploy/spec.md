@@ -2,7 +2,7 @@
 
 **Feature Branch**: `028-access-and-autodeploy`
 **Created**: 2026-06-07 (folded auto-deploy in + full Specify, chat 88)
-**Status**: Specify — awaiting Clarify
+**Status**: Clarify resolved — awaiting Plan
 **Input**: Operationalize the production box for the team. Two slices: (1) give
 trusted collaborators their own operational access to the box; (2) make pushes to
 `main` deploy themselves (Vercel-parity), instead of manual redeploys.
@@ -94,12 +94,9 @@ auto-deploy.
   затронув остальных, за <5 минут.
 - **FR-004**: Root- и парольный вход MUST оставаться отключённым (по ключу,
   non-root).
-- **FR-005**: Коллабораторы с доступом MUST мочь (a) получить шелл на сервере,
-  (b) запускать и наблюдать деплои вкл. rollback, (c) обращаться к консоли БД —
-  в пределах scope, решённого по каждому
-  [NEEDS CLARIFICATION: все трое получают одинаковый full-ops доступ
-  (шелл+деплой+консоль БД), или Сергею (ведущий DM, не ops) даём урезанный — напр.
-  только консоль БД на просмотр, без шелла/деплоя?].
+- **FR-005**: Все трое коллабораторов (Лёша, Никита, Сергей) получают
+  **одинаковый full-ops доступ**: (a) шелл на сервере (non-root sudo), (b) запуск
+  и наблюдение деплоев вкл. rollback, (c) консоль БД. (Clarify chat 88.)
 - **FR-006**: Доступ к консоли БД MUST быть задокументирован как полный доступ к
   прод-данным (service-role, обходит RLS); деструктивные/массовые правки — через
   ревью-миграции, не ad-hoc.
@@ -113,10 +110,9 @@ auto-deploy.
 - **FR-010**: Каждый деплой MUST быть атрибутируем к коммиту, предыдущую версию
   MUST можно вернуть (rollback).
 - **FR-011**: Пуши в ветки не-`main` MUST NOT передеплоивать прод.
-- **FR-012**: Система SHOULD не выкатывать код, не прошедший quality gate проекта
-  [NEEDS CLARIFICATION: гейтить ли auto-deploy на прохождении lint/tsc/vitest
-  (сломанный код вообще не доезжает до прода), или deploy-on-push без гейта (проще,
-  быстрее, полагается на локальную дисциплину)?].
+- **FR-012**: Система MUST NOT выкатывать в прод коммит, чей quality gate
+  (**lint + tsc + vitest**) красный — в прод доезжает только зелёное.
+  (Clarify chat 88.)
 - **FR-013**: Прямой внешний доступ к порту БД MUST оставаться закрыт (вне scope
   здесь; read-only путь для Claude — spec-029).
 
@@ -138,14 +134,16 @@ auto-deploy.
 - **SC-004**: Упавшая сборка никогда не роняет прод — доступность прода не зависит
   от падений сборки (метрика: 0 сломанных релизов доезжают до пользователей).
 - **SC-005**: 100% деплоев атрибутируемы к коммиту и имеют rollback в одно действие.
+- **SC-006**: Коммит с красными lint/tsc/vitest никогда не выкатывается в прод
+  (метрика: 0 таких релизов).
 
 ## Assumptions
 
 - Бокс — это боевой прод (spec-027 закрыт); Dokploy — поверхность деплоя; Supabase
   Studio — консоль БД; `main` — релизная ветка.
 - Лёша, Никита, Сергей доверенные; персональные учётки приемлемы.
-- Урезанный scope для Сергея (если он нужен) и вопрос CI-гейта — открыты, решаются
-  в Clarify (см. маркеры [NEEDS CLARIFICATION]).
+- Доступ всех троих (вкл. Сергея) — одинаковый full-ops; auto-deploy гейтится на
+  lint+tsc+vitest. (Решено в Clarify chat 88 — см. `## Clarifications`.)
 - Репо — единственный источник правды (коммит/пуш прямо в `main`).
 
 ## Out of Scope
@@ -157,10 +155,30 @@ auto-deploy.
   команда вырастет).
 - Read-only Postgres-доступ для Claude — это **spec-029**.
 
+## Clarifications
+
+### Session 2026-06-07 (chat 88)
+
+- **Q: Сергей (ведущий DM, не ops) — какой уровень доступа к боксу?**
+  **A: Полный ops, как Лёша/Никита** — шелл (non-root sudo) + деплой + консоль БД.
+  Все трое получают одинаковый доступ. Отражено в FR-005; онбординг-док
+  (`infra/server-access.md`) — Сергей идёт по стандартному full-ops онбордингу
+  (вариант «без sudo» остаётся как общий шаблон на будущее).
+- **Q: Auto-deploy в прод — гейтить на проверках?**
+  **A: С гейтом** — в прод доезжает только коммит с зелёными **lint + tsc +
+  vitest**; красные проверки блокируют релиз. Отражено в FR-012 (SHOULD→MUST),
+  SC-006, US2 AC#2. Механика гейта (вероятно через GitHub Actions, т.к. голый
+  Dokploy-webhook места под гейт не даёт) — в Plan (`notes-plan-input.md`).
+
+### Deferred to Plan (механика, не WHAT)
+
+- Webhook Dokploy vs GitHub Actions для US2 (гейт склоняет к Actions). Тип учёток
+  (Unix-юзеры/sudo), мультиюзер Dokploy, точная CI-цепочка — в `notes-plan-input.md`.
+
 ## Review & Acceptance checklist
 
 - [ ] Обе пользовательские истории шипаются независимо.
-- [ ] Открытые вопросы зафиксированы как [NEEDS CLARIFICATION] для Clarify.
+- [x] Открытые вопросы разрешены в Clarify (chat 88): scope Сергея + CI-гейт.
 - [ ] Механизм реализации (встроенный webhook vs GitHub Actions, тип учёток и т.п.)
       в этой спеке НЕ выбран — отложен в Plan (входные заметки —
       `notes-plan-input.md`).
