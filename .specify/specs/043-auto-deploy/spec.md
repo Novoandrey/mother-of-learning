@@ -1,12 +1,12 @@
-# Feature Specification: Auto-Deploy / CI on push (spec-028) — STUB
+# Feature Specification: Auto-Deploy / CI on push (spec-043) — STUB
 
-**Feature Branch**: `028-auto-deploy`
+**Feature Branch**: `043-auto-deploy`
 **Created**: 2026-06-07
 **Status**: 🌱 Stub / backlog — **not started** (заготовка; полноценный Specify позже)
 **Depends on**: spec-027 cutover (приложение должно жить на боксе/Dokploy и быть
 боевым) — берётся **после** закрытия 027.
 
-> Это **заготовка**, не готовая спека. Зафиксировать намерение и слот 028.
+> Это **заготовка**, не готовая спека. Зафиксировать намерение и слот 043 (раньше был 028 — освобождён под spec-028 infra-access).
 > Когда возьмём в работу — пройти Specify → Clarify → Plan → Tasks → Implement.
 
 ## Зачем (one-liner)
