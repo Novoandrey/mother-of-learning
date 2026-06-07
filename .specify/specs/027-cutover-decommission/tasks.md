@@ -155,7 +155,7 @@
 
 ## Phase I — Снять окно (US3)
 
-- [ ] **T018** 🧑 Объявить завершение; записи идут **в self-hosted**; managed
+- [x] **T018** 🧑 Объявить завершение; записи идут **в self-hosted**; managed
       заморожен/Vercel выведен из тракта; подтвердить отсутствие двойной записи
       (managed боевых записей не получает).
       _(Phase I, US3#5/#6)_
@@ -168,7 +168,7 @@
 
 ## Phase K — Бэкап на боевом self-hosted (US5)
 
-- [ ] **T020** 🧑 Подтвердить: ночной cron-бэкап после cutover зелёный (exit 0,
+- [x] **T020** 🧑 Подтвердить: ночной cron-бэкап после cutover зелёный (exit 0,
       без ERROR/FATAL); свежий R2-бэкап содержит боевые данные + `auth.users` с
       хешами (на restore); ротация 30/28 цела.
       _(Phase K, US5#2/#3/#4, R10)_
@@ -182,11 +182,11 @@
       `staging` (снять домен/деплой сейчас) + managed (чек-лист, гасить **после
       грейса**, зафиксировать дату старта грейса).
       _(file: `.specify/specs/027-*/decommission-checklist.md`; Phase L, US6#1/#2/#3)_
-- [ ] **T023** 🧑 Выполнить **сейчас**: вывести Vercel prod-деплой (apex на него
+- [x] **T023** 🧑 Выполнить **сейчас**: вывести Vercel prod-деплой (apex на него
       не указывает); снять `staging.theloopers.org` (домен/деплой в Dokploy) —
       один env. Зафиксировать **дату старта грейса** managed.
       _(Phase L, US6#2/#3)_
-- [ ] **T024** 🤖 Финализировать `cutover-runbook.md` + `verification-checklist.md`
+- [x] **T024** 🤖 Финализировать `cutover-runbook.md` + `verification-checklist.md`
       (тайминги/даты); `NEXT.md` (027 done, эпик «Своя инфра» закрыт, новое
       прод-состояние); `backlog.md` если всплыли баги/идеи; `chatlog/YYYY-MM-DD-
       chatNN-*.md`; commit + push.
@@ -195,7 +195,7 @@
       `decommission-checklist.md` убедиться, что self-hosted стабилен + свежий
       бэкап есть → **погасить managed-проект**. Не в сессии cutover'а.
       _(Phase L, US6#3/#4 — deferred)_
-- [ ] **CHECKPOINT L** — эпик «Своя инфра» закрыт; приложение целиком на
+- [x] **CHECKPOINT L** — эпик «Своя инфра» закрыт; приложение целиком на
       собственном боксе + self-hosted; `NEXT.md` отражает новый прод.
       _(managed гасится в T025 после грейса.)_
 
