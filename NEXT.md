@@ -2,7 +2,12 @@
 
 > Обновляется в конце каждой сессии. ТОЛЬКО текущее состояние.
 > История решений: `chatlog/`.
-> Last updated: 2026-06-07 (chat 87 — **spec-027 cutover & decommission ЗАКРЫТ;
+> Last updated: 2026-06-07 (chat 88 — **spec-028 US2 авто-деплой В ПРОДЕ** (GitHub
+> Actions gate `lint+tsc+vitest` → Dokploy API deploy; оба смоука зелёные), **US1
+> доступ (Лёша/Никита/Сергей full-ops) ждёт SSH-ключей**; **spec-029 read-only DB
+> MCP написана** (роль `claude_ro` + туннель + Postgres MCP Pro restricted), ещё не
+> исполнена. PAT бота без `workflow`-scope → workflow-файлы коммитит пользователь.
+> chat 87 — **spec-027 cutover & decommission ЗАКРЫТ;
 > эпик «своя инфра» (023→027) ЗАВЕРШЁН**). Приложение целиком на собственном боксе
 > (Hetzner CPX32, Helsinki) + self-hosted Supabase; **прод = https://theloopers.org**.
 > На cutover: ротированы демо-ключи/JWT_SECRET self-hosted (новые HS256 anon/service);
@@ -19,6 +24,13 @@
 
 ## В проде сейчас
 
+- **spec-028 US2 Авто-деплой (CI)**: push в `main` → GitHub Actions
+  `.github/workflows/deploy.yml` job `gate` (`npm ci`+`lint`+`typecheck`+`vitest`,
+  node 20, `working-directory: mat-ucheniya`) → на зелёном job `deploy` дёргает
+  Dokploy `POST /api/application.deploy` (`x-api-key`+`applicationId` из секретов).
+  Сборку CI не делает — образ собирает Dokploy на боксе. Красный гейт блокирует
+  деплой (проверено: run 27096111523). `mat-ucheniya/package.json` +скрипт
+  `typecheck`. _US1 (доступ команде) — ждёт SSH-ключей, см. «Следующий приоритет»._
 - **spec-001 Каталог сущностей**: граф нод+рёбер, поиск, фильтры, создание
 - **spec-002/005 Трекер энкаунтера v3**: инициатива, HP, условия, эффекты, лог
 - **spec-003 Петли и сессии как ноды**: миграции `008a`-`012`
@@ -615,12 +627,12 @@ awaiting **Clarify**). US4 живой энкаунтер — P2. Затем — 
 
 Слоты 020–029 заняты: **020** PC Holdings (spec+plan готовы), **021** Wiki editor
 (дизайн-пак, папка не создана), **022** Player Mobile (Specify→Clarify), **023–027**
-инфра-эпик ✅, **028** Server ops — доступ команде (Лёша/Никита/Сергей **full-ops**)
-**+ auto-deploy с CI-гейтом**, два user stories, **Plan+Tasks готовы → Implement**
-(chat 88; план: GitHub Actions gate `lint+tsc+vitest` → Dokploy API deploy;
-кодовых задач Claude — 2 (workflow + typecheck-скрипт), остальное оператор),
-**029** Read-only Postgres MCP для Claude (мини-спека готова, chat 88). Дальнейшие
-фичи (черновой порядок по зависимостям, финализируется при взятии в работу):
+инфра-эпик ✅, **028** Server ops — **US2 авто-деплой В ПРОДЕ** (Actions gate →
+Dokploy API; оба смоука ✓); **US1 доступ (Лёша/Никита/Сергей full-ops) ждёт
+SSH-ключей** (онбординг `infra/server-access.md`; A4/A6 можно без ключей), **029**
+Read-only Postgres MCP для Claude — **спека написана, ждёт исполнения** (роль
+`claude_ro` SQL + туннель + Postgres MCP Pro restricted). Дальнейшие фичи (черновой
+порядок по зависимостям, финализируется при взятии в работу):
 
 | № | Спека | Зависит / зачем |
 |---|---|---|
