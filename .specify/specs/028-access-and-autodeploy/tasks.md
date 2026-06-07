@@ -69,6 +69,15 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
 
 ---
 
+## User Story 3 — Telegram notifications (P3)
+
+> 🌱 **Specify только** (chat 88). Tasks появятся после **US3 Plan** (HOW —
+> `notes-plan-input.md` US3). Грубо: workflow на `create` + `push:main` → Telegram
+> Bot API; секреты `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` (оператор);
+> workflow-файл коммитит оператор. Не планируем здесь — отдельным заходом.
+
+---
+
 ## Coverage (FR → task) — lightweight Analyze
 
 | FR | Покрыто |

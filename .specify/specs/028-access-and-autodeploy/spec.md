@@ -2,7 +2,8 @@
 
 **Feature Branch**: `028-access-and-autodeploy`
 **Created**: 2026-06-07 (folded auto-deploy in + full Specify, chat 88)
-**Status**: Plan + Tasks ready — awaiting Implement
+**Status**: US2 auto-deploy **shipped ✓** · US1 access **awaiting SSH keys** ·
+US3 Telegram **Specify** (awaiting its own Clarify/Plan/Tasks)
 **Input**: Operationalize the production box for the team. Two slices: (1) give
 trusted collaborators their own operational access to the box; (2) make pushes to
 `main` deploy themselves (Vercel-parity), instead of manual redeploys.
@@ -74,6 +75,31 @@ auto-deploy.
 
 ---
 
+### User Story 3 — Telegram-уведомления о ветках и мержах (Priority: P3)
+
+> **Статус**: Specify (chat 88, бывш. IDEA-065). Ждёт **своих** Clarify/Plan/Tasks/
+> Implement — US1/US2 уже прошли свой цикл, US3 — отдельный срез, берётся позже.
+
+Команда видит в Telegram, когда создана новая ветка и когда что-то влилось в `main`
+(= поехал автодеплой), не заходя в GitHub.
+
+**Why this priority**: чистое удобство/видимость; не блокирует ни доступ, ни деплой.
+Шипается независимо поверх Actions-инфры из US2.
+
+**Independent Test**: создать ветку и отдельно влить коммит в `main` — в заданном
+Telegram-чате появляются два сообщения с автором, веткой/коммитом и ссылкой.
+
+**Acceptance Scenarios**:
+
+1. **Given** настроенные уведомления, **When** создана новая ветка, **Then** в
+   Telegram-чат приходит сообщение (ветка, автор, ссылка).
+2. **Given** то же, **When** коммит попадает в `main` (мерж/пуш), **Then** в чат
+   приходит сообщение (коммит, автор, ссылка) — рядом с автодеплоем US2.
+3. **Given** сбой самого нотификатора, **When** Telegram недоступен/ошибка,
+   **Then** это НЕ ломает гейт и НЕ блокирует деплой (уведомление — best-effort).
+
+---
+
 ### Edge Cases
 
 - Два пуша в `main` подряд — в проде оказывается более поздний коммит; нет
@@ -115,6 +141,12 @@ auto-deploy.
   (Clarify chat 88.)
 - **FR-013**: Прямой внешний доступ к порту БД MUST оставаться закрыт (вне scope
   здесь; read-only путь для Claude — spec-029).
+- **FR-014** (US3): При создании новой ветки система SHOULD слать сообщение в
+  заданный Telegram-чат (ветка, автор, ссылка).
+- **FR-015** (US3): При попадании коммита в `main` (мерж/пуш) система SHOULD слать
+  сообщение в Telegram-чат (коммит, автор, ссылка).
+- **FR-016** (US3): Сбой/недоступность Telegram-нотификатора MUST NOT блокировать
+  гейт или деплой (уведомления — best-effort).
 
 ### Key Entities
 
@@ -136,6 +168,8 @@ auto-deploy.
 - **SC-005**: 100% деплоев атрибутируемы к коммиту и имеют rollback в одно действие.
 - **SC-006**: Коммит с красными lint/tsc/vitest никогда не выкатывается в прод
   (метрика: 0 таких релизов).
+- **SC-007** (US3): Создание ветки и мерж в `main` дают сообщение в Telegram-чат в
+  пределах ~1 минуты; падение нотификатора не влияет на гейт/деплой.
 
 ## Assumptions
 
@@ -150,7 +184,8 @@ auto-deploy.
 
 - Preview-окружения на каждый PR (vercel-style per-PR URL).
 - Автоматизированный multi-env (staging убран на cutover; один env).
-- Нотификации о деплое (Slack/Discord), blue-green / zero-downtime стратегии.
+- Нотификации в Slack/Discord и другие каналы (Telegram про ветки/мержи — теперь
+  **US3**); blue-green / zero-downtime стратегии.
 - Пер-человека гранулярные роли в БД (Studio под service-role; пересмотреть, если
   команда вырастет).
 - Read-only Postgres-доступ для Claude — это **spec-029**.

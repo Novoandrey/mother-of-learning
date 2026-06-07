@@ -32,3 +32,17 @@ chat 88: гейт ПРИНЯТ** (lint+tsc+vitest, FR-012) → склоняет 
 
 Переносимый кусок (Dokploy CI-паттерн) — кандидат в `infra/` runbook;
 app-specific (Actions workflow) — в `mat-ucheniya/`.
+
+---
+
+## US3 — Telegram notifications (Plan input, chat 88)
+
+WHAT/WHY in `spec.md` US3. HOW (decide at US3 Plan):
+- GitHub Actions workflow on events `create` (новая ветка) + `push: branches: [main]`
+  → `curl` к Telegram Bot API `sendMessage` (chat_id + текст). Либо готовый
+  GitHub→Telegram Action.
+- Секреты GitHub: `TELEGRAM_BOT_TOKEN` (от @BotFather), `TELEGRAM_CHAT_ID`
+  (id чата/канала, куда добавлен бот). Ставит оператор; Claude секреты не вводит.
+- `if: always()` / отдельный job, чтобы FR-016 (сбой нотификатора не ломает деплой).
+- Можно совместить деплой-уведомление (успех/провал job `deploy`) — опционально.
+- Workflow-файл коммитит оператор (PAT бота без `workflow`-scope).

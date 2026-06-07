@@ -629,7 +629,9 @@ awaiting **Clarify**). US4 живой энкаунтер — P2. Затем — 
 (дизайн-пак, папка не создана), **022** Player Mobile (Specify→Clarify), **023–027**
 инфра-эпик ✅, **028** Server ops — **US2 авто-деплой В ПРОДЕ** (Actions gate →
 Dokploy API; оба смоука ✓); **US1 доступ (Лёша/Никита/Сергей full-ops) ждёт
-SSH-ключей** (онбординг `infra/server-access.md`; A4/A6 можно без ключей), **029**
+SSH-ключей** (онбординг `infra/server-access.md`; A4/A6 можно без ключей);
+**US3 Telegram-уведомления о ветках/мержах — Specify** (chat 88, бывш. IDEA-065;
+ждёт своих Clarify/Plan/Tasks), **029**
 Read-only Postgres MCP для Claude — **спека написана, ждёт исполнения** (роль
 `claude_ro` SQL + туннель + Postgres MCP Pro restricted). Дальнейшие фичи (черновой
 порядок по зависимостям, финализируется при взятии в работу):
