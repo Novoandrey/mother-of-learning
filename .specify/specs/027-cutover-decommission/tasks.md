@@ -89,7 +89,7 @@
 
 ## Phase C.5 — Pre-cutover hardening (BLOCKER, между GATE и Сессией 2)
 
-- [ ] **T026** 🧑 **Ротация демо-ключей/секрета self-hosted** (находка US1, chat 87).
+- [x] **T026** 🧑 **Ротация демо-ключей/секрета self-hosted** (находка US1, chat 87).
       `.env` self-hosted содержит демо `JWT_SECRET` + демо `ANON_KEY`/`SERVICE_ROLE_KEY`
       (`iss=supabase-demo`) → публично известны, подделка service_role обходит RLS.
       Сгенерить новый `JWT_SECRET` + перевыпустить `ANON_KEY`/`SERVICE_ROLE_KEY`
@@ -105,17 +105,17 @@
 
 ## Phase D — Фриз managed (US2)
 
-- [ ] **T011** 🧑 Announce окно игрокам; **отключить/pause Vercel production-
+- [x] **T011** 🧑 Announce окно игрокам; **отключить/pause Vercel production-
       деплой** (Vercel UI); убедиться, что managed больше не получает боевых
       записей.
       _(Phase D, US2#1, R6)_
 
 ## Phase E — Финальный свежий синк (US2)
 
-- [ ] **T012** 🧑 **Страховка:** `infra/backup.sh` — физ-бэкап текущего
+- [x] **T012** 🧑 **Страховка:** `infra/backup.sh` — физ-бэкап текущего
       self-hosted в R2 (перед сносом data-dir).
       _(Phase E, US2, R7/R10)_
-- [ ] **T013** 🧑 Переиспуск 026 (wipe-and-reload, R7): свежий
+- [x] **T013** 🧑 Переиспуск 026 (wipe-and-reload, R7): свежий
       `dump-from-managed.sh` → `down db` + rm `volumes/db/data` + `up db` (re-init)
       → `restore-into-selfhosted.sh` (dry-run version-gap → правка `data.sql` →
       финал replica под `supabase_admin`) → `resync-sequences.sql`.
@@ -123,13 +123,13 @@
 
 ## Phase F — Counts == managed на момент щелчка (US2)
 
-- [ ] **T014** 🧑 `check-migration-026.sql` (прямой `count(*)`, мимо клэмпа):
+- [x] **T014** 🧑 `check-migration-026.sql` (прямой `count(*)`, мимо клэмпа):
       `public` + `auth.users` self-hosted **==** managed; FK-целостность;
       sequence-insert не падает duplicate-key; выборочно — свежая правка игрока
       (после 026) присутствует. **Не сходится → снять фриз (re-enable Vercel),
       диагностика, окно отменяется.**
       _(reuses `.specify/specs/026-*/check-migration-026.sql`; Phase F, US2#2/#3/#4/#5/#6)_
-- [ ] **CHECKPOINT F** — self-hosted == managed на момент фриза; целостность ок.
+- [x] **CHECKPOINT F** — self-hosted == managed на момент фриза; целостность ок.
 
 ## Phase G — Флип: домен + env приложения (US3)
 
