@@ -1,5 +1,9 @@
 # Tasks: Player Transaction Approval Flow
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 **Spec**: `.specify/specs/014-approval-flow/spec.md`
 **Plan**: `.specify/specs/014-approval-flow/plan.md`
 **Created**: 2026-04-25
@@ -330,13 +334,13 @@
   player withdraws full batch → all gone; player withdraws after
   partial approve → only pending rows leave.
 
-- [ ] **T038 [P1]** Walkthrough AS8, AS9 (DM-direct + autogen
+- (tail) **T038 [P1]** Walkthrough AS8, AS9 (DM-direct + autogen
   unchanged): DM logs loot directly → approved immediately, no
   queue; DM applies encounter loot wizard → all generated rows
   approved (FR-003 holds); reapply autogen → reconcile ignores
   pending rows (FR-012).
 
-- [ ] **T039 [P2]** Walkthrough FR-028 (concurrent edit): player
+- (tail) **T039 [P2]** Walkthrough FR-028 (concurrent edit): player
   edits pending at 14:02; DM (different browser) approves at
   14:03 with stale snapshot; expect "ряд изменился" error +
   queue refresh; DM re-approves successfully.

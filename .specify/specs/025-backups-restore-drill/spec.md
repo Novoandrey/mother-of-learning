@@ -2,7 +2,7 @@
 
 **Feature Branch**: `025-backups-restore-drill`
 **Created**: 2026-06-06
-**Status**: Specify (решения Clarify встроены)
+**Status**: Done — in prod (chat 85–86; drill ~20 c на реальных данных)
 **Input**: Продолжение эпика «Переезд на свою инфру». 024 поднял self-hosted
 Supabase и доказал паритет с продом. 025 ставит **операционный навык
 восстановления**: автоматические off-box бэкапы + проверенный drill

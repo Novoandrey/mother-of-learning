@@ -1,5 +1,9 @@
 # Tasks: Encounter Loot Distribution
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 **Input**: `spec.md`, `plan.md` in `specs/013-encounter-loot/`
 **Created**: 2026-04-25
 **Tests**: `vitest` on pure utilities (coin-split, resolver,
@@ -316,23 +320,23 @@ A task is `[x]` only when its acceptance check passes:
     sync, UPDATE status → НЕ sync (триггер на title only),
     DELETE encounter → mirror удалён, прямой DELETE mirror →
     FK RESTRICT.
-- [ ] **T030** [P2] Manual acceptance walkthrough — User Story 1
+- (tail) **T030** [P2] Manual acceptance walkthrough — User Story 1
   (Acceptance Scenarios 1–4 of US1)
   - Empty draft + apply → no rows, no error
   - 30gp split across 4 PCs → 4 rows summing to 30gp
   - Item line to PC → 1 item row
   - Uneven split (31gp/3) → exact remainder rule
-- [ ] **T031** [P2] Manual acceptance walkthrough — User Story 2
+- (tail) **T031** [P2] Manual acceptance walkthrough — User Story 2
   (US2 reapply scenarios 1–4)
   - Unchanged draft → 0 writes
   - Single recipient swap → exactly one row delta
   - Add line → exactly one new row
   - Remove line → exactly one deletion
-- [ ] **T032** [P3] Manual acceptance walkthrough — US3, US4, US7
+- (tail) **T032** [P3] Manual acceptance walkthrough — US3, US4, US7
   - US3: stash recipient + «Всё в общак» preset
   - US4: even-split + participant change between applies
   - US7: encounter delete cascades autogen rows + mirror
-- [ ] **T033** [P3] Manual acceptance walkthrough — US5, US6
+- (tail) **T033** [P3] Manual acceptance walkthrough — US5, US6
   - US5: badge tooltip resolves to encounter title; rename
     propagates without reapply
   - US6: hand-edit + reapply → confirm dialog → confirm path

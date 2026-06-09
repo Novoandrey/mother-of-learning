@@ -2,7 +2,7 @@
 
 **Feature Branch**: `013-encounter-loot`
 **Created**: 2026-04-25
-**Status**: Draft
+**Status**: Done — in prod (tails: manual walkthroughs)
 **Input**: Fifth spec in the Bookkeeping series (see
 `.specify/memory/bookkeeping-roadmap.md`). Builds directly on
 spec-012's autogen layer — the second concrete batch of wizards

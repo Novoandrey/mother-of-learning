@@ -1,5 +1,9 @@
 # Tasks — 027 Cutover & Decommission
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 > Трекинг-чеклист среза. **Не дублирует runbook** — исполняемые команды живут в
 > `.specify/specs/027-*/cutover-runbook.md` (+ `kong-traefik.md`, `env-matrix.md`,
 > `rollback-runbook.md`, `decommission-checklist.md`, `verification-checklist.md`)
@@ -40,7 +44,7 @@
       ✅: `curl https://db.theloopers.org/auth/v1/health` снаружи → ok; 5432 закрыт;
       Studio только туннель.
       _(Phase A, US1#1, R3/R8)_
-- [ ] **CHECKPOINT A** — kong доступен по `https://db.theloopers.org`; наружу
+- [x] **CHECKPOINT A** — kong доступен по `https://db.theloopers.org`; наружу
       опубликован только kong.
 
 ## Phase B — Rehearsal end-to-end на `staging`→self-hosted (US1)
@@ -68,7 +72,7 @@
       паролем; RLS (authenticated видит, anon — нет); запись через approval
       (pending→approve); server action/RPC ок; CORS ок. **Vercel/managed не тронуты.**
       _(Phase B, US1#1–6)_
-- [ ] **CHECKPOINT B** — приложение работает end-to-end против self-hosted на
+- [x] **CHECKPOINT B** — приложение работает end-to-end против self-hosted на
       staging-URL; прод на Vercel не тронут.
 
 ## Phase C — Dry-run отката (US4)
@@ -98,7 +102,7 @@
       приложения в Dokploy на новые ключи** (+ Build-time Args). Пароли НЕ ломаются
       (bcrypt независим от JWT_SECRET) — только перелогин. **Блокирует Сессию 2.**
       _(Phase C.5, US1-finding; security)_
-- [ ] **CHECKPOINT C.5** — self-hosted на собственном секрете/ключах; приложение
+- [x] **CHECKPOINT C.5** — self-hosted на собственном секрете/ключах; приложение
       на новых ключах; логин игрока всё ещё проходит. Только теперь — Сессия 2.
 
 # ▼ СЕССИЯ 2 — короткое окно обслуживания (только после GATE US1)

@@ -1,5 +1,9 @@
 # Tasks: Складчина (Real-money Chip-in)
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 **Spec**: `.specify/specs/017-contribution-pool/spec.md`
 **Plan**: `.specify/specs/017-contribution-pool/plan.md`
 **Created**: 2026-04-26 (chat 72)
@@ -36,7 +40,7 @@
   this way.)
   *(depends on T001)*
 
-- [ ] **T003 [P1]** After user confirms migration applied,
+- [x] **T003 [P1]** After user confirms migration applied,
   smoke-test RLS via psql or Studio: (a) member SELECT'ы pools
   своей кампании — ≥ 0 строк ok; (b) outsider — 0 строк; (c)
   member может INSERT pool с self created_by; (d) другой
@@ -109,7 +113,7 @@
   → profiles, all batched with one IN-clause per layer.
   *(file: `mat-ucheniya/lib/contributions.ts`, depends on T002)*
 
-- [ ] **T007 [P1]** Smoke-test read layer locally: вставить
+- (tail) **T007 [P1]** Smoke-test read layer locally: вставить
   тестовый pool через psql на dev БД (с 3 participants — 1
   paid, 2 unpaid), вызвать `getContributionPoolsForList` из
   scratch script или server-component log, убедиться что:
@@ -277,7 +281,7 @@
   - Архив пустой: «Закрытых сборов пока нет.»
   *(depends on T019)*
 
-- [ ] **T023 [P2]** Manual walkthrough US1 на live mat-ucheniya:
+- (tail) **T023 [P2]** Manual walkthrough US1 на live mat-ucheniya:
   (1) Создать pool «Тест», 4500 ₽, 5 member'ов + 1 ad-hoc «Петя»,
   equal split → 6×750. (2) Все member'ы видят pool в Текущие.
   (3) Author тапает 5 чекбоксов — pool остаётся в Текущие.

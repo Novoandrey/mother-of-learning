@@ -2,7 +2,7 @@
 
 **Feature Branch**: `018-dndsu-magic-items`
 **Created**: 2026-04-27
-**Status**: Clarified (2026-04-27, chat 75)
+**Status**: Done — in prod (tail: DDHC source name)
 **Input**: User chat 75 — «вытащить с dnd.su/items/ все магические
 предметы и их свойства; корректно выставить тип, attunement,
 категории, слоты; вытащить ПОЛНОЕ описание (вординг важен); пригодится

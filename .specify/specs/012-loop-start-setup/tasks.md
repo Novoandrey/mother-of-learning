@@ -1,5 +1,9 @@
 # Tasks: Loop Start Setup
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 **Input**: `spec.md`, `plan.md` in `specs/012-loop-start-setup/`
 **Updated**: 2026-04-24
 **Tests**: `vitest` on pure utilities (resolver, diff, affected-
@@ -409,17 +413,17 @@ loan flag.
 
 **Purpose**: visibility + filterability of autogen rows.
 
-- [ ] **T036** [P] [P2] Create `mat-ucheniya/components/autogen-badge-client.tsx`:
+- (tail) **T036** [P] [P2] Create `mat-ucheniya/components/autogen-badge-client.tsx`:
   - `'use client'`
   - Props: `{ wizardKey: WizardKey; sourceTitle: string }`
   - Renders a tiny "⚙" icon; on hover/tap opens a `<Tooltip>` (existing helper) with one-line text: e.g. "Стартовые деньги · Петля №5"
   - Labels map from `WizardKey` to Russian strings via a const in the component
-- [ ] **T037** [P2] Extend `mat-ucheniya/components/transaction-row.tsx` to accept an optional `autogen?: { wizardKey: WizardKey; sourceTitle: string }` prop and render `<AutogenBadge>` before the day chip when set. Do not change row height; add `ml-1` / `mr-1` spacing only.
-- [ ] **T038** [P] [P2] Extend `mat-ucheniya/components/ledger-filters.tsx` with the `autogen` filter chip:
+- (tail) **T037** [P2] Extend `mat-ucheniya/components/transaction-row.tsx` to accept an optional `autogen?: { wizardKey: WizardKey; sourceTitle: string }` prop and render `<AutogenBadge>` before the day chip when set. Do not change row height; add `ml-1` / `mr-1` spacing only.
+- (tail) **T038** [P] [P2] Extend `mat-ucheniya/components/ledger-filters.tsx` with the `autogen` filter chip:
   - Three states: `all | only | none` (default `all`)
   - URL-driven: `?autogen=only` etc.
   - When state ≠ `all`, render as an active chip in collapsed-filters view
-- [ ] **T039** [P2] Extend `mat-ucheniya/lib/transactions.ts` `getLedgerPage` (or equivalent) to accept the `autogen` filter and append the appropriate `WHERE autogen_wizard_key IS [NOT] NULL` clause. Uses the new partial index.
+- (tail) **T039** [P2] Extend `mat-ucheniya/lib/transactions.ts` `getLedgerPage` (or equivalent) to accept the `autogen` filter and append the appropriate `WHERE autogen_wizard_key IS [NOT] NULL` clause. Uses the new partial index.
 - [x] **T040** [P2] Hydrate the `autogen` prop for every row in `transaction-list-client.tsx` (or wherever rows are mapped from query results). Needs the `sourceTitle` — a tiny join (`getNodeTitleById`) or precompute the map in the server component once per page.
 
 **Checkpoint**: autogen rows render with a badge; filter chip toggles visibility; tooltip shows wizard + source.

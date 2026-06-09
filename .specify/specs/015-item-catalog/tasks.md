@@ -1,5 +1,9 @@
 # Tasks: Item Catalog Integration
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 **Spec**: `.specify/specs/015-item-catalog/spec.md`
 **Plan**: `.specify/specs/015-item-catalog/plan.md`
 **Created**: 2026-04-26
@@ -405,13 +409,13 @@
   *(file: `mat-ucheniya/components/encounter-loot-editor.tsx`,
   depends on T022, T038)*
 
-- [ ] **T041 [P1]** Walkthrough US7: open an encounter loot
+- (tail) **T041 [P1]** Walkthrough US7: open an encounter loot
   draft, add a catalog-linked item via typeahead, apply, verify
   the resulting transaction has `item_node_id` set, verify it
   appears on the recipient's inventory tab and on the item's
   history page.
 
-- [ ] **T042 [P1]** Walkthrough spec-014 retrofit: player submits
+- (tail) **T042 [P1]** Walkthrough spec-014 retrofit: player submits
   a batch with one catalog-linked item-row, DM approves, verify
   `item_node_id` survives the `pending → approved` transition.
 
@@ -455,11 +459,11 @@
   unknown scope. Each case wrapped in `BEGIN … ROLLBACK`.
   *(file: `mat-ucheniya/scripts/check-rls-015.sql`)*
 
-- [ ] **T048 [P1]** Run `npm run lint` + `npx tsc --noEmit` +
+- [x] **T048 [P1]** Run `npm run lint` + `npx tsc --noEmit` +
   `npx vitest run`. Expect: lint 0/0, vitest passes (existing +
   ~95 new from T006/T007/T008/T010/T011), build clean.
 
-- [ ] **T049 [P1]** Manual acceptance walkthrough — all 7 user
+- (tail) **T049 [P1]** Manual acceptance walkthrough — all 7 user
   stories from spec on mat-ucheniya prod data:
   US1 (DM creates item), US2 (browse with group-by/filter/sort),
   US3 (typeahead autofill), US4 (PC inventory tab + day picker

@@ -1,5 +1,9 @@
 # Tasks: dnd.su magic items scraper & catalog import
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 **Spec**: `.specify/specs/018-dndsu-magic-items/spec.md`
 **Plan**: `.specify/specs/018-dndsu-magic-items/plan.md`
 **Created**: 2026-04-27 (chat 75)
@@ -153,7 +157,7 @@
 
 ## Phase 5 — Run codegen + present migrations
 
-- [ ] **T015 [P1]** Run codegen, produce migrations.
+- [x] **T015 [P1]** Run codegen, produce migrations.
   TS seed:
   ```
   cd mat-ucheniya && npx tsx scripts/items-dndsu-codegen.ts
@@ -167,7 +171,7 @@
   Inspect first migration visually: SQL valid, expected count, NOT
   EXISTS clause correct.
 
-- [ ] **T017 [P1]** `present_files` всех новых миграций для review
+- [x] **T017 [P1]** `present_files` всех новых миграций для review
   ДМом перед applying.
 
 - [x] **T018 [P1]** DM applied 50 migrations (056-105) to mat-ucheniya

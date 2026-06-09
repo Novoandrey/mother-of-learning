@@ -2,7 +2,7 @@
 
 **Feature Branch**: `017-contribution-pool`
 **Created**: 2026-04-24 · **Rewritten**: 2026-04-26 (chat 72)
-**Status**: Clarified (2026-04-26, chat 72)
+**Status**: Done — in prod (tails: T007/T023 walkthroughs)
 **Input**: User prompt — "новая страница для real-money скидок:
 любой игрок создаёт карточку с заголовком, реквизитами,
 участниками и суммами; автор закрывает чекбоксами кто скинулся;

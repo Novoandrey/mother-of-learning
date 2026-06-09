@@ -2,7 +2,7 @@
 
 **Feature Branch**: `026-data-auth-migration`
 **Created**: 2026-06-07
-**Status**: Clarify resolved (awaiting Plan)
+**Status**: Done — in prod (chat 86–87)
 **Input**: Продолжение эпика «Переезд на свою инфру». 024 поднял self-hosted
 Supabase и доказал паритет с продом; 025 настроил off-box бэкапы + drill, но
 **вскрыл**, что выбранный логический метод бэкапа/restore для Supabase не

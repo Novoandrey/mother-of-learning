@@ -1,5 +1,9 @@
 # Tasks: Server ops — team access & auto-deploy (spec-028)
 
+> _Retro-tick 2026-06-10 (chat 89, meta-refactor): чекбоксы приведены к
+> реальности по chatlog/коду/проду; `(tail)` = осознанно отложено,
+> не блокер; `(skipped)` = закрыто без прогона._
+
 **Spec**: `./spec.md` · **Plan**: `./plan.md` · **Research**: `./research.md`
 Legend: `[P]` parallelizable · 🖥️ LOCAL · 🐧 SERVER · 🌐 WEB · **(Claude)** = artifact
 Claude writes, **(operator)** = Andrey runs (Claude never enters secrets/keys).
@@ -25,8 +29,8 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
   ключам дефолтный.
 - [x] **T004** [P1] 🌐 (operator) Dokploy: инвайт Никите (admin) отправлен ссылкой —
   SMTP в self-hosted не настроен, письма не идут; приём за Никитой.
-- [ ] **T005** [P1] 🖥️ (operator) Studio-смоук (туннель 8001) — не гоняли (опц.).
-- [ ] **T006** [P1] 🐧 (operator) Отзыв-смоук — не гоняли (опц.; процедура в
+- (skipped — опц.) **T005** [P1] 🖥️ (operator) Studio-смоук (туннель 8001) — не гоняли (опц.).
+- (skipped — опц.) **T006** [P1] 🐧 (operator) Отзыв-смоук — не гоняли (опц.; процедура в
   `server-access.md` §9).
 - [x] **CHECKPOINT US1** (для Лёша+Никита): рабочий шелл + sudo ✓; Dokploy —
   инвайт отправлен (приём за ними). Сергей отказался. Studio/отзыв-смоук — опц., не
@@ -46,12 +50,12 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
   ⚠️ Файл **написан и провалидирован**, но **коммитит оператор**: PAT бота без
   `workflow`-scope — добавить через GitHub web UI (Add file → Create new file) или
   своим токеном.
-- [ ] **T009** [P2] [P] 🌐 (operator) Dokploy: profile → Generate API Key;
+- [x] **T009** [P2] [P] 🌐 (operator) Dokploy: profile → Generate API Key;
   скопировать `applicationId` из URL приложения. _нужно для T010._
-- [ ] **T010** [P2] 🌐 (operator) GitHub → Settings → Secrets and variables →
+- [x] **T010** [P2] 🌐 (operator) GitHub → Settings → Secrets and variables →
   Actions: добавить `DOKPLOY_API_TOKEN`, `DOKPLOY_APP_ID`. _depends T009; Claude
   секреты не вводит._
-- [ ] **T011** [P2] [P] 🌐 (operator) Dokploy: выключить встроенный «Auto Deploy»
+- [x] **T011** [P2] [P] 🌐 (operator) Dokploy: выключить встроенный «Auto Deploy»
   тоггл у приложения, если включён (деплоим из Actions, без двойного выката).
 - [x] **T012** [P2] 🖥️ (operator) **Позитивный смоук**: тривиальный коммит в
   `main` → gate зелёный → Dokploy собирает+выкатывает → прод отражает за ~5 мин
@@ -76,12 +80,12 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
 > Готовый бот **MrBranches** (PR-центричный `.yml`). Кодить почти нечего —
 > коммит файла + 3 секрета. Едет вместе с переходом на branch+PR.
 
-- [ ] **T014** [P3] 🌐 (operator) Закоммитить `.github/workflows/telegram-notifications.yml`
+- [x] **T014** [P3] 🌐 (operator) Закоммитить `.github/workflows/telegram-notifications.yml`
   (готовый MrBranches `.yml`, отдан в чате) — workflow-файл, **коммитит оператор**
   (PAT бота без `workflow`-scope; web UI / свой токен).
-- [ ] **T015** [P3] 🌐 (operator) GitHub → Settings → Secrets → Actions: добавить
+- [x] **T015** [P3] 🌐 (operator) GitHub → Settings → Secrets → Actions: добавить
   `TG_BOT_TOKEN`, `TG_CHAT_ID`, `TG_THREAD_ID` под **новый** чат/топик.
-- [ ] **T016** [P3] [P] 🌐 (operator, бонус) Добавить `paths-ignore`
+- [x] **T016** [P3] [P] 🌐 (operator, бонус) Добавить `paths-ignore`
   (`**/*.md`, `.specify/**`, `chatlog/**`) в `deploy.yml` (обновлённый файл отдан в
   чате) — чтобы doc-мержи не передеплоивали прод.
 - [x] **T017** [P3] 🖥️ (operator) Смоук: запушить ветку + открыть PR в `main` →

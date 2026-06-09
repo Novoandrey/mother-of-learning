@@ -2,7 +2,7 @@
 
 **Feature Branch**: `023-server-paas-foundation`
 **Created**: 2026-06-02
-**Status**: ✅ Implemented & in prod (2026-06-02, chat 83). staging.theloopers.org live; see chatlog chat 83.
+**Status**: Done — in prod (инфра-эпик, chat 83)
 **Input**: User decision — съехать с managed Supabase на собственную
 инфраструктуру ради DevOps-навыка; «хочется сразу взять сервер, на
 котором будут крутиться все мои серверы». Друг-devops (Леша) помогает.

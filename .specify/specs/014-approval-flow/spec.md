@@ -2,7 +2,7 @@
 
 **Feature Branch**: `014-approval-flow`
 **Created**: 2026-04-25
-**Status**: Draft
+**Status**: Done — in prod (tails: T038/T039 walkthroughs)
 **Input**: Sixth spec in the Bookkeeping series (see
 `.specify/memory/bookkeeping-roadmap.md`). Schema-side, this is a
 zero-migration spec — the `transactions.status` column with values

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `028-access-and-autodeploy`
 **Created**: 2026-06-07 (folded auto-deploy in + full Specify, chat 88)
-**Status**: **CLOSED ✓ (chat 88)** — US2 auto-deploy **shipped** · US3 Telegram
+**Status**: Done — in prod (chat 88)
 (MrBranches) **shipped** · US1 access **done for Лёша + Никита** (Сергей declined)
 **Input**: Operationalize the production box for the team. Two slices: (1) give
 trusted collaborators their own operational access to the box; (2) make pushes to

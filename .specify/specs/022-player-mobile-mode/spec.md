@@ -2,7 +2,7 @@
 
 **Feature Branch**: `022-player-mobile-mode`
 **Created**: 2026-06-02
-**Status**: Draft (Specify) — awaiting Clarify
+**Status**: Specify draft — awaiting Clarify
 **Input**: User prompt — «пора делать полезность для игроков: переносить
 фичи денег, предметов, а также чарники и трекер энкаунтера на мобилку.
 По сути переносить то, что уже есть. Сделать отдельной веб-приложкой

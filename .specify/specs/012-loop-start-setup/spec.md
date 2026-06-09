@@ -2,7 +2,7 @@
 
 **Feature Branch**: `012-loop-start-setup`
 **Created**: 2026-04-24
-**Status**: Draft
+**Status**: Done — in prod (tails: T036–T039 autogen UI)
 **Input**: Fourth spec in the Bookkeeping series (see
 `.specify/memory/bookkeeping-roadmap.md`). Builds on spec-010's
 ledger and spec-011's stash. Introduces a **general autogen

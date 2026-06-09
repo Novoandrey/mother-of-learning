@@ -2,7 +2,7 @@
 
 **Feature Branch**: `024-self-hosted-supabase`
 **Created**: 2026-06-06
-**Status**: ✅ Implemented (chat 84, 2026-06-06) — self-hosted stack live &
+**Status**: Done — in prod (chat 84)
 parity-proven on the box; app still on managed Supabase until cutover (027).
 Specify→Clarify→Plan→Analyze→Tasks→Implement done.
 **Input**: Продолжение эпика «Переезд на свою инфру». 023 (фундамент:

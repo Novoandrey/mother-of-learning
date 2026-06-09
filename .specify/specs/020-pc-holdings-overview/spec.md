@@ -2,7 +2,7 @@
 
 **Feature Branch**: `020-pc-holdings-overview`
 **Created**: 2026-04-28
-**Status**: Clarified (2026-04-28)
+**Status**: Plan ready — awaiting Tasks
 **Input**: User prompt — «обзор PC холдингов: что у каждого
 персонажа в кошельке и инвентаре прямо сейчас в текущей петле,
 + свёрнутый ledger для понимания свежей активности». Параллель

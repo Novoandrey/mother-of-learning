@@ -2,7 +2,7 @@
 
 **Feature Branch**: `016-default-item-prices`
 **Created**: 2026-04-26
-**Status**: Clarified (2026-04-26, chat 72)
+**Status**: Done — in prod
 **Input**: User feedback after spec-015 ship — "вынести в настройки
 'стандартную цену' маг предметов и возможность 'Применить' её, а
 потом поменять на некоторые предметы цену на кастомную (поставив

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `015-item-catalog`
 **Created**: 2026-04-25
-**Status**: Clarified (2026-04-26)
+**Status**: Done — in prod (tails: walkthroughs)
 **Input**: Seventh and final spec in the Bookkeeping series
 (see `.specify/memory/bookkeeping-roadmap.md`). Promotes items
 from free-text strings (the placeholder shape spec-010 shipped

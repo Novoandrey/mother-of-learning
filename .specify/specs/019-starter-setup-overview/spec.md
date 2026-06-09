@@ -2,7 +2,7 @@
 
 **Feature Branch**: `019-starter-setup-overview`
 **Created**: 2026-04-27
-**Status**: Clarified (2026-04-27)
+**Status**: Done — in prod (chat 77, 2026-04-27)
 **Input**: User prompt — «маленькая спека со стартовыми предметами
 и деньгами на одном экране для всех персонажей в разделе
 "Бухгалтерия"». Чистый UI-слой над spec-012; миграций 0.
