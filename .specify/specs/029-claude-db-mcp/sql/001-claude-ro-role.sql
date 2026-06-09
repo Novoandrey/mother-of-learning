@@ -41,6 +41,17 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_ro;
 --      ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
 --        GRANT SELECT ON TABLES TO claude_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO claude_ro;
+-- Cover both realistic table owners on self-hosted Supabase explicitly, so
+-- future migrations stay readable to claude_ro no matter which admin role
+-- (Studio session role) ends up creating them:
+DO $$ BEGIN
+  EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public '
+          'GRANT SELECT ON TABLES TO claude_ro';
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DO $$ BEGIN
+  EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public '
+          'GRANT SELECT ON TABLES TO claude_ro';
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
 
 -- 4. Belt-and-suspenders: read-only sessions + runaway-query guards.
 ALTER ROLE claude_ro SET default_transaction_read_only = on;
@@ -49,10 +60,32 @@ ALTER ROLE claude_ro SET idle_in_transaction_session_timeout = '60s';
 
 COMMIT;
 
--- Verify (as a superuser):
---   SELECT has_schema_privilege('claude_ro', 'public', 'USAGE');          -- t
---   SELECT has_table_privilege ('claude_ro', 'public.nodes', 'SELECT');   -- t
---   SELECT has_table_privilege ('claude_ro', 'public.nodes', 'INSERT');   -- f
--- From an SSH-tunnelled psql connected AS claude_ro:
+-- Verification (run as superuser; prints exactly one row with ✅ or ❌):
+SELECT CASE
+         WHEN bool_and(ok) THEN
+           '✅ claude_ro готов: USAGE+SELECT на public, INSERT закрыт, read-only сессии, timeout 30s'
+         ELSE
+           '❌ не сошлось: ' || string_agg(name, ', ') FILTER (WHERE NOT ok)
+       END AS result
+FROM (VALUES
+  ('schema USAGE',
+     has_schema_privilege('claude_ro', 'public', 'USAGE')),
+  ('SELECT on nodes',
+     has_table_privilege('claude_ro', 'public.nodes', 'SELECT')),
+  ('INSERT denied',
+     NOT has_table_privilege('claude_ro', 'public.nodes', 'INSERT')),
+  ('read-only sessions',
+     EXISTS (SELECT 1 FROM pg_db_role_setting s
+             JOIN pg_roles r ON r.oid = s.setrole
+             WHERE r.rolname = 'claude_ro'
+               AND s.setconfig::text LIKE '%default_transaction_read_only=on%')),
+  ('statement_timeout 30s',
+     EXISTS (SELECT 1 FROM pg_db_role_setting s
+             JOIN pg_roles r ON r.oid = s.setrole
+             WHERE r.rolname = 'claude_ro'
+               AND s.setconfig::text LIKE '%statement_timeout=30s%'))
+) AS checks(name, ok);
+
+-- Negative test (later, from an SSH-tunnelled psql connected AS claude_ro):
 --   INSERT INTO public.nodes DEFAULT VALUES;
 --     -> ERROR: cannot execute INSERT in a read-only transaction

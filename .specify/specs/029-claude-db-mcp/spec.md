@@ -2,7 +2,7 @@
 
 **Feature Branch**: `029-claude-db-mcp`
 **Created**: 2026-06-07
-**Status**: Written — awaiting execution (operator runbook)
+**Status**: Executing (operator) — Phase 0–2: role + password
 **Depends on**: spec-027 cutover (self-hosted Postgres is the live prod DB on the box).
 
 > Mini-spec. Goal: give **Claude** (Claude Code / Desktop on Andrey's machine)
