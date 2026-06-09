@@ -1,0 +1,14 @@
+# compose-override.db-loopback.yml — spec-029 Phase 0 fix
+#
+# Publishes Postgres ONLY on the box's loopback so the operator's SSH tunnel
+# (ssh -L 5433:localhost:5432) has a target. Nothing is exposed to the
+# internet: 127.0.0.1 binding is unreachable from outside; access still
+# requires SSH. Canonical copy lives in the repo; the live file sits in
+# ~/supabase/docker/ next to docker-compose.yml.
+#
+# 🐧 SERVER usage: include via COMPOSE_FILE in .env (preferred, kills the
+# "bare docker compose forgets the kong override" trap) — see spec-029 chat.
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
