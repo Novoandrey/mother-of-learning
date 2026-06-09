@@ -2,7 +2,7 @@
 
 **Feature Branch**: `029-claude-db-mcp`
 **Created**: 2026-06-07
-**Status**: Executing (operator) — Phase 4 smoke; ждёт ALTER ROLE BYPASSRLS
+**Status**: Done — in prod (chat 90; smoke 4/4, see Execution log)
 **Depends on**: spec-027 cutover (self-hosted Postgres is the live prod DB on the box).
 
 > Mini-spec. Goal: give **Claude** (Claude Code / Desktop on Andrey's machine)
@@ -137,3 +137,30 @@ MCP-клиент (docker-вариант; `localhost` авто-ремапится
 - Паттерн «read-only роль + туннель + restricted MCP» переносим — кандидат в
   `infra/` runbook, если заведём это и на других проектах.
 - Парная мини-спека **028** (доступ людей к серверу) — отдельные учётки/отзыв.
+
+## Execution log (chat 90, 2026-06-10)
+
+Deviations and lessons from the actual rollout:
+
+- **Phase 0 surprise**: the `db` container published no host port at all —
+  added `compose-override.db-loopback.yml` (`127.0.0.1:5432:5432`) and wired
+  `COMPOSE_FILE` in the stack `.env` so bare `docker compose` always sees all
+  overrides (kills the documented kong-label trap as a side effect).
+- **Claude Desktop on Windows is an MSIX install**: the real config lives in
+  `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`, not the
+  documented `%APPDATA%\Claude` (known bug anthropics/claude-code#26073; the
+  Edit Config button may open the wrong file).
+- **First start raced the 60s MCP init timeout** against `docker pull` of the
+  image — pre-pull `crystaldba/postgres-mcp` once before first launch.
+- **NOBYPASSRLS was wrong for this role**: every public table is RLS'd with
+  policies for supabase roles only, so `claude_ro` silently read 0 rows.
+  Fixed to `BYPASSRLS` — the read-only boundary is grants + read-only
+  transactions, not RLS; `auth`/`storage` stay ungranted, PII invisible.
+- **Restricted mode validates queries client-side**: rejects INSERT/UPDATE,
+  the `set_config(transaction_read_only, off)` trick, and even `pg_sleep` —
+  timeout was proven with a triple CROSS JOIN, killed at 30s.
+- **Bonus over spec**: the server is visible from Claude Desktop *project*
+  chats too (this very session ran the smoke), not just fresh local chats.
+
+Smoke: 4/4 ✅ (read with real counts matching cutover reference; write
+rejected at both layers; 30s kill; tunnel-closed = no path to DB).

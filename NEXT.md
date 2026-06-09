@@ -4,7 +4,7 @@
 > (включая `chatlog/_legacy-NEXT-archive.md` — полные тексты прежних NEXT).
 > Протокол старта сессии: `bash scripts/dev/status.sh` → этот файл →
 > `tasks.md` активной спеки. Лимит файла: 150 строк / 10 KB (следит status.sh).
-> Last updated: 2026-06-10 (chat 89 — meta-refactor boot-слоя)
+> Last updated: 2026-06-10 (chat 90 — spec-029 исполнена, смоук 4/4)
 
 ## Прод
 
@@ -27,9 +27,6 @@
 1. **spec-022 Player Mobile Mode (PWA)** — Specify готов; следующий шаг —
    **Clarify**. MVP = US1–US3 + PWA-shell (чарник / деньги / предметы);
    US4 живой энкаунтер — P2, при разрастании уезжает в свою спеку.
-2. **spec-029 Claude DB MCP** — спека + SQL готовы; ждёт исполнения
-   (operator-runbook на вечер: роль `claude_ro` + SSH-туннель + Postgres
-   MCP Pro restricted).
 
 ## Очередь до 030
 
@@ -81,6 +78,7 @@
 | 019 | Starter setup overview: один экран на все PC + apply |
 | 023–027 | Инфра-эпик: бокс, self-hosted Supabase, бэкапы+drill, миграция, cutover |
 | 028 | Доступ команде + авто-деплой (CI gate → Dokploy) + Telegram-бот |
+| 029 | Read-only Postgres MCP: Claude видит БД из Desktop (туннель = выключатель) |
 
 ## Хвосты (не блокеры)
 
