@@ -12,23 +12,25 @@ Two independent stories — US1 (P1) ships without US2 and vice-versa.
 
 > Артефакт уже есть: `infra/server-access.md` (FR-007). Ниже — исполнение по нему.
 
-- [ ] **T001** [P1] 🖥️ (operator) Собрать ed25519 **pub**-ключи от Лёши, Никиты,
-  Сергея (по строке `ssh-ed25519 …`). _Блокер для T002._
-- [ ] **T002** [P1] 🐧 (operator) Завести персональные sudo-учётки `lesha`,
-  `nikita`, `sergey` + положить их pub-ключи — по `infra/server-access.md` §8
-  (full-ops для всех троих). _depends T001._
-- [ ] **T003** [P1] [P] 🖥️ (operator) Проверка SSH: `ssh <user>@37.27.254.49`
-  заходит ключом для каждого; `ssh root@…` отказан. _depends T002._
-- [ ] **T004** [P1] [P] 🌐 (operator) Dokploy `panel.theloopers.org` → Settings →
-  Users/Team: добавить `lesha`/`nikita`/`sergey`, включить **2FA** каждому.
-  _depends T002._
-- [ ] **T005** [P1] [P] 🖥️ (operator) Studio-смоук: `ssh -L 8001:localhost:8001
-  <user>@…` + открыть `localhost:8001` — Studio открывается. _depends T002._
-- [ ] **T006** [P1] 🐧 (operator) Отзыв-смоук: завести throwaway-юзера, затем
-  `sudo deluser --remove-home <throwaway>` — подтвердить <5 мин и что остальные не
-  затронуты (FR-003, SC-002). _depends T002._
-- [ ] **CHECKPOINT US1**: все трое — рабочий шелл + Dokploy(2FA) + Studio; отзыв
-  проверен. US1 демонстрируема и шипуема независимо.
+> **Итог (chat 88): Сергей отказался** — scope = Лёша + Никита.
+
+- [x] **T001** [P1] 🖥️ (operator) Собрать ed25519 **pub**-ключи. ✓ Лёша + Никита
+  (Сергей — n/a). _Грабли: у Никиты не было приватного ключа + правка комментария
+  ломала тело ключа → перегенерили и переписали `authorized_keys` начисто._
+- [x] **T002** [P1] 🐧 (operator) Персональные sudo-учётки `lesha`/`nikita`
+  (`adduser --disabled-password` + группа `sudo` + их pub-ключи) ✓. Плюс задан
+  пароль обоим (для `sudo`; вход по SSH — только ключ).
+- [x] **T003** [P1] 🖥️ (operator) Проверка SSH ✓ (Никита зашёл после фикса ключа;
+  root-логин отказан). Сервер чист: `AllowUsers`/`AllowGroups` пустые, путь к
+  ключам дефолтный.
+- [x] **T004** [P1] 🌐 (operator) Dokploy: инвайт Никите (admin) отправлен ссылкой —
+  SMTP в self-hosted не настроен, письма не идут; приём за Никитой.
+- [ ] **T005** [P1] 🖥️ (operator) Studio-смоук (туннель 8001) — не гоняли (опц.).
+- [ ] **T006** [P1] 🐧 (operator) Отзыв-смоук — не гоняли (опц.; процедура в
+  `server-access.md` §9).
+- [x] **CHECKPOINT US1** (для Лёша+Никита): рабочий шелл + sudo ✓; Dokploy —
+  инвайт отправлен (приём за ними). Сергей отказался. Studio/отзыв-смоук — опц., не
+  гоняли. US1 закрыт в рамках принятого scope.
 
 ---
 

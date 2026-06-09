@@ -52,6 +52,12 @@ Pro; (б) полагаемся на **роль БД**, а не на «режим
    таблицы); session-уровень `default_transaction_read_only = on`,
    `statement_timeout = 30s`. **Никаких** INSERT/UPDATE/DELETE/DDL-грантов.
 2. **SSH-туннель** с машины Андрея до Postgres на боксе (5432 закрыт наружу).
+   > Транспорт-опция (chat 88): у нас уже есть self-hosted MCP как **remote-URL**
+   > (`mcp.theloopers.org` — Google-доки). Postgres-MCP можно поднять так же
+   > (remote-URL) ВМЕСТО stdio+туннеля — но это **откроет путь к БД наружу** (за
+   > read-only-ролью + auth). По умолчанию выбираем **туннель** (порт БД остаётся
+   > закрыт); remote — только если осознанно нужен общий доступ. Google-MCP сам по
+   > себе для БД не переиспользуется — это другой сервер; держим рядом.
 3. **MCP-сервер**: **Postgres MCP Pro** (`crystaldba/postgres-mcp`,
    `--access-mode=restricted`) через docker (образ авто-ремапит `localhost` на
    хост на Win/Mac). Конфиг — в локальном MCP-файле клиента (Claude Desktop /

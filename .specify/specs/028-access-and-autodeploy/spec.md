@@ -2,8 +2,8 @@
 
 **Feature Branch**: `028-access-and-autodeploy`
 **Created**: 2026-06-07 (folded auto-deploy in + full Specify, chat 88)
-**Status**: US2 auto-deploy **shipped ✓** · US3 Telegram (MrBranches) **shipped ✓**
-(verified chat 88) · US1 access **awaiting SSH keys**
+**Status**: **CLOSED ✓ (chat 88)** — US2 auto-deploy **shipped** · US3 Telegram
+(MrBranches) **shipped** · US1 access **done for Лёша + Никита** (Сергей declined)
 **Input**: Operationalize the production box for the team. Two slices: (1) give
 trusted collaborators their own operational access to the box; (2) make pushes to
 `main` deploy themselves (Vercel-parity), instead of manual redeploys.
@@ -116,7 +116,8 @@ Telegram-чате появляются два сообщения с авторо
 
 - **FR-001**: У каждого коллаборатора MUST быть индивидуально атрибутируемая
   личность на боксе (не общие аккаунты) — ради аудита и независимого отзыва.
-- **FR-002**: Коллабораторы в scope: **Лёша, Никита, Сергей**.
+- **FR-002**: Коллабораторы в scope: **Лёша, Никита** (доступ выдан). ~~Сергей~~ —
+  **отказался** (chat 88), из scope убран.
 - **FR-003**: Система MUST позволять отозвать любого одного коллаборатора, не
   затронув остальных, за <5 минут.
 - **FR-004**: Root- и парольный вход MUST оставаться отключённым (по ключу,
