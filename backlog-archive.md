@@ -483,3 +483,133 @@ Statblock icon in participant-row and catalog-panel.
 - Flex-layout: grid+log | catalog panel
 
 ---
+
+
+---
+
+# Архивировано 2026-06-10 (chat 89, meta-refactor)
+
+> Записи с маркерами ✅ / PROMOTED / ЗАКРЫТ и закрытая серия
+> «Бухгалтерия 009–015», перенесены из backlog.md без изменений.
+
+## 📋 Активная серия: Бухгалтерия (specs 009-015)
+Большая фича, разбита на 7 независимых спецификаций. Source of truth
+для контекста, решений и ограничений:
+
+→ **`.specify/memory/bookkeeping-roadmap.md`**
+
+Каждая спека пишется в отдельном чате. Следующая на очереди —
+**spec-009 Loop progress bar + session packs**.
+
+---
+
+### IDEA-055 ✅ [P2] DM controls на encounter page (rename + delete)
+- **Сделано**: chat 50 (после spec-013 close-out).
+- `app/actions/encounter-meta.ts` — `renameEncounter` +
+  `deleteEncounter`, обе DM-only (admin client после membership
+  check). Валидация title (non-empty, ≤200), revalidate encounter
+  page + list + `/accounting` (autogen badge tooltips).
+- `components/encounter-controls.tsx` — pencil/trash icons.
+  Pencil → inline `<input>` (Enter save / Esc cancel). Trash →
+  `window.confirm` → `router.push('/encounters')`.
+- Монтируется на encounter page рядом с back-link, гейтится
+  `canEdit`. Players не видят кнопки.
+- Mirror-нода синкается автоматом через spec-013 trigger;
+  delete каскадит через FK + trigger. Никаких новых миграций.
+
+### TECH-014 [P2] Ref-mutation в render body — `hooks/use-form-draft.ts:82` ✅ зафикшен в chat 80
+- **Feature**: form draft autosave (chat 79).
+- `pendingRef.current = pendingDraft` стоит в теле компонента,
+  а не в effect/handler. Lint его ловит:
+  `react-hooks/refs Cannot update ref during render`.
+- Это повторение паттерна BUG-014 из ultrareview-1
+  (`roundRef.current = turns.round` в encounter-grid).
+- **Риск**: пропущенные re-renders на ввод длинного текста —
+  ref видит «новую» ссылку, но компонент не перезапускает
+  debounce-эффект так как deps этот ref не учитывают.
+- **Фикс**: завернуть присваивание в `useEffect(() => {
+  pendingRef.current = pendingDraft }, [pendingDraft])` —
+  как уже сделано на 195-й строке для `draftClearRef`
+  в `create-node-form.tsx`.
+
+### TECH-015 [P2] Миграция 029 хардкодит `slug='mat-ucheniya'` для electives ✅ зафикшен в chat 80
+- **Feature**: open-source / multi-campaign support.
+- `029_electives.sql` создаёт `node_type 'elective'` и
+  `edge_type 'has_elective'` только для `c.slug='mat-ucheniya'`.
+- `lib/seeds/dnd5e-srd.ts seedCampaignSrd` electives не сидит,
+  поэтому любая вторая кампания на этом инстансе не получит
+  факультативов — фича недоступна.
+- **Фикс**: новая миграция, пробегающая по всем кампаниям и
+  создающая elective node_type + has_elective edge_type
+  (`INSERT … FROM campaigns ON CONFLICT DO NOTHING`). Затем
+  добавить эти типы в `seedCampaignSrd` чтобы новые кампании
+  получали их при `initializeCampaignFromTemplate`.
+
+### TECH-016 [P2] Dead search infrastructure — `nodes.search_vector` ✅ зафикшен в chat 80 (Variant A)
+- **Feature**: cleanup / open-source unblock.
+- `nodes.search_vector tsvector` + GIN-индекс `idx_nodes_search`
+  + триггер `update_node_search_vector` обновляются на каждом
+  INSERT/UPDATE 1200+ нод, но **никем не запрашиваются**.
+- Реальный поиск каталога идёт через `.ilike('title', '%q%')`
+  в `app/c/[slug]/catalog/page.tsx:76` и `lib/items.ts:159`.
+  Никаких `to_tsquery`, `@@`, `textSearch` в коде нет.
+- Результат: триггер тратит CPU на каждом write впустую +
+  `to_tsvector('russian')` остаётся хардкодом локали (open-source
+  блокер из ultrareview-1).
+- **Фикс — два варианта**:
+  - **(A) дропнуть всю инфру**: одна миграция убирает колонку,
+    индекс, триггер, функцию. ~10 строк, риск ноль (никто не
+    читает). Проще всего, закрывает оба пункта.
+  - **(B) подключить FTS в реальный поиск**: переписать caталог
+    и items search на `websearch_to_tsquery('russian', q)`,
+    оставить триггер живым. Локаль-хардкод остаётся, но
+    отрабатывает.
+- Рекомендация: (A). Когда появится реальная потребность в FTS
+  (миллион нод, ranking) — спроектируем заново под нужный язык.
+
+### TECH-018 [P3] Dead components — 6 файлов, ~470 строк ✅ зафикшен в chat 80
+- **Feature**: cleanup.
+- Никаких импортов, никаких упоминаний в коде:
+  - `components/category-dropdown.tsx` (103 строки)
+  - `components/inventory-grid.tsx` (68) — заменён на
+    `inventory-tab.tsx` в spec-015
+  - `components/inventory-grid-row.tsx` — импортируется только
+    из `inventory-grid.tsx` → транзитивно мёртв
+  - `components/search-input.tsx` (32)
+  - `components/type-filter.tsx` (42)
+  - `components/encounter/row-actions-menu.tsx` (99)
+- **Фикс**: удалить файлы + поправить устаревший абзац в `NEXT.md`
+  про «Forward-compat с spec-015: `InventoryGrid` параметризуется
+  `keyFn`».
+
+### TECH-019 [P3] TypeScript ошибки в 5 тестовых файлах ✅ зафикшен в chat 80
+- **Feature**: dev hygiene.
+- `npx tsc --noEmit` падает с 5 ошибками — все в `lib/__tests__/`.
+  Прод-типы ушли вперёд, тесты не обновили:
+  - `requiresAttunement` стал non-optional в `ItemNode`
+  - `useDefaultPrice` удалён из `ItemPayload`
+  - `actorPcId` стал non-nullable в `DesiredRow`
+  - `CoinSet` не экспортируется из `starter-setup.ts`
+- Vercel-build (Next.js + SWC) это не ловит, поэтому в проде
+  зелено, локально красно. Vitest 410/410 runtime-passes.
+- **Фикс**: пройти 5 тест-файлов и обновить типы в фикстурах.
+
+### TECH-020 [P3] Lint warning — unused `bookKey` ✅ зафикшен в chat 80
+- `scripts/items-dndsu-codegen.ts:314`. Снять переменную или
+  префиксом `_bookKey` обозначить как намеренно неиспользуемую.
+
+### Что выжило с прошлого ultrareview ✅
+- Хардкод имени кампании → `branding.ts` через env-vars.
+- DEBT-003 SRD seed → универсальный `seedCampaignSrd` (миграции
+  003/005/022 остались с `WHERE slug='mat-ucheniya'`, но новые
+  кампании получают данные через сидер из `lib/seeds/dnd5e-srd.ts`).
+- Дубли миграций 008 → 008a/008b.
+- `cache()` на auth/campaign/membership — на месте.
+- `Promise.all` + merged edges query на странице ноды — на месте.
+- Sidebar invalidation contract — соблюдается во всех server
+  actions, мутирующих `nodes`.
+- `canEditNode` ↔ RLS `can_edit_node` v2 — синхронны.
+- `react-hooks/set-state-in-effect` — 0 случаев (было 7).
+- 29/29 таблиц с RLS, 29/29 с хотя бы одной policy.
+
+---
