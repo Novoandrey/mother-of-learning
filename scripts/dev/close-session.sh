@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # scripts/dev/close-session.sh <short-slug> — скаффолд закрытия сессии.
+export TZ=Europe/Paris  # session dates follow Andrey, not UTC
 # Вычисляет следующий номер чата, создаёт chatlog-файл по шаблону из
 # chatlog/README.md и печатает чеклист закрытия.
 set -euo pipefail

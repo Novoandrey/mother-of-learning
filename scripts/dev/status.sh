@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # scripts/dev/status.sh — boot-статус проекта + meta-lint.
+export TZ=Europe/Paris  # session dates follow Andrey, not UTC
 #
 # Запускается первым делом в каждой сессии (после clone). Печатает:
 # версию, дедлайны, активную работу, таблицу статусов всех спек,

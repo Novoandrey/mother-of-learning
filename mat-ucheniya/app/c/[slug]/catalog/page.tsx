@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { getCampaignBySlug } from '@/lib/campaign'
+import { getSidebarData } from '@/lib/sidebar-cache'
 import { notFound, redirect } from 'next/navigation'
 import { NodeList } from '@/components/node-list'
 import type { Metadata } from 'next'
@@ -107,22 +108,19 @@ export default async function CatalogPage({
     ? `Поиск: «${q}»`
     : null
 
-  // Count nodes per type for the home view
+  // Count nodes per type for the home view — reuse the sidebar's cached,
+  // pagination-looped dataset so the cards and the sidebar share one
+  // source of truth and can never disagree. The previous inline fetch
+  // relied on .range(0, 9999), but PostgREST clamps every response to
+  // db_max_rows (1000) server-side, so past ~1000 nodes the per-type
+  // counts were computed from a truncated sample (BUG-019: cards showed
+  // 680 items vs the sidebar's correct 1118). The layout has already
+  // warmed this cache entry, so this costs no extra query.
   const typeCounts: Record<string, number> = {}
-  if (!isSearching && nodeTypes) {
-    // .range(0, 9999) bypasses Supabase's default 1000-row cap; with
-    // ~1100+ items in mat-ucheniya post-spec-018 the sidebar count
-    // would otherwise be silently truncated to whatever the first
-    // 1000 nodes happen to be (alphabetical, so item count drops).
-    const { data: allNodes } = await supabase
-      .from('nodes')
-      .select('type_id')
-      .eq('campaign_id', campaign.id)
-      .range(0, 9999)
-    if (allNodes) {
-      for (const n of allNodes) {
-        typeCounts[n.type_id] = (typeCounts[n.type_id] || 0) + 1
-      }
+  if (!isSearching) {
+    const sidebar = await getSidebarData(campaign.id)
+    for (const n of sidebar.nodes) {
+      typeCounts[n.type_slug] = (typeCounts[n.type_slug] || 0) + 1
     }
   }
 
@@ -174,7 +172,7 @@ export default async function CatalogPage({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(nodeTypes || []).map((t) => {
-            const cnt = typeCounts[t.id] || 0
+            const cnt = typeCounts[t.slug] || 0
             if (cnt === 0) return null
             return (
               <a
