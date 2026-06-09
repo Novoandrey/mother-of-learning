@@ -2,7 +2,7 @@
 
 **Feature Branch**: `029-claude-db-mcp`
 **Created**: 2026-06-07
-**Status**: Executing (operator) — Phase 0–2: role + password
+**Status**: Executing (operator) — Phase 4 smoke; ждёт ALTER ROLE BYPASSRLS
 **Depends on**: spec-027 cutover (self-hosted Postgres is the live prod DB on the box).
 
 > Mini-spec. Goal: give **Claude** (Claude Code / Desktop on Andrey's machine)
@@ -47,7 +47,10 @@ Pro; (б) полагаемся на **роль БД**, а не на «режим
 ## Scope (что входит)
 
 1. **Роль `claude_ro`** (SQL — `sql/001-claude-ro-role.sql`):
-   `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`; `CONNECT` к БД;
+   `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE BYPASSRLS`; `CONNECT` к БД;
+   (**BYPASSRLS обязателен** — выяснено при исполнении: все public-таблицы под
+   RLS с политиками только для supabase-ролей, без bypass роль молча видит
+   0 строк; read-only граница — гранты + read-only транзакции, не RLS);
    `USAGE` + `SELECT` на схему **`public`** (+ default privileges на будущие
    таблицы); session-уровень `default_transaction_read_only = on`,
    `statement_timeout = 30s`. **Никаких** INSERT/UPDATE/DELETE/DDL-грантов.

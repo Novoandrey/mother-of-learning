@@ -15,15 +15,21 @@
 
 BEGIN;
 
--- 1. Role: can log in, but nothing privileged. NOBYPASSRLS so it can never
---    sidestep row-level security either.
+-- 1. Role: can log in, but nothing privileged. BYPASSRLS is REQUIRED here:
+--    every public table has RLS with policies written for Supabase roles
+--    (authenticated/anon) only, so without bypass claude_ro silently reads
+--    0 rows everywhere (verified live, chat 90). Read-only safety comes from
+--    grants + default_transaction_read_only, NOT from RLS; the auth/storage
+--    schemas stay ungranted, so PII remains invisible regardless.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'claude_ro') THEN
-    CREATE ROLE claude_ro WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    CREATE ROLE claude_ro WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE BYPASSRLS;
   END IF;
 END
 $$;
+-- Idempotent upgrade for a role created by the earlier (NOBYPASSRLS) revision:
+ALTER ROLE claude_ro WITH BYPASSRLS;
 
 -- 2. Read access to the application schema only.
 --    'auth', 'storage', etc. are intentionally NOT granted: auth.users holds
@@ -79,6 +85,8 @@ FROM (VALUES
              JOIN pg_roles r ON r.oid = s.setrole
              WHERE r.rolname = 'claude_ro'
                AND s.setconfig::text LIKE '%default_transaction_read_only=on%')),
+  ('BYPASSRLS (иначе RLS прячет все строки)',
+     (SELECT rolbypassrls FROM pg_roles WHERE rolname = 'claude_ro')),
   ('statement_timeout 30s',
      EXISTS (SELECT 1 FROM pg_db_role_setting s
              JOIN pg_roles r ON r.oid = s.setrole
