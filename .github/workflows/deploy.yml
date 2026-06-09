@@ -7,11 +7,14 @@ name: Deploy to prod (gate + Dokploy)
 on:
   push:
     branches: [main]
-    # Doc-only changes don't rebuild prod (specs/chatlogs/markdown).
+    # Doc-only changes don't rebuild prod (specs/chatlogs/markdown/meta-tools).
     paths-ignore:
       - '**/*.md'
       - '.specify/**'
       - 'chatlog/**'
+      - 'scripts/dev/**'
+      - 'infra/**'
+      - 'meta/**'
 
 # Least privilege: this workflow only checks out code and calls an external API.
 permissions:
