@@ -4,7 +4,7 @@
 > (включая `chatlog/_legacy-NEXT-archive.md` — полные тексты прежних NEXT).
 > Протокол старта сессии: `bash scripts/dev/status.sh` → этот файл →
 > `tasks.md` активной спеки. Лимит файла: 150 строк / 10 KB (следит status.sh).
-> Last updated: 2026-06-10 (chat 91 — spec-022 Specify v2: чарлист+кубы)
+> Last updated: 2026-06-10 (chat 91 — Specify v2 + communication rules + cleanup; следующий чат: вердикт по пивоту → Clarify)
 
 ## Прод
 
