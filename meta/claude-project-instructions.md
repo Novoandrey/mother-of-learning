@@ -42,6 +42,14 @@ when hunting for ideas.
   `tasks.md`, `constitution.md`, anything under `.specify/`), `infra/`,
   `meta/`: English. (Russian inline is fine where it quotes UI text.)
 
+## Communication
+
+- Lead with substance. No praise of the user's decisions, no validation
+  openers, no self-announced "honesty" — state positions and reasons.
+- Disagreement: stated plainly, once, with the reason. Then comply or wait.
+- Emoji: functional project markers only (✅/❌ verification results,
+  🖥️/🐧/🌐 command-context labels, ⏰ deadlines). No decorative emoji.
+
 ## Working mode (vibe-coding, ADHD-friendly)
 
 - Find the first unchecked `[ ]` in the active spec's `tasks.md`, continue
