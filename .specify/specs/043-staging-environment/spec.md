@@ -38,7 +38,9 @@ accumulate experiments that were tested but consciously not shipped, abandoned
 half-features, and merge artifacts. Merging `staging → main` would ship all of
 that in a bundle. Rules:
 
-- Merge `feature → staging` to test; merge `feature → main` to ship.
+- Merge `feature → staging` to test; ship by merging `feature → main` **via a
+  Pull Request** (Clarify Q3 — direct merges to `main` are retired for feature
+  work).
 - `staging` may be **reset to `main`** by anyone at any time (it is never the
   source of truth for anything). A broken staging is cheap by design — that is
   what it is for; the thing being protected is `main`/prod.
@@ -113,7 +115,7 @@ environment.
 ### User Story 4 — Team workflow documented (Priority: P2)
 
 Any of the 3 developers can run the full loop — branch → merge to `staging` →
-test → merge feature to `main` → (optionally) reset `staging` — using only a
+test → PR the feature into `main` → (optionally) reset `staging` — using only a
 written doc, without asking Andrey.
 
 **Acceptance Scenarios**:
@@ -127,11 +129,11 @@ written doc, without asking Andrey.
 ### Edge Cases
 
 - **Schema drift**: a migration applied to prod but not staging (or vice
-  versa). Mitigation: the migration rule (Clarify Q5) + refresh runbook as the
-  reset-to-known-good hammer.
+  versa). Expected and tolerated (Q5): the refresh command re-snapshots
+  staging from prod — drift never outlives the next refresh.
 - **Free-tier pause**: Supabase pauses free projects after ~1 week of
-  inactivity; staging may be asleep when someone finally needs it. Handling
-  decided in Clarify Q6.
+  inactivity; staging may be asleep when someone finally needs it. Handled by
+  the FR-010 keep-alive (Q6: every 5 days; threshold ~7).
 - **Free-tier row clamp**: cloud PostgREST enforces `db_max_rows` (default
   1000); the app already paginates after the spec-018 lesson — verify on
   staging data volume, raise the project setting if needed.
@@ -149,10 +151,13 @@ written doc, without asking Andrey.
 - **FR-001**: A dedicated Supabase Cloud (free tier) project serves as the
   staging database; no app path from staging to the prod DB exists (different
   URL + keys; prod DSN absent from staging config).
-- **FR-002**: Staging `public` schema matches prod at provisioning time; a
-  documented manual refresh procedure restores schema+data parity on demand.
-- **FR-003**: Staging data includes working accounts for the 3 developers and
-  a realistic dataset (composition per Clarify Q1).
+- **FR-002**: Staging `public` schema matches prod at provisioning time;
+  thereafter parity is restored by a **single documented on-demand command**
+  that copies prod → staging (schema + data). No scheduled sync. Tooling for
+  the reverse direction (staging → prod) must not exist.
+- **FR-003**: Staging data is a full logical copy of prod (`public` +
+  `auth`, Q1) — developers log in with their prod passwords; PII trade-off
+  accepted and documented.
 - **FR-004**: A second Dokploy app serves the same codebase at
   `staging.theloopers.org` over HTTPS, configured via env only (no code
   branches per environment).
@@ -161,9 +166,19 @@ written doc, without asking Andrey.
   pipeline in either direction.
 - **FR-006**: The `staging` branch is documented as disposable: anyone may
   reset it to `main`; shipping to `main` happens only via feature branches.
-- **FR-007**: The team workflow (branch, test, ship, reset, migration rule) is
-  written down and referenced from the project's canon docs.
-- **FR-008**: Telegram visibility of staging deploys per Clarify Q4.
+- **FR-007**: The team workflow (branch, test via staging, ship via PR,
+  reset, refresh, migration practice) is written down and referenced from the
+  project's canon docs.
+- **FR-008**: No new notification work (Q4): repo-wide PR opened/closed
+  Telegram notifications already cover the new flow; pushes to `staging` stay
+  deliberately silent (spec-028 design); deploy events stay silent on both
+  environments (parity with prod today).
+- **FR-009**: Changes ship to `main` only via Pull Requests (Q3); the quality
+  gate (lint + tsc + vitest) runs on every PR targeting `main`, so a red gate
+  is visible before merge. Enforcement mechanics (GitHub rulesets — available,
+  repo is public) and the bot/meta-commit exception are settled by Q7 + Plan.
+- **FR-010**: The staging database receives an automated keep-alive touch at
+  least every 5 days, preventing free-tier auto-pause (Q6).
 
 ### Key Entities
 
@@ -181,8 +196,8 @@ written doc, without asking Andrey.
 - **SC-002**: A destructive write on staging (e.g., deleting a node) leaves
   prod data byte-identical (spot-checked via prod read path).
 - **SC-003**: A developer other than Andrey completes the full loop (feature
-  branch → staging merge → manual test with own staging login → feature merge
-  to `main`) using only the workflow doc.
+  branch → staging merge → manual test with own staging login → PR of the
+  feature into `main`) using only the workflow doc.
 - **SC-004**: Resetting `staging` to `main` takes ≤2 documented commands and
   leaves the staging app deployable.
 - **SC-005**: A broken staging (red gate or broken app) does not delay or
@@ -200,6 +215,9 @@ written doc, without asking Andrey.
   staging environment of this project's size (~1600 nodes).
 - No storage parity needed: the app does not use object storage yet (R2 enters
   with spec-030 Portraits; staging storage story joins then).
+- The GitHub repo is **public** (verified 2026-06-11) → branch
+  protection / rulesets are available on the free plan if Q7 lands on
+  enforcement.
 - Cloud Supabase ≠ self-hosted in infra details (Kong/Traefik, GoTrue env,
   Studio access). Accepted: staging validates **app + schema changes**, not
   self-hosted infra changes — those keep their own runbooks/rehearsals.
@@ -211,8 +229,9 @@ written doc, without asking Andrey.
 - Anonymization pipeline for copied data (decision about *whether* to copy
   PII at all is Clarify Q1; building sanitization tooling is not in scope).
 - Staging for self-hosted infra changes (Supabase stack upgrades etc.).
-- Branch protection rules / required PR reviews on `main` (revisit separately
-  once staging exists — noted in memory as gated on this spec).
+- Required PR approvals / review policies (the PR flow itself is **in**
+  scope per Q3; whether and how to enforce it with rulesets is a Plan
+  decision).
 - Monitoring/alerting for staging.
 
 ## Clarifications
@@ -224,42 +243,50 @@ written doc, without asking Andrey.
 - Flow: feature branch → staging (test) → main (ship). Databases differ.
 - 3 developers, all with box admin + repo access — no new access work needed.
 
-### Open questions (queue for Clarify phase)
+### Session 2026-06-11 (chat 94)
 
-- **Q0 — Reuse the old managed project?** spec-027 **T025** (deadline window
-  2026-06-14..21) says "погасить managed Supabase". Option A: instead of
-  deleting, **downgrade it to free tier and repurpose as the staging project**
-  (one less project to create; T025 closes as "downgraded + repurposed"; its
-  stale pre-cutover data gets wiped on first refresh). Option B: delete per
-  plan, create a fresh free project. Lean: **A**, after confirming the org's
-  free-project quota and that nobody still wants the pre-cutover snapshot
-  (backups + passed restore drill say no).
-- **Q1 — Staging data composition.** (A) Full logical copy of prod (`public`
-  + `auth`): realistic data, devs log in with their prod passwords; accepts
-  that player emails/password hashes live in a cloud free project (IDEA-066
-  flagged this PII). (B) Schema + curated seed: 3 dev accounts + fixture
-  campaign; no PII, but `user_id`-linked features need fixture wiring. Lean:
-  **A** with documented PII acceptance — the point is testing on real-shaped
-  data.
-- **Q2 — Staging reset policy.** Anyone resets anytime (recommended), or
-  Andrey-only? Force-push to `staging` must stay allowed for the team either
-  way.
-- **Q3 — `main` merge mechanics.** Plain `git merge feature` push (current
-  habit) vs introduce PRs now that there is a pre-merge sandbox. Lean: keep
-  direct merges; PR/branch-protection is its own later conversation.
-- **Q4 — Telegram.** Notify staging deploys to the forum topic (same thread /
-  separate thread / not at all)? Lean: same thread, distinct prefix.
-- **Q5 — Migration rule.** "Every new SQL migration is applied to staging
-  first, then prod" as a hard rule (staging doubles as migration rehearsal) vs
-  best-effort. Lean: hard rule — it is cheap and catches the scariest class of
-  mistakes.
-- **Q6 — Free-tier pause handling.** Accept manual unpause when it happens vs
-  add a weekly keep-alive ping. Lean: accept manual; active development keeps
-  it awake anyway.
+- **Q0 — Reuse the managed project**: **yes.** Downgrade the old managed
+  Supabase project to free tier and repurpose it as staging instead of
+  deleting it. spec-027 **T025** changes meaning for the Supabase half:
+  "decommission" → "downgrade + wipe + repurpose" (the Vercel half of T025 is
+  unchanged). Its stale pre-cutover data is overwritten by the first refresh.
+- **Q1 — Staging data**: **full logical copy of prod** (`public` + `auth`).
+  Developers log in with their prod passwords. PII trade-off (player emails +
+  password hashes in a cloud free project) explicitly accepted.
+- **Q2 — Reset policy**: anyone resets `staging` to `main` at any time.
+- **Q3 — Shipping to `main`**: **Pull Requests only** — team-wide workflow
+  change, replaces direct merges. Gate must run on PRs (→ FR-009). Scope for
+  bot/meta commits → Q7.
+- **Q4 — Telegram**: resolved by inspection, no new work (→ FR-008). PR
+  opened/closed pings are repo-wide and cover the new flow automatically;
+  `staging` pushes are deliberately silent (spec-028); deploy events are
+  silent on prod today and stay silent on staging (parity).
+- **Q5 — Migrations & data model** (Claude's proposal, accepted direction per
+  "подумай"): staging DB is an **on-demand snapshot of prod** — one command
+  copies prod → staging, and that is the *only* direction that exists (no
+  reverse tooling, ever). No hard "staging-first" migration rule: a feature's
+  migration is applied to staging manually when testing that feature needs
+  it; drift self-heals at the next refresh; prod migration flow unchanged.
+- **Q6 — Free-tier pause**: automated keep-alive every **5 days** (pause
+  threshold ~7 days of inactivity; mechanics → Plan).
+
+### Open questions (remaining)
+
+- **Q7 — Does PR-only (Q3) apply to Claude/meta commits?** Commits made by
+  Claude in working sessions: spec artifacts, chatlog, `NEXT.md` — and code.
+  Options: (a) everything via PR — Claude pushes a branch and opens the PR
+  via API, Andrey merges (bot PAT needs `pull-requests: write`; verify at
+  Implement); (b) **code via PR, meta/doc commits direct to `main`** — doc
+  paths don't trigger deploys anyway (`paths-ignore` in deploy.yml); (c)
+  convention only, nothing enforced. Claude's lean: **(b)** — a PR ceremony
+  per chatlog commit is pure friction, while code PRs give the team a
+  visible diff, a Telegram ping, and a pre-merge gate.
 
 ## Review & Acceptance checklist
 
 - [ ] All FRs map to at least one acceptance scenario.
-- [ ] Clarify Q0–Q6 answered; spec updated; Status → `Clarified — awaiting Plan`.
+- [x] Clarify Q0–Q6 answered (2026-06-11); spec updated.
+- [ ] Q7 (PR scope for bot/meta commits) answered; Status → `Clarified —
+  awaiting Plan`.
 - [ ] No tech-stack mechanics beyond the user-fixed decisions (Plan owns HOW).
 - [ ] T025 (spec-027) outcome reconciled with Q0 decision.
