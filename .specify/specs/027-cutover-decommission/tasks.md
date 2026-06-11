@@ -197,8 +197,10 @@
       _(files: runbook + `NEXT.md` + `chatlog/*`; Phase L / close-out, US6#5)_
 - [ ] **T025** 🧑 **Отложенный тик (~1–2 нед после cutover):** по
       `decommission-checklist.md` убедиться, что self-hosted стабилен + свежий
-      бэкап есть → **погасить managed-проект**. Не в сессии cutover'а.
-      _(Phase L, US6#3/#4 — deferred)_
+      бэкап есть → **Vercel погасить; managed Supabase НЕ удалять** —
+      даунгрейд до free и передача проекта под staging-БД (spec-043, Q0).
+      Не в сессии cutover'а. _(Phase L, US6#3/#4 — deferred; судьба managed
+      пересмотрена 2026-06-11, spec-043)_
 - [x] **CHECKPOINT L** — эпик «Своя инфра» закрыт; приложение целиком на
       собственном боксе + self-hosted; `NEXT.md` отражает новый прод.
       _(managed гасится в T025 после грейса.)_

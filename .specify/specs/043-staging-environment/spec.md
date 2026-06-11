@@ -2,7 +2,7 @@
 
 **Feature Branch**: `043-staging-environment`
 **Created**: 2026-06-11
-**Status**: Specify draft — awaiting Clarify
+**Status**: Clarified — awaiting Plan (chat 94)
 **Origin**: IDEA-066 [P2] (backlog) — "Тест обновлений до мержа в main", deferred in chat 88.
 **Depends on**: spec-023 (box + Dokploy), spec-027 (cutover; prod is self-hosted),
 spec-028 (CI gate + Dokploy auto-deploy pattern).
@@ -179,6 +179,14 @@ written doc, without asking Andrey.
   repo is public) and the bot/meta-commit exception are settled by Q7 + Plan.
 - **FR-010**: The staging database receives an automated keep-alive touch at
   least every 5 days, preventing free-tier auto-pause (Q6).
+- **FR-011**: `meta/claude-project-instructions.md` reflects the new shipping
+  flow (Q7: code via PR, meta/doc commits direct to `main`) and is
+  **teammate-universal**: `<GITHUB_USERNAME>` / `<GITHUB_PAT>` placeholders
+  plus a minimal token-setup note (fine-grained PAT: Contents + Pull
+  requests, read/write), so Никита and Лёша only substitute their token.
+  Andrey re-syncs the Claude-project-settings copies. The flip happens at
+  Implement, together with the flow going live — instructions must not
+  describe a process that does not exist yet.
 
 ### Key Entities
 
@@ -188,6 +196,8 @@ written doc, without asking Andrey.
 - **Staging deploy workflow** — `.github/workflows/deploy-staging.yml`.
 - **Refresh runbook** — prod → staging schema/data re-sync procedure.
 - **Workflow doc** — the team-facing "how we ship" page.
+- **Universal instructions file** — teammate-ready Claude project
+  instructions (username/token placeholders only).
 
 ## Success Criteria *(mandatory)*
 
@@ -270,23 +280,22 @@ written doc, without asking Andrey.
 - **Q6 — Free-tier pause**: automated keep-alive every **5 days** (pause
   threshold ~7 days of inactivity; mechanics → Plan).
 
-### Open questions (remaining)
+### Session 2026-06-11 (chat 94) — continued
 
-- **Q7 — Does PR-only (Q3) apply to Claude/meta commits?** Commits made by
-  Claude in working sessions: spec artifacts, chatlog, `NEXT.md` — and code.
-  Options: (a) everything via PR — Claude pushes a branch and opens the PR
-  via API, Andrey merges (bot PAT needs `pull-requests: write`; verify at
-  Implement); (b) **code via PR, meta/doc commits direct to `main`** — doc
-  paths don't trigger deploys anyway (`paths-ignore` in deploy.yml); (c)
-  convention only, nothing enforced. Claude's lean: **(b)** — a PR ceremony
-  per chatlog commit is pure friction, while code PRs give the team a
-  visible diff, a Telegram ping, and a pre-merge gate.
+- **Q7 — PR scope for Claude/meta commits**: **(b).** Code ships via PR —
+  Claude pushes a branch, opens the PR, the human merges. Meta/doc commits
+  (specs, chatlog, `NEXT.md`, backlog, `infra/`, `meta/`) keep going direct
+  to `main`. Follow-on deliverables folded into US4 / FR-011: canon
+  instructions updated to the new flow and made teammate-universal for
+  Никита and Лёша.
 
 ## Review & Acceptance checklist
 
 - [ ] All FRs map to at least one acceptance scenario.
 - [x] Clarify Q0–Q6 answered (2026-06-11); spec updated.
-- [ ] Q7 (PR scope for bot/meta commits) answered; Status → `Clarified —
+- [x] Q7 answered: (b) — code via PR, meta direct; Status → `Clarified —
   awaiting Plan`.
 - [ ] No tech-stack mechanics beyond the user-fixed decisions (Plan owns HOW).
-- [ ] T025 (spec-027) outcome reconciled with Q0 decision.
+- [x] T025 (spec-027) reconciled with Q0 (2026-06-11): T025 +
+  decommission-checklist + NEXT.md deadline reworded — managed project and
+  the old staging app/DNS must NOT be deleted; they are reused by this spec.
