@@ -4,24 +4,25 @@
 > (включая `chatlog/_legacy-NEXT-archive.md` — полные тексты прежних NEXT).
 > Протокол старта сессии: `bash scripts/dev/status.sh` → этот файл →
 > `tasks.md` активной спеки. Лимит файла: 150 строк / 10 KB (следит status.sh).
-> Last updated: 2026-06-10 (chat 93 — design.md v1 RU + ПИВОТ на эпик RPG-движка; следующий шаг: выделить спеки эпика)
+> Last updated: 2026-06-12 (chat 94 — spec-043 Done: staging live + PR-only `main`; хвосты T017/T018 у команды)
 
 ## Прод
 
 - **v1.0.0** — https://theloopers.org (Hetzner CPX32 Helsinki, Dokploy,
   self-hosted Supabase; API `db.theloopers.org`, Studio только SSH-туннель,
   5432 закрыт наружу).
-- Деплой: push в `main` → CI gate (lint + tsc + vitest) → Dokploy строит
-  образ на боксе. Telegram-бот MrBranches шлёт ветки/PR в форум-топик.
+- Деплой: **PR в `main`** (ruleset, гейт бежит и на PR) → merge → CI gate →
+  Dokploy строит образ на боксе. Telegram-бот MrBranches шлёт ветки/PR.
+- Staging: ветка `staging` → https://staging.theloopers.org, облачная
+  Supabase-копия прода (refresh/reset/секреты — `infra/staging-runbook.md`).
 - Бэкапы: R2, ночной cron 03:00 UTC, ротация 30 daily / 28 weekly;
   restore drill пройден на реальных данных — stop→healthy ~20 с (2026-06-07).
 - Доступ к боксу: Andrey + Лёша + Никита (full-ops; `infra/server-access.md`).
 
 ## Дедлайны
 
-- 2026-06-14 — spec-027 **T025**: Vercel погасить; managed Supabase —
-  **даунгрейд до free → staging-БД** (spec-043 Q0). Грейс с 2026-06-07,
-  окно до 2026-06-21.
+- 2026-06-14 — spec-027 **T025**: Vercel погасить (Supabase-половина закрыта:
+  даунгрейд → staging-БД, spec-043). Окно до 2026-06-21.
 
 ## Активная работа
 
@@ -90,12 +91,13 @@
 | 023–027 | Инфра-эпик: бокс, self-hosted Supabase, бэкапы+drill, миграция, cutover |
 | 028 | Доступ команде + авто-деплой (CI gate → Dokploy) + Telegram-бот |
 | 029 | Read-only Postgres MCP: Claude видит БД из Desktop (туннель = выключатель) |
+| 043 | Staging: облачная staging-БД + staging.theloopers.org + PR-only `main` |
 
 ## Хвосты (не блокеры)
 
 Помечены `(tail)` в tasks.md своих спек: 012 autogen-badge UI (T036–T039),
 013/014/015/017 manual walkthroughs, 018 DDHC source name, pagination cap
-10k нод (~1600 сейчас). Поднимать по запросу, не по умолчанию.
+10k нод (~1600 сейчас), 043 T017/T018 (цикл тиммейтом + раздача инструкций). Поднимать по запросу, не по умолчанию.
 
 ## Правила
 

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `043-staging-environment`
 **Created**: 2026-06-11
-**Status**: Implement (next: T007 operator batch)
+**Status**: Done — staging live (tail: T017 SC-003 run, T018 раздача инструкций)
 **Origin**: IDEA-066 [P2] (backlog) — "Тест обновлений до мержа в main", deferred in chat 88.
 **Depends on**: spec-023 (box + Dokploy), spec-027 (cutover; prod is self-hosted),
 spec-028 (CI gate + Dokploy auto-deploy pattern).
@@ -291,7 +291,7 @@ written doc, without asking Andrey.
 
 ## Review & Acceptance checklist
 
-- [ ] All FRs map to at least one acceptance scenario.
+- [x] All FRs map to at least one acceptance scenario.
 - [x] Clarify Q0–Q6 answered (2026-06-11); spec updated.
 - [x] Q7 answered: (b) — code via PR, meta direct; Status → `Clarified —
   awaiting Plan`.
