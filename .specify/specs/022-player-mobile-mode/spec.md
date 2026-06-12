@@ -1,8 +1,8 @@
 # Feature Specification: Player Mobile Mode — живой чарлист + кубы (PWA)
 
 **Feature Branch**: `022-player-mobile-mode`
-**Created**: 2026-06-02 · **Re-scoped (v2)**: 2026-06-10
-**Status**: Clarified — awaiting Plan
+**Created**: 2026-06-02 · **Re-scoped (v2)**: 2026-06-10 · **Pivot to v3 announced**: 2026-06-10 (chat 93)
+**Status**: Specify draft — awaiting Clarify (v3 pivot: RPG-engine architecture — effect pipeline, per-level modules, node forking; v2 text below is superseded as data-model, survives as UX scope; см. chatlog chat 93 и design.md)
 **Input v1**: «переносить фичи денег, предметов, чарники и трекер на мобилку,
 как есть, отдельной PWA».
 **Input v2 (chat 91)**: «пора делать мобильную версию на основе того, как
