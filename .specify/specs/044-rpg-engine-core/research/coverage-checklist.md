@@ -53,7 +53,8 @@ Seed rows below validate the format — replace during the first audit pass.
 | Property | Where | Class | Targets/ops | Notes |
 |---|---|---|---|---|
 | Chronal Shift ✓✓✓✓✓ | paper, resources | resource | max 5, recharge TBD | seed example |
-| Спас-DC 18 (ручной) | paper, header | layer-0 | override ✎ | sheet ƒ = 17; FR-008 case |
+| Спас-DC 18 (ручной) | paper, header | layer-0 | override ✎ («ручная правка») | sheet ƒ = 17; FR-008 case |
+| Мана NN/NN | paper, resources | resource (pool) | recharge Д; max → 049 | мана-система R12; таблица уровень→мана — подтвердить |
 | _TODO: full pass_ | | | | |
 
 ### Каэл

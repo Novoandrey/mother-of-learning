@@ -261,6 +261,8 @@ breakdown.
 - **FR-002**: Template/instance split: the node holds the shared definition
   (text, effects, resource max + recharge, canon flag); a PC↔module
   attachment holds per-PC state: level acquired, source label,
+  `granted_via` (direct granter, when the module arrived through a grants
+  chain — dnd5e needed both a direct and a root origin; decided D-8),
   `uses_remaining`, instance overrides, display order. Multiple attachments
   of one template to one PC are allowed and independent.
 - **FR-003**: Free-text sheet properties are full module nodes (decided
@@ -280,7 +282,11 @@ breakdown.
   chat 95). Server actions enforce this.
 - **FR-005**: Fork fields reserved now: `forked_from` provenance on nodes;
   fork semantics = full copy, upstream changes not propagated (decided
-  chat 95). Fork UX is spec-046.
+  chat 95). Default fork depth (D-9): node fields are copied; outgoing
+  `grants` edges are copied as references (the fork grants the same
+  modules), overridable at fork time. Fork UX is spec-046.
+- **FR-026**: Deleting a module node with live attachments is refused
+  («отвяжи или архивируй») — D-10; canon nodes are never deleted (R4).
 
 ### Layer-0 derivation
 
@@ -301,20 +307,33 @@ breakdown.
 
 ### Effect pipeline
 
-- **FR-010**: Effect schema v1:
-  `{ target: key, op: "add" | "set" | "override" | "mult", value: number }`.
-  Reserved P2 keys: `when`, `duration`; op `advantage`. P1 validates the
-  full schema; effects carrying P2 keys are stored and surfaced as text,
-  excluded from the numeric fold [C-03].
+- **FR-010**: Effect schema v1 (value effects):
+  `{ target: value-key, op: "add" | "set" | "override" | "mult", value: number }`.
+  Reserved P2 ops on value-targets: `upgrade` (apply only if higher) and
+  `downgrade` (apply only if lower) — Headband-of-Intellect class of items
+  (D-3A). Roll effects are a separate shape on roll-targets (D-4A):
+  `{ target: "roll.*", op: "advantage" | "disadvantage" | "add", value?: die|number }`.
+  Reserved P2 keys on both: `when`, `duration`. P1 validates all of the
+  above; anything P2 is stored and surfaced as text, excluded from the
+  numeric fold [C-03].
 - **FR-011**: Target dictionary: a fixed, documented system-level registry
-  of keys (`stat.*`, `save.*`, `skill.*`, `ac`, `initiative`, `speed`,
-  `attack`, `spell_dc`, `hp_max`, `passive_perception`, …) — final list fed
-  by the coverage checklist during Clarify/Plan. Unknown targets fail
-  validation loudly.
-- **FR-012**: Deterministic, documented fold order:
-  (1) effects targeting base inputs → (2) layer-0 derivation →
+  in two namespaces (D-4A): **value-targets** (`stat.*`, `save.*`,
+  `skill.*`, `ac`, `initiative`, `speed`, `attack`, `spell_dc`, `hp_max`,
+  `passive_perception`, …) and **roll-targets** (`roll.skill.*`,
+  `roll.save.*`, `roll.attack`, …). Reserved cross-module syntax (D-5):
+  `resource.<slug>.max` — defined now, activated by the ratchet (FR-014).
+  Final lists fed by the coverage checklist during Clarify/Plan. Unknown
+  targets fail validation loudly.
+- **FR-012**: Deterministic, documented fold order (decided chat 95,
+  D-1A/D-2A): (1) effects targeting base inputs → (2) layer-0 derivation →
   (3) effects targeting derived values with op precedence
-  `set → add → mult → override` → (4) manual ✎ override, absolute [C-01].
+  `set → add → mult → [upgrade/downgrade, P2] → override` → (4) manual ✎
+  («ручная правка»), absolute. add→mult chosen consciously against
+  Foundry's mult→add: «скорость удваивается» doubles the bonused value
+  ((30+10)×2=80). Integer floor once, at the end. **Within one op:
+  attachment-timestamp order (MTG-style); for `set`/`override` the latest
+  wins; the breakdown lists eclipsed contributions** («скорость 0 ←
+  Паралич, затеняет: 30»).
 - **FR-013**: Provenance: every derived value can produce a breakdown
   listing each contribution (layer-0 terms, each effect with its source
   module, the override) — the data behind design.md's «разложение» (D-09
@@ -337,6 +356,19 @@ breakdown.
   maxima until then, matching design.md §6.7).
 - **FR-017**: Inspiration (0/1), death saves and temp HP remain layer-0 PC
   state, not modules — they are sheet state, not acquired properties.
+  HP/temp-HP edits follow the same atomic-delta rule (D-6A): damage/heal
+  are increments with clamping, not value replacement.
+- **FR-025**: **Campaign casting-cost rule (R12, мана-система)**: spellcasting
+  costs are campaign-configurable data, not code (Constitution IX). Наша
+  кампания: mana pool = Σ(slots[level] × mana_cost[level]); casting level
+  ≤ 5 spends mana only (no slot decrement, any number of casts while mana
+  lasts); casting level ≥ 6 requires an available slot of that level AND
+  spends its mana cost — a compound spend per FR-016. Slot restore follows
+  recharge flags (long rest and any granted restore abilities). Standard
+  5e slots = a different config of the same rule. The exact level→mana
+  table is canon data [NEEDS DATA: confirm table vs Стасян xlsx / Сергей].
+  Mana-max *derivation* from class tables is spec-049; until then mana max
+  is a manually-set resource.
 
 ### Relations
 
@@ -366,7 +398,9 @@ breakdown.
   attach/detach, vitals) is **pushed** to every open viewer of that sheet
   or card without user action — target visibility ≤ 2 s (SC-009).
   Revalidate-on-focus/reconnect is the resilience fallback for suspended
-  mobile sessions, not the substitute. Conflicts: last-write-wins per field
+  mobile sessions, not the substitute. Conflicts (D-6A): play-state moves
+  by atomic deltas (FR-016) and cannot lose concurrent updates;
+  last-write-wins remains only for replacement writes (text, ✎, choices)
   with an honest rollback toast (no silent merge). Infra prerequisite: the
   Realtime service was trimmed from the self-hosted stack as unused
   (spec-024/T009); re-enabling it (container + websocket route + channel
@@ -448,12 +482,15 @@ breakdown.
 
 ## Open questions → Clarify
 
-- **C-01**: Confirm the fold chain (FR-012), in particular: manual ✎ is
-  absolute and wins over all effects. *Recommendation: as stated.*
+- **C-01**: ~~Confirm the fold chain.~~ **Resolved (chat 95, D-1A/D-2A)**:
+  chain as in FR-012; within-op = attachment timestamps, latest
+  `set`/`override` wins with eclipsed contributions shown; add→mult; ✎
+  absolute.
 - **C-02**: grants resolution — materialize attachments on attach (with
   detach cascade) vs traverse at read time. *Recommendation: read-time
   traversal in P1 — no cascade bugs; materialize later if performance
-  demands.*
+  demands.* (`granted_via` provenance field is decided regardless — D-8,
+  FR-002.)
 - **C-03**: Effects carrying P2 keys in P1 — store-inert-and-show-as-text
   vs reject. *Recommendation: store-inert (forward-compatible, no data
   loss).*
@@ -473,7 +510,11 @@ breakdown.
 - **Design pass before Plan (E1)**: compact design.md for 044's surfaces —
   module card anatomy, add/attach flow, effect rendering templates,
   breakdown → card navigation — same flow as spec-022's design.md, reusing
-  its tokens/components (ModChip, PipTrack, badges). Second deliverable per
+  its tokens/components (ModChip, PipTrack, badges). Terminology (D-11/12):
+  ✎ is «ручная правка» everywhere in docs/UI (op `override` keeps the
+  Foundry-compatible name); player-facing UI says «свойство»/«способность»,
+  «модуль» stays a code/spec term — final UI dictionary in this design
+  pass. Second deliverable per
   epic constitution §Процесс: `design/prompt.md` for Claude Design; Андрей
   runs it (🌐), exported screens land in `design/export/` as the reference
   for Plan/Implement. spec-022 gets the same prompt step after Andrey's
@@ -482,8 +523,10 @@ breakdown.
   Constitution III) vs a dedicated table — decide in Plan with RLS and query
   shapes in view.
 - Derivation library: one TS module shared by server actions and client;
-  fixture tests against the xlsx reference tabs (contract style, like 022's
-  parser plan).
+  golden fixtures in vitest — xlsx reference tabs + synthetic cases per op
+  (D-13); the targets/ops dictionary version ships inside the derivation
+  payload, version mismatch forces server recompute (DiceCloud desync
+  lesson).
 - Realtime: re-enable the trimmed Realtime service (024/T009) — container,
   Kong/Traefik websocket route, channel auth; smoke end-to-end on staging
   before any client work; pick postgres_changes vs broadcast in Plan.
