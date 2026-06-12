@@ -271,6 +271,10 @@ breakdown.
   sidebar and global search by default (type-level flag; full visibility
   linza — spec-033) but are always reachable via their PC's sheet and via
   card links; content-base and canon types are globally searchable.
+  Decided exception (R9, P2): items granted **unidentified** — masked name
+  («Неопознанные наручи»), effects and canon text hidden from everyone but
+  DMs until identified; `identified` flag lives on the attachment;
+  breakdowns show such contributions as «Неопознанный источник».
 - **FR-004**: Canon flag: canon nodes are read-only for everyone except the
   campaign owner; owner edits are in-place and unversioned (v1 decision,
   chat 95). Server actions enforce this.
@@ -343,6 +347,8 @@ breakdown.
 ### UX surfaces (chat 95 review — E1)
 
 - **FR-022**: **Module card** — one universal read surface for any module.
+  Respects R9: unidentified attachments render the masked card (name mask,
+  no effects/text) for non-DM viewers.
   Renders: title, source label, free text, effects in human-readable form
   (per-op templates: «+1 к КД», «Скрытность: преимущество»), resource with
   max + remaining, badges (canon / forked-from → link to origin / `✎`
@@ -364,7 +370,9 @@ breakdown.
   with an honest rollback toast (no silent merge). Infra prerequisite: the
   Realtime service was trimmed from the self-hosted stack as unused
   (spec-024/T009); re-enabling it (container + websocket route + channel
-  auth) is part of this spec's Plan, verified on staging first.
+  auth) belongs to the **first realtime consumer to ship** — likely
+  spec-051 Mobile Ledger (R10), otherwise this spec's Plan; verified on
+  staging first either way.
 
 ### System qualities
 
