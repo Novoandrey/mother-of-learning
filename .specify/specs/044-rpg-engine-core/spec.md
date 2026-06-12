@@ -465,7 +465,11 @@ breakdown.
 - **Design pass before Plan (E1)**: compact design.md for 044's surfaces —
   module card anatomy, add/attach flow, effect rendering templates,
   breakdown → card navigation — same flow as spec-022's design.md, reusing
-  its tokens/components (ModChip, PipTrack, badges).
+  its tokens/components (ModChip, PipTrack, badges). Second deliverable per
+  epic constitution §Процесс: `design/prompt.md` for Claude Design; Андрей
+  runs it (🌐), exported screens land in `design/export/` as the reference
+  for Plan/Implement. spec-022 gets the same prompt step after Andrey's
+  design.md review pass (v1.1).
 - Attachment representation: edges with `meta jsonb` (graph-visible,
   Constitution III) vs a dedicated table — decide in Plan with RLS and query
   shapes in view.
