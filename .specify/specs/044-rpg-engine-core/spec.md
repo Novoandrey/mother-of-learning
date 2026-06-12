@@ -78,7 +78,9 @@ universal read surface answering «что делает X» for any module, own o
 foreign, canon or homebrew (FR-022); **add/attach flow** — create a text
 property or attach an existing module from the phone in seconds (FR-023);
 **transparency** — every campaign member reads every sheet and every module
-(FR-003, R6); human-readable effect rendering; breakdown → card navigation.
+(FR-003, R6); human-readable effect rendering; breakdown → card navigation;
+**realtime propagation** of sheet/module state to all open viewers (FR-024,
+E7 — «синхронизация = реалтайм», уточнение chat 95).
 
 **In (P2, schema reserved in P1):** conditional effects (`when`), timed
 effects (`duration` — buffs), `advantage` op; grants auto-materialization.
@@ -88,8 +90,7 @@ xlsx import (spec-022; the sheet embeds 044's card and add flow); content
 imports (045/047/049); fork UX (046); effect *authoring* UI (050 —
 effect *display* is in scope here); pyramid / level-up UI (048); class
 scaling formulas and spell-slot tables (049); encounter runtime integration
-(032); full event-sourcing replay (Constitution V); realtime push (E7 —
-deliberate deferral).
+(032); full event-sourcing replay (Constitution V).
 
 ## User Scenarios & Testing
 
@@ -354,11 +355,16 @@ breakdown.
   campaign module) and attach it. No mandatory fields beyond the name, no
   validation walls (E3/E6). Effect *authoring* is out (spec-050); editing
   the text/source of an own module is in.
-- **FR-024**: **Single source of truth, always fresh (E7)**: one stored
-  state per sheet; any member's read reflects the latest write without
-  manual sync; concurrent edits resolve last-write-wins per field with an
-  honest rollback toast (no silent merge). Realtime push explicitly
-  deferred.
+- **FR-024**: **Single truth, realtime for everyone (E7)**: one stored
+  state per sheet; a change by any member (resource spend, ✎ override,
+  attach/detach, vitals) is **pushed** to every open viewer of that sheet
+  or card without user action — target visibility ≤ 2 s (SC-009).
+  Revalidate-on-focus/reconnect is the resilience fallback for suspended
+  mobile sessions, not the substitute. Conflicts: last-write-wins per field
+  with an honest rollback toast (no silent merge). Infra prerequisite: the
+  Realtime service was trimmed from the self-hosted stack as unused
+  (spec-024/T009); re-enabling it (container + websocket route + channel
+  auth) is part of this spec's Plan, verified on staging first.
 
 ### System qualities
 
@@ -414,6 +420,9 @@ breakdown.
 - **SC-008**: Creating and attaching a text property from a phone is one
   continuous flow with no mandatory field beyond the name — faster than
   writing it on paper (target ≤ 15 s; exact budget set in the design pass).
+- **SC-009**: An edit on device A (resource spend / ✎ / attach) appears on
+  device B's open sheet within ≤ 2 s with no user action (two sessions,
+  different accounts).
 
 ## Assumptions
 
@@ -463,5 +472,8 @@ breakdown.
 - Derivation library: one TS module shared by server actions and client;
   fixture tests against the xlsx reference tabs (contract style, like 022's
   parser plan).
+- Realtime: re-enable the trimmed Realtime service (024/T009) — container,
+  Kong/Traefik websocket route, channel auth; smoke end-to-end on staging
+  before any client work; pick postgres_changes vs broadcast in Plan.
 - Sandbox caveat: `npm run build` hangs — gate on lint + tsc + vitest
   (AGENTS.md).
