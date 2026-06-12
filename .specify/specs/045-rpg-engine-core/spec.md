@@ -1,6 +1,6 @@
 # Feature Specification: RPG Engine Core — modules, effects, resources
 
-**Feature Branch**: `044-rpg-engine-core`
+**Feature Branch**: `045-rpg-engine-core`
 **Created**: 2026-06-12 (chat 95)
 **Status**: Specify draft — awaiting Clarify
 **Epic**: `.specify/epics/rpg-engine/constitution.md` — binding principles
@@ -14,7 +14,7 @@ MVP модуля = текстовое поле без эффектов; форм
 канон-ноды прибиты; хоумбрю — через форк и конструктор».
 **Depends on**: entity graph (spec-001), existing PC data (spec-007 +
 migrations 112–113), item catalog (spec-015/018).
-**Downstream consumers**: spec-022 v3 (mobile sheet — first), specs 045–050
+**Downstream consumers**: spec-022 v3 (mobile sheet — first), specs 046–051
 (epic), spec-032 encounter rework (duration effects dock there).
 
 ## Context
@@ -53,10 +53,10 @@ unification docks at spec-032.
 ## Epic map
 
 Canon (map, ordering, principles E1–E11, decisions R1–R8):
-`.specify/epics/rpg-engine/constitution.md`. Short form: 044 (engine +
-module surfaces) → 022 v3 (sheet) → 045 (spells base) → 046 (fork) →
-047 (feats/backgrounds) → 048 (pyramid) → 049 (classes) → 050 (constructor).
-Mobile-first critical path: **044 P1 → 022 ship**.
+`.specify/epics/rpg-engine/constitution.md`. Short form: 045 (engine +
+module surfaces) → 022 v3 (sheet) → 046 (spells base) → 047 (fork) →
+048 (feats/backgrounds) → 049 (pyramid) → 050 (classes) → 051 (constructor).
+Mobile-first critical path: **045 P1 → 022 ship**.
 
 **Companion artifact (not a spec):** `research/coverage-checklist.md` —
 living inventory of every property / item / spell / cooldown of the three
@@ -86,10 +86,10 @@ E7 — «синхронизация = реалтайм», уточнение cha
 effects (`duration` — buffs), `advantage` op; grants auto-materialization.
 
 **Out:** the sheet as a *play* surface — layout, vitals, dice, rest buttons,
-xlsx import (spec-022; the sheet embeds 044's card and add flow); content
-imports (045/047/049); fork UX (046); effect *authoring* UI (050 —
-effect *display* is in scope here); pyramid / level-up UI (048); class
-scaling formulas and spell-slot tables (049); encounter runtime integration
+xlsx import (spec-022; the sheet embeds 045's card and add flow); content
+imports (046/048/050); fork UX (047); effect *authoring* UI (051 —
+effect *display* is in scope here); pyramid / level-up UI (049); class
+scaling formulas and spell-slot tables (050); encounter runtime integration
 (032); full event-sourcing replay (Constitution V).
 
 ## User Scenarios & Testing
@@ -244,7 +244,7 @@ breakdown.
   dropped.
 - Effects on a value the PC overrode manually → override wins [C-01];
   breakdown still lists suppressed contributions.
-- Canon node edit by non-owner → denied; fork (046) is the path.
+- Canon node edit by non-owner → denied; fork (047) is the path.
 - PC with zero modules (all 31 today) → layer-0 still derives from existing
   `fields.stats`; a zero-module PC is fully valid.
 - Rounding: integer math with floor everywhere, per the canon memory doc.
@@ -284,7 +284,7 @@ breakdown.
   fork semantics = full copy, upstream changes not propagated (decided
   chat 95). Default fork depth (D-9): node fields are copied; outgoing
   `grants` edges are copied as references (the fork grants the same
-  modules), overridable at fork time. Fork UX is spec-046.
+  modules), overridable at fork time. Fork UX is spec-047.
 - **FR-026**: Deleting a module node with live attachments is refused
   («отвяжи или архивируй») — D-10; canon nodes are never deleted (R4).
 
@@ -347,12 +347,12 @@ breakdown.
 - **FR-015**: Resource declaration on the template:
   `{ max: int, recharge: "short" | "long" | "dawn" | "manual" }`; remaining
   lives on the attachment (FR-002). Max scaling by class level is out of
-  scope (spec-049); manual max edits cover until then.
+  scope (spec-050); manual max edits cover until then.
 - **FR-016**: Operations: spend(n), restore(n), set-remaining,
   rest(short | long). Rest computes and applies restores per recharge flags
   across the PC's modules and returns a summary («Восстановится: Ци 12;
   Ячейки 2-го круга 2») that spec-022's confirm sheet renders. Hit dice and
-  spell slots are representable as resources (slot *tables* are 049; manual
+  spell slots are representable as resources (slot *tables* are 050; manual
   maxima until then, matching design.md §6.7).
 - **FR-017**: Inspiration (0/1), death saves and temp HP remain layer-0 PC
   state, not modules — they are sheet state, not acquired properties.
@@ -365,9 +365,10 @@ breakdown.
   lasts); casting level ≥ 6 requires an available slot of that level AND
   spends its mana cost — a compound spend per FR-016. Slot restore follows
   recharge flags (long rest and any granted restore abilities). Standard
-  5e slots = a different config of the same rule. The exact level→mana
-  table is canon data [NEEDS DATA: confirm table vs Стасян xlsx / Сергей].
-  Mana-max *derivation* from class tables is spec-049; until then mana max
+  5e slots = a different config of the same rule. The level→mana table is the DMG Spell
+  Points variant (confirmed chat 95): 1→2, 2→3, 3→5, 4→6, 5→7, 6→9,
+  7→10, 8→11, 9→13 — stored as campaign config data.
+  Mana-max *derivation* from class tables is spec-050; until then mana max
   is a manually-set resource.
 
 ### Relations
@@ -391,7 +392,7 @@ breakdown.
   (a) create a text property (name required, text/source optional) attached
   to the PC, or (b) find an existing module (canon item, spell, another
   campaign module) and attach it. No mandatory fields beyond the name, no
-  validation walls (E3/E6). Effect *authoring* is out (spec-050); editing
+  validation walls (E3/E6). Effect *authoring* is out (spec-051); editing
   the text/source of an own module is in.
 - **FR-024**: **Single truth, realtime for everyone (E7)**: one stored
   state per sheet; a change by any member (resource spend, ✎ override,
@@ -405,7 +406,7 @@ breakdown.
   Realtime service was trimmed from the self-hosted stack as unused
   (spec-024/T009); re-enabling it (container + websocket route + channel
   auth) belongs to the **first realtime consumer to ship** — likely
-  spec-051 Mobile Ledger (R10), otherwise this spec's Plan; verified on
+  spec-044 Mobile Ledger (R10), otherwise this spec's Plan; verified on
   staging first either way.
 
 ### System qualities
@@ -425,7 +426,7 @@ breakdown.
   type can be one.
 - **Attachment** (PC ↔ module): level acquired, source label,
   `uses_remaining`, instance overrides, order. The pyramid is this set
-  viewed by level (spec-048 renders it).
+  viewed by level (spec-049 renders it).
 - **Layer-0 state** (on the PC node): base inputs + manual overrides;
   today's `fields.stats` is the seed.
 - **Derived value + breakdown**: computed on read, never stored as truth
@@ -507,7 +508,7 @@ breakdown.
 
 ## Plan handoff notes (not requirements)
 
-- **Design pass before Plan (E1)**: compact design.md for 044's surfaces —
+- **Design pass before Plan (E1)**: compact design.md for 045's surfaces —
   module card anatomy, add/attach flow, effect rendering templates,
   breakdown → card navigation — same flow as spec-022's design.md, reusing
   its tokens/components (ModChip, PipTrack, badges). Terminology (D-11/12):

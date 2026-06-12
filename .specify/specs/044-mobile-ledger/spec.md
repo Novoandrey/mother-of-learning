@@ -1,6 +1,6 @@
 # Feature Specification: Mobile Ledger — player wallet & bookkeeping (PWA)
 
-**Feature Branch**: `051-mobile-ledger`
+**Feature Branch**: `044-mobile-ledger`
 **Created**: 2026-06-12 (chat 95)
 **Status**: Specify draft — awaiting Clarify
 **Input**: Andrey (chat 95): «надо сразу сделать отдельную спеку под
@@ -13,7 +13,7 @@ paper), E7 (realtime), E10 (mobile first). Engine principles
 (E2/E3/E8/E9/E11) do not apply — money is not modules.
 **Depends on**: bookkeeping series 009–019 (backend complete), spec-020
 data shapes (holdings), design.md 022 (tokens, dark theme, PWA model).
-**Does NOT depend on**: spec-044 engine.
+**Does NOT depend on**: spec-045 engine.
 
 ## Context
 
@@ -40,7 +40,7 @@ de-risked shell instead of debugging install+auth+layout together with the
 engine. It is also the natural **first realtime consumer** (E7):
 transactions are append-only events, the friendliest possible shape for
 broadcast — no LWW conflicts by construction. The Realtime service
-re-enable (DEBT-011) lands in this spec's Plan if 051 ships first.
+re-enable (DEBT-011) lands in this spec's Plan if 044 ships first.
 
 One honest counter-reading of the chat 90 data, recorded so the bet is
 explicit: «2 транзакции» may mean players don't want bookkeeping at all,
@@ -204,7 +204,7 @@ open the existing item card.
   feeds, balances) without user action — target ≤ 2 s. Transactions are
   append-only events: broadcast inserts; balances recompute on receipt.
   Carries the Realtime service re-enable (DEBT-011: container + ws route
-  + channel auth) if this spec ships before 044, verified on staging.
+  + channel auth) if this spec ships before 045, verified on staging.
 - **FR-010**: Revalidate-on-focus/reconnect as the resilience fallback
   (suspended mobile sessions), not the substitute.
 

@@ -1,6 +1,6 @@
 # Coverage checklist — pilot PC property inventory
 
-**Spec**: 044-rpg-engine-core (research artifact, NOT a spec — no DoD, lives
+**Spec**: 045-rpg-engine-core (research artifact, NOT a spec — no DoD, lives
 as long as the epic; see spec.md "Companion artifact")
 **Created**: 2026-06-12 (chat 95) · **Last audit pass**: — (none yet)
 
@@ -12,7 +12,7 @@ pilot PCs, each classified by how the engine represents it. Drives:
 1. the target/op dictionaries (FR-011, FR-014) — ops and keys are added
    because rows here demand them, not speculatively;
 2. SC-001 (100% representable, text counts);
-3. content-spec priorities (045/047/049 check rows off as canon bases land).
+3. content-spec priorities (046/048/050 check rows off as canon bases land).
 
 **Ratchet rule (FR-014)**: a new effect op enters the dictionary only when
 ≥ 3 rows here demand it. Tally below is the evidence.
@@ -54,7 +54,7 @@ Seed rows below validate the format — replace during the first audit pass.
 |---|---|---|---|---|
 | Chronal Shift ✓✓✓✓✓ | paper, resources | resource | max 5, recharge TBD | seed example |
 | Спас-DC 18 (ручной) | paper, header | layer-0 | override ✎ («ручная правка») | sheet ƒ = 17; FR-008 case |
-| Мана NN/NN | paper, resources | resource (pool) | recharge Д; max → 049 | мана-система R12; таблица уровень→мана — подтвердить |
+| Мана NN/NN | paper, resources | resource (pool) | recharge Д; max → 050 | мана-система R12; таблица = DMG Spell Points (подтверждено) |
 | _TODO: full pass_ | | | | |
 
 ### Каэл
