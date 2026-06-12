@@ -2,7 +2,7 @@
 
 **Feature Branch**: `043-staging-environment`
 **Created**: 2026-06-11
-**Status**: Done — staging live (tail: T017 SC-003 run, T018 раздача инструкций)
+**Status**: Done — staging live (tail: T017 SC-003 прогон тиммейтом)
 **Origin**: IDEA-066 [P2] (backlog) — "Тест обновлений до мержа в main", deferred in chat 88.
 **Depends on**: spec-023 (box + Dokploy), spec-027 (cutover; prod is self-hosted),
 spec-028 (CI gate + Dokploy auto-deploy pattern).
