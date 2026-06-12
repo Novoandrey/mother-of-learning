@@ -3,6 +3,10 @@
 **Feature Branch**: `044-rpg-engine-core`
 **Created**: 2026-06-12 (chat 95)
 **Status**: Specify draft — awaiting Clarify
+**Epic**: `.specify/epics/rpg-engine/constitution.md` — binding principles
+E1–E11 and decisions R1–R8; this spec must satisfy them.
+**Revised**: 2026-06-12 (chat 95 review): UI/UX surfaces are IN scope (E1 —
+UX dictates data); transparency decided (R6) — C-06 resolved.
 **Input**: Pivot (chat 93) + epic breakdown (chat 95): «персонаж = пирамида
 модулей по уровням (раса / класс-уровни / фиты / предметы / баффы); модуль
 декларирует эффекты на параметры — одна система вместо хардкода спеллов;
@@ -46,21 +50,13 @@ it), 844 canon items (spec-018), PC `fields.stats` (migrations 112–113).
 Encounter conditions/effects (specs 002/005) stay a separate system for now;
 unification docks at spec-032.
 
-## Epic map (fixed, chat 95)
+## Epic map
 
-| # | Spec | One-liner | Depends on |
-|---|---|---|---|
-| **044** | RPG Engine Core | module model, effect pipeline, resources, layer-0, canon flag | — |
-| 022 v3 | Player Mobile Mode | mobile sheet over modules; dice; xlsx import → text modules | 044 P1 |
-| 045 | Content base: spells | content-base machinery + dnd.su spells (absorbs roadmap slot 039) | 044 |
-| 046 | Node fork | copy + `forked_from` + field edits; canon → homebrew path | 044 |
-| 047 | Content base: feats + backgrounds | machinery rerun (+ races — decide there) | 045 |
-| 048 | Progression pyramid | level timeline ↔ attached modules; manual level-up | 044 |
-| 049 | Classes & subclasses base | progression tables, choice points, class-level scaling, slot tables | 048 |
-| 050 | Homebrew constructor | UI editor for effect blocks | 044, 046 |
-
-Mobile-first critical path: **044 P1 → 022 ship**. Everything after is
-post-ship enrichment.
+Canon (map, ordering, principles E1–E11, decisions R1–R8):
+`.specify/epics/rpg-engine/constitution.md`. Short form: 044 (engine +
+module surfaces) → 022 v3 (sheet) → 045 (spells base) → 046 (fork) →
+047 (feats/backgrounds) → 048 (pyramid) → 049 (classes) → 050 (constructor).
+Mobile-first critical path: **044 P1 → 022 ship**.
 
 **Companion artifact (not a spec):** `research/coverage-checklist.md` —
 living inventory of every property / item / spell / cooldown of the three
@@ -70,22 +66,30 @@ by every content spec.
 
 ## Scope
 
-**In (P1):** module-as-node model; PC↔module attachment with instance state;
-resources (declare, spend, restore, rest semantics); layer-0 derivation
-library with manual overrides; static effect pipeline
+**In (P1) — engine:** module-as-node model; PC↔module attachment with
+instance state; resources (declare, spend, restore, rest semantics); layer-0
+derivation library with manual overrides; static effect pipeline
 (`add`/`set`/`override`/`mult`) with deterministic fold order and per-value
 provenance breakdown; canon flag + enforcement; `grants` edge type (relation
-+ traversal); read path for existing PC data; module-node visibility
-defaults.
++ traversal); read path for existing PC data.
+
+**In (P1) — engine surfaces (E1: UX dictates data):** the **module card** —
+universal read surface answering «что делает X» for any module, own or
+foreign, canon or homebrew (FR-022); **add/attach flow** — create a text
+property or attach an existing module from the phone in seconds (FR-023);
+**transparency** — every campaign member reads every sheet and every module
+(FR-003, R6); human-readable effect rendering; breakdown → card navigation.
 
 **In (P2, schema reserved in P1):** conditional effects (`when`), timed
 effects (`duration` — buffs), `advantage` op; grants auto-materialization.
 
-**Out:** all UI (spec-022 owns the sheet); content imports (045/047/049);
-fork UX (046); pyramid / level-up UI (048); class scaling formulas and
-spell-slot tables (049); constructor (050); encounter runtime integration
-(032); full event-sourcing replay (Constitution V — level-stamped
-attachments are a step toward it); realtime.
+**Out:** the sheet as a *play* surface — layout, vitals, dice, rest buttons,
+xlsx import (spec-022; the sheet embeds 044's card and add flow); content
+imports (045/047/049); fork UX (046); effect *authoring* UI (050 —
+effect *display* is in scope here); pyramid / level-up UI (048); class
+scaling formulas and spell-slot tables (049); encounter runtime integration
+(032); full event-sourcing replay (Constitution V); realtime push (E7 —
+deliberate deferral).
 
 ## User Scenarios & Testing
 
@@ -180,7 +184,35 @@ breakdown names the item; detach → restored.
 
 ---
 
-### User Story 5 — Grants: module grants modules (Priority: P2)
+### User Story 5 — Inspect any module: «что делает X» (Priority: P1)
+
+Any campaign member opens any module — their own, another PC's, a canon
+item, a homebrew spell — and gets a card that explains it in human terms:
+free text, effects rendered readably («+1 к КД», «преимущество на
+Скрытность»), resource with current uses, provenance (canon / forked-from /
+author / source label). The card is reachable from everywhere a module name
+appears: sheet rows, breakdowns, the catalog. (R6 transparency; E5.)
+
+**Why this priority**: Andrey's review (chat 95) — the ability to see what
+your or ANY item/spell does is a core reason the engine exists; it also
+*defines* the data contract (E1).
+
+**Independent Test**: as a player who does not own Маркус, open a module
+attached to Маркус → full card renders; tap a breakdown term «+1 Предмет» on
+any derived value → the source module's card opens.
+
+**Acceptance Scenarios**:
+
+1. **Given** any module in the campaign, **When** any campaign member opens
+   it, **Then** the card shows text, effects (human-readable), resource
+   state and provenance — no edit affordances unless the viewer has edit
+   rights.
+2. **Given** a derived value's breakdown, **When** a contribution row is
+   tapped, **Then** the contributing module's card opens.
+
+---
+
+### User Story 6 — Grants: module grants modules (Priority: P2)
 
 A module can grant other modules (race → trait bundle; факультатив →
 trimmed feat fork). Consumers can traverse the grants relation; attaching a
@@ -191,7 +223,7 @@ to a PC → traits reachable via traversal.
 
 ---
 
-### User Story 6 — Conditional & temporary effects (Priority: P2)
+### User Story 7 — Conditional & temporary effects (Priority: P2)
 
 Effects may carry `when` (condition) and `duration` (buffs); op `advantage`
 exists. P1 stores and surfaces them as text without auto-applying.
@@ -231,9 +263,13 @@ breakdown.
   `uses_remaining`, instance overrides, display order. Multiple attachments
   of one template to one PC are allowed and independent.
 - **FR-003**: Free-text sheet properties are full module nodes (decided
-  chat 95) — no inline-row second representation. Module-typed nodes are
-  excluded from the sidebar and global search by default (full visibility
-  linza arrives with spec-033; a type-level flag suffices until then).
+  chat 95) — no inline-row second representation. **Transparency (R6)**:
+  every campaign member can read every PC sheet and every module; editing
+  stays rights-gated (`canEditNode` / `isPcOwner`). Navigation noise is
+  controlled without hiding data: per-PC property nodes stay out of the
+  sidebar and global search by default (type-level flag; full visibility
+  linza — spec-033) but are always reachable via their PC's sheet and via
+  card links; content-base and canon types are globally searchable.
 - **FR-004**: Canon flag: canon nodes are read-only for everyone except the
   campaign owner; owner edits are in-place and unversioned (v1 decision,
   chat 95). Server actions enforce this.
@@ -303,6 +339,27 @@ breakdown.
   and traversal; auto-materialization on attach (and detach cascade) is P2
   [C-02].
 
+### UX surfaces (chat 95 review — E1)
+
+- **FR-022**: **Module card** — one universal read surface for any module.
+  Renders: title, source label, free text, effects in human-readable form
+  (per-op templates: «+1 к КД», «Скрытность: преимущество»), resource with
+  max + remaining, badges (canon / forked-from → link to origin / `✎`
+  instance overrides). Reachable from every place a module name appears:
+  sheet rows (022 embeds it), breakdown contributions (FR-013), catalog,
+  search results. Read-only unless the viewer has edit rights.
+- **FR-023**: **Add/attach flow** — from a phone, one continuous action:
+  (a) create a text property (name required, text/source optional) attached
+  to the PC, or (b) find an existing module (canon item, spell, another
+  campaign module) and attach it. No mandatory fields beyond the name, no
+  validation walls (E3/E6). Effect *authoring* is out (spec-050); editing
+  the text/source of an own module is in.
+- **FR-024**: **Single source of truth, always fresh (E7)**: one stored
+  state per sheet; any member's read reflects the latest write without
+  manual sync; concurrent edits resolve last-write-wins per field with an
+  honest rollback toast (no silent merge). Realtime push explicitly
+  deferred.
+
 ### System qualities
 
 - **FR-019**: Derivation is synchronous, pure and fast (< 1 ms for a full
@@ -350,14 +407,23 @@ breakdown.
   the Phase-1 sheet.
 - **SC-006**: All 31 existing PCs render layer-0 values with zero modules
   attached and zero data migration.
+- **SC-007**: A campaign member with no edit rights opens a module attached
+  to someone else's PC and the card explains it (text + readable effects +
+  resource + provenance); a breakdown contribution tap lands on the source
+  module's card.
+- **SC-008**: Creating and attaching a text property from a phone is one
+  continuous flow with no mandatory field beyond the name — faster than
+  writing it on paper (target ≤ 15 s; exact budget set in the design pass).
 
 ## Assumptions
 
 - D&D 5e shape, data-driven (Constitution IX); other systems out of scope
   but nothing blocks them structurally.
-- Module nodes add ≈ +1–2k nodes for 31 PCs; excluded from sidebar/search by
-  default; the «pagination cap 10k» tail (spec-001) moves closer — tracked,
-  not a blocker (~1.6k nodes today).
+- Module nodes add ≈ +1–2k nodes for 31 PCs; read access for the whole
+  campaign (R6); kept out of sidebar/global search by default purely as
+  noise control (FR-003), always reachable via sheet and cards; the
+  «pagination cap 10k» tail (spec-001) moves closer — tracked, not a
+  blocker (~1.6k nodes today).
 - Buffs are modules attached with `duration` instance state; runtime ticking
   docks at spec-032, not here.
 - Стасян's spreadsheet remains the players' source of truth until spec-022
@@ -380,12 +446,17 @@ breakdown.
   schema is uniform either way.*
 - **C-05**: Target dictionary extensibility — fixed system-level v1 vs
   per-campaign additions now. *Recommendation: fixed v1.*
-- **C-06**: Visibility of a player's private text modules — campaign DMs
-  see them? *Recommendation: DMs yes, other players no; aligns with
-  `canEditNode` / `isPcOwner`.*
+- **C-06**: ~~Visibility of a player's private text modules.~~
+  **Resolved (chat 95, R6)**: full transparency — every campaign member
+  reads every sheet and every module; editing stays rights-gated. Folded
+  into FR-003/FR-022.
 
 ## Plan handoff notes (not requirements)
 
+- **Design pass before Plan (E1)**: compact design.md for 044's surfaces —
+  module card anatomy, add/attach flow, effect rendering templates,
+  breakdown → card navigation — same flow as spec-022's design.md, reusing
+  its tokens/components (ModChip, PipTrack, badges).
 - Attachment representation: edges with `meta jsonb` (graph-visible,
   Constitution III) vs a dedicated table — decide in Plan with RLS and query
   shapes in view.
