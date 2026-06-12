@@ -2,7 +2,7 @@
 
 **Feature Branch**: `043-staging-environment`
 **Created**: 2026-06-11
-**Status**: Plan ready — awaiting Tasks (chat 94)
+**Status**: Implement (next: T007 operator batch)
 **Origin**: IDEA-066 [P2] (backlog) — "Тест обновлений до мержа в main", deferred in chat 88.
 **Depends on**: spec-023 (box + Dokploy), spec-027 (cutover; prod is self-hosted),
 spec-028 (CI gate + Dokploy auto-deploy pattern).

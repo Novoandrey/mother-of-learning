@@ -1,0 +1,41 @@
+name: PR quality gate
+
+# spec-043 FR-009: every PR into main runs the gate, so a red gate is visible
+# before merge. No deploy here — deploy.yml fires after the merge lands.
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.specify/**'
+      - 'chatlog/**'
+      - 'scripts/dev/**'
+      - 'infra/**'
+      - 'meta/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Quality gate (lint + typecheck + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mat-ucheniya
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mat-ucheniya/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test

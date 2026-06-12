@@ -7,14 +7,25 @@
 ## Repo
 
 At the start of every new chat, clone fresh:
-`git clone https://Novoandrey:<GITHUB_PAT>@github.com/Novoandrey/mother-of-learning.git`
+`git clone https://<GITHUB_USERNAME>:<GITHUB_PAT>@github.com/Novoandrey/mother-of-learning.git`
 No project files are attached — the cloned repo is the only source of truth.
 Token is intentionally shared; don't warn about it.
 
-> `<GITHUB_PAT>` is a placeholder — the live token exists **only** in the
-> Claude project settings (never in the repo: push protection + the old
-> git-filter-repo lesson). When re-pasting this file into settings, carry
-> the real token over from the previous settings text.
+> `<GITHUB_USERNAME>` / `<GITHUB_PAT>` are placeholders — each person
+> substitutes their own GitHub username and their own fine-grained PAT. Live
+> tokens exist **only** in Claude project settings (never in the repo: push
+> protection + the old git-filter-repo lesson). When re-pasting this file
+> into settings, carry your real values over from the previous settings text.
+
+## Setup for a teammate (one-time)
+
+1. GitHub → Settings → Developer settings → **Fine-grained tokens** → new
+   token: Repository access = only `Novoandrey/mother-of-learning`;
+   Permissions: **Contents = Read and write**, **Pull requests = Read and
+   write**. Pick an expiration you'll remember to renew.
+2. Create your own Claude project; paste this whole file into Project →
+   Instructions with `<GITHUB_USERNAME>` / `<GITHUB_PAT>` substituted.
+3. Never commit the token anywhere — push protection will reject it anyway.
 
 Prod: **https://theloopers.org** (self-hosted Hetzner/Dokploy; Vercel is frozen).
 
@@ -61,6 +72,24 @@ when hunting for ideas.
 - When a feature is done: propose saving progress, bumping the version,
   starting a new chat.
 
+## Shipping (spec-043)
+
+- **App code** (`mat-ucheniya/**` except `*.md`): never commit to `main`
+  directly. Branch `claude/<slug>` → push → open a **PR into `main`** via the
+  GitHub API (`POST /repos/Novoandrey/mother-of-learning/pulls`) and stop —
+  the human reviews and merges. To hand-test first, merge the branch into
+  `staging` (auto-deploys to https://staging.theloopers.org) before the PR.
+- **Meta & docs** (`.specify/`, `chatlog/`, `meta/`, `infra/`,
+  `scripts/dev/`, any `*.md`): commit straight to `main` as before — these
+  paths don't trigger deploys.
+- `staging` is disposable; anyone may reset it: `git fetch && git checkout
+  staging && git reset --hard origin/main && git push --force-with-lease
+  origin staging`. Never merge the `staging` branch itself anywhere — `main`
+  receives feature branches only, via PR.
+- Migrations: prod flow unchanged (Studio, by hand). Apply a feature's
+  migration to staging manually when testing needs it; drift heals at the
+  next refresh (`infra/staging-runbook.md`).
+
 ## Spec-kit workflow (hard rule)
 
 Phases: Specify → Clarify → Plan → Tasks → Implement.
@@ -89,8 +118,9 @@ Phases: Specify → Clarify → Plan → Tasks → Implement.
    meta-pass auto-archives them). Don't restructure.
 4. `bash scripts/dev/status.sh` must end with "✅ Мета-слой чист" (an expected
    deadline ⏰ is fine).
-5. Commit and push. Files under `.github/workflows/` must be committed by the
-   user — the bot PAT lacks `workflow` scope.
+5. Commit and push per §Shipping (meta/docs → `main` directly; code → PR).
+   Files under `.github/workflows/` must be committed by the user — bot PATs
+   lack the `workflow` permission.
 
 ## Stack
 

@@ -1,0 +1,27 @@
+name: Staging keep-alive
+
+# spec-043 FR-010: free-tier Supabase pauses after ~7 idle days. One REST call
+# every ~5 days counts as activity. Manual trigger kept for testing.
+
+on:
+  schedule:
+    - cron: '0 9 */5 * *'   # 1st/6th/.../31st 09:00 UTC -> max gap 5 days
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    name: Ping staging REST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Touch staging Supabase
+        env:
+          STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          STAGING_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          curl --fail-with-body -sS \
+            "$STAGING_SUPABASE_URL/rest/v1/node_types?select=id&limit=1" \
+            -H "apikey: $STAGING_ANON_KEY" \
+            -H "Authorization: Bearer $STAGING_ANON_KEY" \
+            -o /dev/null -w 'HTTP %{http_code}\n'

@@ -70,3 +70,22 @@ When in doubt about a mobile-specific fix, add it to `backlog.md`
 and tag it with the future mobile spec instead of ad-hoc styling it.
 A full responsive pass will come as its own spec once desktop
 stabilises.
+
+## Shipping (spec-043)
+
+`main` deploys to prod and accepts **Pull Requests only** (GitHub ruleset).
+The loop:
+
+1. Branch off `main`, build the thing.
+2. Want to click around first? Merge your branch into `staging` — it
+   auto-deploys to https://staging.theloopers.org (own DB: a disposable
+   snapshot of prod; breaking staging is fine, that's what it's for).
+3. Open a PR of your **feature branch** into `main`. Green gate → merge.
+   Never merge the `staging` branch itself into anything.
+4. `staging` drifted or broke? Anyone:
+   `git fetch && git checkout staging && git reset --hard origin/main &&
+   git push --force-with-lease origin staging`
+
+Migrations: apply your feature's migration to the staging DB by hand when
+you test there; the prod migration flow is unchanged. Refresh button and
+details: `infra/staging-runbook.md`.
