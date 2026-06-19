@@ -2,7 +2,7 @@
 
 **Feature Branch**: `027-cutover-decommission`
 **Created**: 2026-06-07
-**Status**: Implement (next: T025 — deferred decommission, окно 2026-06-14..21)
+**Status**: Done — in prod (cutover завершён; Vercel погашен 2026-06-20, chat 96; managed Supabase → Free/staging-БД, spec-043)
 **Input**: Финал эпика «Переезд на свою инфру». 024 поднял self-hosted Supabase
 и доказал паритет; 025 настроил off-box бэкапы + drill (и вскрыл негодность
 логического метода); 026 починил метод на физический и **перенёс реальные
