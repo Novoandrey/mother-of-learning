@@ -66,7 +66,7 @@ next** (project rule). After any `.sql` → `present_files`.
 - [ ] **T021** 🧑 Env: expose the box `JWT_SECRET` → app as
   `SUPABASE_JWT_SECRET`; add `TELEGRAM_BOT_TOKEN` (box + staging).
   ⚠️ Plan decision #4 — unblocks the mint path.
-- [ ] **T022** 🤖 Seed script: Drive → R2 (rclone / S3) + insert primary
+- [x] **T022** 🤖 Seed script: Drive → R2 (rclone / S3) + insert primary
   `character_portraits` rows (name-match Drive files → character nodes).
   [needs T002, T020]
 - [ ] **T023** 🧑 Run T022 (load images + rows).
