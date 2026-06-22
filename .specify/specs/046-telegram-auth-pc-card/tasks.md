@@ -27,13 +27,13 @@ next** (project rule). After any `.sql` → `present_files`.
   HS256, `SUPABASE_JWT_SECRET`; claims `sub`, `role:'authenticated'`,
   `aud:'authenticated'`, `iat`, `exp` ~1h).
 - [x] **T008** 🤖 Vitest for T007 (claims + signature verifiable with secret).
-- [ ] **T009** 🤖 `app/api/tg/auth/route.ts` — POST: validate (T005) → look up
+- [x] **T009** 🤖 `app/api/tg/auth/route.ts` — POST: validate (T005) → look up
   `telegram_id`→user (service read) → mint (T007) → `{ jwt }` or
   `{ unlinked, telegram_id, username }`. Next 16: read route-handler docs first.
   [needs T001, T005, T007]
-- [ ] **T010** 🤖 `lib/supabase/tg-client.ts` — browser client with
+- [x] **T010** 🤖 `lib/supabase/tg-client.ts` — browser client with
   `accessToken: () => jwt`.
-- [ ] **T011** 🤖 `lib/queries/my-characters.ts` — RLS read: `character` nodes
+- [x] **T011** 🤖 `lib/queries/my-characters.ts` — RLS read: `character` nodes
   where `owner_user_id = auth.uid()`, join the primary portrait. [needs T002]
 
 ## Phase 2 — DM mapping (desktop, gated)
