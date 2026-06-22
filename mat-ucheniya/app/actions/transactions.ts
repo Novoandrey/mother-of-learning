@@ -1113,6 +1113,8 @@ export type BatchRowSubmitInput =
 export type SubmitBatchInput = {
   campaignId: string
   rows: BatchRowSubmitInput[]
+  /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
+  tgToken?: string
 }
 
 export type SubmitBatchResult =
@@ -1158,6 +1160,7 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
+        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, id: r.id } : { ok: false, error: r.error }
     } else if (row.kind === 'item') {
@@ -1174,6 +1177,7 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
+        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, id: r.id } : { ok: false, error: r.error }
     } else if (row.kind === 'transfer-money') {
@@ -1189,6 +1193,7 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
+        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, groupId: r.groupId } : { ok: false, error: r.error }
     } else {
@@ -1206,6 +1211,7 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
+        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, groupId: r.groupId } : { ok: false, error: r.error }
     }

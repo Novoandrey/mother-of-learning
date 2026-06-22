@@ -29,6 +29,7 @@ import {
   LedgerScreen,
   StashScreen,
   BalancesScreen,
+  StarterEquipScreen,
 } from './_components/ledger-app'
 
 declare global {
@@ -192,6 +193,7 @@ type View =
   | { screen: 'home'; pc: CampaignCharacter }
   | { screen: 'ledger'; pc: CampaignCharacter }
   | { screen: 'stash'; pc: CampaignCharacter }
+  | { screen: 'equip'; pc: CampaignCharacter }
   | { screen: 'balances' }
 
 function AppShell({ ready }: { ready: Ready }) {
@@ -225,6 +227,18 @@ function AppShell({ ready }: { ready: Ready }) {
           onBack={() => setView({ screen: 'list' })}
           onOpenLedger={() => setView({ screen: 'ledger', pc: view.pc })}
           onOpenBalances={() => setView({ screen: 'balances' })}
+          onOpenEquip={() => setView({ screen: 'equip', pc: view.pc })}
+        />
+      )
+    case 'equip':
+      return (
+        <StarterEquipScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          loopNumber={ready.loopNumber}
+          tgToken={ready.tgToken}
+          character={view.pc}
+          onBack={() => setView({ screen: 'home', pc: view.pc })}
         />
       )
     case 'balances':

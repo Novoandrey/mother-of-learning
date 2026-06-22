@@ -262,3 +262,30 @@ export async function getAllBalancesTg(
 
   return { rows, stashGp }
 }
+
+/**
+ * Typeahead over campaign catalog items (Образцы — `node_types.slug='item'`)
+ * for the starter-equipment screen (T026). Member-wide SELECT on `nodes`, so
+ * RLS-safe under the minted JWT. Title-only; attributes aren't needed here.
+ */
+export async function searchCampaignItemsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  query: string,
+  limit = 8,
+): Promise<{ id: string; title: string }[]> {
+  const q = query.trim()
+  if (!q) return []
+  const { data } = await supabase
+    .from('nodes')
+    .select('id, title, node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .ilike('title', `%${q}%`)
+    .order('title', { ascending: true })
+    .limit(limit)
+  return ((data ?? []) as Array<{ id: string; title: string }>).map((r) => ({
+    id: r.id,
+    title: r.title,
+  }))
+}

@@ -11,6 +11,7 @@ import {
   getTxCategoriesTg,
   getStashTg,
   getAllBalancesTg,
+  searchCampaignItemsTg,
   type TgWallet,
   type TgFeedRow,
   type TgBalanceRow,
@@ -23,7 +24,11 @@ import {
   initialOf,
   portraitUrl,
 } from './format'
-import { createTransaction, createTransfer } from '@/app/actions/transactions'
+import {
+  createTransaction,
+  createTransfer,
+  submitBatch,
+} from '@/app/actions/transactions'
 import { putMoneyIntoStash, takeMoneyFromStash } from '@/app/actions/stash'
 
 // ─────────────────────────── shared ───────────────────────────
@@ -74,6 +79,40 @@ function BackLink({ onClick, children }: { onClick: () => void; children: React.
   )
 }
 
+function OverflowMenu({ items }: { items: { label: string; onClick: () => void }[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Меню"
+        className="rounded-lg px-2 py-1 text-xl leading-none text-neutral-400 transition-colors hover:bg-neutral-900"
+      >
+        ⋮
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg bg-neutral-800 py-1 shadow-lg">
+            {items.map((it) => (
+              <button
+                key={it.label}
+                onClick={() => {
+                  setOpen(false)
+                  it.onClick()
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-neutral-200 transition-colors hover:bg-neutral-700"
+              >
+                {it.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─────────────────────────── T008 — character list ───────────────────────────
 
 export function CharacterList({
@@ -93,13 +132,7 @@ export function CharacterList({
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-lg font-semibold">Персонажи</h1>
         {onOpenBalances && (
-          <button
-            onClick={onOpenBalances}
-            aria-label="Меню"
-            className="rounded-lg px-2 py-1 text-xl leading-none text-neutral-400 transition-colors hover:bg-neutral-900"
-          >
-            ⋮
-          </button>
+          <OverflowMenu items={[{ label: 'Балансы всех', onClick: onOpenBalances }]} />
         )}
       </div>
       {own.length > 0 && (
@@ -164,25 +197,28 @@ export function PcHome({
   onBack,
   onOpenLedger,
   onOpenBalances,
+  onOpenEquip,
 }: {
   character: CampaignCharacter
   showBack: boolean
   onBack: () => void
   onOpenLedger: () => void
   onOpenBalances?: () => void
+  onOpenEquip?: () => void
 }) {
   return (
     <div className="mx-auto max-w-sm">
       <div className="flex items-center justify-between">
         {showBack ? <BackLink onClick={onBack}>мои персонажи</BackLink> : <span />}
         {onOpenBalances && (
-          <button
-            onClick={onOpenBalances}
-            aria-label="Меню"
-            className="mb-4 rounded-lg px-2 py-1 text-xl leading-none text-neutral-400 transition-colors hover:bg-neutral-900"
-          >
-            ⋮
-          </button>
+          <OverflowMenu
+            items={[
+              { label: 'Балансы всех', onClick: onOpenBalances },
+              ...(character.isOwn && onOpenEquip
+                ? [{ label: 'Стартовое снаряжение', onClick: onOpenEquip }]
+                : []),
+            ]}
+          />
         )}
       </div>
 
@@ -958,6 +994,263 @@ export function BalancesScreen({
             )
           })}
         </ul>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────── T026/T027 — starter equipment ───────────────────────────
+
+type EquipRow =
+  | { clientId: string; type: 'item'; itemName: string; itemNodeId?: string; qty: number }
+  | { clientId: string; type: 'money'; amountGp: number }
+
+export function StarterEquipScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  tgToken,
+  character,
+  onBack,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  tgToken: string
+  character: CampaignCharacter
+  onBack: () => void
+}) {
+  const [rows, setRows] = useState<EquipRow[]>([])
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<{ q: string; items: { id: string; title: string }[] }>({
+    q: '',
+    items: [],
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState<number | null>(null)
+
+  // Debounced catalog typeahead. Results are tagged with the query they belong
+  // to, so a changed query shows nothing stale until the new search resolves.
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return
+    let alive = true
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchCampaignItemsTg(supabase, campaignId, q, 8)
+        if (alive) setResults({ q, items: r })
+      } catch {
+        if (alive) setResults({ q, items: [] })
+      }
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [query, supabase, campaignId])
+
+  const shownResults = results.q === query.trim() ? results.items : []
+
+  const addCatalogItem = (it: { id: string; title: string }) => {
+    setRows((rs) => [
+      ...rs,
+      { clientId: crypto.randomUUID(), type: 'item', itemName: it.title, itemNodeId: it.id, qty: 1 },
+    ])
+    setQuery('')
+  }
+  const addFreeItem = () => {
+    const name = query.trim()
+    if (!name) return
+    setRows((rs) => [
+      ...rs,
+      { clientId: crypto.randomUUID(), type: 'item', itemName: name, qty: 1 },
+    ])
+    setQuery('')
+  }
+  const addMoney = () =>
+    setRows((rs) => [...rs, { clientId: crypto.randomUUID(), type: 'money', amountGp: 0 }])
+  const removeRow = (id: string) => setRows((rs) => rs.filter((r) => r.clientId !== id))
+
+  const submit = async () => {
+    if (rows.length === 0) {
+      setError('Добавьте хотя бы одну позицию')
+      return
+    }
+    const items = rows.filter(
+      (r): r is Extract<EquipRow, { type: 'item' }> => r.type === 'item',
+    )
+    const monies = rows.filter(
+      (r): r is Extract<EquipRow, { type: 'money' }> => r.type === 'money',
+    )
+    if (items.some((r) => !r.itemName.trim() || r.qty < 1)) {
+      setError('У предмета нужны название и количество')
+      return
+    }
+    if (monies.some((r) => !(r.amountGp > 0))) {
+      setError('У денег нужна сумма больше нуля')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const res = await submitBatch({
+      campaignId,
+      tgToken,
+      rows: [
+        ...items.map((r) => ({
+          clientId: r.clientId,
+          kind: 'item' as const,
+          actorPcId: character.id,
+          itemName: r.itemName.trim(),
+          itemNodeId: r.itemNodeId,
+          itemQty: r.qty,
+          categorySlug: 'loot',
+          comment: 'Стартовое снаряжение',
+          loopNumber,
+          dayInLoop: 1,
+        })),
+        ...monies.map((r) => ({
+          clientId: r.clientId,
+          kind: 'money' as const,
+          actorPcId: character.id,
+          amountGp: r.amountGp,
+          categorySlug: 'income',
+          comment: 'Стартовое золото',
+          loopNumber,
+          dayInLoop: 1,
+        })),
+      ],
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    setSubmitted(rows.length)
+  }
+
+  if (submitted !== null) {
+    return (
+      <div className="mx-auto max-w-sm">
+        <BackLink onClick={onBack}>{character.title}</BackLink>
+        <Centered>
+          <div>
+            <div className="text-4xl">✓</div>
+            <p className="mt-3">
+              Отправлено: {submitted}. Ждёт одобрения ведущего — появится в листе после подтверждения.
+            </p>
+          </div>
+        </Centered>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>{character.title}</BackLink>
+      <h1 className="text-lg font-semibold">Стартовое снаряжение</h1>
+      <p className="mb-3 text-xs text-neutral-500">
+        Собери список — он уйдёт ведущему на одобрение.
+      </p>
+
+      <div className="relative">
+        <input
+          className={FIELD}
+          placeholder="Найти предмет в каталоге…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {query.trim() && (
+          <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg bg-neutral-800 py-1 shadow-lg">
+            {shownResults.map((it) => (
+              <button
+                key={it.id}
+                onClick={() => addCatalogItem(it)}
+                className="block w-full px-3 py-2 text-left text-sm text-neutral-200 transition-colors hover:bg-neutral-700"
+              >
+                {it.title}
+              </button>
+            ))}
+            <button
+              onClick={addFreeItem}
+              className="block w-full px-3 py-2 text-left text-sm text-neutral-400 transition-colors hover:bg-neutral-700"
+            >
+              + добавить «{query.trim()}» (своё)
+            </button>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={addMoney}
+        className="mt-2 w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+      >
+        + стартовое золото
+      </button>
+
+      <div className="mt-4 space-y-2">
+        {rows.map((r) => (
+          <div
+            key={r.clientId}
+            className="flex items-center gap-2 rounded-lg bg-neutral-900 px-3 py-2"
+          >
+            {r.type === 'item' ? (
+              <>
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {r.itemName || '—'}
+                  {r.itemNodeId ? '' : ' · своё'}
+                </span>
+                <input
+                  className="w-14 rounded bg-neutral-800 px-2 py-1 text-center text-sm tabular-nums"
+                  inputMode="numeric"
+                  value={r.qty}
+                  onChange={(e) => {
+                    const q = Math.max(1, parseInt(e.target.value, 10) || 1)
+                    setRows((rs) =>
+                      rs.map((x) =>
+                        x.clientId === r.clientId && x.type === 'item' ? { ...x, qty: q } : x,
+                      ),
+                    )
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <span className="text-sm">Золото</span>
+                <input
+                  className="ml-auto w-20 rounded bg-neutral-800 px-2 py-1 text-right text-sm tabular-nums"
+                  inputMode="decimal"
+                  placeholder="зм"
+                  value={r.amountGp || ''}
+                  onChange={(e) => {
+                    const v = parseGp(e.target.value) ?? 0
+                    setRows((rs) =>
+                      rs.map((x) =>
+                        x.clientId === r.clientId && x.type === 'money'
+                          ? { ...x, amountGp: v }
+                          : x,
+                      ),
+                    )
+                  }}
+                />
+              </>
+            )}
+            <button
+              onClick={() => removeRow(r.clientId)}
+              aria-label="Убрать"
+              className="text-neutral-500 transition-colors hover:text-neutral-300"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {rows.length > 0 && (
+        <SubmitButton busy={busy} onClick={submit}>
+          Отправить на одобрение
+        </SubmitButton>
       )}
     </div>
   )
