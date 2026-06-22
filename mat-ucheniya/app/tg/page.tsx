@@ -51,6 +51,7 @@ type Ready = {
   loopNumber: number
   characters: CampaignCharacter[]
   categories: Map<string, string>
+  tgToken: string
 }
 
 type State =
@@ -131,6 +132,7 @@ export default function TgPage() {
         loopNumber,
         characters,
         categories,
+        tgToken: jwt,
       })
     } catch {
       setState({ phase: 'error', message: 'Сеть недоступна, попробуйте позже.' })
@@ -228,6 +230,8 @@ function AppShell({ ready }: { ready: Ready }) {
           campaignId={ready.campaignId}
           loopNumber={ready.loopNumber}
           character={view.pc}
+          tgToken={ready.tgToken}
+          others={characters.filter((c) => c.id !== view.pc.id)}
           onBack={() => setView({ screen: 'home', pc: view.pc })}
           onOpenStash={() => setView({ screen: 'stash', pc: view.pc })}
         />
@@ -239,6 +243,9 @@ function AppShell({ ready }: { ready: Ready }) {
           campaignId={ready.campaignId}
           loopNumber={ready.loopNumber}
           categories={ready.categories}
+          character={view.pc}
+          tgToken={ready.tgToken}
+          others={characters.filter((c) => c.id !== view.pc.id)}
           onBack={() => setView({ screen: 'ledger', pc: view.pc })}
         />
       )

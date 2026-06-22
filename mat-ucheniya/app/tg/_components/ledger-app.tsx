@@ -21,6 +21,8 @@ import {
   initialOf,
   portraitUrl,
 } from './format'
+import { createTransaction, createTransfer } from '@/app/actions/transactions'
+import { putMoneyIntoStash, takeMoneyFromStash } from '@/app/actions/stash'
 
 // ─────────────────────────── shared ───────────────────────────
 
@@ -299,6 +301,303 @@ function FeedRow({ r, categories }: { r: TgFeedRow; categories: Map<string, stri
   )
 }
 
+// ─────────────────────────── write sheets (T014/T015) ───────────────────────────
+
+const FIELD =
+  'w-full rounded-lg bg-neutral-800 px-3 py-2 text-neutral-100 placeholder:text-neutral-500 outline-none focus:ring-1 focus:ring-neutral-600'
+
+function Sheet({
+  title,
+  onClose,
+  children,
+}: {
+  title: string
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-t-2xl bg-neutral-900 p-4 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold">{title}</h2>
+          <button onClick={onClose} className="text-xl leading-none text-neutral-500">
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function SegToggle<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T
+  options: { value: T; label: string }[]
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex gap-1 rounded-lg bg-neutral-800 p-1">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          className={
+            'flex-1 rounded-md py-1.5 text-sm transition-colors ' +
+            (value === o.value ? 'bg-neutral-700 text-neutral-100' : 'text-neutral-400')
+          }
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SubmitButton({
+  busy,
+  onClick,
+  children,
+}: {
+  busy: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+    >
+      {busy ? 'Сохраняю…' : children}
+    </button>
+  )
+}
+
+/** Parse a "зм" amount field → positive gold number, or null if invalid. */
+function parseGp(raw: string): number | null {
+  const n = Number(raw.replace(',', '.'))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+// T014 — record an expense / income for a PC.
+function RecordSheet({
+  campaignId,
+  loopNumber,
+  tgToken,
+  actorPcId,
+  onClose,
+  onDone,
+}: {
+  campaignId: string
+  loopNumber: number
+  tgToken: string
+  actorPcId: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [kind, setKind] = useState<'expense' | 'income'>('expense')
+  const [amount, setAmount] = useState('')
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    const gp = parseGp(amount)
+    if (gp === null) {
+      setError('Введите сумму в зм')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const res = await createTransaction({
+      campaignId,
+      actorPcId,
+      kind: 'money',
+      amountGp: kind === 'expense' ? -gp : gp,
+      categorySlug: kind === 'expense' ? 'expense' : 'income',
+      comment: comment.trim(),
+      loopNumber,
+      dayInLoop: 1,
+      tgToken,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title="Записать" onClose={onClose}>
+      <div className="space-y-3">
+        <SegToggle
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: 'expense', label: 'Расход' },
+            { value: 'income', label: 'Доход' },
+          ]}
+        />
+        <input
+          className={FIELD}
+          inputMode="decimal"
+          placeholder="Сумма, зм"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <input
+          className={FIELD}
+          placeholder="Комментарий (необязательно)"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        {kind === 'expense' ? 'Списать' : 'Записать'}
+      </SubmitButton>
+    </Sheet>
+  )
+}
+
+type TransferDir = 'player' | 'to-stash' | 'from-stash'
+
+// T015 — PC↔PC money + put/take общак. Reused by the ledger («Перевод») and the
+// общак screen (Положить/Забрать, via initialDir).
+function TransferSheet({
+  campaignId,
+  loopNumber,
+  tgToken,
+  actorPcId,
+  others,
+  initialDir,
+  onClose,
+  onDone,
+}: {
+  campaignId: string
+  loopNumber: number
+  tgToken: string
+  actorPcId: string
+  others: CampaignCharacter[]
+  initialDir: TransferDir
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [dir, setDir] = useState<TransferDir>(initialDir)
+  const [recipient, setRecipient] = useState<string>(others[0]?.id ?? '')
+  const [amount, setAmount] = useState('')
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    const gp = parseGp(amount)
+    if (gp === null) {
+      setError('Введите сумму в зм')
+      return
+    }
+    if (dir === 'player' && !recipient) {
+      setError('Выберите получателя')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const base = {
+      campaignId,
+      actorPcId,
+      amountGp: gp,
+      comment: comment.trim(),
+      loopNumber,
+      dayInLoop: 1,
+      tgToken,
+    }
+    const res =
+      dir === 'player'
+        ? await createTransfer({
+            campaignId,
+            senderPcId: actorPcId,
+            recipientPcId: recipient,
+            amountGp: gp,
+            categorySlug: 'transfer',
+            comment: comment.trim(),
+            loopNumber,
+            dayInLoop: 1,
+            tgToken,
+          })
+        : dir === 'to-stash'
+          ? await putMoneyIntoStash(base)
+          : await takeMoneyFromStash(base)
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title="Перевод" onClose={onClose}>
+      <div className="space-y-3">
+        <SegToggle
+          value={dir}
+          onChange={setDir}
+          options={[
+            { value: 'player', label: 'Игроку' },
+            { value: 'to-stash', label: 'В общак' },
+            { value: 'from-stash', label: 'Из общака' },
+          ]}
+        />
+        {dir === 'player' &&
+          (others.length > 0 ? (
+            <select
+              className={FIELD}
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+            >
+              {others.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-neutral-500">Нет других персонажей.</p>
+          ))}
+        <input
+          className={FIELD}
+          inputMode="decimal"
+          placeholder="Сумма, зм"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <input
+          className={FIELD}
+          placeholder="Комментарий (необязательно)"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        Перевести
+      </SubmitButton>
+    </Sheet>
+  )
+}
+
 // ─────────────────────────── T011 — Ledger screen ───────────────────────────
 
 type LedgerData = {
@@ -313,6 +612,8 @@ export function LedgerScreen({
   campaignId,
   loopNumber,
   character,
+  tgToken,
+  others,
   onBack,
   onOpenStash,
 }: {
@@ -320,12 +621,24 @@ export function LedgerScreen({
   campaignId: string
   loopNumber: number
   character: CampaignCharacter
+  tgToken: string
+  others: CampaignCharacter[]
   onBack: () => void
   onOpenStash: () => void
 }) {
   const [data, setData] = useState<LedgerData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [sheet, setSheet] = useState<'none' | 'record' | 'transfer'>('none')
+
+  const reload = useCallback(async () => {
+    const [wallet, feed, categories] = await Promise.all([
+      getWalletTg(supabase, character.id, loopNumber),
+      getFeedTg(supabase, character.id, loopNumber, { limit: 25 }),
+      getTxCategoriesTg(supabase, campaignId),
+    ])
+    setData({ wallet, rows: feed.rows, nextCursor: feed.nextCursor, categories })
+  }, [supabase, campaignId, loopNumber, character.id])
 
   useEffect(() => {
     let alive = true
@@ -336,8 +649,7 @@ export function LedgerScreen({
           getFeedTg(supabase, character.id, loopNumber, { limit: 25 }),
           getTxCategoriesTg(supabase, campaignId),
         ])
-        if (!alive) return
-        setData({ wallet, rows: feed.rows, nextCursor: feed.nextCursor, categories })
+        if (alive) setData({ wallet, rows: feed.rows, nextCursor: feed.nextCursor, categories })
       } catch {
         if (alive) setError('Не удалось загрузить кошелёк.')
       }
@@ -364,7 +676,7 @@ export function LedgerScreen({
   }, [data, loadingMore, supabase, character.id, loopNumber])
 
   return (
-    <div className="mx-auto max-w-sm">
+    <div className="mx-auto max-w-sm pb-20">
       <div className="mb-4 flex items-center justify-between">
         <BackLink onClick={onBack}>{character.title}</BackLink>
         <button
@@ -380,6 +692,14 @@ export function LedgerScreen({
       {data && (
         <>
           <WalletCard wallet={data.wallet} />
+          {character.isOwn && (
+            <button
+              onClick={() => setSheet('transfer')}
+              className="mt-3 w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+            >
+              Перевод
+            </button>
+          )}
           <div className="mt-4">
             <FeedList rows={data.rows} categories={data.categories} />
             {data.nextCursor && (
@@ -394,6 +714,39 @@ export function LedgerScreen({
           </div>
         </>
       )}
+
+      {/* Write controls — own PC only (E4: view any, edit own). */}
+      {character.isOwn && data && (
+        <button
+          onClick={() => setSheet('record')}
+          aria-label="Записать"
+          className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-3xl leading-none text-white shadow-lg transition-colors hover:bg-blue-500"
+        >
+          ＋
+        </button>
+      )}
+      {sheet === 'record' && (
+        <RecordSheet
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          tgToken={tgToken}
+          actorPcId={character.id}
+          onClose={() => setSheet('none')}
+          onDone={() => void reload()}
+        />
+      )}
+      {sheet === 'transfer' && (
+        <TransferSheet
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          tgToken={tgToken}
+          actorPcId={character.id}
+          others={others}
+          initialDir="player"
+          onClose={() => setSheet('none')}
+          onDone={() => void reload()}
+        />
+      )}
     </div>
   )
 }
@@ -405,16 +758,28 @@ export function StashScreen({
   campaignId,
   loopNumber,
   categories,
+  character,
+  tgToken,
+  others,
   onBack,
 }: {
   supabase: SupabaseClient
   campaignId: string
   loopNumber: number
   categories: Map<string, string>
+  character: CampaignCharacter
+  tgToken: string
+  others: CampaignCharacter[]
   onBack: () => void
 }) {
   const [data, setData] = useState<{ wallet: TgWallet; recent: TgFeedRow[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<'none' | 'to-stash' | 'from-stash'>('none')
+
+  const reload = useCallback(async () => {
+    const stash = await getStashTg(supabase, campaignId, loopNumber)
+    setData({ wallet: stash.wallet, recent: stash.recent })
+  }, [supabase, campaignId, loopNumber])
 
   useEffect(() => {
     let alive = true
@@ -432,7 +797,7 @@ export function StashScreen({
   }, [supabase, campaignId, loopNumber])
 
   return (
-    <div className="mx-auto max-w-sm">
+    <div className="mx-auto max-w-sm pb-6">
       <BackLink onClick={onBack}>назад</BackLink>
       <h1 className="mb-3 text-lg font-semibold">Общак</h1>
       {error && <Centered>{error}</Centered>}
@@ -440,6 +805,22 @@ export function StashScreen({
       {data && (
         <>
           <WalletCard wallet={data.wallet} />
+          {character.isOwn && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setSheet('to-stash')}
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Положить
+              </button>
+              <button
+                onClick={() => setSheet('from-stash')}
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Забрать
+              </button>
+            </div>
+          )}
           <div className="mt-4">
             <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
               Движения
@@ -447,6 +828,18 @@ export function StashScreen({
             <FeedList rows={data.recent} categories={categories} />
           </div>
         </>
+      )}
+      {sheet !== 'none' && (
+        <TransferSheet
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          tgToken={tgToken}
+          actorPcId={character.id}
+          others={others}
+          initialDir={sheet}
+          onClose={() => setSheet('none')}
+          onDone={() => void reload()}
+        />
       )}
     </div>
   )
