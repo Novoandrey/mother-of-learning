@@ -45,7 +45,7 @@
    `identified`, маскировка имени) и **R10 + spec-044 Mobile Ledger**
    (Specify draft — на ревью): параллельный трек поверх готовой
    бухгалтерии 009–019, (больше НЕ первый шип). **chat 96 — Telegram-first**: первый шип
-   теперь **spec-046 Telegram Auth + Card v0** (Specify draft, гейт Specify) —
+   теперь **spec-046 Telegram Auth + Card v0** (Clarify — in progress; портреты/R2 втянуты в скоуп, C-06) —
    Mini App + identity-своп `initData`→JWT на `auth.users` + read-only карточка
    PC (имя+плейсхолдер); перенял shell/auth-pathfinder у 044, который теперь
    едет поверх входа 046 (несёт возврат Realtime/DEBT-011). Карта эпика →

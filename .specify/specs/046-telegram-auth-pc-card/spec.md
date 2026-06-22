@@ -2,7 +2,7 @@
 
 **Feature Branch**: `046-telegram-auth-pc-card`
 **Created**: 2026-06-20 (chat 96)
-**Status**: Specify draft — awaiting Clarify
+**Status**: Clarify — in progress (chat 96; portraits/R2 folded into scope)
 **Input**: Andrey (chat 96): «давай сделаем первый слой — открыть и увидеть
 мобильный вид карточки своего персонажа с портретом и именем и залогиниться
 телегой связанной с твоим аккаунтом в theloopers».
@@ -14,8 +14,12 @@ the lineage of specs 006/024 (Supabase Auth), not engine.
 **Depends on**: 024 (auth keyed to `auth.users`); node type `character` +
 `nodes.owner_user_id` (006/028/030); `design.md` 022 (tokens, dark theme).
 A dedicated Telegram bot with a WebApp URL via BotFather — **Andrey action**.
-**Does NOT depend on**: 045 engine · 044 ledger · DEBT-011 realtime ·
-spec-030 portraits.
+**Does NOT depend on**: 045 engine · 044 ledger · DEBT-011 realtime · the full
+sheet (022).
+**New operator dependency**: a Cloudflare R2 bucket for portraits (R2 is
+already used for backups — this is a new bucket + creds). **Supersedes**
+spec-030's portrait-storage scope: 046 becomes the first R2 portrait consumer;
+030 reduces to art pipeline / any richer upload UX.
 
 ## Context
 
@@ -42,12 +46,15 @@ character," not editing.
 **In**: validate Telegram `initData`; mint a Supabase-compatible JWT bound to
 an existing theloopers account; first-time linking `telegram_id ↔ auth.users`;
 Telegram Mini App shell served by the existing Next.js; read-only character
-card v0 (name + placeholder portrait); a "my characters" list when the caller
-owns more than one PC; password login retained behind a flag.
+card v0 (name + portrait); a "my characters" list when the caller owns more
+than one PC; password login retained behind a flag; **portrait storage on
+Cloudflare R2** — schema + read-side wiring + render real-or-placeholder
+(ingest shape → C-06).
 
 **Out**: editing anything; the engine (045); ledger (044); realtime
-(DEBT-011); real portrait art (030); the full sheet — statblocks, skills,
-dice (022).
+(DEBT-011); **player self-upload of portraits** (write feature — deferred to a
+later increment); bulk art production / moderation; the full sheet —
+statblocks, skills, dice (022).
 
 ## User Scenarios & Testing
 
@@ -104,8 +111,12 @@ fallback. **Acceptance**: an admin can still log in with a password on the web.
 ### Character card v0
 - **FR-009**: "My characters" = nodes of type `character` where
   `owner_user_id` = caller. 0 → empty state; 1 → card directly; >1 → list.
-- **FR-010**: Card renders **read-only**: name + portrait **placeholder** (no
-  portrait data exists; real art = spec-030). Fields beyond name = C-03.
+- **FR-010**: Card renders **read-only**: name + portrait — the real image
+  from Cloudflare R2 when the node has one, **placeholder** fallback otherwise.
+  Portrait ingest path + bucket privacy = C-06. Fields beyond name = C-03.
+- **FR-010a**: Portrait schema = a field on the `character` node (`portrait_key`
+  or `portrait_url` — C-06); R2 wiring is read-side only in v0 (serve/fetch),
+  no write/upload path.
 - **FR-011**: Transparency (E4): reads only; **no edit affordance** in v0.
 
 ### System qualities
@@ -131,6 +142,11 @@ fallback. **Acceptance**: an admin can still log in with a password on the web.
   ordinary players at all?
 - **C-05** — mapping storage: `telegram_id` on `user_profiles` (1:1) or its own
   table (future 1:many)?
+- **C-06 (portraits)** — ingest + privacy: (i) who puts portraits in — player
+  self-upload (write path, breaks read-only), DM/admin upload, or operator
+  seed/bulk-load; (ii) bucket — public-read R2 + public URL (no signed-URL
+  machinery; portraits aren't secret) vs. private + signed URLs; (iii) field on
+  `character` node — `portrait_key` (R2 object key) vs. full `portrait_url`.
 
 ## Success Criteria
 
@@ -143,4 +159,6 @@ fallback. **Acceptance**: an admin can still log in with a password on the web.
   ≤ 2 taps from open to a card.
 - **SC-004**: Web password login still works behind the flag.
 - **SC-005**: Zero new business logic / schema beyond the telegram↔account
-  mapping (review check).
+  mapping and the portrait field (review check).
+- **SC-006**: A PC with a portrait in R2 shows the real image on the card; a PC
+  without one shows the placeholder (no broken image).
