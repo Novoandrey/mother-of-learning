@@ -23,6 +23,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getMembership, getMembershipFor } from '@/lib/auth'
 import { verifySupabaseJwt } from '@/lib/telegram/verify'
+import { isAutoApproved } from '@/lib/approval-policy'
 import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
 import {
@@ -79,6 +80,8 @@ export type CreateTransactionInput = {
    * leave it undefined → null on the row.
    */
   batchId?: string
+  /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
+  tgToken?: string
 }
 
 export type UpdateTransactionInput = Partial<
@@ -238,7 +241,7 @@ export async function createTransaction(
   }
 
   // --- Authorisation ---
-  const auth = await resolveAuth(input.campaignId)
+  const auth = await resolveAuth(input.campaignId, { tgToken: input.tgToken })
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
@@ -250,14 +253,14 @@ export async function createTransaction(
 
   // --- Write ---
   const admin = createAdminClient()
-  // Spec-014: player → pending; DM/owner → approved (auto-approve).
-  const status = auth.role === 'player' ? 'pending' : 'approved'
+  // Spec-014: player → pending; DM/owner → approved. createTransaction has no
+  // free-общак path — only the stash transfer wrappers set autoApprove.
+  const approved = isAutoApproved(auth.role, false)
+  const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
-  // Player submissions always get a batch_id (single-row → batch of 1)
-  // so they appear in the queue. DM/owner direct writes leave it null.
-  const batchId =
-    input.batchId ??
-    (auth.role === 'player' ? crypto.randomUUID() : null)
+  // Pending player submissions get a batch_id (batch of 1) so they appear in
+  // the queue; approved ones leave it null.
+  const batchId = input.batchId ?? (approved ? null : crypto.randomUUID())
   const { data, error } = await admin
     .from('transactions')
     .insert({
@@ -664,7 +667,7 @@ export async function createTransfer(
   // Mirror recipient inflow — same magnitude, opposite sign.
   const recipientCoins: CoinSet = signedCoinsToStored(true, senderCoins)
 
-  const auth = await resolveAuth(input.campaignId)
+  const auth = await resolveAuth(input.campaignId, { tgToken: input.tgToken })
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
@@ -679,14 +682,14 @@ export async function createTransfer(
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
-  // Spec-014: player → both legs pending; DM/owner → both approved.
-  const status = auth.role === 'player' ? 'pending' : 'approved'
+  // Spec-014: player → pending; DM/owner → approved. Spec-044/C-05: free общак
+  // (autoApprove set by the stash wrappers) approves a player op too.
+  const approved = isAutoApproved(auth.role, input.autoApprove)
+  const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
-  // Player single-transfer = batch of 1 (both legs share batch_id);
-  // DM/owner direct writes leave it null.
-  const batchId =
-    input.batchId ??
-    (auth.role === 'player' ? crypto.randomUUID() : null)
+  // A queued (pending) player submission needs a batch_id for the queue;
+  // an approved one (DM, or free общак) leaves it null.
+  const batchId = input.batchId ?? (approved ? null : crypto.randomUUID())
 
   const baseRow = {
     campaign_id: input.campaignId,
@@ -886,6 +889,10 @@ export type ItemTransferInput = {
   sessionId?: string | null
   /** Spec-014: batch_id shared across both legs (FR-004). */
   batchId?: string
+  /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
+  tgToken?: string
+  /** Spec-044 / C-05: bypass the player approval gate (free общак, items). */
+  autoApprove?: boolean
 }
 
 export async function createItemTransfer(
@@ -915,7 +922,7 @@ export async function createItemTransfer(
   })
   if (itemErr) return { ok: false, error: itemErr }
 
-  const auth = await resolveAuth(input.campaignId)
+  const auth = await resolveAuth(input.campaignId, { tgToken: input.tgToken })
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
@@ -985,6 +992,8 @@ export async function createItemTransfer(
     }
   }
 
+  const approved = isAutoApproved(auth.role, input.autoApprove)
+  const nowIso = new Date().toISOString()
   const baseRow = {
     campaign_id: input.campaignId,
     kind: 'item' as const,
@@ -1000,15 +1009,13 @@ export async function createItemTransfer(
     day_in_loop: input.dayInLoop,
     session_id: input.sessionId ?? null,
     transfer_group_id: groupId,
-    status: (auth.role === 'player' ? 'pending' : 'approved') as 'pending' | 'approved',
+    status: (approved ? 'approved' : 'pending') as 'pending' | 'approved',
     author_user_id: auth.userId,
-    // Player single item-transfer = batch of 1 (both legs share batch_id);
-    // DM/owner direct writes leave it null.
-    batch_id:
-      input.batchId ??
-      (auth.role === 'player' ? crypto.randomUUID() : null),
-    approved_by_user_id: auth.role === 'player' ? null : auth.userId,
-    approved_at: auth.role === 'player' ? null : new Date().toISOString(),
+    // Spec-044/C-05: autoApprove (free общак) approves a player item op too;
+    // a queued (pending) one gets a batch_id for the approval queue.
+    batch_id: input.batchId ?? (approved ? null : crypto.randomUUID()),
+    approved_by_user_id: approved ? auth.userId : null,
+    approved_at: approved ? nowIso : null,
   }
 
   const { error } = await admin.from('transactions').insert([
