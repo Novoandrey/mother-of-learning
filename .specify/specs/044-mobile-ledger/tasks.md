@@ -101,18 +101,18 @@ staging hand-test → **PR into `main`** (never direct).
   reconnect fallback (FR-010). [needs T018, T020, T011]
 
 ## Phase 2 — Approvals + transparency (P2)
-- [ ] **T024** 🤖 Approvals tracking: submit a request + track status (own
+- [x] **T024** 🤖 Approvals tracking: submit a request + track status (own
   `pending` rows, amber badge; DM decision reflects in the feed). Reuses the
   existing queue. [needs T011]
-- [ ] **T025** 🤖 All-PC balances screen (behind `⋮`): name + aggregate зм,
+- [x] **T025** 🤖 All-PC balances screen (behind `⋮`): name + aggregate зм,
   own/общак row, read-only; tap row → that PC read-only. [needs T010]
 
 ## Phase 3 — Starter equipment (P3, tucked away)
-- [ ] **T026** 🤖 Starter-equip screen (behind `⋮`): build a batch of items
+- [x] **T026** 🤖 Starter-equip screen (behind `⋮`): build a batch of items
   (catalog typeahead + free-text homebrew rows) + money rows → submit via the
   existing `submitBatch` (→ approval queue, C-03). Players gain no
   item-creation rights. [needs T004]
-- [ ] **T027** 🤖 Post-submit state («Отправлено, ждёт одобрения») +
+- [x] **T027** 🤖 Post-submit state («Отправлено, ждёт одобрения») +
   collapsed «Задан ✓» after approval. [needs T026]
 
 ## Phase 4 — Staging E2E + ship
