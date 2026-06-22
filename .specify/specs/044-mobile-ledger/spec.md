@@ -2,7 +2,7 @@
 
 **Feature Branch**: `044-mobile-ledger`
 **Created**: 2026-06-12 (chat 95)
-**Status**: Clarified — awaiting Plan (C-00…C-05 resolved 2026-06-23)
+**Status**: Plan ready — awaiting Tasks (plan.md 2026-06-23; design.md light pass done)
 **Input**: Andrey (chat 95): «надо сразу сделать отдельную спеку под
 мобильный ledger и нашу бухгалтерию, это самый крутой и проработанный слой,
 а он не используется. Возможно даже до того, как начнём делать листы —
