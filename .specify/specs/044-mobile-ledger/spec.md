@@ -2,7 +2,7 @@
 
 **Feature Branch**: `044-mobile-ledger`
 **Created**: 2026-06-12 (chat 95)
-**Status**: Implement (next: T014 — record sheet/writes). Done: P0 adapter, T006-T013 (shell list/launcher + ledger reads: wallet/feed/общак), T018 mig 117. Branch `claude/044-mobile-ledger`.
+**Status**: Implement — **core done (P0–1c)**: adapter, shell, reads (wallet/feed/общак), writes (record/transfer/free-общак), mig 117. Branch `claude/044-mobile-ledger`, all green (typecheck/eslint/429 vitest). Next: operator staging hand-test (T028/T029) + realtime ops (T020→T019→T023); then P2/P3 (T022,T024–T027) / PR (T030).
 **Input**: Andrey (chat 95): «надо сразу сделать отдельную спеку под
 мобильный ledger и нашу бухгалтерию, это самый крутой и проработанный слой,
 а он не используется. Возможно даже до того, как начнём делать листы —

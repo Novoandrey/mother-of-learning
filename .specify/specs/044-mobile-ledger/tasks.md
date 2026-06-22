@@ -60,19 +60,19 @@ staging hand-test → **PR into `main`** (never direct).
   `!isOwn` (wallet + feed still render). [needs T011]
 
 ## Phase 1c — Ledger writes (existing core via adapter)
-- [ ] **T014** 🤖 Record sheet: direction (Расход/Доход) + amount (mandatory) +
+- [x] **T014** 🤖 Record sheet: direction (Расход/Доход) + amount (mandatory) +
   category/note/loop-day-override (optional) + money↔item toggle; calls
   `createTransaction` with `{ tgToken }`; optimistic update + honest rollback
   toast on failure (L2). [needs T004, T011]
-- [ ] **T015** 🤖 Transfer sheet: to PC / to общак; calls `createTransfer` /
+- [x] **T015** 🤖 Transfer sheet: to PC / to общак; calls `createTransfer` /
   `putMoneyIntoStash` (etc.) with `{ tgToken }`. [needs T004, T011]
-- [ ] **T016** 🤖 ⚠️ **Free общак (PL-2)**: add `autoApprove?` to
+- [x] **T016** 🤖 ⚠️ **Free общак (PL-2)**: add `autoApprove?` to
   `createTransfer` + `createItemTransfer`; stash wrappers pass `true`; status =
   `(autoApprove || role !== 'player') ? 'approved' : 'pending'`, set
   `approved_by/at` on auto-approve, `batch_id = null`. **Desktop behavior
   changes too** (same actions) — note in the PR. [edits transactions.ts +
   stash.ts]
-- [ ] **T017** 🤖 Vitest: free-общак status (player stash op → approved; player
+- [x] **T017** 🤖 Vitest: free-общак status (player stash op → approved; player
   PC→PC → pending; DM → approved). [needs T016]
 
 ## Phase 1d — Realtime (E7 + DEBT-011)
