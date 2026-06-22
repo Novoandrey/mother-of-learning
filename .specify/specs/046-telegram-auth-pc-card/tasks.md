@@ -59,11 +59,11 @@ next** (project rule). After any `.sql` → `present_files`.
   params.
 
 ## Phase 4 — Operator / seed
-- [ ] **T019** 🧑 BotFather: dedicated bot + Mini App / WebApp URL → staging
+- [x] **T019** 🧑 BotFather: dedicated bot + Mini App / WebApp URL → staging
   `…/tg`.
-- [ ] **T020** 🧑 🌐 Cloudflare R2: public-read portraits bucket + custom domain;
+- [x] **T020** 🧑 🌐 Cloudflare R2: public-read portraits bucket + custom domain;
   set `NEXT_PUBLIC_R2_PORTRAIT_BASE` (+ Dokploy Build-time Arguments).
-- [ ] **T021** 🧑 Env: expose the box `JWT_SECRET` → app as
+- [x] **T021** 🧑 Env: expose the box `JWT_SECRET` → app as
   `SUPABASE_JWT_SECRET`; add `TELEGRAM_BOT_TOKEN` (box + staging).
   ⚠️ Plan decision #4 — unblocks the mint path.
 - [x] **T022** 🤖 Seed script: Drive → R2 (rclone / S3) + insert primary
