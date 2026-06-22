@@ -45,17 +45,17 @@ next** (project rule). After any `.sql` → `present_files`.
   picker (campaign members) → `linkTelegramAction`. Gated. [needs T012]
 
 ## Phase 3 — Mini App + card (mobile-first)
-- [ ] **T014** 🤖 `app/tg/page.tsx` shell: load the Telegram WebApp SDK, read
+- [x] **T014** 🤖 `app/tg/page.tsx` shell: load the Telegram WebApp SDK, read
   `initData` + `themeParams`, run the auth flow (POST T009 → configure T010),
   state machine (loading / unlinked / list / card). [needs T009, T010]
-- [ ] **T015** 🤖 Unlinked screen: show `telegram_id` + @handle + "send to DM"
+- [x] **T015** 🤖 Unlinked screen: show `telegram_id` + @handle + "send to DM"
   copy. [part of T014]
-- [ ] **T016** 🤖 My-characters (0 → empty state · 1 → straight to card · >1 →
+- [x] **T016** 🤖 My-characters (0 → empty state · 1 → straight to card · >1 →
   list) + card v0: name + primary portrait (R2 URL, placeholder fallback),
   read-only. [needs T011, T014]
-- [ ] **T017** 🤖 Placeholder asset in `public/` + portrait URL builder
+- [x] **T017** 🤖 Placeholder asset in `public/` + portrait URL builder
   (`NEXT_PUBLIC_R2_PORTRAIT_BASE` + `r2_key`).
-- [ ] **T018** 🤖 Reuse `design.md` 022 tokens / dark theme; map Telegram theme
+- [x] **T018** 🤖 Reuse `design.md` 022 tokens / dark theme; map Telegram theme
   params.
 
 ## Phase 4 — Operator / seed
