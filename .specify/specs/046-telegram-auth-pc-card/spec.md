@@ -2,7 +2,7 @@
 
 **Feature Branch**: `046-telegram-auth-pc-card`
 **Created**: 2026-06-20 (chat 96)
-**Status**: Clarify — in progress (chat 96; portraits/R2 folded into scope)
+**Status**: Clarify — done; ready for Plan (chat 96)
 **Input**: Andrey (chat 96): «давай сделаем первый слой — открыть и увидеть
 мобильный вид карточки своего персонажа с портретом и именем и залогиниться
 телегой связанной с твоим аккаунтом в theloopers».
@@ -48,13 +48,15 @@ an existing theloopers account; first-time linking `telegram_id ↔ auth.users`;
 Telegram Mini App shell served by the existing Next.js; read-only character
 card v0 (name + portrait); a "my characters" list when the caller owns more
 than one PC; password login retained behind a flag; **portrait storage on
-Cloudflare R2** — schema + read-side wiring + render real-or-placeholder
-(ingest shape → C-06).
+Cloudflare R2** — `character_portraits` (one-to-many) schema + read-side wiring
++ render the **primary** portrait (placeholder fallback); a minimal **DM/admin
+account-mapping view** (the C-01 → б linking mechanism).
 
 **Out**: editing anything; the engine (045); ledger (044); realtime
-(DEBT-011); **player self-upload of portraits** (write feature — deferred to a
-later increment); bulk art production / moderation; the full sheet —
-statblocks, skills, dice (022).
+(DEBT-011); **portrait upload, carousel of past portraits, and per-portrait
+metadata (loop / inspiration / description)** — the explicit next spec (Andrey:
+«кнопка загрузить — буквально следующая фича»); bulk art production /
+moderation; the full sheet — statblocks, skills, dice (022).
 
 ## User Scenarios & Testing
 
@@ -101,6 +103,10 @@ fallback. **Acceptance**: an admin can still log in with a password on the web.
 - **FR-005**: Minting is a **Next.js route handler**, not a Supabase Edge
   Function — `supabase/functions/` is absent; do not stand up edge-runtime.
 - **FR-006**: Password login retained behind a flag (C-04).
+- **FR-006a** (C-01 → б): a minimal **DM/admin mapping view** — lists Telegram
+  users who opened the Mini App but have no linked account, and binds each to an
+  existing theloopers `auth.users`. This is the linking mechanism; no self-serve
+  code / deep-link in v0.
 
 ### Shell
 - **FR-007**: Telegram Mini App shell (WebApp SDK, Telegram theme), served by
@@ -111,12 +117,15 @@ fallback. **Acceptance**: an admin can still log in with a password on the web.
 ### Character card v0
 - **FR-009**: "My characters" = nodes of type `character` where
   `owner_user_id` = caller. 0 → empty state; 1 → card directly; >1 → list.
-- **FR-010**: Card renders **read-only**: name + portrait — the real image
-  from Cloudflare R2 when the node has one, **placeholder** fallback otherwise.
-  Portrait ingest path + bucket privacy = C-06. Fields beyond name = C-03.
-- **FR-010a**: Portrait schema = a field on the `character` node (`portrait_key`
-  or `portrait_url` — C-06); R2 wiring is read-side only in v0 (serve/fetch),
-  no write/upload path.
+- **FR-010**: Card renders **read-only**: name + the PC's **primary** portrait —
+  the real image from Cloudflare R2 when one exists, **placeholder** fallback
+  otherwise. Fields beyond name = C-03 (deferred).
+- **FR-010a**: Portrait schema = a **`character_portraits` table** (one-to-many:
+  `character_node_id`, `r2_key`, primary flag / `created_at`) — not a single
+  column — so the next feature (carousel + per-portrait metadata) needs no
+  migration. v0 reads only the primary row. R2 is read-side only: serve/fetch
+  from a public-read bucket, app builds the URL from `r2_key` + bucket base. No
+  write / upload path in v0.
 - **FR-011**: Transparency (E4): reads only; **no edit affordance** in v0.
 
 ### System qualities
@@ -147,6 +156,36 @@ fallback. **Acceptance**: an admin can still log in with a password on the web.
   seed/bulk-load; (ii) bucket — public-read R2 + public URL (no signed-URL
   machinery; portraits aren't secret) vs. private + signed URLs; (iii) field on
   `character` node — `portrait_key` (R2 object key) vs. full `portrait_url`.
+
+## Clarifications (chat 96)
+
+- **C-01 → (б) DM/admin manual mapping.** First open of an unlinked Telegram
+  user shows their `telegram_id` / @handle and an "ask the DM to link you"
+  message. The DM binds it to an existing theloopers account in a minimal admin
+  view (lists unlinked Telegram users → pick account). Reopen → linked,
+  seamless. No self-serve code / deep-link in v0.
+- **C-02 → refuse; link-to-existing only.** No `auth.users` creation from the
+  Mini App. Unlinked Telegram user with no account → "ask the DM".
+- **C-03 → name + portrait only** for v0. Race / class / level deferred to the
+  fuller card.
+- **C-04 → env flag.** Web password login stays as-is (dev / admin fallback);
+  the Mini App is Telegram-only; no password UI shown to players; no new flag
+  UI built.
+- **C-05 → `telegram_id` column on `user_profiles` (unique, 1:1)** for linked
+  users. Enumerating pending (unlinked) Telegram users for the admin view is a
+  Plan-level implementation detail (pending record vs. derived).
+- **C-06 → portraits: admin/operator seed ingest · public-read R2 · key-based ·
+  one-to-many schema.** Schema is a **`character_portraits` table**
+  (`character_node_id`, `r2_key`, primary flag / `created_at`), NOT a single
+  column — this fits the stated next feature (carousel of all past portraits +
+  per-portrait metadata: which loop, what inspired it, …) so the operator seed
+  lands in the final structure and the next spec adds UI only, no migration.
+  Bucket is public-read (portraits aren't secret → no signed-URL machinery);
+  the app builds the URL from `r2_key` + bucket base. **v0 renders the primary
+  portrait read-only.** **Upload button + carousel + per-portrait metadata =
+  the explicit next spec** (Andrey: «кнопка загрузить — буквально следующая
+  фича»). Operator seed-load (Google Drive → R2 → insert primary rows) is an
+  operator task in the plan.
 
 ## Success Criteria
 
