@@ -55,10 +55,27 @@ Studio-туннель: 🖥️ `ssh -L 8001:localhost:8001 andrey@37.27.254.49` 
 ## Блок Б — после имплемента (Claude добивает UI + сид-скрипт)
 
 ### T023 — запустить сид портретов
-Claude отдаст скрипт + точную команду. Он: Google Drive → R2 (по R2-кредам из
-T020.4) → вставит primary-строки в `character_portraits` (матч имени файла Drive
-→ нода персонажа). Запускаешь ты. Ждёт T022 (скрипт). *На T022 Claude спросит,
-в какой папке Drive портреты и как имена файлов соответствуют персонажам.*
+Скрипт готов: `mat-ucheniya/scripts/seed-portraits.ts` (матч по `title` ноды;
+алиасы + нормализация апострофов внутри; запятая в имени = альтернатива,
+в v0 пропускается). По умолчанию **dry-run**, пишет только с `--commit`.
+
+1. Скачай папку портретов: Drive → выделить всё → **Download** → распакуй в
+   `./portraits`. Добавь туда `Идзая.png` и `Доминика.png` (имена ровно как
+   `title` нод).
+2. Из `mat-ucheniya/`, выставив env:
+   - БД: `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+     (staging — cloud-проект, Settings → API → service_role)
+   - R2: `R2_ACCESS_KEY_ID` `R2_SECRET_ACCESS_KEY` `R2_ENDPOINT` `R2_BUCKET`
+   ```bash
+   npm i
+   npm run seed-portraits -- --dir ./portraits            # dry-run, печатает план
+   npm run seed-portraits -- --dir ./portraits --commit   # заливает + пишет строки
+   ```
+3. Сначала на staging (env staging), убедился по карточкам — тем же на прод
+   (env прод). Идемпотентно, повторный прогон безопасен.
+
+Ожидаемо: **31 сопоставлено**, 2 альтернативы пропущено, без портрета — только
+«Тони» (плейсхолдер).
 
 ### T024 — деплой на staging
 Когда ветка готова:
