@@ -45,7 +45,7 @@
    `identified`, маскировка имени) и **R10 + spec-044 Mobile Ledger**
    (Specify draft — на ревью): параллельный трек поверх готовой
    бухгалтерии 009–019, (больше НЕ первый шип). **chat 96 — Telegram-first**: первый шип
-   теперь **spec-046 Telegram Auth + Card v0** (Clarify done; ready for Plan; линковка = ДМ-маппинг C-01б; портреты = таблица `character_portraits`, сид-инжест) —
+   теперь **spec-046 Telegram Auth + Card v0** (Plan draft — на ревью; auth = кастомный JWT через `accessToken`, не GoTrue-сессия; линковка ДМ C-01б; портреты = `character_portraits` + public R2) —
    Mini App + identity-своп `initData`→JWT на `auth.users` + read-only карточка
    PC (имя+плейсхолдер); перенял shell/auth-pathfinder у 044, который теперь
    едет поверх входа 046 (несёт возврат Realtime/DEBT-011). Карта эпика →

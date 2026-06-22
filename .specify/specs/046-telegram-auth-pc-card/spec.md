@@ -2,7 +2,7 @@
 
 **Feature Branch**: `046-telegram-auth-pc-card`
 **Created**: 2026-06-20 (chat 96)
-**Status**: Clarify — done; ready for Plan (chat 96)
+**Status**: Plan — in progress (chat 96)
 **Input**: Andrey (chat 96): «давай сделаем первый слой — открыть и увидеть
 мобильный вид карточки своего персонажа с портретом и именем и залогиниться
 телегой связанной с твоим аккаунтом в theloopers».
