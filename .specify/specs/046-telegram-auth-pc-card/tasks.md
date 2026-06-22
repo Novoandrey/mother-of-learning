@@ -37,11 +37,11 @@ next** (project rule). After any `.sql` → `present_files`.
   where `owner_user_id = auth.uid()`, join the primary portrait. [needs T002]
 
 ## Phase 2 — DM mapping (desktop, gated)
-- [ ] **T012** 🤖 `app/actions/telegram-links.ts` — `linkTelegramAction(
+- [x] **T012** 🤖 `app/actions/telegram-links.ts` — `linkTelegramAction(
   campaignId, telegramId, userId)`: gate `getMembership` owner/dm; hand-rolled
   validation (numeric id, not already linked); admin update
   `user_profiles.telegram_id`. [needs T001]
-- [ ] **T013** 🤖 Mapping view (desktop page): form `telegram_id` + account
+- [x] **T013** 🤖 Mapping view (desktop page): form `telegram_id` + account
   picker (campaign members) → `linkTelegramAction`. Gated. [needs T012]
 
 ## Phase 3 — Mini App + card (mobile-first)
