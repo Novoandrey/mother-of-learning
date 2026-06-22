@@ -6,10 +6,10 @@ Migrations land in `mat-ucheniya/supabase/migrations/` (next free = **115, 116**
 next** (project rule). After any `.sql` → `present_files`.
 
 ## Phase 0 — Schema
-- [ ] **T001** 🤖 Write `115_user_profiles_telegram_id.sql`: `add column if not
+- [x] **T001** 🤖 Write `115_user_profiles_telegram_id.sql`: `add column if not
   exists telegram_id bigint unique` + comment; `BEGIN;`/`COMMIT;`; verification
   `SELECT`. → `present_files`.
-- [ ] **T002** 🤖 Write `116_character_portraits.sql`: table (`id`,
+- [x] **T002** 🤖 Write `116_character_portraits.sql`: table (`id`,
   `character_node_id` FK→`nodes` on delete cascade, `r2_key`, `is_primary`,
   `created_at`); index by node; partial unique (one primary per node); enable
   RLS + SELECT-for-campaign-members policy (mirror the node-read policy; R6);
