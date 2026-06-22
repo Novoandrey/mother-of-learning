@@ -10,8 +10,10 @@ import {
   getFeedTg,
   getTxCategoriesTg,
   getStashTg,
+  getAllBalancesTg,
   type TgWallet,
   type TgFeedRow,
+  type TgBalanceRow,
 } from '@/lib/queries/ledger-tg'
 import {
   formatDenoms,
@@ -77,15 +79,29 @@ function BackLink({ onClick, children }: { onClick: () => void; children: React.
 export function CharacterList({
   characters,
   onSelect,
+  onOpenBalances,
 }: {
   characters: CampaignCharacter[]
   onSelect: (c: CampaignCharacter) => void
+  onOpenBalances?: () => void
 }) {
   const own = characters.filter((c) => c.isOwn)
   const others = characters.filter((c) => !c.isOwn)
 
   return (
     <div className="mx-auto max-w-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Персонажи</h1>
+        {onOpenBalances && (
+          <button
+            onClick={onOpenBalances}
+            aria-label="Меню"
+            className="rounded-lg px-2 py-1 text-xl leading-none text-neutral-400 transition-colors hover:bg-neutral-900"
+          >
+            ⋮
+          </button>
+        )}
+      </div>
       {own.length > 0 && (
         <Group title="Мои персонажи">
           {own.map((c) => (
@@ -147,15 +163,28 @@ export function PcHome({
   showBack,
   onBack,
   onOpenLedger,
+  onOpenBalances,
 }: {
   character: CampaignCharacter
   showBack: boolean
   onBack: () => void
   onOpenLedger: () => void
+  onOpenBalances?: () => void
 }) {
   return (
     <div className="mx-auto max-w-sm">
-      {showBack && <BackLink onClick={onBack}>мои персонажи</BackLink>}
+      <div className="flex items-center justify-between">
+        {showBack ? <BackLink onClick={onBack}>мои персонажи</BackLink> : <span />}
+        {onOpenBalances && (
+          <button
+            onClick={onOpenBalances}
+            aria-label="Меню"
+            className="mb-4 rounded-lg px-2 py-1 text-xl leading-none text-neutral-400 transition-colors hover:bg-neutral-900"
+          >
+            ⋮
+          </button>
+        )}
+      </div>
 
       <div className="overflow-hidden rounded-2xl bg-neutral-900">
         <Portrait name={character.title} keyStr={character.primaryPortraitKey} />
@@ -257,6 +286,7 @@ function FeedList({
 
 function FeedRow({ r, categories }: { r: TgFeedRow; categories: Map<string, string> }) {
   const pending = r.status === 'pending'
+  const rejected = r.status === 'rejected'
   const label = categories.get(r.categorySlug) ?? r.categorySlug
   const note = r.comment?.trim()
 
@@ -282,7 +312,9 @@ function FeedRow({ r, categories }: { r: TgFeedRow; categories: Map<string, stri
   return (
     <li className="flex items-start justify-between gap-3 rounded-lg px-1 py-1.5">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div
+          className={'flex items-center gap-2 ' + (rejected ? 'line-through opacity-50' : '')}
+        >
           {pending && <span aria-hidden>⏳</span>}
           {amount}
         </div>
@@ -295,6 +327,11 @@ function FeedRow({ r, categories }: { r: TgFeedRow; categories: Map<string, stri
       {pending && (
         <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
           на одобрение
+        </span>
+      )}
+      {rejected && (
+        <span className="shrink-0 rounded-full bg-neutral-700/40 px-2 py-0.5 text-xs text-neutral-400">
+          отклонено
         </span>
       )}
     </li>
@@ -840,6 +877,87 @@ export function StashScreen({
           onClose={() => setSheet('none')}
           onDone={() => void reload()}
         />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────── T025 — all-PC balances ───────────────────────────
+
+export function BalancesScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  characters,
+  onBack,
+  onSelect,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  characters: CampaignCharacter[]
+  onBack: () => void
+  onSelect: (c: CampaignCharacter) => void
+}) {
+  const [data, setData] = useState<{ rows: TgBalanceRow[]; stashGp: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const res = await getAllBalancesTg(
+          supabase,
+          campaignId,
+          loopNumber,
+          characters.map((c) => ({ id: c.id, title: c.title, isOwn: c.isOwn })),
+        )
+        if (alive) setData(res)
+      } catch {
+        if (alive) setError('Не удалось загрузить балансы.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, loopNumber, characters])
+
+  const ordered = data
+    ? [...data.rows].sort(
+        (a, b) => Number(b.isOwn) - Number(a.isOwn) || a.title.localeCompare(b.title, 'ru'),
+      )
+    : []
+  const byId = new Map(characters.map((c) => [c.id, c]))
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>персонажи</BackLink>
+      <h1 className="mb-3 text-lg font-semibold">Балансы · п{loopNumber}</h1>
+      {error && <Centered>{error}</Centered>}
+      {!error && !data && <Centered>Загрузка…</Centered>}
+      {data && (
+        <ul className="space-y-1">
+          <li className="flex items-center justify-between rounded-lg bg-neutral-900 px-3 py-2">
+            <span className="text-neutral-300">Общак</span>
+            <span className="font-mono tabular-nums text-neutral-200">{formatGp(data.stashGp)}</span>
+          </li>
+          {ordered.map((row) => {
+            const c = byId.get(row.id)
+            return (
+              <li key={row.id}>
+                <button
+                  onClick={() => c && onSelect(c)}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-900"
+                >
+                  <span className={row.isOwn ? 'font-medium' : 'text-neutral-300'}>{row.title}</span>
+                  <span className="font-mono tabular-nums text-neutral-300">
+                    {formatGp(row.aggregateGp)}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       )}
     </div>
   )

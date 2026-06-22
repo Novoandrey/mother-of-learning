@@ -227,3 +227,38 @@ export async function getStashTg(
   const { rows } = await getFeedTg(supabase, stashNodeId, loopNumber, { limit: 15 })
   return { stashNodeId, wallet, recent: rows }
 }
+
+export type TgBalanceRow = { id: string; title: string; aggregateGp: number; isOwn: boolean }
+
+/**
+ * Per-PC current-loop aggregate for every campaign PC + the общак (T025).
+ * Reuses `getWalletTg` per PC so the math is identical to the single-PC wallet
+ * — N small RLS reads in parallel; fine at campaign scale.
+ */
+export async function getAllBalancesTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  loopNumber: number | null,
+  characters: { id: string; title: string; isOwn: boolean }[],
+): Promise<{ rows: TgBalanceRow[]; stashGp: number }> {
+  const wallets = await Promise.all(
+    characters.map((c) => getWalletTg(supabase, c.id, loopNumber)),
+  )
+  const rows: TgBalanceRow[] = characters.map((c, i) => ({
+    id: c.id,
+    title: c.title,
+    isOwn: c.isOwn,
+    aggregateGp: wallets[i].aggregateGp,
+  }))
+
+  const { data } = await supabase
+    .from('nodes')
+    .select('id, node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'stash')
+    .limit(1)
+  const stashId = (data?.[0] as { id: string } | undefined)?.id ?? null
+  const stashGp = stashId ? (await getWalletTg(supabase, stashId, loopNumber)).aggregateGp : 0
+
+  return { rows, stashGp }
+}

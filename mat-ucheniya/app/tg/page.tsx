@@ -28,6 +28,7 @@ import {
   PcHome,
   LedgerScreen,
   StashScreen,
+  BalancesScreen,
 } from './_components/ledger-app'
 
 declare global {
@@ -191,16 +192,17 @@ type View =
   | { screen: 'home'; pc: CampaignCharacter }
   | { screen: 'ledger'; pc: CampaignCharacter }
   | { screen: 'stash'; pc: CampaignCharacter }
+  | { screen: 'balances' }
 
 function AppShell({ ready }: { ready: Ready }) {
   const { characters } = ready
   const ownPcs = characters.filter((c) => c.isOwn)
   const multi = characters.length > 1
+  const rootView: View =
+    ownPcs.length === 1 ? { screen: 'home', pc: ownPcs[0] } : { screen: 'list' }
 
   // One own PC → straight to its home; otherwise the list.
-  const [view, setView] = useState<View>(
-    ownPcs.length === 1 ? { screen: 'home', pc: ownPcs[0] } : { screen: 'list' },
-  )
+  const [view, setView] = useState<View>(rootView)
 
   if (characters.length === 0) {
     return <Centered>В этой кампании пока нет персонажей.</Centered>
@@ -212,6 +214,7 @@ function AppShell({ ready }: { ready: Ready }) {
         <CharacterList
           characters={characters}
           onSelect={(pc) => setView({ screen: 'home', pc })}
+          onOpenBalances={() => setView({ screen: 'balances' })}
         />
       )
     case 'home':
@@ -221,6 +224,18 @@ function AppShell({ ready }: { ready: Ready }) {
           showBack={multi}
           onBack={() => setView({ screen: 'list' })}
           onOpenLedger={() => setView({ screen: 'ledger', pc: view.pc })}
+          onOpenBalances={() => setView({ screen: 'balances' })}
+        />
+      )
+    case 'balances':
+      return (
+        <BalancesScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          loopNumber={ready.loopNumber}
+          characters={characters}
+          onBack={() => setView(rootView)}
+          onSelect={(pc) => setView({ screen: 'home', pc })}
         />
       )
     case 'ledger':
