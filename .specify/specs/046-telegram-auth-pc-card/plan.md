@@ -1,6 +1,6 @@
 # Implementation Plan — Telegram Auth + Character Card v0 (spec-046)
 
-**Status**: Plan draft — awaiting Tasks (chat 96)
+**Status**: Tasks broken out — see `tasks.md` (chat 96)
 **Spec**: `spec.md` (Clarify done) · **Epic**: `.specify/epics/rpg-engine/constitution.md` (first ship)
 
 ## Approach (one line)
