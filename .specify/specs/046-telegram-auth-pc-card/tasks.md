@@ -69,7 +69,7 @@ next** (project rule). After any `.sql` → `present_files`.
 - [x] **T022** 🤖 Seed script: Drive → R2 (rclone / S3) + insert primary
   `character_portraits` rows (name-match Drive files → character nodes).
   [needs T002, T020]
-- [ ] **T023** 🧑 Run T022 (load images + rows).
+- [x] **T023** 🧑 Run T022 (load images + rows).
 
 ## Phase 5 — Staging E2E + ship
 - [ ] **T024** 🧑 Deploy to staging (feature branch → `staging`); apply 115 + 116
