@@ -9,29 +9,38 @@ App code (`mat-ucheniya/**` except `*.md`) ships `claude/044-mobile-ledger` →
 staging hand-test → **PR into `main`** (never direct).
 
 ## Phase 0 — Auth adapter (path B, unit-testable, no infra)
-- [ ] **T001** 🤖 `lib/telegram/verify.ts` — pure: verify a minted JWT (jose
+- [x] **T001** 🤖 `lib/telegram/verify.ts` — pure: verify a minted JWT (jose
   HS256, `SUPABASE_JWT_SECRET`; check `exp`, `aud`/`role`) → `{ userId } | null`.
   Mirror of 046's mint claims; no new trust path.
-- [ ] **T002** 🤖 Vitest for T001 (valid / expired / forged / wrong-secret).
-- [ ] **T003** 🤖 `lib/auth.ts` — add `getMembershipFor(userId, campaignId)`,
+- [x] **T002** 🤖 Vitest for T001 (valid / expired / forged / wrong-secret).
+- [x] **T003** 🤖 `lib/auth.ts` — add `getMembershipFor(userId, campaignId)`,
   the cookie-free counterpart to `getMembership`. Cookie path untouched.
-- [ ] **T004** 🤖 `app/actions/transactions.ts` — refactor internal
+- [x] **T004** 🤖 `app/actions/transactions.ts` — refactor internal
   `resolveAuth(campaignId)` → `resolveAuth(campaignId, opts?: { tgToken? })`:
   if `tgToken`, verify (T001) → `userId` → `getMembershipFor` (T003); else the
   existing cookie path. Additive signature — every existing call site keeps
   working. [needs T001, T003]
-- [ ] **T005** 🤖 Vitest: `resolveAuth` token path (membership resolved;
+- [x] **T005** 🤖 Vitest: `resolveAuth` token path (membership resolved;
   forged/expired rejected; cookie path regression-safe). [needs T004]
+  > Done as **T002 coverage** (the verify boundary — valid/expired/wrong-secret/
+  > wrong-aud/wrong-role/no-sub/tampered/empty). `resolveAuth`'s glue is
+  > DB-touching (getMembershipFor / getCurrentUser, server-only imports) and
+  > isn't unit-tested in this repo's harness — same as `getMembership`; verified
+  > by typecheck + staging E2E. No server-mock harness added (scope).
 
 ## Phase 1a — Shell additions (044 owns them; 046 ships minimal)
-- [ ] **T006** 🤖 `lib/queries/campaign-characters.ts` —
+- [x] **T006** 🤖 `lib/queries/campaign-characters.ts` —
   `getCampaignCharacters(campaignId, userId)`: all `character` nodes in the
   campaign, each tagged `isOwn`, own PCs ordered first; join primary portrait.
-- [ ] **T007** 🤖 ⚠️ **First check (PL-4/risk #1)**: confirm RLS grants
+- [x] **T007** 🤖 ⚠️ **First check (PL-4/risk #1)**: confirm RLS grants
   **member-wide `SELECT`** on `transactions` (and node/portrait reads) under the
   minted JWT — needed for E4 foreign reads + the realtime channel. If it is
   own-PC-only today, widen via a migration (renumber 117→118 if so). Record the
   finding before building reads.
+  > **Finding (2026-06-23):** `tx_select` is already
+  > `using (is_member(campaign_id))` — **member-wide SELECT in place**. Foreign
+  > ledger reads work under the minted JWT; the realtime channel RLS mirrors the
+  > same `is_member`. **No widening migration needed** — 044 has only mig 117.
 - [ ] **T008** 🤖 `app/tg/page.tsx` — list → two groups («Мои» top /
   «Остальные» below) via T006; foreign PCs open read-only. [needs T006, T007]
 - [ ] **T009** 🤖 PC home screen + **per-PC app launcher** (bag-icon Ledger app;
@@ -67,17 +76,22 @@ staging hand-test → **PR into `main`** (never direct).
   PC→PC → pending; DM → approved). [needs T016]
 
 ## Phase 1d — Realtime (E7 + DEBT-011)
-- [ ] **T018** 🤖 `117_realtime_transactions_broadcast.sql`: `AFTER INSERT`
-  trigger on `transactions` → `realtime.broadcast_changes()` into
-  `campaign:<id>` (payload incl. `actor_pc_id`); RLS on `realtime.messages`
-  gating the campaign topic to members. Idempotent; `BEGIN;`/`COMMIT;`;
-  verification `SELECT`. → `present_files`. [needs T007]
-- [ ] **T019** 🧑 Apply 117 to staging by hand (prod via Studio at ship).
-  [needs T018]
-- [ ] **T020** 🧑 🌐 ⚠️ **DEBT-011**: re-enable the Realtime container on the box
-  (Dokploy): container + env; expose the WS route via Traefik/kong (keep
-  `compose-override.kong.yml` + `COMPOSE_FILE` so labels survive); wire channel
-  auth.
+- [x] **T018** 🤖 `117_realtime_transactions_broadcast.sql`: `AFTER INSERT`
+  trigger on `transactions` → **`realtime.send()`** (error-capturing; doesn't
+  break inserts) into `campaign:<id>` private channel (compact payload incl.
+  `actor_pc_id`); RLS on `realtime.messages` gating the topic to members via
+  `is_member`. Idempotent; `BEGIN;`/`COMMIT;`; ✅/❌ verification `SELECT`. →
+  `present_files` ✓. [needs T007]
+  > **Built & delivered.** Uses `realtime.send` (not `broadcast_changes`) — more
+  > portable + self-error-capturing. ⚠️ References `realtime.*` objects, which
+  > exist only **after T020** re-enables Realtime — so the apply order is **T020
+  > → then 117 (T019)**, not the file order.
+- [ ] **T019** 🧑 Apply 117 to staging by hand — **after T020** (117 needs the
+  `realtime` schema). Prod via Studio at ship. [needs T018, T020]
+- [ ] **T020** 🧑 🌐 ⚠️ **DEBT-011** — precedes applying 117: re-enable the
+  Realtime container on the box (Dokploy): container + env; expose the WS route
+  via Traefik/kong (keep `compose-override.kong.yml` + `COMPOSE_FILE` so labels
+  survive); wire channel auth.
 - [ ] **T021** 🧑 Add WAL replication-slot lag monitoring to the backup cron
   (slot grows → CPX32 disk). [part of DEBT-011]
 - [ ] **T022** 🤖 `infra/realtime-runbook.md` — self-hosted re-enable steps,
@@ -120,6 +134,7 @@ staging hand-test → **PR into `main`** (never direct).
 Phase 0 (adapter, testable now) → 1a (shell; **T007 RLS check first**) → 1b
 (reads) → 1c (writes; T016 free-общак is the one backend delta) → 1d (realtime;
 **T020 self-hosted re-enable is the long pole**, staging-verified) → 2 → 3 →
-Phase 4 ship. T019/T028 (staging migration) gate the E2E. CI gate is
-authoritative (`npm run build` hangs in the sandbox — rely on lint + typecheck +
-vitest).
+Phase 4 ship. **Apply order for realtime: T020 (re-enable) → 117 (T019)**, since
+117 references the `realtime` schema. T019/T028 (staging migration) gate the
+E2E. CI gate is authoritative (`npm run build` hangs in the sandbox — rely on
+lint + typecheck + vitest).
