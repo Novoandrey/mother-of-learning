@@ -44,12 +44,10 @@
    chat 95 поздно вечером: **R9** (неопознанные предметы — флаг
    `identified`, маскировка имени) и **R10 + spec-044 Mobile Ledger**
    (Specify draft — на ревью): параллельный трек поверх готовой
-   бухгалтерии 009–019, (больше НЕ первый шип). **chat 96 — Telegram-first**: первый шип
-   теперь **spec-046 Telegram Auth + Card v0** (Plan draft — на ревью; auth = кастомный JWT через `accessToken`, не GoTrue-сессия; линковка ДМ C-01б; портреты = `character_portraits` + public R2) —
-   Mini App + identity-своп `initData`→JWT на `auth.users` + read-only карточка
-   PC (имя+плейсхолдер); перенял shell/auth-pathfinder у 044, который теперь
-   едет поверх входа 046 (несёт возврат Realtime/DEBT-011). Карта эпика →
-   constitution v1.6.0 (контентный хвост +1: спеллы 047 … хоумбрю 052). Решения D-1А…D-6А применены (R11), мана-система — R12/FR-025; мана-таблица = DMG Spell Points (подтверждено).
+   бухгалтерии 009–019, (больше НЕ первый шип; теперь поверх входа 046). **chat 96 — Telegram-first**:
+   первый шип = **spec-046 Telegram Auth + Card v0** (Plan draft на ревью) —
+   Mini App + identity-своп + read-only карточка PC; детали в spec/plan,
+   нумерация в constitution v1.6.0. Решения D-1А…D-6А применены (R11), мана-система — R12/FR-025; мана-таблица = DMG Spell Points (подтверждено).
 
 ## Очередь до 030
 
