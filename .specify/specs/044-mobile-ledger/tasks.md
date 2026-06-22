@@ -94,7 +94,7 @@ staging hand-test → **PR into `main`** (never direct).
   survive); wire channel auth.
 - [ ] **T021** 🧑 Add WAL replication-slot lag monitoring to the backup cron
   (slot grows → CPX32 disk). [part of DEBT-011]
-- [ ] **T022** 🤖 `infra/realtime-runbook.md` — self-hosted re-enable steps,
+- [x] **T022** 🤖 `infra/realtime-runbook.md` — self-hosted re-enable steps,
   channel auth, WAL-slot monitoring. [pairs with T020/T021]
 - [ ] **T023** 🤖 Client subscribe: `tg-client` subscribes to `campaign:<id>`;
   on insert append row + recompute affected balance(s); revalidate-on-focus /
