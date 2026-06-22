@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
 import { createClient } from './supabase/server'
+import { createAdminClient } from './supabase/admin'
 
 export type UserProfile = {
   user_id: string
@@ -85,6 +86,32 @@ export const getMembership = cache(
       .select('campaign_id, user_id, role')
       .eq('campaign_id', campaignId)
       .eq('user_id', user.id)
+      .single()
+
+    return (data as CampaignMembership | null) ?? null
+  },
+)
+
+/**
+ * Like `getMembership`, but for an explicit `userId` rather than the cookie
+ * session. Used by the Telegram Mini App auth adapter (spec-044, PL-1): the
+ * caller is identified by a verified minted JWT, not a GoTrue cookie, so there
+ * is no cookie RLS context — the membership lookup goes through the admin
+ * client. The user identity is already trusted (the JWT signature was verified
+ * upstream by `verifySupabaseJwt`); this only resolves their role.
+ */
+export const getMembershipFor = cache(
+  async (
+    userId: string,
+    campaignId: string,
+  ): Promise<CampaignMembership | null> => {
+    if (!userId || !campaignId) return null
+    const admin = createAdminClient()
+    const { data } = await admin
+      .from('campaign_members')
+      .select('campaign_id, user_id, role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', userId)
       .single()
 
     return (data as CampaignMembership | null) ?? null

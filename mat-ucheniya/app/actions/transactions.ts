@@ -21,7 +21,8 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getCurrentUser, getMembership } from '@/lib/auth'
+import { getCurrentUser, getMembership, getMembershipFor } from '@/lib/auth'
+import { verifySupabaseJwt } from '@/lib/telegram/verify'
 import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
 import {
@@ -92,7 +93,25 @@ type AuthContext =
   | { ok: true; userId: string; role: 'owner' | 'dm' | 'player' }
   | { ok: false; error: string }
 
-async function resolveAuth(campaignId: string): Promise<AuthContext> {
+async function resolveAuth(
+  campaignId: string,
+  opts?: { tgToken?: string },
+): Promise<AuthContext> {
+  // Telegram Mini App path (spec-044, PL-1): a verified minted JWT instead of
+  // a GoTrue cookie session. The JWT establishes the user; membership is
+  // resolved cookie-free via getMembershipFor. Same AuthContext out, so the
+  // whole bookkeeping core below stays untouched.
+  if (opts?.tgToken) {
+    const secret = process.env.SUPABASE_JWT_SECRET
+    if (!secret) return { ok: false, error: 'Сервер не настроен (JWT)' }
+    const verified = await verifySupabaseJwt(opts.tgToken, secret)
+    if (!verified) return { ok: false, error: 'Не авторизован' }
+    const membership = await getMembershipFor(verified.userId, campaignId)
+    if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
+    return { ok: true, userId: verified.userId, role: membership.role }
+  }
+
+  // Cookie path (desktop) — unchanged.
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: 'Не авторизован' }
 
