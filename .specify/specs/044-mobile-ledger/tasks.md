@@ -41,22 +41,22 @@ staging hand-test → **PR into `main`** (never direct).
   > `using (is_member(campaign_id))` — **member-wide SELECT in place**. Foreign
   > ledger reads work under the minted JWT; the realtime channel RLS mirrors the
   > same `is_member`. **No widening migration needed** — 044 has only mig 117.
-- [ ] **T008** 🤖 `app/tg/page.tsx` — list → two groups («Мои» top /
+- [x] **T008** 🤖 `app/tg/page.tsx` — list → two groups («Мои» top /
   «Остальные» below) via T006; foreign PCs open read-only. [needs T006, T007]
-- [ ] **T009** 🤖 PC home screen + **per-PC app launcher** (bag-icon Ledger app;
+- [x] **T009** 🤖 PC home screen + **per-PC app launcher** (bag-icon Ledger app;
   greyed future apps). Ledger is the only active app. [needs T008]
 
 ## Phase 1b — Ledger reads (tg-client / RLS, no adapter)
-- [ ] **T010** 🤖 `lib/queries/ledger-tg.ts` — tg-client cursor readers: wallet
+- [x] **T010** 🤖 `lib/queries/ledger-tg.ts` — tg-client cursor readers: wallet
   (aggregate + denominations), feed (paginated, dodges the ~1000-row clamp),
   stash/общак. Wrap the existing cursor query shapes; zero new bookkeeping
   logic. [needs T007]
-- [ ] **T011** 🤖 Ledger app screen: wallet card (aggregate зм large +
+- [x] **T011** 🤖 Ledger app screen: wallet card (aggregate зм large +
   пп/зм/см/мм row, **tabular numerals**) + feed (grouped by loop-day, `pending`
   badge in amber) + «+» FAB + "показать ещё" pagination. [needs T010, T009]
-- [ ] **T012** 🤖 Общак screen: balance + recent movements + Положить / Забрать
+- [x] **T012** 🤖 Общак screen: balance + recent movements + Положить / Забрать
   entry points. [needs T010]
-- [ ] **T013** 🤖 Read-only foreign PC: hide record/transfer/edit controls when
+- [x] **T013** 🤖 Read-only foreign PC: hide record/transfer/edit controls when
   `!isOwn` (wallet + feed still render). [needs T011]
 
 ## Phase 1c — Ledger writes (existing core via adapter)
