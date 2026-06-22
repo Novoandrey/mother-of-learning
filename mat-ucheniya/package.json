@@ -13,7 +13,8 @@
     "seed-srd": "tsx scripts/seed-srd.ts",
     "dedupe-srd": "tsx scripts/dedupe-srd.ts",
     "import-electives": "tsx scripts/import-electives.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed-portraits": "tsx scripts/seed-portraits.ts"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
@@ -21,6 +22,7 @@
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.0",
     "@tailwindcss/typography": "^0.5.19",
+    "jose": "^6.2.3",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
     "react": "19.2.4",
@@ -33,6 +35,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "aws4fetch": "^1.0.20",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
