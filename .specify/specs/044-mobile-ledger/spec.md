@@ -2,7 +2,7 @@
 
 **Feature Branch**: `044-mobile-ledger`
 **Created**: 2026-06-12 (chat 95)
-**Status**: Specify draft — awaiting Clarify
+**Status**: Clarify in progress — C-00 resolved (rides the 046 Telegram Mini App, no new PWA); C-01–C-05 open
 **Input**: Andrey (chat 95): «надо сразу сделать отдельную спеку под
 мобильный ledger и нашу бухгалтерию, это самый крутой и проработанный слой,
 а он не используется. Возможно даже до того, как начнём делать листы —
@@ -250,6 +250,18 @@ membership. The PWA shell is a code artifact, not data.
 - Significant items are nodes, junk is transaction free-text (bookkeeping
   roadmap canon) — unchanged.
 - The old roadmap's «polling достаточно» non-goal is superseded by E7.
+
+## Clarifications
+
+- **C-00 (platform — resolved 2026-06-23, chat «telegram-auth»)** — superseded
+  by the chat-96 Telegram-first pivot. The Mobile Ledger does **not** build a
+  new PWA. All surfaces live inside the existing **Telegram Mini App** (`/tg`,
+  spec-046), reusing its initData→JWT auth and session. The P1 "PWA shell"
+  scope (manifest, install flow, mobile auth, `/m` nav) is **dropped** — 046
+  already provides the shell. 044 narrows to the ledger surfaces themselves
+  (wallet, feed, record op, transfers, общак, realtime). This reframes C-04
+  (nav IA) to "section/tab inside `/tg`" and removes shell work from P1.
+  Andrey: «никаких новых PWA, мы теперь живём в mini app».
 
 ## Open questions → Clarify
 
