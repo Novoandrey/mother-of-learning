@@ -1,8 +1,8 @@
-# Feature Specification: Mobile Ledger — player wallet & bookkeeping (PWA)
+# Feature Specification: Mobile Ledger — player wallet & bookkeeping (Telegram Mini App)
 
 **Feature Branch**: `044-mobile-ledger`
 **Created**: 2026-06-12 (chat 95)
-**Status**: Clarify in progress — C-00 resolved (rides the 046 Telegram Mini App, no new PWA); C-01–C-05 open
+**Status**: Clarified — awaiting Plan (C-00…C-05 resolved 2026-06-23)
 **Input**: Andrey (chat 95): «надо сразу сделать отдельную спеку под
 мобильный ledger и нашу бухгалтерию, это самый крутой и проработанный слой,
 а он не используется. Возможно даже до того, как начнём делать листы —
@@ -12,7 +12,8 @@
 paper), E7 (realtime), E10 (mobile first). Engine principles
 (E2/E3/E8/E9/E11) do not apply — money is not modules.
 **Depends on**: bookkeeping series 009–019 (backend complete), spec-020
-data shapes (holdings), design.md 022 (tokens, dark theme, PWA model).
+data shapes (holdings), design.md 022 (tokens, dark theme), spec-046
+(`/tg` Mini App shell + initData→JWT auth).
 **Does NOT depend on**: spec-045 engine.
 
 ## Context
@@ -33,14 +34,14 @@ the spec is a thin mobile UI slice over existing queries and actions.
 The bookkeeping roadmap itself listed «мобильная версия игрока» as an
 explicit out-of-scope «отдельная большая фича» — this is that feature.
 
-**Strategic role (R10): PWA pathfinder.** This spec ships the shared PWA
-shell first — manifest, install flow, mobile auth/session, `/m` navigation,
-design tokens from design.md 022 — so spec-022 (sheet) later rides a
-de-risked shell instead of debugging install+auth+layout together with the
-engine. It is also the natural **first realtime consumer** (E7):
-transactions are append-only events, the friendliest possible shape for
-broadcast — no LWW conflicts by construction. The Realtime service
-re-enable (DEBT-011) lands in this spec's Plan if 044 ships first.
+**Strategic role (R10): realtime pathfinder.** (The original "PWA
+pathfinder" role is superseded by C-00 — 044 rides the `/tg` Mini App
+shell from 046, it builds no PWA.) 044 is the natural **first realtime
+consumer** (E7): transactions are append-only events, the friendliest
+possible shape for broadcast — no LWW conflicts by construction. The
+Realtime service re-enable (DEBT-011) lands in this spec's Plan if 044
+ships first. It also de-risks the per-PC app-launcher frame (FR-001) that
+spec-022's sheet later plugs into.
 
 One honest counter-reading of the chat 90 data, recorded so the bet is
 explicit: «2 транзакции» may mean players don't want bookkeeping at all,
@@ -50,17 +51,28 @@ ledger usage stays low. SC-007 below makes the outcome measurable.
 
 ## Scope
 
-**In (P1):** PWA shell (manifest, install, mobile auth, `/m` nav, dark
-theme tokens); my wallet (balance + denominations) and my transaction
-feed; record an operation in seconds (expense / income, category,
-free-text, correct loop-day defaults); transfers PC → PC and PC ↔ общак;
-общак view (balance + recent moves); realtime propagation of new
-transactions to open viewers (E7).
+**In (P1):** the character list inside `/tg` reshaped to all campaign PCs
+(own PCs on top, everyone else below; view any, edit own — C-02/list);
+a per-PC bottom app launcher with the Ledger app as a money-bag icon
+(C-04); my wallet (balance + denominations) and my transaction feed;
+record an operation in seconds (expense / income, category, free-text,
+correct loop-day defaults); transfers PC → PC and PC ↔ общак; **общак
+put/take free for the player** (auto-approved, not queued — C-05); общак
+view (balance + recent moves); realtime propagation of new transactions
+to open viewers (E7). (The list + launcher are the shell frame 044 owns
+now that 046 ships minimal — see C-04.)
 
 **In (P2):** approvals on mobile — submit a request, track status (queue
 exists, spec-014); all-PCs balances view (E4 transparency; data shapes
-from spec-020); my significant items — read-only list (inventory slice
-exists, spec-015).
+from spec-020).
+
+**In (P3):** starter equipment — a tucked-away one-time screen where the
+player pre-fills a batch of items + money and submits it for DM approval,
+reusing the **existing `submitBatch`** path and the **existing approval
+queue** (C-03; zero new approval machinery). Homebrew items the catalog
+lacks («Костюм чирлидерши», «Счастливый носок») ride along as free-text
+item rows; the DM may later materialize them via the DM-only
+`createItemAction`, but that stays outside the player flow.
 
 **Out:** any bookkeeping logic changes (backend is done); character sheet
 (022); items full inventory/equipping (explicitly out per bookkeeping
@@ -172,23 +184,43 @@ open the existing item card.
 
 ### Surfaces
 
-- **FR-001**: Mobile surfaces live under the shared `/m` shell: bottom
-  navigation with a Ledger tab (final IA in the design pass, shared with
-  022's planned tabs).
+- **FR-001**: Surfaces live inside the existing `/tg` Telegram Mini App
+  (spec-046), not a new shell. The character list shows all campaign PCs —
+  own PCs first, everyone else below; any PC is viewable, only own PCs are
+  editable (reuses `isPcOwner` / `canEditNode`). Each PC screen carries a
+  per-PC bottom app launcher; the Ledger is one app (money-bag icon).
+  No global tab bar — the launcher grows as later apps (sheet, …) land.
 - **FR-002**: Wallet screen: total + denominations (1:10:100:1000
   hardcoded canon), feed below, «+» record action, общак and transfers
   reachable in ≤ 2 taps.
 - **FR-003**: Record flow: one continuous action; mandatory fields —
   direction and amount only; category and note optional; loop-day default
   per existing temporal rules with an override control.
-- **FR-004**: All reads/writes reuse existing bookkeeping queries and
-  server actions — **zero new bookkeeping business logic**; any gap found
-  is escalated, not re-implemented mobile-side.
+- **FR-004**: All reads/writes reuse the existing bookkeeping **core**
+  (queries + server actions); the mobile layer adds **no new bookkeeping
+  business logic**. Two conscious, bounded backend deltas are authorized
+  (chat 2026-06-23) and do **not** count as new business logic:
+  (a) **Auth adapter (path B)** — the existing write actions authenticate
+  off a GoTrue cookie session (`getCurrentUser`); the Mini App has none, it
+  carries a minted JWT. A thin minted-JWT-aware `resolveAuth` lets every
+  existing action run unchanged from `/tg`. This is auth plumbing, applies
+  to all write paths, and reuses 046's JWT verification
+  (`lib/telegram/init-data.ts`). (b) **Free общак** — see FR-005/C-05. Any
+  *other* gap found is escalated, not re-implemented mobile-side.
 - **FR-005**: Transparency (E4): wallet/feed/общак/balances are readable
-  by every campaign member; writes follow existing permission and approval
-  rules unchanged.
+  by every campaign member (a player may open any PC's ledger read-only;
+  record/transfer controls appear only on own PCs). Writes follow the
+  existing role gate (player → pending queue) **with one exception (C-05):
+  общак put/take by a player is free — auto-approved, not queued**, for
+  money and items, mirrored on desktop (same `putMoneyIntoStash` /
+  `takeMoneyFromStash` / `put|takeItemFromStash` actions). Mechanism is a
+  Plan concern (likely an `autoApprove` flag set by the stash wrappers).
 
-### PWA shell (pathfinder deliverables, shared with 022)
+### PWA shell (SUPERSEDED by C-00 + C-04 — kept for history)
+
+> 044 no longer builds a PWA shell; it lives inside the `/tg` Mini App
+> (046). FR-006/007/008 below are obsolete. The shell deliverables 044
+> *does* own now are the all-PC list + per-PC app launcher in FR-001.
 
 - **FR-006**: Installable PWA: manifest, icons, theme color (★1 PWA name
   pending from 022's creative slots), works logged-in on iOS/Android
@@ -219,7 +251,7 @@ open the existing item card.
 
 No new entities. Consumes: transactions (append-only ledger), actors
 (PCs, общак), approvals queue, item nodes (significant items), campaign
-membership. The PWA shell is a code artifact, not data.
+membership. The `/tg` Mini App surfaces are code artifacts, not data.
 
 ## Success Criteria
 
@@ -231,12 +263,15 @@ membership. The PWA shell is a code artifact, not data.
   match desktop values exactly.
 - **SC-003**: A transaction recorded on device A appears on device B's
   open wallet/feed in ≤ 2 s without user action.
-- **SC-004**: PWA installs and runs standalone with persistent session on
-  at least one real iOS and one real Android device from the player pool.
+- **SC-004**: The Ledger opens and runs inside the `/tg` Mini App with a
+  working minted-JWT session on at least one real iOS and one real Android
+  device from the player pool (no separate install — it rides 046).
 - **SC-005**: Approval round-trip works end-to-end on mobile: submit →
   DM decides (desktop) → status updates on the phone.
-- **SC-006**: Zero new bookkeeping business logic merged (review check on
-  the PR).
+- **SC-006**: No new bookkeeping business logic merged beyond the two
+  authorized deltas (auth adapter + free-общак flag) — review check on the
+  PR. The bookkeeping core (coin resolution, status gate, batching, stash
+  resolution, item-ownership) stays untouched.
 - **SC-007** (the bet, measured ~30 days post-ship): player-initiated
   transactions/month rise from the baseline of 2 to ≥ 20, OR the result
   is written up honestly in the close-out and informs 022's money docking.
@@ -263,20 +298,58 @@ membership. The PWA shell is a code artifact, not data.
   (nav IA) to "section/tab inside `/tg`" and removes shell work from P1.
   Andrey: «никаких новых PWA, мы теперь живём в mini app».
 
+- **C-01 (self-recording policy — resolved 2026-06-23)** — surfaced from
+  code, not invented. The rule is **purely role-based and uniform**, with
+  no per-category carve-outs and no setting that toggles it: any operation
+  a **player** records (expense, income, item, PC↔PC transfer) →
+  `status='pending'` into the approval queue; **DM/owner** → `approved`
+  immediately. Receipt: `app/actions/transactions.ts` (`createTransaction`,
+  `createTransfer`, `createItemTransfer` all share
+  `auth.role === 'player' ? 'pending' : 'approved'`). `campaigns.settings`
+  (mig 021) holds only `hp_method` — no approval setting exists. Nuance the
+  status-tracking UX (US5) relies on: a player may edit/delete only their
+  **own pending** rows; once approved/rejected the row is frozen to them.
+
+- **C-02 (multi-PC IA — resolved 2026-06-23)** — go from the PC, no
+  household. Switching PC = open the other PC; all functionality lives
+  inside that PC's screen (the portraits section). Reuses 046's
+  master-detail switcher. **No aggregate/household wallet** — balances are
+  strictly per-actor; the all-PCs balances view (P2) covers the overview
+  need. Per-PC selection persistence is already required by US1 AC2
+  (mechanism in Plan).
+
+- **C-03 (items / starter equipment — resolved 2026-06-23)** — not a
+  read-list. A tucked-away one-time **starter-equipment** screen where the
+  player pre-fills a batch (items + money) and submits it for DM approval,
+  **reusing the existing `submitBatch` + approval queue** (zero new
+  approval machinery). Catalog gaps are entered as free-text item rows
+  («Костюм чирлидерши»); the DM may later materialize them via the DM-only
+  `createItemAction` — outside the player flow, so players gain no
+  item-creation rights. Lives in 044 as **P3** (not its own spec). Forward
+  note: starting "money" rows here conceptually overlap the DM-side
+  starting coins/loan of spec-012 — the DM reconciles at batch-approval
+  time; no machine merge.
+
+- **C-04 (navigation IA — resolved 2026-06-23)** — supersedes the original
+  "tab in `/m` vs standalone route" framing (moot after C-00). The Ledger
+  is **one app in a per-PC bottom launcher** (money-bag icon) inside the
+  `/tg` PC screen. No global tab bar in P1; the launcher grows as later
+  apps (sheet, other-PC viewing) arrive. Inside the Ledger app: wallet →
+  feed → «+» record; transfers and общак reachable from there.
+
+- **C-05 (общак access — resolved 2026-06-23)** — **changed** from the
+  current code rule. Today a player's stash put/take is `pending` (stash
+  wrappers inherit the role gate). Andrey: deposits **and** withdrawals
+  from the общак must be **free** for players (auto-approved), money and
+  items alike. This is the bounded backend delta recorded in FR-005. The
+  future real control is location-gating (the PC must be at the общак's
+  location; items will live in per-location stores, not one abstract
+  поместье общак) — a forward note, not 044 scope; the design must not
+  hardcode a single-общак assumption.
+
 ## Open questions → Clarify
 
-- **C-01**: Self-recording policy — which operations may a player record
-  directly vs must go through the approval queue? (Existing settings/flow
-  define something here — confirm and surface the rule, don't invent.)
-- **C-02**: Multi-PC players — per-PC tabs vs switcher; does a shared
-  «household» view make sense for owners of several PCs?
-- **C-03**: Items read-list (US7) — ship here in P2 or leave wholly to
-  022 US5? (Recommendation: thin read-list here; equipping/inventory
-  stays 022+.)
-- **C-04**: Navigation IA — Ledger as a tab in the shared `/m` shell from
-  day one (recommendation) vs standalone route until 022 lands.
-- **C-05**: Does the общак allow player-initiated deposits without
-  approval today? Mirror the existing rule, but confirm which it is.
+All resolved — see `## Clarifications` (C-00…C-05).
 
 ## Plan handoff notes (not requirements)
 
@@ -289,5 +362,16 @@ membership. The PWA shell is a code artifact, not data.
   monitoring added to the backup cron. Self-hosted re-enable runbook to
   `infra/`.
 - PostgREST ~1000-row clamp: paginate feeds (known gotcha).
-- PWA shell extraction: tokens/theme from design.md into shared layout;
-  022 inherits — coordinate file layout with 022's Plan when it exists.
+- Shell additions 044 owns (046 ships minimal): reshape the `/tg`
+  character list to all-PC (own first, others below; view any / edit own)
+  and add the per-PC bottom app launcher (Ledger = bag icon). These are
+  the **opening tasks** of 044, before the ledger surfaces. Verify in Plan
+  that RLS grants member-wide `SELECT` on `transactions` (E4), not own-PC
+  only, so read-only viewing of others' ledgers works under the minted JWT.
+- Auth adapter (path B, FR-004a): minted-JWT-aware `resolveAuth` so the
+  existing write actions run from `/tg`; reuse 046's JWT verification.
+  Applies to every write path.
+- Free-общак mechanism (C-05 / FR-005): wire stash put/take to
+  auto-approve for players (likely an `autoApprove` flag on
+  `createTransfer` / `createItemTransfer` set by the stash wrappers);
+  remember it changes desktop behavior too.
