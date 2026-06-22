@@ -18,15 +18,15 @@ next** (project rule). After any `.sql` → `present_files`.
   [needs T001, T002]
 
 ## Phase 1 — Identity core (unit-testable, no infra)
-- [ ] **T004** 🤖 Add dep `jose` (+ `@twa-dev/sdk` if the shell uses it).
-- [ ] **T005** 🤖 `lib/telegram/init-data.ts` — pure: parse + HMAC-SHA256
+- [x] **T004** 🤖 Add dep `jose` (+ `@twa-dev/sdk` if the shell uses it).
+- [x] **T005** 🤖 `lib/telegram/init-data.ts` — pure: parse + HMAC-SHA256
   validate (`secret_key = HMAC("WebAppData", bot_token)`; check `hash`; reject
   stale `auth_date`). Confirm field handling against Telegram docs.
-- [ ] **T006** 🤖 Vitest for T005 (valid / expired / forged / missing hash).
-- [ ] **T007** 🤖 `lib/telegram/mint.ts` — pure: sign the Supabase JWT (jose
+- [x] **T006** 🤖 Vitest for T005 (valid / expired / forged / missing hash).
+- [x] **T007** 🤖 `lib/telegram/mint.ts` — pure: sign the Supabase JWT (jose
   HS256, `SUPABASE_JWT_SECRET`; claims `sub`, `role:'authenticated'`,
   `aud:'authenticated'`, `iat`, `exp` ~1h).
-- [ ] **T008** 🤖 Vitest for T007 (claims + signature verifiable with secret).
+- [x] **T008** 🤖 Vitest for T007 (claims + signature verifiable with secret).
 - [ ] **T009** 🤖 `app/api/tg/auth/route.ts` — POST: validate (T005) → look up
   `telegram_id`→user (service read) → mint (T007) → `{ jwt }` or
   `{ unlinked, telegram_id, username }`. Next 16: read route-handler docs first.
