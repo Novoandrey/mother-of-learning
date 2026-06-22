@@ -14,7 +14,7 @@ next** (project rule). After any `.sql` → `present_files`.
   `created_at`); index by node; partial unique (one primary per node); enable
   RLS + SELECT-for-campaign-members policy (mirror the node-read policy; R6);
   no client write; verification `SELECT`. → `present_files`.
-- [ ] **T003** 🧑 Apply 115 + 116 to staging by hand (prod via Studio at ship).
+- [x] **T003** 🧑 Apply 115 + 116 to staging by hand (prod via Studio at ship).
   [needs T001, T002]
 
 ## Phase 1 — Identity core (unit-testable, no infra)
