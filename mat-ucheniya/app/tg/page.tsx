@@ -202,9 +202,7 @@ function Characters({ characters }: { characters: MyCharacter[] }) {
 function Card({ character }: { character: MyCharacter }) {
   return (
     <div className="overflow-hidden rounded-2xl bg-neutral-900">
-      <div className="aspect-square w-full">
-        <Avatar name={character.title} keyStr={character.primaryPortraitKey} fill />
-      </div>
+      <Portrait name={character.title} keyStr={character.primaryPortraitKey} />
       <div className="p-4">
         <div className="text-xl font-semibold">{character.title}</div>
       </div>
@@ -212,38 +210,49 @@ function Card({ character }: { character: MyCharacter }) {
   )
 }
 
-/** Portrait image when present, otherwise an initials placeholder (T017). */
+/** Hero portrait — shown at its natural aspect ratio, never cropped. The
+ *  placeholder falls back to a portrait-shaped (3:4) box. */
+function Portrait({ name, keyStr }: { name: string; keyStr: string | null }) {
+  const url = portraitUrl(keyStr)
+  if (url) {
+    return <img src={url} alt={name} className="block h-auto w-full" />
+  }
+  const initial = name.trim().charAt(0).toUpperCase() || '?'
+  return (
+    <div className="flex aspect-[3/4] w-full items-center justify-center bg-neutral-700 text-6xl font-semibold text-neutral-200">
+      {initial}
+    </div>
+  )
+}
+
+/** Small round thumbnail for the character list. */
 function Avatar({
   name,
   keyStr,
   size,
-  fill,
 }: {
   name: string
   keyStr: string | null
-  size?: number
-  fill?: boolean
+  size: number
 }) {
   const url = portraitUrl(keyStr)
   const initial = name.trim().charAt(0).toUpperCase() || '?'
-  const sizeStyle = fill ? undefined : { width: size, height: size }
-  const shape = fill ? '' : 'rounded-full'
-  const dims = fill ? 'h-full w-full' : 'shrink-0'
+  const style = { width: size, height: size }
 
   if (url) {
     return (
       <img
         src={url}
         alt={name}
-        style={sizeStyle}
-        className={`${dims} ${shape} object-cover`}
+        style={style}
+        className="shrink-0 rounded-full object-cover"
       />
     )
   }
   return (
     <div
-      style={sizeStyle}
-      className={`flex ${dims} items-center justify-center ${shape} bg-neutral-700 font-semibold text-neutral-200`}
+      style={style}
+      className="flex shrink-0 items-center justify-center rounded-full bg-neutral-700 font-semibold text-neutral-200"
     >
       {initial}
     </div>

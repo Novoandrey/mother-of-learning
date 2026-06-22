@@ -72,9 +72,9 @@ next** (project rule). After any `.sql` → `present_files`.
 - [x] **T023** 🧑 Run T022 (load images + rows).
 
 ## Phase 5 — Staging E2E + ship
-- [ ] **T024** 🧑 Deploy to staging (feature branch → `staging`); apply 115 + 116
+- [x] **T024** 🧑 Deploy to staging (feature branch → `staging`); apply 115 + 116
   to staging.
-- [ ] **T025** 🧑 E2E on staging: open from bot → unlinked → DM binds (T013) →
+- [x] **T025** 🧑 E2E on staging: open from bot → unlinked → DM binds (T013) →
   reopen seamless (SC-001); `auth.uid()` == web account id (SC-002); portrait
   real/placeholder (SC-006).
 - [ ] **T026** 🤖 Open PR of the feature branch → `main` (human merges).
