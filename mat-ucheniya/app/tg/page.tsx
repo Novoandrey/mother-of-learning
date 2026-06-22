@@ -1,23 +1,34 @@
 'use client'
 
 /**
- * Telegram Mini App (spec-046, T014–T018).
+ * Telegram Mini App — entry + navigation controller (spec-046 shell + spec-044
+ * ledger). Loads the Telegram WebApp SDK → reads initData → POST /api/tg/auth →
+ * on a linked account, a minted-JWT session reads the campaign's PCs. The user
+ * then navigates: character list (own on top, others below — C-02) → PC home
+ * with a per-PC app launcher (C-04) → the Ledger app (wallet + feed + общак).
  *
- * Walking skeleton: load the Telegram WebApp SDK → read initData → POST to
- * /api/tg/auth → on a linked account, mint-backed session (supabase-js
- * `accessToken`) reads the caller's PCs → read-only card with the primary
- * portrait (placeholder fallback). Unlinked accounts see their telegram_id and
- * a prompt to send it to the DM (C-01 б). Mobile-first; no engine, no edit.
+ * Reads run through the minted-JWT tg-client under RLS. Writes (record /
+ * transfer / free-общак) land in a later task via the server actions' auth
+ * adapter; this build is read-only, so foreign PCs are naturally view-only.
  */
-
-// Portraits are external R2 URLs; next/image would need remotePatterns + image
-// optimization we don't want for a read-only Mini App.
-/* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useRef, useState } from 'react'
 import Script from 'next/script'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createTgClient } from '@/lib/supabase/tg-client'
-import { getMyCharacters, type MyCharacter } from '@/lib/queries/my-characters'
+import { getCampaignCharacters, type CampaignCharacter } from '@/lib/queries/campaign-characters'
+import {
+  getMyCampaign,
+  getCurrentLoopNumber,
+  getTxCategoriesTg,
+} from '@/lib/queries/ledger-tg'
+import {
+  Centered,
+  CharacterList,
+  PcHome,
+  LedgerScreen,
+  StashScreen,
+} from './_components/ledger-app'
 
 declare global {
   interface Window {
@@ -32,17 +43,22 @@ declare global {
   }
 }
 
+type Ready = {
+  phase: 'ready'
+  supabase: SupabaseClient
+  userId: string
+  campaignId: string
+  loopNumber: number
+  characters: CampaignCharacter[]
+  categories: Map<string, string>
+}
+
 type State =
   | { phase: 'loading' }
   | { phase: 'error'; message: string }
+  | { phase: 'no-campaign' }
   | { phase: 'unlinked'; telegramId: number; username: string | null }
-  | { phase: 'ready'; characters: MyCharacter[] }
-
-function portraitUrl(key: string | null): string | null {
-  const base = process.env.NEXT_PUBLIC_R2_PORTRAIT_BASE
-  if (!key || !base) return null
-  return `${base.replace(/\/$/, '')}/${key}`
-}
+  | Ready
 
 export default function TgPage() {
   const [state, setState] = useState<State>({ phase: 'loading' })
@@ -57,7 +73,6 @@ export default function TgPage() {
     wa.ready()
     wa.expand?.()
 
-    // Telegram theme → page colors (T018), best-effort.
     const tp = wa.themeParams
     if (tp?.bg_color) document.body.style.backgroundColor = tp.bg_color
     if (tp?.text_color) document.body.style.color = tp.text_color
@@ -93,9 +108,30 @@ export default function TgPage() {
       }
 
       const jwt = data.jwt
+      const userId = data.userId
       const supabase = createTgClient(() => jwt)
-      const characters = await getMyCharacters(supabase, data.userId)
-      setState({ phase: 'ready', characters })
+
+      const campaign = await getMyCampaign(supabase, userId)
+      if (!campaign) {
+        setState({ phase: 'no-campaign' })
+        return
+      }
+
+      const [loopNumber, characters, categories] = await Promise.all([
+        getCurrentLoopNumber(supabase, campaign.campaignId),
+        getCampaignCharacters(supabase, campaign.campaignId, userId),
+        getTxCategoriesTg(supabase, campaign.campaignId),
+      ])
+
+      setState({
+        phase: 'ready',
+        supabase,
+        userId,
+        campaignId: campaign.campaignId,
+        loopNumber,
+        characters,
+        categories,
+      })
     } catch {
       setState({ phase: 'error', message: 'Сеть недоступна, попробуйте позже.' })
     }
@@ -118,20 +154,15 @@ export default function TgPage() {
       <main className="min-h-screen bg-neutral-950 px-4 py-6 text-neutral-100">
         {state.phase === 'loading' && <Centered>Загрузка…</Centered>}
         {state.phase === 'error' && <Centered>{state.message}</Centered>}
+        {state.phase === 'no-campaign' && (
+          <Centered>Ты пока не в кампании. Напиши ведущему.</Centered>
+        )}
         {state.phase === 'unlinked' && (
           <Unlinked telegramId={state.telegramId} username={state.username} />
         )}
-        {state.phase === 'ready' && <Characters characters={state.characters} />}
+        {state.phase === 'ready' && <AppShell ready={state} />}
       </main>
     </>
-  )
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center text-center text-sm text-neutral-400">
-      {children}
-    </div>
   )
 }
 
@@ -151,110 +182,65 @@ function Unlinked({ telegramId, username }: { telegramId: number; username: stri
   )
 }
 
-function Characters({ characters }: { characters: MyCharacter[] }) {
-  const [selectedId, setSelectedId] = useState<string | null>(
-    characters.length === 1 ? characters[0].id : null,
+// ─────────────────────────── navigation ───────────────────────────
+
+type View =
+  | { screen: 'list' }
+  | { screen: 'home'; pc: CampaignCharacter }
+  | { screen: 'ledger'; pc: CampaignCharacter }
+  | { screen: 'stash'; pc: CampaignCharacter }
+
+function AppShell({ ready }: { ready: Ready }) {
+  const { characters } = ready
+  const ownPcs = characters.filter((c) => c.isOwn)
+  const multi = characters.length > 1
+
+  // One own PC → straight to its home; otherwise the list.
+  const [view, setView] = useState<View>(
+    ownPcs.length === 1 ? { screen: 'home', pc: ownPcs[0] } : { screen: 'list' },
   )
 
   if (characters.length === 0) {
-    return <Centered>За тобой пока нет персонажей.</Centered>
+    return <Centered>В этой кампании пока нет персонажей.</Centered>
   }
 
-  const selected = characters.find((c) => c.id === selectedId) ?? null
-
-  if (selected) {
-    return (
-      <div className="mx-auto max-w-sm">
-        {characters.length > 1 && (
-          <button
-            onClick={() => setSelectedId(null)}
-            className="mb-4 text-sm text-neutral-400 hover:text-neutral-200"
-          >
-            ← мои персонажи
-          </button>
-        )}
-        <Card character={selected} />
-      </div>
-    )
+  switch (view.screen) {
+    case 'list':
+      return (
+        <CharacterList
+          characters={characters}
+          onSelect={(pc) => setView({ screen: 'home', pc })}
+        />
+      )
+    case 'home':
+      return (
+        <PcHome
+          character={view.pc}
+          showBack={multi}
+          onBack={() => setView({ screen: 'list' })}
+          onOpenLedger={() => setView({ screen: 'ledger', pc: view.pc })}
+        />
+      )
+    case 'ledger':
+      return (
+        <LedgerScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          loopNumber={ready.loopNumber}
+          character={view.pc}
+          onBack={() => setView({ screen: 'home', pc: view.pc })}
+          onOpenStash={() => setView({ screen: 'stash', pc: view.pc })}
+        />
+      )
+    case 'stash':
+      return (
+        <StashScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          loopNumber={ready.loopNumber}
+          categories={ready.categories}
+          onBack={() => setView({ screen: 'ledger', pc: view.pc })}
+        />
+      )
   }
-
-  // More than one PC, none selected: the list.
-  return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-4 text-lg font-semibold">Мои персонажи</h1>
-      <ul className="space-y-2">
-        {characters.map((c) => (
-          <li key={c.id}>
-            <button
-              onClick={() => setSelectedId(c.id)}
-              className="flex w-full items-center gap-3 rounded-lg bg-neutral-900 px-3 py-2 text-left hover:bg-neutral-800"
-            >
-              <Avatar name={c.title} keyStr={c.primaryPortraitKey} size={40} />
-              <span className="font-medium">{c.title}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function Card({ character }: { character: MyCharacter }) {
-  return (
-    <div className="overflow-hidden rounded-2xl bg-neutral-900">
-      <Portrait name={character.title} keyStr={character.primaryPortraitKey} />
-      <div className="p-4">
-        <div className="text-xl font-semibold">{character.title}</div>
-      </div>
-    </div>
-  )
-}
-
-/** Hero portrait — shown at its natural aspect ratio, never cropped. The
- *  placeholder falls back to a portrait-shaped (3:4) box. */
-function Portrait({ name, keyStr }: { name: string; keyStr: string | null }) {
-  const url = portraitUrl(keyStr)
-  if (url) {
-    return <img src={url} alt={name} className="block h-auto w-full" />
-  }
-  const initial = name.trim().charAt(0).toUpperCase() || '?'
-  return (
-    <div className="flex aspect-[3/4] w-full items-center justify-center bg-neutral-700 text-6xl font-semibold text-neutral-200">
-      {initial}
-    </div>
-  )
-}
-
-/** Small round thumbnail for the character list. */
-function Avatar({
-  name,
-  keyStr,
-  size,
-}: {
-  name: string
-  keyStr: string | null
-  size: number
-}) {
-  const url = portraitUrl(keyStr)
-  const initial = name.trim().charAt(0).toUpperCase() || '?'
-  const style = { width: size, height: size }
-
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt={name}
-        style={style}
-        className="shrink-0 rounded-full object-cover"
-      />
-    )
-  }
-  return (
-    <div
-      style={style}
-      className="flex shrink-0 items-center justify-center rounded-full bg-neutral-700 font-semibold text-neutral-200"
-    >
-      {initial}
-    </div>
-  )
 }
