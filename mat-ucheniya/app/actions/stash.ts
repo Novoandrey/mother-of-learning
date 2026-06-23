@@ -43,7 +43,6 @@ type MoneyStashInput = {
   dayInLoop: number
   sessionId?: string | null
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
-  tgToken?: string
 }
 
 type ItemStashInput = {
@@ -60,7 +59,6 @@ type ItemStashInput = {
   dayInLoop: number
   sessionId?: string | null
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
-  tgToken?: string
 }
 
 // ============================================================================
@@ -85,7 +83,6 @@ export async function putMoneyIntoStash(
     dayInLoop: input.dayInLoop,
     sessionId: input.sessionId ?? null,
     autoApprove: true,
-    tgToken: input.tgToken,
   })
 }
 
@@ -107,7 +104,6 @@ export async function takeMoneyFromStash(
     dayInLoop: input.dayInLoop,
     sessionId: input.sessionId ?? null,
     autoApprove: true,
-    tgToken: input.tgToken,
   })
 }
 
@@ -135,7 +131,6 @@ export async function putItemIntoStash(
     dayInLoop: input.dayInLoop,
     sessionId: input.sessionId ?? null,
     autoApprove: true,
-    tgToken: input.tgToken,
   })
 }
 
@@ -159,7 +154,6 @@ export async function takeItemFromStash(
     dayInLoop: input.dayInLoop,
     sessionId: input.sessionId ?? null,
     autoApprove: true,
-    tgToken: input.tgToken,
   })
 }
 

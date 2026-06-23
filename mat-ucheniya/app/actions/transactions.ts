@@ -21,8 +21,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getCurrentUser, getMembership, getMembershipFor } from '@/lib/auth'
-import { verifySupabaseJwt } from '@/lib/telegram/verify'
+import { getCurrentUser, getMembership } from '@/lib/auth'
 import { isAutoApproved } from '@/lib/approval-policy'
 import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
@@ -81,7 +80,6 @@ export type CreateTransactionInput = {
    */
   batchId?: string
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
-  tgToken?: string
 }
 
 export type UpdateTransactionInput = Partial<
@@ -96,25 +94,10 @@ type AuthContext =
   | { ok: true; userId: string; role: 'owner' | 'dm' | 'player' }
   | { ok: false; error: string }
 
-async function resolveAuth(
-  campaignId: string,
-  opts?: { tgToken?: string },
-): Promise<AuthContext> {
-  // Telegram Mini App path (spec-044, PL-1): a verified minted JWT instead of
-  // a GoTrue cookie session. The JWT establishes the user; membership is
-  // resolved cookie-free via getMembershipFor. Same AuthContext out, so the
-  // whole bookkeeping core below stays untouched.
-  if (opts?.tgToken) {
-    const secret = process.env.SUPABASE_JWT_SECRET
-    if (!secret) return { ok: false, error: 'Сервер не настроен (JWT)' }
-    const verified = await verifySupabaseJwt(opts.tgToken, secret)
-    if (!verified) return { ok: false, error: 'Не авторизован' }
-    const membership = await getMembershipFor(verified.userId, campaignId)
-    if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
-    return { ok: true, userId: verified.userId, role: membership.role }
-  }
-
-  // Cookie path (desktop) — unchanged.
+async function resolveAuth(campaignId: string): Promise<AuthContext> {
+  // One auth path for everyone. Desktop and the Telegram Mini App both carry a
+  // real GoTrue cookie session — the Mini App establishes one at login via
+  // /api/tg/auth — so server actions authorise identically here.
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: 'Не авторизован' }
 
@@ -241,7 +224,7 @@ export async function createTransaction(
   }
 
   // --- Authorisation ---
-  const auth = await resolveAuth(input.campaignId, { tgToken: input.tgToken })
+  const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
@@ -667,7 +650,7 @@ export async function createTransfer(
   // Mirror recipient inflow — same magnitude, opposite sign.
   const recipientCoins: CoinSet = signedCoinsToStored(true, senderCoins)
 
-  const auth = await resolveAuth(input.campaignId, { tgToken: input.tgToken })
+  const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
@@ -890,7 +873,6 @@ export type ItemTransferInput = {
   /** Spec-014: batch_id shared across both legs (FR-004). */
   batchId?: string
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
-  tgToken?: string
   /** Spec-044 / C-05: bypass the player approval gate (free общак, items). */
   autoApprove?: boolean
 }
@@ -922,7 +904,7 @@ export async function createItemTransfer(
   })
   if (itemErr) return { ok: false, error: itemErr }
 
-  const auth = await resolveAuth(input.campaignId, { tgToken: input.tgToken })
+  const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
@@ -1114,7 +1096,6 @@ export type SubmitBatchInput = {
   campaignId: string
   rows: BatchRowSubmitInput[]
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
-  tgToken?: string
 }
 
 export type SubmitBatchResult =
@@ -1160,7 +1141,6 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
-        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, id: r.id } : { ok: false, error: r.error }
     } else if (row.kind === 'item') {
@@ -1177,7 +1157,6 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
-        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, id: r.id } : { ok: false, error: r.error }
     } else if (row.kind === 'transfer-money') {
@@ -1193,7 +1172,6 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
-        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, groupId: r.groupId } : { ok: false, error: r.error }
     } else {
@@ -1211,7 +1189,6 @@ export async function submitBatch(
         dayInLoop: row.dayInLoop,
         sessionId: row.sessionId ?? null,
         batchId,
-        tgToken: input.tgToken,
       })
       res = r.ok ? { ok: true, groupId: r.groupId } : { ok: false, error: r.error }
     }

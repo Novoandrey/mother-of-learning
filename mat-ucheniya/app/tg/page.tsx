@@ -3,19 +3,20 @@
 /**
  * Telegram Mini App — entry + navigation controller (spec-046 shell + spec-044
  * ledger). Loads the Telegram WebApp SDK → reads initData → POST /api/tg/auth →
- * on a linked account, a minted-JWT session reads the campaign's PCs. The user
+ * on a linked account this establishes a REAL GoTrue cookie session, then a
+ * normal browser client reads the campaign's PCs under that session. The user
  * then navigates: character list (own on top, others below — C-02) → PC home
  * with a per-PC app launcher (C-04) → the Ledger app (wallet + feed + общак).
  *
- * Reads run through the minted-JWT tg-client under RLS. Writes (record /
- * transfer / free-общак) land in a later task via the server actions' auth
- * adapter; this build is read-only, so foreign PCs are naturally view-only.
+ * Because the session is real, reads AND writes (record / transfer / общак /
+ * starter) go through the exact same path as the desktop app — the server
+ * actions authorise via the cookie session with no per-call token handling.
  */
 
 import { useCallback, useRef, useState } from 'react'
 import Script from 'next/script'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createTgClient } from '@/lib/supabase/tg-client'
+import { createClient } from '@/lib/supabase/client'
 import { getCampaignCharacters, type CampaignCharacter } from '@/lib/queries/campaign-characters'
 import {
   getMyCampaign,
@@ -53,7 +54,6 @@ type Ready = {
   loopNumber: number
   characters: CampaignCharacter[]
   categories: Map<string, string>
-  tgToken: string
 }
 
 type State =
@@ -93,7 +93,7 @@ export default function TgPage() {
         body: JSON.stringify({ initData }),
       })
       const data = (await res.json()) as {
-        jwt?: string
+        ok?: boolean
         userId?: string
         unlinked?: boolean
         telegramId?: number
@@ -105,14 +105,15 @@ export default function TgPage() {
         setState({ phase: 'unlinked', telegramId: data.telegramId, username: data.username ?? null })
         return
       }
-      if (!res.ok || !data.jwt || !data.userId) {
+      if (!res.ok || !data.ok || !data.userId) {
         setState({ phase: 'error', message: data.error ?? 'Не удалось войти.' })
         return
       }
 
-      const jwt = data.jwt
+      // The Mini App now holds a real GoTrue cookie session (set by /api/tg/auth),
+      // so a normal browser client reads under that session — same as desktop.
       const userId = data.userId
-      const supabase = createTgClient(() => jwt)
+      const supabase = createClient()
 
       const campaign = await getMyCampaign(supabase, userId)
       if (!campaign) {
@@ -134,7 +135,6 @@ export default function TgPage() {
         loopNumber,
         characters,
         categories,
-        tgToken: jwt,
       })
     } catch {
       setState({ phase: 'error', message: 'Сеть недоступна, попробуйте позже.' })
@@ -236,7 +236,6 @@ function AppShell({ ready }: { ready: Ready }) {
           supabase={ready.supabase}
           campaignId={ready.campaignId}
           loopNumber={ready.loopNumber}
-          tgToken={ready.tgToken}
           character={view.pc}
           onBack={() => setView({ screen: 'home', pc: view.pc })}
         />
@@ -259,7 +258,6 @@ function AppShell({ ready }: { ready: Ready }) {
           campaignId={ready.campaignId}
           loopNumber={ready.loopNumber}
           character={view.pc}
-          tgToken={ready.tgToken}
           others={characters.filter((c) => c.id !== view.pc.id)}
           onBack={() => setView({ screen: 'home', pc: view.pc })}
           onOpenStash={() => setView({ screen: 'stash', pc: view.pc })}
@@ -273,7 +271,6 @@ function AppShell({ ready }: { ready: Ready }) {
           loopNumber={ready.loopNumber}
           categories={ready.categories}
           character={view.pc}
-          tgToken={ready.tgToken}
           others={characters.filter((c) => c.id !== view.pc.id)}
           onBack={() => setView({ screen: 'ledger', pc: view.pc })}
         />

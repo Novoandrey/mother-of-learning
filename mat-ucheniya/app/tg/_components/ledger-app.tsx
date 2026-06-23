@@ -466,14 +466,12 @@ function parseGp(raw: string): number | null {
 function RecordSheet({
   campaignId,
   loopNumber,
-  tgToken,
   actorPcId,
   onClose,
   onDone,
 }: {
   campaignId: string
   loopNumber: number
-  tgToken: string
   actorPcId: string
   onClose: () => void
   onDone: () => void
@@ -501,7 +499,6 @@ function RecordSheet({
       comment: comment.trim(),
       loopNumber,
       dayInLoop: 1,
-      tgToken,
     })
     setBusy(false)
     if (!res.ok) {
@@ -552,7 +549,6 @@ type TransferDir = 'player' | 'to-stash' | 'from-stash'
 function TransferSheet({
   campaignId,
   loopNumber,
-  tgToken,
   actorPcId,
   others,
   initialDir,
@@ -561,7 +557,6 @@ function TransferSheet({
 }: {
   campaignId: string
   loopNumber: number
-  tgToken: string
   actorPcId: string
   others: CampaignCharacter[]
   initialDir: TransferDir
@@ -594,7 +589,6 @@ function TransferSheet({
       comment: comment.trim(),
       loopNumber,
       dayInLoop: 1,
-      tgToken,
     }
     const res =
       dir === 'player'
@@ -607,7 +601,6 @@ function TransferSheet({
             comment: comment.trim(),
             loopNumber,
             dayInLoop: 1,
-            tgToken,
           })
         : dir === 'to-stash'
           ? await putMoneyIntoStash(base)
@@ -685,7 +678,6 @@ export function LedgerScreen({
   campaignId,
   loopNumber,
   character,
-  tgToken,
   others,
   onBack,
   onOpenStash,
@@ -694,7 +686,6 @@ export function LedgerScreen({
   campaignId: string
   loopNumber: number
   character: CampaignCharacter
-  tgToken: string
   others: CampaignCharacter[]
   onBack: () => void
   onOpenStash: () => void
@@ -802,7 +793,6 @@ export function LedgerScreen({
         <RecordSheet
           campaignId={campaignId}
           loopNumber={loopNumber}
-          tgToken={tgToken}
           actorPcId={character.id}
           onClose={() => setSheet('none')}
           onDone={() => void reload()}
@@ -812,7 +802,6 @@ export function LedgerScreen({
         <TransferSheet
           campaignId={campaignId}
           loopNumber={loopNumber}
-          tgToken={tgToken}
           actorPcId={character.id}
           others={others}
           initialDir="player"
@@ -832,7 +821,6 @@ export function StashScreen({
   loopNumber,
   categories,
   character,
-  tgToken,
   others,
   onBack,
 }: {
@@ -841,7 +829,6 @@ export function StashScreen({
   loopNumber: number
   categories: Map<string, string>
   character: CampaignCharacter
-  tgToken: string
   others: CampaignCharacter[]
   onBack: () => void
 }) {
@@ -906,7 +893,6 @@ export function StashScreen({
         <TransferSheet
           campaignId={campaignId}
           loopNumber={loopNumber}
-          tgToken={tgToken}
           actorPcId={character.id}
           others={others}
           initialDir={sheet}
@@ -1009,14 +995,12 @@ export function StarterEquipScreen({
   supabase,
   campaignId,
   loopNumber,
-  tgToken,
   character,
   onBack,
 }: {
   supabase: SupabaseClient
   campaignId: string
   loopNumber: number
-  tgToken: string
   character: CampaignCharacter
   onBack: () => void
 }) {
@@ -1095,7 +1079,6 @@ export function StarterEquipScreen({
     setError(null)
     const res = await submitBatch({
       campaignId,
-      tgToken,
       rows: [
         ...items.map((r) => ({
           clientId: r.clientId,
