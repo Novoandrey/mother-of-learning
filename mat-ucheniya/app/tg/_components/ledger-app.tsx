@@ -632,33 +632,39 @@ function TransferSheet({
   const [dir, setDir] = useState<TransferDir>(initialDir)
   const [recipient, setRecipient] = useState<string>(others[0]?.id ?? '')
   const [amount, setAmount] = useState('')
-  const [itemName, setItemName] = useState('')
   const [qty, setQty] = useState('1')
-  const [stashItems, setStashItems] = useState<{ name: string; qty: number }[] | null>(null)
-  const [pickedItem, setPickedItem] = useState('')
+  const [sourceItems, setSourceItems] = useState<{ name: string; qty: number }[] | null>(null)
+  const [picked, setPicked] = useState('')
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load the общак's items for the "take" picker, on demand.
+  // Item picker source: what you can move FROM. Putting into the общак → your
+  // own holdings; taking out → the общак's holdings. Reloads on dir/asset change.
   useEffect(() => {
-    if (asset !== 'item' || dir !== 'from-stash') return
+    if (asset !== 'item') return
     let alive = true
     ;(async () => {
       try {
-        const items = await getStashItemHoldingsTg(supabase, campaignId, loopNumber)
+        const items =
+          dir === 'from-stash'
+            ? await getStashItemHoldingsTg(supabase, campaignId, loopNumber)
+            : await getPcItemHoldingsTg(supabase, actorPcId, loopNumber)
         if (alive) {
-          setStashItems(items)
-          setPickedItem((p) => p || items[0]?.name || '')
+          setSourceItems(items)
+          setPicked(items[0]?.name ?? '')
         }
       } catch {
-        if (alive) setStashItems([])
+        if (alive) {
+          setSourceItems([])
+          setPicked('')
+        }
       }
     })()
     return () => {
       alive = false
     }
-  }, [asset, dir, supabase, campaignId, loopNumber])
+  }, [asset, dir, supabase, campaignId, actorPcId, loopNumber])
 
   const switchAsset = (a: 'money' | 'item') => {
     setAsset(a)
@@ -687,53 +693,32 @@ function TransferSheet({
         setError('Количество ≥ 1')
         return
       }
-      if (dir === 'to-stash') {
-        const name = itemName.trim()
-        if (!name) {
-          setError('Введите название предмета')
-          return
-        }
-        setBusy(true)
-        const res = await putItemIntoStash({
-          campaignId,
-          actorPcId,
-          itemName: name,
-          qty: n,
-          comment: comment.trim(),
-          loopNumber,
-          dayInLoop: 1,
-        })
-        setBusy(false)
-        if (!res.ok) {
-          setError(res.error)
-          return
-        }
-      } else {
-        const name = pickedItem
-        if (!name) {
-          setError('Выберите предмет')
-          return
-        }
-        const avail = stashItems?.find((i) => i.name === name)?.qty ?? 0
-        if (n > avail) {
-          setError(`В общаке только ${avail}`)
-          return
-        }
-        setBusy(true)
-        const res = await takeItemFromStash({
-          campaignId,
-          actorPcId,
-          itemName: name,
-          qty: n,
-          comment: comment.trim(),
-          loopNumber,
-          dayInLoop: 1,
-        })
-        setBusy(false)
-        if (!res.ok) {
-          setError(res.error)
-          return
-        }
+      const name = picked
+      if (!name) {
+        setError('Выберите предмет')
+        return
+      }
+      const avail = sourceItems?.find((i) => i.name === name)?.qty ?? 0
+      if (n > avail) {
+        setError(dir === 'from-stash' ? `В общаке только ${avail}` : `У тебя только ${avail}`)
+        return
+      }
+      setBusy(true)
+      const payload = {
+        campaignId,
+        actorPcId,
+        itemName: name,
+        qty: n,
+        comment: comment.trim(),
+        loopNumber,
+        dayInLoop: 1,
+      }
+      const res =
+        dir === 'from-stash' ? await takeItemFromStash(payload) : await putItemIntoStash(payload)
+      setBusy(false)
+      if (!res.ok) {
+        setError(res.error)
+        return
       }
       onDone()
       onClose()
@@ -824,24 +809,15 @@ function TransferSheet({
           />
         ) : (
           <>
-            {dir === 'to-stash' ? (
-              <input
-                className={FIELD}
-                placeholder="Название предмета"
-                value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
-              />
-            ) : stashItems === null ? (
+            {sourceItems === null ? (
               <p className="text-sm text-neutral-500">Загрузка…</p>
-            ) : stashItems.length === 0 ? (
-              <p className="text-sm text-neutral-500">В общаке нет предметов.</p>
+            ) : sourceItems.length === 0 ? (
+              <p className="text-sm text-neutral-500">
+                {dir === 'from-stash' ? 'В общаке нет предметов.' : 'У тебя нет предметов.'}
+              </p>
             ) : (
-              <select
-                className={FIELD}
-                value={pickedItem}
-                onChange={(e) => setPickedItem(e.target.value)}
-              >
-                {stashItems.map((i) => (
+              <select className={FIELD} value={picked} onChange={(e) => setPicked(e.target.value)}>
+                {sourceItems.map((i) => (
                   <option key={i.name} value={i.name}>
                     {i.name} (×{i.qty})
                   </option>

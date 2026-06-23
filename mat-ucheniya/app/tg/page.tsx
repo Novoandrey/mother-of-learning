@@ -98,6 +98,8 @@ export default function TgPage() {
         unlinked?: boolean
         telegramId?: number
         username?: string | null
+        accessToken?: string | null
+        refreshToken?: string | null
         error?: string
       }
 
@@ -110,10 +112,19 @@ export default function TgPage() {
         return
       }
 
-      // The Mini App now holds a real GoTrue cookie session (set by /api/tg/auth),
-      // so a normal browser client reads under that session — same as desktop.
+      // The Mini App holds a real GoTrue session. On mobile the response cookies
+      // may not stick, so adopt the returned tokens directly: setSession puts the
+      // access token in this client's memory (reads work right away) and writes
+      // the auth cookies from JS (so server-action writes are authorised too).
       const userId = data.userId
       const supabase = createClient()
+
+      if (data.accessToken && data.refreshToken) {
+        await supabase.auth.setSession({
+          access_token: data.accessToken,
+          refresh_token: data.refreshToken,
+        })
+      }
 
       const campaign = await getMyCampaign(supabase, userId)
       if (!campaign) {

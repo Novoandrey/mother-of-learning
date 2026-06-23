@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createClient()
-  const { error: otpErr } = await supabase.auth.verifyOtp({
+  const { data: otpData, error: otpErr } = await supabase.auth.verifyOtp({
     type: 'magiclink',
     token_hash: tokenHash,
   })
@@ -101,6 +101,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Session failed: ${otpErr.message}` }, { status: 500 })
   }
 
-  // Session cookies are now set on the response — the Mini App is signed in.
-  return NextResponse.json({ ok: true, userId })
+  // Session cookies are set on the response, but mobile Telegram webviews don't
+  // reliably persist a Set-Cookie that arrives on a fetch response. So we also
+  // hand the session tokens back and let the client adopt them via
+  // supabase.auth.setSession — that puts the access token in the browser
+  // client's memory (reads authorise immediately) and writes the auth cookies
+  // first-party from JS (so server actions see the session too).
+  return NextResponse.json({
+    ok: true,
+    userId,
+    accessToken: otpData.session?.access_token ?? null,
+    refreshToken: otpData.session?.refresh_token ?? null,
+  })
 }
