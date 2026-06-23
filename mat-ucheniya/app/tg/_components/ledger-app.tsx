@@ -14,6 +14,7 @@ import {
   searchCampaignItemsTg,
   getPcItemHoldingsTg,
   hasLoopCreditTg,
+  getStashItemHoldingsTg,
   type TgWallet,
   type TgFeedRow,
   type TgBalanceRow,
@@ -33,7 +34,12 @@ import {
   takeLoopCredit,
 } from '@/app/actions/transactions'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
-import { putMoneyIntoStash, takeMoneyFromStash } from '@/app/actions/stash'
+import {
+  putMoneyIntoStash,
+  takeMoneyFromStash,
+  putItemIntoStash,
+  takeItemFromStash,
+} from '@/app/actions/stash'
 
 // ─────────────────────────── shared ───────────────────────────
 
@@ -604,6 +610,7 @@ type TransferDir = 'player' | 'to-stash' | 'from-stash'
 // T015 — PC↔PC money + put/take общак. Reused by the ledger («Перевод») and the
 // общак screen (Положить/Забрать, via initialDir).
 function TransferSheet({
+  supabase,
   campaignId,
   loopNumber,
   actorPcId,
@@ -612,6 +619,7 @@ function TransferSheet({
   onClose,
   onDone,
 }: {
+  supabase: SupabaseClient
   campaignId: string
   loopNumber: number
   actorPcId: string
@@ -620,14 +628,119 @@ function TransferSheet({
   onClose: () => void
   onDone: () => void
 }) {
+  const [asset, setAsset] = useState<'money' | 'item'>('money')
   const [dir, setDir] = useState<TransferDir>(initialDir)
   const [recipient, setRecipient] = useState<string>(others[0]?.id ?? '')
   const [amount, setAmount] = useState('')
+  const [itemName, setItemName] = useState('')
+  const [qty, setQty] = useState('1')
+  const [stashItems, setStashItems] = useState<{ name: string; qty: number }[] | null>(null)
+  const [pickedItem, setPickedItem] = useState('')
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Load the общак's items for the "take" picker, on demand.
+  useEffect(() => {
+    if (asset !== 'item' || dir !== 'from-stash') return
+    let alive = true
+    ;(async () => {
+      try {
+        const items = await getStashItemHoldingsTg(supabase, campaignId, loopNumber)
+        if (alive) {
+          setStashItems(items)
+          setPickedItem((p) => p || items[0]?.name || '')
+        }
+      } catch {
+        if (alive) setStashItems([])
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [asset, dir, supabase, campaignId, loopNumber])
+
+  const switchAsset = (a: 'money' | 'item') => {
+    setAsset(a)
+    if (a === 'item' && dir === 'player') setDir('to-stash')
+    setError(null)
+  }
+
+  const dirOptions: { value: TransferDir; label: string }[] =
+    asset === 'item'
+      ? [
+          { value: 'to-stash', label: 'В общак' },
+          { value: 'from-stash', label: 'Из общака' },
+        ]
+      : [
+          { value: 'player', label: 'Игроку' },
+          { value: 'to-stash', label: 'В общак' },
+          { value: 'from-stash', label: 'Из общака' },
+        ]
+
   const submit = async () => {
+    setError(null)
+
+    if (asset === 'item') {
+      const n = Math.max(0, parseInt(qty, 10) || 0)
+      if (n < 1) {
+        setError('Количество ≥ 1')
+        return
+      }
+      if (dir === 'to-stash') {
+        const name = itemName.trim()
+        if (!name) {
+          setError('Введите название предмета')
+          return
+        }
+        setBusy(true)
+        const res = await putItemIntoStash({
+          campaignId,
+          actorPcId,
+          itemName: name,
+          qty: n,
+          comment: comment.trim(),
+          loopNumber,
+          dayInLoop: 1,
+        })
+        setBusy(false)
+        if (!res.ok) {
+          setError(res.error)
+          return
+        }
+      } else {
+        const name = pickedItem
+        if (!name) {
+          setError('Выберите предмет')
+          return
+        }
+        const avail = stashItems?.find((i) => i.name === name)?.qty ?? 0
+        if (n > avail) {
+          setError(`В общаке только ${avail}`)
+          return
+        }
+        setBusy(true)
+        const res = await takeItemFromStash({
+          campaignId,
+          actorPcId,
+          itemName: name,
+          qty: n,
+          comment: comment.trim(),
+          loopNumber,
+          dayInLoop: 1,
+        })
+        setBusy(false)
+        if (!res.ok) {
+          setError(res.error)
+          return
+        }
+      }
+      onDone()
+      onClose()
+      return
+    }
+
+    // money
     const gp = parseGp(amount)
     if (gp === null) {
       setError('Введите сумму в зм')
@@ -638,7 +751,6 @@ function TransferSheet({
       return
     }
     setBusy(true)
-    setError(null)
     const base = {
       campaignId,
       actorPcId,
@@ -675,15 +787,17 @@ function TransferSheet({
     <Sheet title="Перевод" onClose={onClose}>
       <div className="space-y-3">
         <SegToggle
-          value={dir}
-          onChange={setDir}
+          value={asset}
+          onChange={switchAsset}
           options={[
-            { value: 'player', label: 'Игроку' },
-            { value: 'to-stash', label: 'В общак' },
-            { value: 'from-stash', label: 'Из общака' },
+            { value: 'money', label: 'Деньги' },
+            { value: 'item', label: 'Предмет' },
           ]}
         />
-        {dir === 'player' &&
+        <SegToggle value={dir} onChange={setDir} options={dirOptions} />
+
+        {asset === 'money' &&
+          dir === 'player' &&
           (others.length > 0 ? (
             <select
               className={FIELD}
@@ -699,13 +813,51 @@ function TransferSheet({
           ) : (
             <p className="text-sm text-neutral-500">Нет других персонажей.</p>
           ))}
-        <input
-          className={FIELD}
-          inputMode="decimal"
-          placeholder="Сумма, зм"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
+
+        {asset === 'money' ? (
+          <input
+            className={FIELD}
+            inputMode="decimal"
+            placeholder="Сумма, зм"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        ) : (
+          <>
+            {dir === 'to-stash' ? (
+              <input
+                className={FIELD}
+                placeholder="Название предмета"
+                value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
+              />
+            ) : stashItems === null ? (
+              <p className="text-sm text-neutral-500">Загрузка…</p>
+            ) : stashItems.length === 0 ? (
+              <p className="text-sm text-neutral-500">В общаке нет предметов.</p>
+            ) : (
+              <select
+                className={FIELD}
+                value={pickedItem}
+                onChange={(e) => setPickedItem(e.target.value)}
+              >
+                {stashItems.map((i) => (
+                  <option key={i.name} value={i.name}>
+                    {i.name} (×{i.qty})
+                  </option>
+                ))}
+              </select>
+            )}
+            <input
+              className={FIELD}
+              inputMode="numeric"
+              placeholder="Количество"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+            />
+          </>
+        )}
+
         <input
           className={FIELD}
           placeholder="Комментарий (необязательно)"
@@ -857,6 +1009,7 @@ export function LedgerScreen({
       )}
       {sheet === 'transfer' && (
         <TransferSheet
+          supabase={supabase}
           campaignId={campaignId}
           loopNumber={loopNumber}
           actorPcId={character.id}
@@ -948,6 +1101,7 @@ export function StashScreen({
       )}
       {sheet !== 'none' && (
         <TransferSheet
+          supabase={supabase}
           campaignId={campaignId}
           loopNumber={loopNumber}
           actorPcId={character.id}

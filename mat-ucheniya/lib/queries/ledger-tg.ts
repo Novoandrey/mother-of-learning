@@ -339,3 +339,23 @@ export async function hasLoopCreditTg(
     .maybeSingle()
   return data !== null
 }
+
+/**
+ * Item holdings currently sitting in the campaign's общак (the stash node),
+ * net approved qty > 0 (feedback #3 — populates the "take from stash" picker).
+ */
+export async function getStashItemHoldingsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  loopNumber: number | null,
+): Promise<{ name: string; qty: number }[]> {
+  const { data } = await supabase
+    .from('nodes')
+    .select('id, node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'stash')
+    .limit(1)
+  const stashNodeId = (data?.[0] as { id: string } | undefined)?.id ?? null
+  if (!stashNodeId) return []
+  return getPcItemHoldingsTg(supabase, stashNodeId, loopNumber)
+}
