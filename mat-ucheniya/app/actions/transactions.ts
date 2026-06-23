@@ -22,6 +22,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getMembership } from '@/lib/auth'
+import { isAutoApproved } from '@/lib/approval-policy'
+import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
 import {
@@ -78,6 +80,7 @@ export type CreateTransactionInput = {
    * leave it undefined → null on the row.
    */
   batchId?: string
+  /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
 }
 
 export type UpdateTransactionInput = Partial<
@@ -93,6 +96,9 @@ type AuthContext =
   | { ok: false; error: string }
 
 async function resolveAuth(campaignId: string): Promise<AuthContext> {
+  // One auth path for everyone. Desktop and the Telegram Mini App both carry a
+  // real GoTrue cookie session — the Mini App establishes one at login via
+  // /api/tg/auth — so server actions authorise identically here.
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: 'Не авторизован' }
 
@@ -231,14 +237,14 @@ export async function createTransaction(
 
   // --- Write ---
   const admin = createAdminClient()
-  // Spec-014: player → pending; DM/owner → approved (auto-approve).
-  const status = auth.role === 'player' ? 'pending' : 'approved'
+  // Spec-014: player → pending; DM/owner → approved. createTransaction has no
+  // free-общак path — only the stash transfer wrappers set autoApprove.
+  const approved = isAutoApproved(auth.role, false)
+  const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
-  // Player submissions always get a batch_id (single-row → batch of 1)
-  // so they appear in the queue. DM/owner direct writes leave it null.
-  const batchId =
-    input.batchId ??
-    (auth.role === 'player' ? crypto.randomUUID() : null)
+  // Pending player submissions get a batch_id (batch of 1) so they appear in
+  // the queue; approved ones leave it null.
+  const batchId = input.batchId ?? (approved ? null : crypto.randomUUID())
   const { data, error } = await admin
     .from('transactions')
     .insert({
@@ -271,6 +277,83 @@ export async function createTransaction(
     return { ok: false, error: `Не удалось сохранить: ${error.message}` }
   }
 
+  return { ok: true, id: (data as { id: string }).id }
+}
+
+// ============================================================================
+// takeLoopCredit (feedback #4) — player self-grants a fixed loop credit
+// ============================================================================
+
+/**
+ * Grant the PC the fixed loop credit (LOOP_CREDIT_GP) as an approved money row —
+ * no DM approval, but only once per loop. Server-controlled end to end: the
+ * client picks nothing but which PC, so the amount and the once-per-loop rule
+ * can't be tampered with. The guard SELECT covers normal use (and disables the
+ * button); a true concurrent double-tap is the only gap and is harmless for a
+ * trusted table — add a partial unique index on (campaign_id, actor_pc_id,
+ * loop_number) WHERE category_slug='credit' if hard enforcement is ever needed.
+ */
+export async function takeLoopCredit(
+  campaignId: string,
+  pcId: string,
+  loopNumber: number,
+): Promise<ActionResult<{ id: string }>> {
+  if (!campaignId || !pcId) return { ok: false, error: 'Не выбран персонаж' }
+
+  const auth = await resolveAuth(campaignId)
+  if (!auth.ok) return auth
+  if (auth.role === 'player') {
+    const owned = await isPcOwner(pcId, auth.userId)
+    if (!owned) return { ok: false, error: 'Нельзя взять кредит за чужого персонажа' }
+  }
+
+  const admin = createAdminClient()
+
+  // Once per loop.
+  const { data: existing } = await admin
+    .from('transactions')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('actor_pc_id', pcId)
+    .eq('loop_number', loopNumber)
+    .eq('category_slug', 'credit')
+    .limit(1)
+    .maybeSingle()
+  if (existing) return { ok: false, error: 'Кредит за эту петлю уже взят' }
+
+  const coins = signedCoinsToStored(false, resolveEarn(LOOP_CREDIT_GP))
+  const nowIso = new Date().toISOString()
+  const { data, error } = await admin
+    .from('transactions')
+    .insert({
+      campaign_id: campaignId,
+      actor_pc_id: pcId,
+      kind: 'money',
+      amount_cp: coins.cp,
+      amount_sp: coins.sp,
+      amount_gp: coins.gp,
+      amount_pp: coins.pp,
+      item_name: null,
+      item_node_id: null,
+      item_qty: 1,
+      category_slug: 'credit',
+      comment: `Кредит петли ${loopNumber}`,
+      loop_number: loopNumber,
+      day_in_loop: 1,
+      session_id: null,
+      transfer_group_id: null,
+      status: 'approved',
+      author_user_id: auth.userId,
+      batch_id: null,
+      approved_by_user_id: auth.userId,
+      approved_at: nowIso,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    return { ok: false, error: `Не удалось взять кредит: ${error.message}` }
+  }
   return { ok: true, id: (data as { id: string }).id }
 }
 
@@ -660,14 +743,14 @@ export async function createTransfer(
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
-  // Spec-014: player → both legs pending; DM/owner → both approved.
-  const status = auth.role === 'player' ? 'pending' : 'approved'
+  // Spec-014: player → pending; DM/owner → approved. Spec-044/C-05: free общак
+  // (autoApprove set by the stash wrappers) approves a player op too.
+  const approved = isAutoApproved(auth.role, input.autoApprove)
+  const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
-  // Player single-transfer = batch of 1 (both legs share batch_id);
-  // DM/owner direct writes leave it null.
-  const batchId =
-    input.batchId ??
-    (auth.role === 'player' ? crypto.randomUUID() : null)
+  // A queued (pending) player submission needs a batch_id for the queue;
+  // an approved one (DM, or free общак) leaves it null.
+  const batchId = input.batchId ?? (approved ? null : crypto.randomUUID())
 
   const baseRow = {
     campaign_id: input.campaignId,
@@ -867,6 +950,9 @@ export type ItemTransferInput = {
   sessionId?: string | null
   /** Spec-014: batch_id shared across both legs (FR-004). */
   batchId?: string
+  /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
+  /** Spec-044 / C-05: bypass the player approval gate (free общак, items). */
+  autoApprove?: boolean
 }
 
 export async function createItemTransfer(
@@ -966,6 +1052,8 @@ export async function createItemTransfer(
     }
   }
 
+  const approved = isAutoApproved(auth.role, input.autoApprove)
+  const nowIso = new Date().toISOString()
   const baseRow = {
     campaign_id: input.campaignId,
     kind: 'item' as const,
@@ -981,15 +1069,13 @@ export async function createItemTransfer(
     day_in_loop: input.dayInLoop,
     session_id: input.sessionId ?? null,
     transfer_group_id: groupId,
-    status: (auth.role === 'player' ? 'pending' : 'approved') as 'pending' | 'approved',
+    status: (approved ? 'approved' : 'pending') as 'pending' | 'approved',
     author_user_id: auth.userId,
-    // Player single item-transfer = batch of 1 (both legs share batch_id);
-    // DM/owner direct writes leave it null.
-    batch_id:
-      input.batchId ??
-      (auth.role === 'player' ? crypto.randomUUID() : null),
-    approved_by_user_id: auth.role === 'player' ? null : auth.userId,
-    approved_at: auth.role === 'player' ? null : new Date().toISOString(),
+    // Spec-044/C-05: autoApprove (free общак) approves a player item op too;
+    // a queued (pending) one gets a batch_id for the approval queue.
+    batch_id: input.batchId ?? (approved ? null : crypto.randomUUID()),
+    approved_by_user_id: approved ? auth.userId : null,
+    approved_at: approved ? nowIso : null,
   }
 
   const { error } = await admin.from('transactions').insert([
@@ -1087,6 +1173,7 @@ export type BatchRowSubmitInput =
 export type SubmitBatchInput = {
   campaignId: string
   rows: BatchRowSubmitInput[]
+  /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
 }
 
 export type SubmitBatchResult =
