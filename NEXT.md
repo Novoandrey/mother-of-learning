@@ -4,7 +4,9 @@
 > (включая `chatlog/_legacy-NEXT-archive.md` — полные тексты прежних NEXT).
 > Протокол старта сессии: `bash scripts/dev/status.sh` → этот файл →
 > `tasks.md` активной спеки. Лимит файла: 150 строк / 10 KB (следит status.sh).
-> Last updated: 2026-06-23 (chat «telegram-auth» — spec-046 реализован на ветке, ждёт PR+прод-катовер; spec-044 Mobile Ledger активна, фаза Clarify, C-00=Mini App)
+> Last updated: 2026-06-23 (chat 97 — spec-044 фидбэк-раунд закрыт на ветке
+> [миниатюры/кредит/общак-предметы/вёрстка/мобильный вход], ждёт мобильного
+> ретеста + PR; новая spec-052 Inventory — Specify draft, awaiting Clarify)
 
 ## Прод
 
@@ -25,23 +27,26 @@
 
 ## Активная работа
 
-1. **spec-044 Mobile Ledger — АКТИВНА, фаза Clarify.** Тонкий мобильный слой
-   поверх готовой бухгалтерии 009–019 (бэкенд не трогаем): кошелёк, лента
-   операций, быстрая запись (расход/доход/категория/день петли), переводы
-   PC↔PC и PC↔общак, общак, realtime (DEBT-011 → Plan). **C-00 решён: никаких
-   новых PWA — всё в существующем Telegram Mini App `/tg` (шелл/auth от 046);
-   из P1 убран весь PWA-shell.** Открыто: C-01 (своя запись vs очередь —
-   поднять из кода), C-02 (мульти-PC IA), C-03 (read-list предметов здесь vs
-   022), C-04 (навигация-вкладка внутри `/tg`), C-05 (депозит в общак без
-   аппрува — из кода). Спека: `.specify/specs/044-mobile-ledger/spec.md`.
+1. **spec-044 Mobile Ledger — на ветке `claude/044-mobile-ledger`, фидбэк-раунд
+   закрыт, в staging, зелёный (418 vitest).** P0–P3 + 6 правок хэнд-теста
+   (Cloudflare-миниатюры, кредит петли 500 ЗМ/1×/авто, предметы в-из общака,
+   карточка без скролла, **фикс мобильного входа** через `setSession`). **Ждёт:
+   мобильный ретест (чтение+запись; если запись падает → токен в экшены) → PR
+   T030 → realtime T019–T021 (прод DEBT-011).** Спека: `044-mobile-ledger/spec.md`.
 
-2. **spec-046 Telegram Auth + Card — РЕАЛИЗОВАН на ветке
+2. **spec-052 Inventory — НОВАЯ, Specify draft, awaiting Clarify.** Поверх 044:
+   контейнеры (передача/забор), покупка за голду, наборы (создают+покупают
+   одной кнопкой), статус «Надето». **Бухгалтерию не трогает** (ходы=item-tx,
+   покупка=деньги+предмет; новое — флаг «Надето» + наборы). Дальше **Clarify**
+   (C-01..C-10). Спека: `052-inventory-containers-sets/spec.md`.
+
+3. **spec-046 Telegram Auth + Card — РЕАЛИЗОВАН на ветке
    `claude/046-telegram-auth-pc-card`, на прод НЕ мерджен (ждёт PR, T026).**
    `/tg` (initData → свой JWT → карточка PC с портретом в натуральном
    соотношении), ДМ-привязка `/c/<slug>/settings/telegram`, миграции 115/116,
    сид портретов. E2E на staging пройден. **Прод-катовер при мердже ↓.**
 
-3. **Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
+4. **Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
    (E1–E11, R1–R12; карта v1.6.0: телега(046) ∥ ledger(044) → движок(045) →
    лист(022) → базы → форк → пирамида → классы → конструктор). **spec-045
    Engine Core — Specify draft, awaiting Clarify** (C-01…C-05; C-06=R6).
@@ -52,13 +57,9 @@
 
 ## Прод-катовер 046 (при мердже ветки → `main`)
 
-Полный чеклист — `046-telegram-auth-pc-card/operator-runbook.md` (ветка).
-Кратко: PR → миграции **115+116 на прод** (Studio-туннель `ssh -L
-8001:localhost:8001 andrey@37.27.254.49`) → прод-env `SUPABASE_JWT_SECRET`
-(=`JWT_SECRET` стека) + `TELEGRAM_BOT_TOKEN` + build-arg
-`NEXT_PUBLIC_R2_PORTRAIT_BASE=https://portraits.theloopers.org` (**без пробелов**
-вокруг `=`!) → бот на `theloopers.org/tg` → сид с прод-env (`--commit`,
-картинки в бакете уже есть, те же node-id ключи).
+Полный чеклист — `046-telegram-auth-pc-card/operator-runbook.md` (ветка). Кратко:
+PR → миграции 115+116 на прод (Studio-туннель) → прод-env `SUPABASE_JWT_SECRET` +
+`TELEGRAM_BOT_TOKEN` + build-arg `NEXT_PUBLIC_R2_PORTRAIT_BASE` (без пробелов вокруг `=`!) → бот `/tg` → сид (те же node-id ключи).
 
 ## Очередь до 030
 
@@ -99,8 +100,7 @@
 
 Не нумеруются пока (мелочь/IDEA): Сиория-таб (IDEA-063), тасктрекер с
 автосинком (IDEA-064), PillEditor v2, импорт из Google Sheets, панель
-реакций/легендарок, IDEA-055, IDEA-056. R2 поднимается открывающим
-шагом spec-030 (кросс-проектный runbook в `infra/`).
+реакций/легендарок, IDEA-055, IDEA-056.
 
 ## В проде (одной строкой; детали → CHANGELOG.md, chatlog/, архив NEXT)
 
