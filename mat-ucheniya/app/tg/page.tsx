@@ -13,9 +13,9 @@
  * actions authorise via the cookie session with no per-call token handling.
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Script from 'next/script'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { getCampaignCharacters, type CampaignCharacter } from '@/lib/queries/campaign-characters'
 import {
@@ -208,7 +208,7 @@ type View =
   | { screen: 'balances' }
 
 function AppShell({ ready }: { ready: Ready }) {
-  const { characters } = ready
+  const { characters, supabase, campaignId } = ready
   const ownPcs = characters.filter((c) => c.isOwn)
   const multi = characters.length > 1
   const rootView: View =
@@ -216,6 +216,31 @@ function AppShell({ ready }: { ready: Ready }) {
 
   // One own PC → straight to its home; otherwise the list.
   const [view, setView] = useState<View>(rootView)
+
+  // Realtime (FR-010 / T023): migration 117 broadcasts `tx_insert` on the
+  // campaign's private channel for every transaction. Each event bumps
+  // refreshKey, which the visible screen carries in its load-effect deps, so a
+  // second device re-fetches within ~2 s while open sheets/scroll are kept. If
+  // Realtime is unreachable the app stays usable on manual refresh.
+  const [refreshKey, setRefreshKey] = useState(0)
+  useEffect(() => {
+    let channel: RealtimeChannel | null = null
+    let alive = true
+    ;(async () => {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+      if (token) await supabase.realtime.setAuth(token)
+      if (!alive) return
+      channel = supabase
+        .channel(`campaign:${campaignId}`, { config: { private: true } })
+        .on('broadcast', { event: 'tx_insert' }, () => setRefreshKey((k) => k + 1))
+        .subscribe()
+    })()
+    return () => {
+      alive = false
+      if (channel) void supabase.removeChannel(channel)
+    }
+  }, [supabase, campaignId])
 
   if (characters.length === 0) {
     return <Centered>В этой кампании пока нет персонажей.</Centered>
@@ -249,6 +274,7 @@ function AppShell({ ready }: { ready: Ready }) {
           loopNumber={ready.loopNumber}
           character={view.pc}
           onBack={() => setView({ screen: 'home', pc: view.pc })}
+          refreshKey={refreshKey}
         />
       )
     case 'balances':
@@ -260,6 +286,7 @@ function AppShell({ ready }: { ready: Ready }) {
           characters={characters}
           onBack={() => setView(rootView)}
           onSelect={(pc) => setView({ screen: 'home', pc })}
+          refreshKey={refreshKey}
         />
       )
     case 'ledger':
@@ -272,6 +299,7 @@ function AppShell({ ready }: { ready: Ready }) {
           others={characters.filter((c) => c.id !== view.pc.id)}
           onBack={() => setView({ screen: 'home', pc: view.pc })}
           onOpenStash={() => setView({ screen: 'stash', pc: view.pc })}
+          refreshKey={refreshKey}
         />
       )
     case 'stash':
@@ -284,6 +312,7 @@ function AppShell({ ready }: { ready: Ready }) {
           character={view.pc}
           others={characters.filter((c) => c.id !== view.pc.id)}
           onBack={() => setView({ screen: 'ledger', pc: view.pc })}
+          refreshKey={refreshKey}
         />
       )
   }

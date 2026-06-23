@@ -866,6 +866,7 @@ export function LedgerScreen({
   others,
   onBack,
   onOpenStash,
+  refreshKey,
 }: {
   supabase: SupabaseClient
   campaignId: string
@@ -874,6 +875,7 @@ export function LedgerScreen({
   others: CampaignCharacter[]
   onBack: () => void
   onOpenStash: () => void
+  refreshKey: number
 }) {
   const [data, setData] = useState<LedgerData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -906,7 +908,7 @@ export function LedgerScreen({
     return () => {
       alive = false
     }
-  }, [supabase, campaignId, loopNumber, character.id])
+  }, [supabase, campaignId, loopNumber, character.id, refreshKey])
 
   const loadMore = useCallback(async () => {
     if (!data?.nextCursor || loadingMore) return
@@ -1009,6 +1011,7 @@ export function StashScreen({
   character,
   others,
   onBack,
+  refreshKey,
 }: {
   supabase: SupabaseClient
   campaignId: string
@@ -1017,6 +1020,7 @@ export function StashScreen({
   character: CampaignCharacter
   others: CampaignCharacter[]
   onBack: () => void
+  refreshKey: number
 }) {
   const [data, setData] = useState<{ wallet: TgWallet; recent: TgFeedRow[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -1040,7 +1044,7 @@ export function StashScreen({
     return () => {
       alive = false
     }
-  }, [supabase, campaignId, loopNumber])
+  }, [supabase, campaignId, loopNumber, refreshKey])
 
   return (
     <div className="mx-auto max-w-sm pb-6">
@@ -1100,6 +1104,7 @@ export function BalancesScreen({
   characters,
   onBack,
   onSelect,
+  refreshKey,
 }: {
   supabase: SupabaseClient
   campaignId: string
@@ -1107,6 +1112,7 @@ export function BalancesScreen({
   characters: CampaignCharacter[]
   onBack: () => void
   onSelect: (c: CampaignCharacter) => void
+  refreshKey: number
 }) {
   const [data, setData] = useState<{ rows: TgBalanceRow[]; stashGp: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -1129,7 +1135,7 @@ export function BalancesScreen({
     return () => {
       alive = false
     }
-  }, [supabase, campaignId, loopNumber, characters])
+  }, [supabase, campaignId, loopNumber, characters, refreshKey])
 
   const ordered = data
     ? [...data.rows].sort(
@@ -1184,12 +1190,14 @@ export function StarterEquipScreen({
   loopNumber,
   character,
   onBack,
+  refreshKey,
 }: {
   supabase: SupabaseClient
   campaignId: string
   loopNumber: number
   character: CampaignCharacter
   onBack: () => void
+  refreshKey: number
 }) {
   const [rows, setRows] = useState<EquipRow[]>([])
   const [query, setQuery] = useState('')
@@ -1228,7 +1236,7 @@ export function StarterEquipScreen({
     return () => {
       alive = false
     }
-  }, [supabase, campaignId, character.id, loopNumber])
+  }, [supabase, campaignId, character.id, loopNumber, refreshKey])
 
   // Debounced catalog typeahead. Results are tagged with the query they belong
   // to, so a changed query shows nothing stale until the new search resolves.
