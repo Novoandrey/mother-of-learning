@@ -2,7 +2,7 @@
 
 **Feature Branch**: `046-telegram-auth-pc-card`
 **Created**: 2026-06-20 (chat 96)
-**Status**: Tasks — ready for Implement (chat 96)
+**Status**: ✅ Shipped to prod (2026-06-23, chat 98) — rode in spec-044's PR #4 (auth route, telegram_id mig 115, portraits mig 116 + seed, DM-link /c/<slug>/settings/telegram, PC card in /tg). Branch claude/046-telegram-auth-pc-card is fully contained in main; no separate PR needed (T026 moot).
 **Input**: Andrey (chat 96): «давай сделаем первый слой — открыть и увидеть
 мобильный вид карточки своего персонажа с портретом и именем и залогиниться
 телегой связанной с твоим аккаунтом в theloopers».

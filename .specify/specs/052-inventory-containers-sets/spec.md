@@ -47,6 +47,14 @@ Builds on existing assets: spec-044's `getPcItemHoldingsTg` /
 default prices (spec-016), and the `transactions` ledger (money + item kinds,
 `transfer_group_id` linkage, auto-approval policy).
 
+**Prod feedback (2026-06-23, after 044 shipped to prod).** Two gaps surfaced in
+real use and feed this spec: (1) a player has no way to see their own pending
+заявки (moves / buys awaiting the DM) or to cancel one — it is submit-and-wait;
+(2) quantity must be first-class everywhere items appear (20 arrows, 5 rations),
+not item-at-a-time. Both fold into the scope below — the move / buy / set flows
+already carry qty (the open piece is the underlying data, C-12, and the cancel
+rules, C-11).
+
 ## Scope
 
 **In (P1) — containers & moves:** a per-PC **inventory** screen (everything
@@ -66,6 +74,10 @@ shown in the inventory, carrying no mechanical effect.
 + qty); create / edit / delete; **buy a whole set in one action** (gold-out
 for the total + all items in, as one batch); sets are campaign-scoped
 templates (copy-on-buy).
+
+**In — my requests:** a list of the player's own **pending заявки** (moves /
+buys awaiting DM approval) in the Mini App, with the ability to **cancel** one
+while it is still pending.
 
 **Out:** item *effects* / stats from equipped gear (engine — spec-045+);
 nested containers / bags / weight & encumbrance; selling items back for gold,
@@ -230,6 +242,13 @@ purchase.
   **[NEEDS CLARIFICATION — C-01]**.
 - **FR-014**: A purchase MUST be clearly refused when available gold < price ×
   qty (unless C-01 allows partial / credit).
+- **FR-015**: A player MUST be able to see their own **pending заявки** (item
+  moves / buys awaiting DM approval) in the Mini App and to **cancel** one while
+  it is still pending. Cancel / notify rules — C-11.
+- **FR-016** (cross-cutting): Quantity MUST be first-class across every item
+  surface — display, move, buy and set — so a stack (e.g. 20 arrows) is one line
+  carrying a count, not N rows. This needs the item-transaction to carry a
+  quantity delta and holdings to sum it. Data-model confirmation — C-12.
 
 **Equipped (US3)**
 - **FR-020**: A player MUST be able to mark an inventory item as Надето and to
@@ -351,6 +370,13 @@ purchase.
   transfer/stash UI), with the data model platform-agnostic — confirm.
 - **C-10 — Free-text items.** Confirm free-text (non-catalog) items are
   movable and equippable but not buyable and not allowed in sets.
+- **C-11 — Cancel own pending заявка.** A player cancels only their own request
+  and only while it is pending? Does cancel simply drop the pending row (no
+  ledger effect, since pending isn't applied), and does the DM get notified?
+- **C-12 — Item quantity data model.** Does the spec-044 item-transaction
+  already carry a quantity delta (a stack = one row with `qty`), or do items
+  ship as one row each today — i.e. does 052 need a migration to add `qty` and
+  make holdings sum it? (Prod feedback #2.)
 
 ## Dependencies
 

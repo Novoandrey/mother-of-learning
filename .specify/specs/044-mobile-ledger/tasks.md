@@ -86,17 +86,17 @@ staging hand-test → **PR into `main`** (never direct).
   > portable + self-error-capturing. ⚠️ References `realtime.*` objects, which
   > exist only **after T020** re-enables Realtime — so the apply order is **T020
   > → then 117 (T019)**, not the file order.
-- [ ] **T019** 🧑 Apply 117 to staging by hand — **after T020** (117 needs the
+- [x] **T019** 🧑 Apply 117 to staging by hand — **after T020** (117 needs the
   `realtime` schema). Prod via Studio at ship. [needs T018, T020]
-- [ ] **T020** 🧑 🌐 ⚠️ **DEBT-011** — precedes applying 117: re-enable the
+- [x] **T020** 🧑 🌐 ⚠️ **DEBT-011** — precedes applying 117: re-enable the
   Realtime container on the box (Dokploy): container + env; expose the WS route
   via Traefik/kong (keep `compose-override.kong.yml` + `COMPOSE_FILE` so labels
   survive); wire channel auth.
-- [ ] **T021** 🧑 Add WAL replication-slot lag monitoring to the backup cron
+- [x] **T021** 🧑 Add WAL replication-slot lag monitoring to the backup cron
   (slot grows → CPX32 disk). [part of DEBT-011]
 - [x] **T022** 🤖 `infra/realtime-runbook.md` — self-hosted re-enable steps,
   channel auth, WAL-slot monitoring. [pairs with T020/T021]
-- [ ] **T023** 🤖 Client subscribe: `tg-client` subscribes to `campaign:<id>`;
+- [x] **T023** 🤖 Client subscribe: `tg-client` subscribes to `campaign:<id>`;
   on insert append row + recompute affected balance(s); revalidate-on-focus /
   reconnect fallback (FR-010). [needs T018, T020, T011]
 
@@ -116,12 +116,12 @@ staging hand-test → **PR into `main`** (never direct).
   collapsed «Задан ✓» after approval. [needs T026]
 
 ## Phase 4 — Staging E2E + ship
-- [ ] **T028** 🧑 Deploy feature branch → `staging`; apply 117 to staging.
+- [x] **T028** 🧑 Deploy feature branch → `staging`; apply 117 to staging.
   [needs green Phase 1]
-- [ ] **T029** 🧑 E2E on staging: record → second device ≤ 2 s (SC-003);
+- [x] **T029** 🧑 E2E on staging: record → second device ≤ 2 s (SC-003);
   free-общак put/take with no approval (C-05); foreign PC read-only;
   realtime after re-enable; one real iOS + one real Android (SC-004).
-- [ ] **T030** 🤖 Open PR of the feature branch → `main` (human merges).
+- [x] **T030** 🤖 Open PR of the feature branch → `main` (human merges).
   [needs green staging]
 
 ## Tails (deferred — not blockers)

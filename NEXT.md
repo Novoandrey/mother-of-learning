@@ -4,9 +4,9 @@
 > (включая `chatlog/_legacy-NEXT-archive.md` — полные тексты прежних NEXT).
 > Протокол старта сессии: `bash scripts/dev/status.sh` → этот файл →
 > `tasks.md` активной спеки. Лимит файла: 150 строк / 10 KB (следит status.sh).
-> Last updated: 2026-06-23 (chat 97 — spec-044 фидбэк-раунд закрыт на ветке
-> [миниатюры/кредит/общак-предметы/вёрстка/мобильный вход], ждёт мобильного
-> ретеста + PR; новая spec-052 Inventory — Specify draft, awaiting Clarify)
+> Last updated: 2026-06-23 (chat 98 — spec-044 + spec-046 ВЫКАЧЕНЫ В ПРОД:
+> мобильный кошелёк/бухгалтерия + auth/карточка PC + realtime live
+> (DEBT-011 закрыт) + WAL-монитор слота; spec-052 Inventory — next, Clarify)
 
 ## Прод
 
@@ -19,6 +19,9 @@
   Supabase-копия прода (refresh/reset/секреты — `infra/staging-runbook.md`).
 - Бэкапы: R2, ночной cron 03:00 UTC, ротация 30 daily / 28 weekly;
   restore drill пройден на реальных данных — stop→healthy ~20 с (2026-06-07).
+- Realtime: контейнер `supabase/realtime:v2.76.5` поднят (DEBT-011 закрыт), едет
+  через kong `/realtime/v1/`; WAL-слот стерегёт `infra/wal-slot-monitor.sh`
+  (cron 10 мин, Telegram-алерт, порог 500 МБ).
 - Доступ к боксу: Andrey + Лёша + Никита (full-ops; `infra/server-access.md`).
 
 ## Дедлайны
@@ -27,26 +30,15 @@
 
 ## Активная работа
 
-1. **spec-044 Mobile Ledger — на ветке `claude/044-mobile-ledger`, фидбэк-раунд
-   закрыт, в staging, зелёный (418 vitest).** P0–P3 + 6 правок хэнд-теста
-   (Cloudflare-миниатюры, кредит петли 500 ЗМ/1×/авто, предметы в-из общака,
-   карточка без скролла, **фикс мобильного входа** через `setSession`). **Ждёт:
-   мобильный ретест (чтение+запись; если запись падает → токен в экшены) → PR
-   T030 → realtime T019–T021 (прод DEBT-011).** Спека: `044-mobile-ledger/spec.md`.
-
-2. **spec-052 Inventory — НОВАЯ, Specify draft, awaiting Clarify.** Поверх 044:
-   контейнеры (передача/забор), покупка за голду, наборы (создают+покупают
+1. **spec-052 Inventory — Specify draft, awaiting Clarify (СЛЕДУЮЩЕЕ).** Поверх
+   044: контейнеры (передача/забор), покупка за голду, наборы (создают+покупают
    одной кнопкой), статус «Надето». **Бухгалтерию не трогает** (ходы=item-tx,
-   покупка=деньги+предмет; новое — флаг «Надето» + наборы). Дальше **Clarify**
-   (C-01..C-10). Спека: `052-inventory-containers-sets/spec.md`.
+   покупка=деньги+предмет; новое — флаг «Надето» + наборы). + прод-фидбэк
+   (chat 98): свои pending-заявки с отменой (FR-015); «количество» как
+   первоклассное поле везде (FR-016, C-12). Дальше **Clarify** (C-01..C-12).
+   Спека: `052-inventory-containers-sets/spec.md`.
 
-3. **spec-046 Telegram Auth + Card — РЕАЛИЗОВАН на ветке
-   `claude/046-telegram-auth-pc-card`, на прод НЕ мерджен (ждёт PR, T026).**
-   `/tg` (initData → свой JWT → карточка PC с портретом в натуральном
-   соотношении), ДМ-привязка `/c/<slug>/settings/telegram`, миграции 115/116,
-   сид портретов. E2E на staging пройден. **Прод-катовер при мердже ↓.**
-
-4. **Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
+2. **Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
    (E1–E11, R1–R12; карта v1.6.0: телега(046) ∥ ledger(044) → движок(045) →
    лист(022) → базы → форк → пирамида → классы → конструктор). **spec-045
    Engine Core — Specify draft, awaiting Clarify** (C-01…C-05; C-06=R6).
@@ -54,12 +46,6 @@
    `epics/rpg-engine/research/best-practices-review.md` (same-op, add↔mult,
    roll-эффекты, дельты vs LWW, R9-неопознанные). R6-прозрачность; spec-022
    ждёт 045; мана = DMG Spell Points (R12/FR-025).
-
-## Прод-катовер 046 (при мердже ветки → `main`)
-
-Полный чеклист — `046-telegram-auth-pc-card/operator-runbook.md` (ветка). Кратко:
-PR → миграции 115+116 на прод (Studio-туннель) → прод-env `SUPABASE_JWT_SECRET` +
-`TELEGRAM_BOT_TOKEN` + build-arg `NEXT_PUBLIC_R2_PORTRAIT_BASE` (без пробелов вокруг `=`!) → бот `/tg` → сид (те же node-id ключи).
 
 ## Очередь до 030
 
@@ -126,6 +112,8 @@ PR → миграции 115+116 на прод (Studio-туннель) → про
 | 028 | Доступ команде + авто-деплой (CI gate → Dokploy) + Telegram-бот |
 | 029 | Read-only Postgres MCP: Claude видит БД из Desktop (туннель = выключатель) |
 | 043 | Staging: облачная staging-БД + staging.theloopers.org + PR-only `main` |
+| 044 | Mobile Ledger в Telegram Mini App (`/tg`): кошелёк/бухгалтерия игрока, realtime-обновления, предметы в-из общака, стартовый набор |
+| 046 | Telegram Mini App auth (real GoTrue session) + карточка PC с портретом; DM-привязка `/c/<slug>/settings/telegram`; миграции 115/116; сид 31 портрета |
 
 ## Хвосты (не блокеры)
 

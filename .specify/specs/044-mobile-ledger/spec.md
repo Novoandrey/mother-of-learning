@@ -2,7 +2,7 @@
 
 **Feature Branch**: `044-mobile-ledger`
 **Created**: 2026-06-12 (chat 95)
-**Status**: Implement — **all Claude-buildable tasks done** (P0–P3: adapter, shell, reads, writes/free-общак, mig 117, rejected-state + all-PC balances, starter-equip; + T022 runbook). Branch `claude/044-mobile-ledger`, green (typecheck/eslint/429 vitest). Remaining is operator/blocked: realtime ops T019/T020/T021 (apply order T020→117); T023 realtime client blocked on T020; staging deploy/E2E T028/T029; T030 PR after E2E.
+**Status**: ✅ Shipped to prod (2026-06-23, chat 98). P0–P3 + auth (real GoTrue session) + 6 hand-test fixes + realtime (DEBT-011 container `realtime:v2.76.5` re-enabled, mig 117 broadcast, client subscribe T023) + WAL-slot monitor (T021). PR #4 + #5 merged; migrations 115/116/117 applied; 31 portraits seeded; bot Menu → /tg. 418 vitest green. Prod-use feedback (pending-заявки view, item quantity) → spec-052.
 **Input**: Andrey (chat 95): «надо сразу сделать отдельную спеку под
 мобильный ledger и нашу бухгалтерию, это самый крутой и проработанный слой,
 а он не используется. Возможно даже до того, как начнём делать листы —

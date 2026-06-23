@@ -77,8 +77,8 @@ next** (project rule). After any `.sql` → `present_files`.
 - [x] **T025** 🧑 E2E on staging: open from bot → unlinked → DM binds (T013) →
   reopen seamless (SC-001); `auth.uid()` == web account id (SC-002); portrait
   real/placeholder (SC-006).
-- [ ] **T026** 🤖 Open PR of the feature branch → `main` (human merges).
-  [needs green staging]
+- [x] **T026** 🤖 Open PR of the feature branch → `main` (human merges).
+  Moot — 046's content rode in **spec-044 PR #4** (branch fully contained in main).
 
 ## Sequencing
 P0 → P1 (core, testable now) → P2 / P3 (need P0 + P1) → P4 operator (T022 needs
