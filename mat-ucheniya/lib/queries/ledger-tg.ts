@@ -289,3 +289,53 @@ export async function searchCampaignItemsTg(
     title: r.title,
   }))
 }
+
+/**
+ * The PC's current-loop item holdings — net approved item quantities, only
+ * those still > 0 (feedback #4: show "what's already there" under the
+ * starter-equipment builder). Loop-scoped, mirroring the per-loop wallet.
+ */
+export async function getPcItemHoldingsTg(
+  supabase: SupabaseClient,
+  pcId: string,
+  loopNumber: number | null,
+): Promise<{ name: string; qty: number }[]> {
+  let q = supabase
+    .from('transactions')
+    .select('item_name, item_qty')
+    .eq('actor_pc_id', pcId)
+    .eq('kind', 'item')
+    .eq('status', 'approved')
+  if (loopNumber !== null) q = q.eq('loop_number', loopNumber)
+  const { data, error } = await q
+  if (error) throw error
+
+  const byName = new Map<string, number>()
+  for (const r of (data ?? []) as Array<{ item_name: string | null; item_qty: number }>) {
+    const name = r.item_name ?? '—'
+    byName.set(name, (byName.get(name) ?? 0) + r.item_qty)
+  }
+  return [...byName.entries()]
+    .filter(([, qty]) => qty > 0)
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+}
+
+/** Whether the PC has already taken its loop credit (category 'credit') this loop. */
+export async function hasLoopCreditTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  pcId: string,
+  loopNumber: number,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('actor_pc_id', pcId)
+    .eq('loop_number', loopNumber)
+    .eq('category_slug', 'credit')
+    .limit(1)
+    .maybeSingle()
+  return data !== null
+}

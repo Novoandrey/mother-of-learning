@@ -23,6 +23,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getMembership } from '@/lib/auth'
 import { isAutoApproved } from '@/lib/approval-policy'
+import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
 import {
@@ -276,6 +277,83 @@ export async function createTransaction(
     return { ok: false, error: `Не удалось сохранить: ${error.message}` }
   }
 
+  return { ok: true, id: (data as { id: string }).id }
+}
+
+// ============================================================================
+// takeLoopCredit (feedback #4) — player self-grants a fixed loop credit
+// ============================================================================
+
+/**
+ * Grant the PC the fixed loop credit (LOOP_CREDIT_GP) as an approved money row —
+ * no DM approval, but only once per loop. Server-controlled end to end: the
+ * client picks nothing but which PC, so the amount and the once-per-loop rule
+ * can't be tampered with. The guard SELECT covers normal use (and disables the
+ * button); a true concurrent double-tap is the only gap and is harmless for a
+ * trusted table — add a partial unique index on (campaign_id, actor_pc_id,
+ * loop_number) WHERE category_slug='credit' if hard enforcement is ever needed.
+ */
+export async function takeLoopCredit(
+  campaignId: string,
+  pcId: string,
+  loopNumber: number,
+): Promise<ActionResult<{ id: string }>> {
+  if (!campaignId || !pcId) return { ok: false, error: 'Не выбран персонаж' }
+
+  const auth = await resolveAuth(campaignId)
+  if (!auth.ok) return auth
+  if (auth.role === 'player') {
+    const owned = await isPcOwner(pcId, auth.userId)
+    if (!owned) return { ok: false, error: 'Нельзя взять кредит за чужого персонажа' }
+  }
+
+  const admin = createAdminClient()
+
+  // Once per loop.
+  const { data: existing } = await admin
+    .from('transactions')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('actor_pc_id', pcId)
+    .eq('loop_number', loopNumber)
+    .eq('category_slug', 'credit')
+    .limit(1)
+    .maybeSingle()
+  if (existing) return { ok: false, error: 'Кредит за эту петлю уже взят' }
+
+  const coins = signedCoinsToStored(false, resolveEarn(LOOP_CREDIT_GP))
+  const nowIso = new Date().toISOString()
+  const { data, error } = await admin
+    .from('transactions')
+    .insert({
+      campaign_id: campaignId,
+      actor_pc_id: pcId,
+      kind: 'money',
+      amount_cp: coins.cp,
+      amount_sp: coins.sp,
+      amount_gp: coins.gp,
+      amount_pp: coins.pp,
+      item_name: null,
+      item_node_id: null,
+      item_qty: 1,
+      category_slug: 'credit',
+      comment: `Кредит петли ${loopNumber}`,
+      loop_number: loopNumber,
+      day_in_loop: 1,
+      session_id: null,
+      transfer_group_id: null,
+      status: 'approved',
+      author_user_id: auth.userId,
+      batch_id: null,
+      approved_by_user_id: auth.userId,
+      approved_at: nowIso,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    return { ok: false, error: `Не удалось взять кредит: ${error.message}` }
+  }
   return { ok: true, id: (data as { id: string }).id }
 }
 

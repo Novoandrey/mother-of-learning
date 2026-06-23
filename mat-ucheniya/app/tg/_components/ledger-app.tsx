@@ -12,6 +12,8 @@ import {
   getStashTg,
   getAllBalancesTg,
   searchCampaignItemsTg,
+  getPcItemHoldingsTg,
+  hasLoopCreditTg,
   type TgWallet,
   type TgFeedRow,
   type TgBalanceRow,
@@ -28,7 +30,9 @@ import {
   createTransaction,
   createTransfer,
   submitBatch,
+  takeLoopCredit,
 } from '@/app/actions/transactions'
+import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import { putMoneyIntoStash, takeMoneyFromStash } from '@/app/actions/stash'
 
 // ─────────────────────────── shared ───────────────────────────
@@ -1013,6 +1017,35 @@ export function StarterEquipScreen({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState<number | null>(null)
+  // feedback #4: current inventory + once-per-loop credit
+  const [holdings, setHoldings] = useState<{ name: string; qty: number }[] | null>(null)
+  const [creditTaken, setCreditTaken] = useState<boolean | null>(null)
+  const [creditBusy, setCreditBusy] = useState(false)
+  const [creditMsg, setCreditMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const [h, taken] = await Promise.all([
+          getPcItemHoldingsTg(supabase, character.id, loopNumber),
+          hasLoopCreditTg(supabase, campaignId, character.id, loopNumber),
+        ])
+        if (alive) {
+          setHoldings(h)
+          setCreditTaken(taken)
+        }
+      } catch {
+        if (alive) {
+          setHoldings([])
+          setCreditTaken(false)
+        }
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, character.id, loopNumber])
 
   // Debounced catalog typeahead. Results are tagged with the query they belong
   // to, so a changed query shows nothing stale until the new search resolves.
@@ -1055,6 +1088,21 @@ export function StarterEquipScreen({
   const addMoney = () =>
     setRows((rs) => [...rs, { clientId: crypto.randomUUID(), type: 'money', amountGp: 0 }])
   const removeRow = (id: string) => setRows((rs) => rs.filter((r) => r.clientId !== id))
+
+  const takeCredit = async () => {
+    if (creditTaken !== false || creditBusy) return
+    setCreditBusy(true)
+    setCreditMsg(null)
+    const res = await takeLoopCredit(campaignId, character.id, loopNumber)
+    setCreditBusy(false)
+    if (!res.ok) {
+      setCreditMsg(res.error)
+      if (res.error.includes('уже взят')) setCreditTaken(true)
+      return
+    }
+    setCreditTaken(true)
+    setCreditMsg(`Кредит взят: +${LOOP_CREDIT_GP} ЗМ`)
+  }
 
   const submit = async () => {
     if (rows.length === 0) {
@@ -1235,6 +1283,49 @@ export function StarterEquipScreen({
           Отправить на одобрение
         </SubmitButton>
       )}
+
+      {/* feedback #4: once-per-loop credit (no DM approval) */}
+      <div className="mt-6 border-t border-neutral-800 pt-4">
+        <button
+          onClick={takeCredit}
+          disabled={creditTaken !== false || creditBusy}
+          className="w-full rounded-lg border border-neutral-700 py-2.5 text-sm font-medium text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50"
+        >
+          {creditBusy
+            ? 'Беру…'
+            : creditTaken
+              ? `Кредит за петлю взят · +${LOOP_CREDIT_GP} ЗМ`
+              : `Взять кредит · ${LOOP_CREDIT_GP} ЗМ`}
+        </button>
+        <p className="mt-1 px-1 text-xs text-neutral-500">
+          Один раз за петлю, без одобрения ведущего.
+        </p>
+        {creditMsg && <p className="mt-1 px-1 text-xs text-neutral-400">{creditMsg}</p>}
+      </div>
+
+      {/* feedback #4: what the PC already has this loop */}
+      <div className="mt-6">
+        <h2 className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Уже есть
+        </h2>
+        {holdings === null ? (
+          <p className="px-1 text-sm text-neutral-600">Загрузка…</p>
+        ) : holdings.length === 0 ? (
+          <p className="px-1 text-sm text-neutral-600">Пока пусто.</p>
+        ) : (
+          <ul className="space-y-1">
+            {holdings.map((h) => (
+              <li
+                key={h.name}
+                className="flex items-center justify-between rounded-lg bg-neutral-900 px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate text-neutral-200">{h.name}</span>
+                <span className="ml-2 shrink-0 tabular-nums text-neutral-400">×{h.qty}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
