@@ -162,8 +162,6 @@ export type TransferInput = {
   sessionId?: string | null;
   /** Spec-014: batch_id shared across both legs (FR-004). */
   batchId?: string;
-  /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
-  tgToken?: string;
   /**
    * Spec-044 / C-05: bypass the player approval gate (free общак). Set by the
    * stash wrappers for player put/take. Ignored for DM/owner (always approved).
