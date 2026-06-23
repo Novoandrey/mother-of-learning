@@ -2,7 +2,7 @@
 
 **Feature Branch**: `052-inventory-containers-sets`
 **Created**: 2026-06-23 (chat 95)
-**Status**: Specify draft — awaiting Clarify
+**Status**: Clarified — awaiting Plan
 **Depends on**: spec-044 (mobile ledger — wallet, item transfers, общак,
 starter-equip; this inventory UI extends 044's `/tg` screens and its holdings
 reader / transfer sheet), item catalog (spec-015/018) + default prices
@@ -237,9 +237,11 @@ purchase.
   plus an item-in (accounting backend unchanged); the legs SHOULD be linked
   (`transfer_group_id` pattern) under a 'purchase' category. Representation —
   C-02.
-- **FR-013**: Whether a purchase is auto-approved or queued for the DM, and
-  whether gold may come only from the PC wallet or also the общак, is
-  **[NEEDS CLARIFICATION — C-01]**.
+- **FR-013**: A buy funded by the player's own gold is auto-approved (C-01).
+  The funding source is player-selected per purchase — own PC wallet, PC
+  wallet with an общак shortfall top-up, or the общак directly — and a buy
+  the chosen source cannot cover is blocked (no implicit credit). See
+  Clarifications C-01.
 - **FR-014**: A purchase MUST be clearly refused when available gold < price ×
   qty (unless C-01 allows partial / credit).
 - **FR-015**: A player MUST be able to see their own **pending заявки** (item
@@ -256,8 +258,9 @@ purchase.
 - **FR-021**: The inventory MUST visually distinguish equipped from carried.
 - **FR-022**: Equipped state MUST NOT change balances or holdings — inventory
   metadata only; no mechanical effect in this spec (engine reads later — C-07).
-- **FR-023**: How equipped state is stored and keyed to computed holdings, and
-  whether it persists across loops, is **[NEEDS CLARIFICATION — C-03, C-04]**.
+- **FR-023**: Equipped state lives in a new `pc_equipped` table keyed by
+  (pc_id, item_name, loop_number), separate from `transactions`, and is
+  per-loop like holdings (C-03, C-04). See Clarifications.
 
 **Sets (US4)**
 - **FR-030**: A player MUST be able to create a set — a named bundle of catalog
@@ -334,7 +337,115 @@ purchase.
 - "Equipped" carries no mechanical / stat effect in this spec; item-effect
   application belongs to the RPG-engine epic (spec-045+). (C-07.)
 
-## Open Questions (for Clarify)
+## Clarifications
+
+### Round 1 — 2026-06-23 (chat 99)
+
+Most questions resolved against the shipped spec-044 code rather than by
+asking; the migration risk (C-12) is retired — no schema change is needed.
+
+**C-01 (FR-010, FR-013, US2). Purchase approval & gold source.**
+**A**: **A buy funded by the player's own gold is auto-approved** — the same
+trust model as taking from the общак, which `takeMoneyFromStash` already
+auto-approves. **The funding source is player-selected per purchase:**
+(a) own PC wallet, (b) PC wallet with an общак top-up covering the shortfall
+(reusing the existing `createExpenseWithStashShortfall` pattern — the cover
+transfer auto-approves), or (c) the общак directly. When the chosen source
+cannot cover price × qty, the buy is **blocked** — credit stays a separate,
+explicit mechanism (`category='credit'` / `takeLoopCredit`), not an implicit
+overdraft. Consequence accepted: общак-funded buys auto-approve with no DM
+gate, matching the общак's existing free auto-approved take.
+
+**C-02 (FR-012, Purchase entity). Purchase ledger shape.**
+**A**: **Two correlated rows sharing a `transfer_group_id`, category
+`'purchase'`:** a money leg (`kind='money'`, −gp) plus an item leg
+(`kind='item'`, +qty, `item_node_id` = catalog node, column present since
+migration 043). Neither leg is `kind='transfer'` (a buy has no counterparty
+node). The money leg lands on the PC for sources (a)/(b) and on the общак
+node for source (c); source (b) additionally emits the shortfall transfer
+pair (общак→PC) ahead of the PC money leg. `'purchase'` is a new
+`scope='transaction'` category, seeded like the existing six (makes buys
+filterable). New `createPurchase` action — not `createItemTransfer` (that
+writes a sender↔recipient item pair). No schema change.
+
+**C-03 (FR-023, Equipped flag entity). Equipped storage & keying.**
+**A**: **A new `pc_equipped` table** — `(pc_id, item_name, loop_number,
+equipped bool)` — which does **not** touch `transactions` (FR-041). Keyed by
+`item_name`, matching the identity used by the shipped holdings readers
+(`getPcItemHoldingsTg` groups by name); `item_node_id` stays available if a
+later spec wants node-keyed equip. The flag is per holding line (boolean),
+not per unit — "Надето" carries no mechanical effect, so per-unit is overkill.
+When the net holding for an item drops to 0 the reader simply does not render
+it (the row may linger but is invisible / implicitly un-equipped).
+
+**C-04 (FR-023, Edge Cases, Assumptions). Loop semantics.**
+**A**: **Equipped state is per-loop, like wallet and holdings** (readers
+already filter `loop_number`; the 30-day loop resets the world). Re-equip each
+loop. Persisting equipped across loops is rejected — it would dangle against
+holdings that do not exist in the new loop. Confirmed: a bought item exists
+only within the loop it was bought. Sets are templates and persist across
+loops regardless.
+
+**C-05 (FR-030, FR-033). Set ownership / visibility / editing.**
+**A**: **A shared, campaign-scoped library.** Any player can create, buy, and
+view any set; edit/delete is restricted to the set's author or a DM/owner.
+Rationale: the feature's premise is player-authored shared shortcuts, and
+copy-on-buy (FR-034) makes post-hoc edits safe. DM curation of "official"
+sets is deferred (not in v1).
+
+**C-06 (FR-032). Set buy semantics.**
+**A**: **All-or-nothing on affordability** (a set is one batch; partial buys
+defeat the one-tap purpose). Same approval / funding path as a single buy
+(C-01). Items with no catalog price are barred at set creation (C-10), so a
+priced total is always computable.
+
+**C-07 (FR-022, Assumptions). Equipped ↔ engine boundary.**
+**A**: **Equipped is a standalone inventory flag now** (`pc_equipped`); the
+RPG engine (spec-045) reads it later, once items-as-modules land. Rationale:
+spec-045 is still in Specify and its item-module data model is not fixed —
+binding 052 to an unbuilt store would block it, while reconciling a PC+item
+boolean later is cheap. 052 ships without the engine (stated dependency).
+
+**C-08 (FR-003, Containers entity). Containers in scope.**
+**A**: **v1 containers = each PC + the single общак, no nested bags.** "Buy"
+is a **separate action**, not a move from a virtual shop/catalog container:
+the money leg leaves to no node and there is no gold reservoir, so a fake
+"shop container" is worse than an explicit buy action.
+
+**C-09 (FR-040, Assumptions). Platform.**
+**A**: **Mini-App-only (`/tg`) for v1**; desktop keeps its current
+transfer/stash UI. The data model (the `pc_equipped` table, set definitions,
+reused ledger) is platform-agnostic — a later spec may bring desktop parity.
+
+**C-10 (FR-011, FR-033, Assumptions). Free-text items.**
+**A**: **Free-text (non-catalog) items are movable and equippable but not
+buyable and not allowed in sets.** Buying requires a catalog price
+(spec-016); free-text items have none. Moves and equip key on `item_name`, so
+they work for catalog and free-text identically.
+
+**C-11 (FR-015). Cancel own pending заявка.**
+**A**: **Already supported at the action layer — only a UI surface is new.**
+`deleteTransaction` / `deleteTransfer` already permit a player to delete only
+their own `pending` rows ("Можно удалять только pending-заявки"). The wallet
+and holdings readers count only `status='approved'`, so dropping a pending row
+has **no balance or holding effect**. New work: a "my requests" view in `/tg`
+(the feed already badges pending with ⏳ but offers no filter) plus a
+"Отменить" button wired to the existing delete. No DM notification on cancel
+in v1 — the заявка simply leaves the DM queue.
+
+**C-12 (FR-016). Item quantity data model.**
+**A**: **No migration needed — quantity is already first-class.**
+`transactions.item_qty` exists (migration 035) and is signed (`<> 0`,
+migration 036): `SUM(item_qty)` over `actor_pc_id` is the net holding, exactly
+like coins. The shipped readers already sum it; the shipped actions
+(`putItemIntoStash` / `takeItemFromStash` / `createItemTransfer`) already
+thread `qty`; the `/tg` UI already has a qty input with an availability cap,
+renders item rows as `×N`, and shows holdings as `×qty`. FR-016 is therefore
+purely app-layer: the new buy and set forms inherit the same qty-carrying
+pattern, and any remaining item-at-a-time surface adopts the stack-with-count
+display.
+
+## Open Questions (resolved — see Clarifications above)
 
 - **C-01 — Purchase approval & gold source.** Is a buy auto-approved (player
   spends own gold) or queued for the DM like a normal record? Does gold come
