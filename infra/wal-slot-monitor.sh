@@ -15,20 +15,20 @@
 #
 # Config via env, or via /opt/infra/wal-monitor.env which is sourced if present:
 #   COMPOSE_DIR   (required)  path to the supabase/docker clone on the box
-#   PG_CONTAINER  supabase-db  the Postgres container name
+#   PG_SERVICE    db           Postgres compose SERVICE name (not container_name)
 #   THRESHOLD_MB  500          alert when a logical slot retains >= this many MB
 #   COOLDOWN_MIN  360          do not re-alert within this many minutes
 #   TG_BOT_TOKEN  (required)  BotFather token (same value as the GH secret)
 #   TG_CHAT_ID    (required)  -100… supergroup id (same value as the GH secret)
 #   TG_THREAD_ID  (optional)  forum topic message_thread_id
 #
-# Install on the box (as for backup.sh):
-#   cp infra/wal-slot-monitor.sh /opt/infra/ && chmod +x /opt/infra/wal-slot-monitor.sh
-#   printf 'COMPOSE_DIR=%s\nTG_BOT_TOKEN=%s\nTG_CHAT_ID=%s\nTG_THREAD_ID=%s\n' \
-#     /home/andrey/supabase/docker '<token>' '-100…' '<thread>' > /opt/infra/wal-monitor.env
-#   chmod 600 /opt/infra/wal-monitor.env
-# Cron (root):
-#   */10 * * * * /opt/infra/wal-slot-monitor.sh >> /var/log/wal-slot-monitor.log 2>&1
+# Install on the box. The monitor must run as the user whose Docker runs the
+# stack (e.g. andrey) — `docker compose exec` against that stack only works for
+# that user. So own the env file by that user and use that user's crontab:
+#   sudo cp infra/wal-slot-monitor.sh /opt/infra/ && sudo chmod +x /opt/infra/wal-slot-monitor.sh
+#   sudo chown andrey:andrey /opt/infra/wal-monitor.env   # 600, andrey-readable
+# Cron (that user's crontab, NOT root):
+#   */10 * * * * /opt/infra/wal-slot-monitor.sh >> /home/andrey/wal-slot-monitor.log 2>&1
 # Smoke-test the alert path once (forces an alert on any slot):
 #   THRESHOLD_MB=0 /opt/infra/wal-slot-monitor.sh
 #
@@ -41,7 +41,7 @@ ENV_FILE="${ENV_FILE:-/opt/infra/wal-monitor.env}"
 : "${COMPOSE_DIR:?set COMPOSE_DIR (path to supabase/docker on the box)}"
 : "${TG_BOT_TOKEN:?set TG_BOT_TOKEN}"
 : "${TG_CHAT_ID:?set TG_CHAT_ID}"
-PG_CONTAINER="${PG_CONTAINER:-supabase-db}"
+PG_SERVICE="${PG_SERVICE:-db}"
 THRESHOLD_MB="${THRESHOLD_MB:-500}"
 COOLDOWN_MIN="${COOLDOWN_MIN:-360}"
 STAMP="${STAMP:-/tmp/wal-slot-monitor.alerted}"
@@ -49,7 +49,7 @@ STAMP="${STAMP:-/tmp/wal-slot-monitor.alerted}"
 cd "$COMPOSE_DIR"
 
 # One row per logical slot:  name | active(t/f) | retained_bytes
-rows=$(docker compose exec -T "$PG_CONTAINER" \
+rows=$(docker compose exec -T "$PG_SERVICE" \
   psql -U postgres -d postgres -At -F'|' -c \
   "select slot_name, active, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) \
    from pg_replication_slots where slot_type = 'logical';" \
