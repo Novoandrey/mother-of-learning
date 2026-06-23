@@ -45,9 +45,48 @@ export function Centered({ children }: { children: React.ReactNode }) {
   )
 }
 
+/**
+ * Portrait <img> with a resized thumbnail + graceful fallback (feedback #2):
+ * loads a small Cloudflare-resized WebP; if the zone has no Transformations,
+ * onError swaps to the un-resized original. Lazy by default so off-screen
+ * avatars in the list don't all download at once; `eager` for the hero.
+ */
+function SmartImg({
+  keyStr,
+  width,
+  alt,
+  className,
+  style,
+  eager,
+}: {
+  keyStr: string
+  width: number
+  alt: string
+  className?: string
+  style?: React.CSSProperties
+  eager?: boolean
+}) {
+  const original = portraitUrl(keyStr) ?? undefined
+  const [src, setSrc] = useState<string | undefined>(portraitUrl(keyStr, { width }) ?? undefined)
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      style={style}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+      onError={() => {
+        if (src !== original) setSrc(original)
+      }}
+    />
+  )
+}
+
 function Portrait({ name, keyStr }: { name: string; keyStr: string | null }) {
-  const url = portraitUrl(keyStr)
-  if (url) return <img src={url} alt={name} className="block h-auto w-full" />
+  if (keyStr && portraitUrl(keyStr)) {
+    return <SmartImg keyStr={keyStr} width={768} alt={name} className="block h-auto w-full" eager />
+  }
   return (
     <div className="flex aspect-[3/4] w-full items-center justify-center bg-neutral-700 text-6xl font-semibold text-neutral-200">
       {initialOf(name)}
@@ -56,12 +95,18 @@ function Portrait({ name, keyStr }: { name: string; keyStr: string | null }) {
 }
 
 function Avatar({ name, keyStr, size }: { name: string; keyStr: string | null; size: number }) {
-  const url = portraitUrl(keyStr)
   const style = { width: size, height: size }
-  if (url)
+  if (keyStr && portraitUrl(keyStr)) {
     return (
-      <img src={url} alt={name} style={style} className="shrink-0 rounded-full object-cover" />
+      <SmartImg
+        keyStr={keyStr}
+        width={96}
+        alt={name}
+        style={style}
+        className="shrink-0 rounded-full object-cover"
+      />
     )
+  }
   return (
     <div
       style={style}
