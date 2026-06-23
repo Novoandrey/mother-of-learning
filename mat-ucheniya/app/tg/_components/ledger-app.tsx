@@ -85,10 +85,18 @@ function SmartImg({
 
 function Portrait({ name, keyStr }: { name: string; keyStr: string | null }) {
   if (keyStr && portraitUrl(keyStr)) {
-    return <SmartImg keyStr={keyStr} width={768} alt={name} className="block h-auto w-full" eager />
+    return (
+      <SmartImg
+        keyStr={keyStr}
+        width={768}
+        alt={name}
+        className="max-h-full max-w-full object-contain"
+        eager
+      />
+    )
   }
   return (
-    <div className="flex aspect-[3/4] w-full items-center justify-center bg-neutral-700 text-6xl font-semibold text-neutral-200">
+    <div className="flex h-full w-full items-center justify-center bg-neutral-700 text-6xl font-semibold text-neutral-200">
       {initialOf(name)}
     </div>
   )
@@ -256,8 +264,8 @@ export function PcHome({
   onOpenEquip?: () => void
 }) {
   return (
-    <div className="mx-auto max-w-sm">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto flex h-[calc(100dvh-3rem)] max-w-sm flex-col">
+      <div className="flex shrink-0 items-center justify-between">
         {showBack ? <BackLink onClick={onBack}>мои персонажи</BackLink> : <span />}
         {onOpenBalances && (
           <OverflowMenu
@@ -271,15 +279,15 @@ export function PcHome({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl bg-neutral-900">
+      {/* Portrait fills the remaining height, contained — shrinks both ways so
+          the screen never scrolls; the launcher stays pinned below. */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-neutral-900">
         <Portrait name={character.title} keyStr={character.primaryPortraitKey} />
-        <div className="p-4">
-          <div className="text-xl font-semibold">{character.title}</div>
-        </div>
       </div>
+      <div className="mt-2 shrink-0 text-center text-base font-semibold">{character.title}</div>
 
-      {/* Per-PC app launcher (C-04). Ledger is the only live app today. */}
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      {/* Per-PC app launcher (C-04), pinned at the bottom. */}
+      <div className="mt-3 grid shrink-0 grid-cols-3 gap-2">
         <AppButton icon="🛍" label="Деньги" onClick={onOpenLedger} />
         <AppButton icon="📋" label="Лист" disabled />
         <AppButton icon="＋" label="" disabled />
@@ -304,14 +312,14 @@ function AppButton({
       onClick={onClick}
       disabled={disabled}
       className={
-        'flex aspect-square flex-col items-center justify-center gap-1 rounded-xl text-center transition-colors ' +
+        'flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 text-center transition-colors ' +
         (disabled
           ? 'cursor-default bg-neutral-900/50 text-neutral-600'
           : 'bg-neutral-900 text-neutral-100 hover:bg-neutral-800')
       }
     >
-      <span className="text-2xl leading-none">{icon}</span>
-      {label && <span className="text-xs">{label}</span>}
+      <span className="text-xl leading-none">{icon}</span>
+      {label && <span className="text-[11px]">{label}</span>}
     </button>
   )
 }
