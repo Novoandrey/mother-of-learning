@@ -66,9 +66,18 @@ holdings; moves recorded as the existing item-transactions under the existing
 auto-approval policy.
 
 **In (P2) — buying & equipped:** **buy a catalog item for gold** (gold-out +
-item-in, expressed in the existing ledger); price from the catalog;
-affordability check; **equipped/Надето** state per PC with equip/un-equip,
-shown in the inventory, carrying no mechanical effect.
+item-in, expressed in the existing ledger); price from the catalog **scaled by
+a DM per-rarity coefficient**; affordability check; **per-rarity approval
+gate** (DM-configured, default: very-rare & legendary require approval);
+**equipped/Надето** state per PC with equip/un-equip, shown in the inventory,
+carrying no mechanical effect.
+
+**In (P2) — DM purchase policy (desktop):** on the existing DM-only
+**«Настройки предметов»** page — a per-rarity **price coefficient** (multiplier)
+and a per-rarity **approval-required** toggle; in the items table — a per-item
+**«нельзя купить»** checkbox excluding individual items from buying (e.g.
+potentially illegal goods). DM/owner only; web/desktop surface, not the Mini
+App. (C-13, C-14, C-15.)
 
 **In (P3) — sets:** player-authored **sets** (named bundles of catalog items
 + qty); create / edit / delete; **buy a whole set in one action** (gold-out
@@ -82,15 +91,20 @@ while it is still pending.
 **Out:** item *effects* / stats from equipped gear (engine — spec-045+);
 nested containers / bags / weight & encumbrance; selling items back for gold,
 vendor/shop entities, currencies beyond the existing coin set; desktop UI
-parity (v1 is Mini-App-first — desktop keeps its current transfer/stash UI);
-xlsx inventory import; any change to how balances are computed.
+parity **for the player flows** (inventory / move / buy / sets stay
+Mini-App-first — desktop keeps its current transfer/stash UI; the DM purchase
+policy above is a deliberate, separate desktop-only addition, not player-flow
+parity); xlsx inventory import; any change to how balances are computed.
 
 ## Epic / platform note
 
-All new surfaces live in the **Telegram Mini App** (`/tg`), extending
-spec-044 — same auth (real GoTrue session from 046), same readers, same coin
-model. The data model is platform-agnostic; a later spec may bring parity to
-the desktop app. (C-09.)
+All **player-facing** surfaces live in the **Telegram Mini App** (`/tg`),
+extending spec-044 — same auth (real GoTrue session from 046), same readers,
+same coin model. The data model is platform-agnostic; a later spec may bring
+parity to the desktop app. **Exception:** the DM-only purchase policy
+(per-rarity coefficient + approval toggle, per-item «нельзя купить») is a
+**desktop/web** surface, reusing the existing «Настройки предметов» page and
+the items table — it is configuration, not a player flow. (C-09, C-13.)
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -147,19 +161,32 @@ today's free-text expense), and the prerequisite for sets.
    message (unless C-01 permits credit / partial).
 3. **Given** an item has no catalog price, **When** the player opens buy,
    **Then** that item is not offered for purchase (it can still be moved).
+4. **Given** the DM set the `rare` coefficient to 2, **When** a player buys a
+   40-gp rare item, **Then** 80 gp is charged (FR-011, C-13).
+5. **Given** the DM's default policy (very-rare/legendary require approval),
+   **When** a player buys a very-rare item with their own gold, **Then** the buy
+   is created **pending DM approval**, not auto-approved (FR-013, C-14).
+6. **Given** the DM marked an item «нельзя купить», **When** a player opens buy,
+   **Then** that item is not offered for purchase, yet still moves and equips
+   normally (FR-052, C-15).
 
 ---
 
 ### User Story 3 — Equipped status (Priority: P2)
 
 A player marks gear as **Надето** on their PC and can un-equip it; the
-inventory visibly distinguishes equipped from carried.
+inventory visibly distinguishes equipped from carried. Items that **require
+attunement** («Требует настройки») are tracked against the D&D soft cap of 3:
+the cap does **not** block, but the inventory shows a warning **плашка** when a
+PC has more than 3 attunement-requiring items equipped. Starting equipment may
+ship items **pre-equipped**, so a PC begins a loop already wearing its kit.
 
 **Why this priority**: part of the "fuller inventory" Andrey described;
 standalone and low-risk; lets the engine read equipment later.
 
 **Independent Test**: equip an item, reload, it is still equipped (within the
-loop); balances and holdings are unchanged.
+loop); balances and holdings are unchanged. Equip a 4th attunement item — a
+warning плашка appears but the equip still succeeds.
 
 **Acceptance Scenarios**:
 
@@ -170,6 +197,12 @@ loop); balances and holdings are unchanged.
    returns to carried.
 3. **Given** any equip / un-equip, **When** it happens, **Then** no balance or
    holding changes — it is metadata only.
+4. **Given** a PC already has 3 attunement-requiring items equipped, **When**
+   the player equips a 4th, **Then** the equip succeeds and a warning плашка
+   («настроено N из 3») is shown — nothing is blocked (FR-024, C-17).
+5. **Given** the DM marked a starting item as «надето» in the starter setup,
+   **When** the setup is applied to the PC, **Then** the PC begins the loop with
+   that item already equipped (FR-025, C-18).
 
 ---
 
@@ -177,14 +210,19 @@ loop); balances and holdings are unchanged.
 
 A player creates «Набор мага» — a list of catalog items with quantities — and
 any player buys the whole set in one tap, paying the total and receiving all
-items.
+items. On the buy screen the player can **adjust the working copy** — drop an
+item, change a quantity, add another catalog item — and then either **buy the
+adjusted contents as a one-off** (nothing saved) or **save-as a new set** for
+reuse. The source set is never overwritten by this; editing one's own sets is
+the separate management path (FR-030).
 
 **Why this priority**: convenience layered on buying; depends on US2;
 highest-effort and most deferrable.
 
 **Independent Test**: create a 3-item set, buy it with a funded PC; total gold
 out and all items in. Editing the set afterward does not change the past
-purchase.
+purchase. Open the set on buy, drop one item, buy — only the 2 kept items are
+purchased and the stored set still has 3.
 
 **Acceptance Scenarios**:
 
@@ -195,6 +233,12 @@ purchase.
    **Then** it is refused (or partial — C-06).
 3. **Given** a set is edited after a prior buy, **When** viewing that past
    purchase, **Then** the purchase is unchanged (copy-on-buy).
+4. **Given** a player opens a set on the buy screen and removes one item,
+   **When** they confirm a one-off buy, **Then** only the kept items are
+   purchased and the stored set is unchanged (FR-035, C-19).
+5. **Given** a player adjusts a set's working copy on the buy screen, **When**
+   they choose «сохранить как новый», **Then** a new player-owned set with the
+   adjusted contents is created and the source set is untouched (FR-035, C-19).
 
 ---
 
@@ -231,17 +275,24 @@ purchase.
 **Buying (US2)**
 - **FR-010**: A player MUST be able to buy a catalog item for gold — pick item,
   quantity, confirm — debiting the buyer's gold and adding the item.
-- **FR-011**: The price MUST come from the item's catalog price
-  (spec-016 defaults). Items with no catalog price MUST NOT be buyable (C-10).
+- **FR-011**: The buy price MUST be the item's effective base price scaled by
+  the DM's per-rarity coefficient: `charged = (item.price_gp ?? rarity-default
+  price (spec-016, magic/consumable bucket)) × coefficient[rarity]`, rounded to
+  whole gp. Default coefficient is 1 (no markup). Items with no effective base
+  price MUST NOT be buyable (C-10); items flagged «нельзя купить» MUST NOT be
+  buyable either (FR-052). Pricing detail — C-13.
 - **FR-012**: A purchase MUST be expressed in the existing ledger as a gold-out
   plus an item-in (accounting backend unchanged); the legs SHOULD be linked
   (`transfer_group_id` pattern) under a 'purchase' category. Representation —
   C-02.
-- **FR-013**: A buy funded by the player's own gold is auto-approved (C-01).
-  The funding source is player-selected per purchase — own PC wallet, PC
-  wallet with an общак shortfall top-up, or the общак directly — and a buy
-  the chosen source cannot cover is blocked (no implicit credit). See
-  Clarifications C-01.
+- **FR-013**: A buy MUST require DM approval iff the item's rarity is in the
+  DM's per-rarity «approval-required» set (FR-051; default: very-rare,
+  legendary) — **regardless of funding source**. Below the threshold the buy is
+  auto-approved. This **revises C-01**: own-gold (and общак) funding no longer
+  auto-approves a high-rarity buy. The funding source stays player-selected per
+  purchase — own PC wallet, PC wallet with an общак shortfall top-up, or the
+  общак directly — and a buy the chosen source cannot cover is blocked (no
+  implicit credit). Approval gate — C-14; funding — C-01.
 - **FR-014**: A purchase MUST be clearly refused when available gold < price ×
   qty (unless C-01 allows partial / credit).
 - **FR-015**: A player MUST be able to see their own **pending заявки** (item
@@ -251,6 +302,25 @@ purchase.
   surface — display, move, buy and set — so a stack (e.g. 20 arrows) is one line
   carrying a count, not N rows. This needs the item-transaction to carry a
   quantity delta and holdings to sum it. Data-model confirmation — C-12.
+
+**Pricing & purchase policy (US2 — DM, desktop)**
+- **FR-050**: The DM/owner MUST be able to set a **per-rarity price
+  coefficient** (a non-negative multiplier, default 1) on the «Настройки
+  предметов» page, persisted in `campaigns.settings`; the buy price applies it
+  per FR-011. Rarities are the existing ladder (`common / uncommon / rare /
+  very-rare / legendary`). (C-13.)
+- **FR-051**: The DM/owner MUST be able to toggle **«approval required»**
+  per rarity on the same page, persisted in `campaigns.settings`. Defaults:
+  `common / uncommon / rare` → off, `very-rare / legendary` → on. The buy flow
+  reads this per FR-013. (C-14.)
+- **FR-052**: The DM/owner MUST be able to mark an individual catalog item as
+  **«нельзя купить»** via a checkbox in the items table, persisted as a boolean
+  in the item node's `fields` jsonb. Flagged items are excluded from buying
+  (FR-011) and from buyable sets (FR-032) but remain movable and equippable.
+  (C-15.)
+- **FR-053**: All of FR-050–FR-052 MUST persist without a schema change —
+  coefficient + approval map in `campaigns.settings` (JSONB), the per-item flag
+  in `fields` (JSONB) — preserving FR-041 / C-12 (no migration).
 
 **Equipped (US3)**
 - **FR-020**: A player MUST be able to mark an inventory item as Надето and to
@@ -262,26 +332,54 @@ purchase.
   (pc_id, item_name, loop_number), separate from `transactions`, and is
   per-loop like holdings (C-03, C-04). See Clarifications.
 
+- **FR-024**: The inventory MUST count a PC's equipped items that **require
+  attunement** (existing `item_attributes.requires_attunement`, mig 055) and
+  show a non-blocking warning **плашка** when that count exceeds **3**. The cap
+  is soft: equipping is never refused on this basis; only an indicator appears.
+  Attunement relevance follows equipped state (an equipped requires-attunement
+  item counts; un-equipping clears it) — no separate «настроен» toggle in v1.
+  The cap value is a constant 3 for v1 (DM-configurable later if wanted).
+  Free-text items carry no attunement. — C-17.
+- **FR-025**: Starting equipment MUST support a per-item **«надето»** flag in
+  the DM starter-setup editor (spec-019); applying the setup writes the
+  corresponding `pc_equipped` rows so the PC begins the loop with those items
+  equipped. Desktop DM surface. — C-18.
+
 **Sets (US4)**
 - **FR-030**: A player MUST be able to create a set — a named bundle of catalog
   items with quantities — and edit / delete it. Ownership / edit rights — C-05.
 - **FR-031**: Any player MUST be able to buy a whole set in one action, buying
   every item in the set for the buyer (gold out + items in) as a single batch.
 - **FR-032**: A set buy MUST follow the same purchase rules as a single buy
-  (price source, approval, affordability — C-01, C-06); affordability is
-  checked against the set total (all-or-nothing vs partial — C-06).
+  (per-rarity price coefficient, affordability — C-06); affordability is
+  checked against the set total (all-or-nothing vs partial — C-06). The
+  **approval gate aggregates**: a set buy requires DM approval if **any**
+  constituent item's rarity requires it (FR-051). A set buy whose contents
+  include an item currently flagged «нельзя купить» (FR-052) MUST be **blocked**
+  at buy time (all-or-nothing). (C-14, C-15, C-16.)
 - **FR-033**: Sets MUST be campaign-scoped and visible to players to buy
   (visibility / DM curation — C-05); sets reference catalog items only (C-10).
 - **FR-034**: A set is a template — buying it copies its contents into the
   purchase; later edits affect only future buys, not past purchases.
+- **FR-035**: On the buy screen the player MUST be able to **edit the working
+  copy** of a set — remove items, change quantities, add another catalog item —
+  then either (a) **buy the adjusted contents as a one-off** (no persistence) or
+  (b) **save-as a new set** owned by the acting player. Neither path overwrites
+  the source set (FR-034). The one-off buy and save-as obey the same purchase
+  rules (FR-032: coefficient, affordability, approval aggregation, «нельзя
+  купить» block). — C-19.
 
 **Cross-cutting**
-- **FR-040**: All new surfaces live in the Telegram Mini App (`/tg`), extending
-  spec-044. Platform scope — C-09.
+- **FR-040**: All **player-facing** new surfaces live in the Telegram Mini App
+  (`/tg`), extending spec-044. The **DM-only purchase policy** (FR-050–FR-052)
+  is the one exception — a desktop/web surface on the existing «Настройки
+  предметов» page and the items table. Platform scope — C-09, C-13.
 - **FR-041**: The accounting backend (the `transactions` schema, SUM-based
   balances, transfer / credit logic) MUST NOT be restructured. This feature
-  adds only the equipped flag and set definitions as new data and reuses
-  existing item / money transactions for moves and buys.
+  adds only the equipped flag and set definitions as new data, plus the DM
+  purchase-policy config (`campaigns.settings` JSONB) and the per-item
+  «нельзя купить» flag (`fields` JSONB) — no accounting-schema change — and
+  reuses existing item / money transactions for moves and buys.
 - **FR-042**: New server actions MUST follow the project's auth gating
   (`resolveAuth` / `getMembership` / ownership) per `mat-ucheniya/AGENTS.md`.
 
@@ -293,12 +391,24 @@ purchase.
 - **Item holding** — computed (container, item, net qty). Item identity =
   catalog node id for catalog items, name for free-text.
 - **Equipped flag** — NEW. A per-(PC, item identity) boolean. Storage, keying
-  to a computed holding, qty>1 handling, and loop scope — C-03 / C-04.
+  to a computed holding, qty>1 handling, and loop scope — C-03 / C-04. The
+  **attunement count** is *derived*, not stored: equipped items whose catalog
+  node has `requires_attunement=true` (mig 055), capped softly at 3 (C-17).
+  Starter setup may seed equipped rows on apply (C-18).
 - **Set (bundle)** — NEW. A named, campaign-scoped, player-authored collection
   of (catalog item, qty); a template, copy-on-buy. Storage (a `set` node type
-  vs a dedicated table) and ownership — C-05.
+  vs a dedicated table) and ownership — C-05. The buy screen operates on a
+  **working copy** that the player may edit, then buy one-off or **save-as a new
+  set**; the source set is never overwritten on the buy path (C-19).
 - **Purchase** — a ledger *expression* (gold-out + item-in, linked), not a new
   primitive; 'purchase' category. Representation — C-02.
+- **Purchase policy** — NEW (config, not a primitive). Campaign-scoped, in
+  `campaigns.settings` (JSONB): per-rarity `coefficient` (multiplier, default 1)
+  and per-rarity `approval_required` (bool; default very-rare/legendary = true).
+  DM/owner edits on «Настройки предметов». No schema change. — C-13, C-14.
+- **Item purchasability flag** — NEW. A per-item boolean («нельзя купить») in
+  the item node's `fields` jsonb; excludes the item from buying and from
+  buyable sets, leaves moves/equip untouched. — C-15.
 
 ## Success Criteria *(mandatory)*
 
@@ -330,8 +440,11 @@ purchase.
 - Containers in v1 are the existing nodes only — each PC and the single
   campaign общак; no nested bags or multiple stashes.
 - Buying references the existing catalog (spec-015/018) and its default prices
-  (spec-016). Free-text (non-catalog) items remain movable and equippable but
-  are not buyable and not allowed in sets. (C-10.)
+  (spec-016), scaled by a DM per-rarity coefficient, and is gated by a DM
+  per-rarity approval toggle (both new, in `campaigns.settings`); items the DM
+  flags «нельзя купить» are not buyable. Free-text (non-catalog) items remain
+  movable and equippable but are not buyable and not allowed in sets. (C-10,
+  C-13, C-14, C-15.)
 - Realtime propagation of inventory changes is desirable but optional and
   depends on the spec-044 realtime path (DEBT-011); not required for v1.
 - "Equipped" carries no mechanical / stat effect in this spec; item-effect
@@ -444,6 +557,78 @@ renders item rows as `×N`, and shows holdings as `×qty`. FR-016 is therefore
 purely app-layer: the new buy and set forms inherit the same qty-carrying
 pattern, and any remaining item-at-a-time surface adopts the stack-with-count
 display.
+
+### Round 2 — 2026-06-26 (chat 100)
+
+Prod-driven scope from Andrey: a DM-configurable purchase economy + gate, on
+the **desktop** «Настройки предметов» page and the items table. Player buy/move
+flows stay in the Mini App. All persistence stays JSONB — no schema change,
+C-12 still holds.
+
+**C-13 (FR-011, FR-050). Per-rarity price coefficient — semantics.**
+**A**: A **multiplier**, not a replacement for spec-016 default prices. They
+layer: the spec-016 per-rarity default fills the *base* price when an item has
+no `price_gp`; the coefficient then scales the base on every buy —
+`charged = (item.price_gp ?? rarity-default[bucket]) × coefficient[rarity]`,
+rounded to whole gp. Default coefficient = 1 (no markup), so existing campaigns
+are unaffected until a DM changes it. Stored per rarity in `campaigns.settings`
+alongside `item_default_prices`. Rarity ladder = the existing five
+(`common / uncommon / rare / very-rare / legendary`); no `artifact` rung in the
+data.
+
+**C-14 (FR-013, FR-051). Per-rarity approval gate — and C-01 revision.**
+**A**: Approval is decided by the item's **rarity**, funding-agnostic. A buy
+needs DM approval iff `approval_required[rarity]` is on (DM-configured; default
+`very-rare` & `legendary` = on, lower rungs = off). **This revises C-01**: the
+old "a buy funded by the player's own gold (or the общак) is auto-approved" no
+longer holds above the threshold — a very-rare/legendary buy goes to the
+pending queue **even when fully self-funded or общак-funded**. Below the
+threshold, self-funded buys still auto-approve (C-01's spirit, now scoped by
+rarity). C-01's funding-source selection and affordability-block are unchanged.
+Consequence accepted: high-rarity purchases always get a DM gate; the DM tunes
+the threshold per rarity.
+
+**C-15 (FR-052, FR-032). Item «нельзя купить» flag — storage & reach.**
+**A**: A per-item **boolean** in the item node's `fields` jsonb (e.g.
+`no_purchase: true`), toggled by a checkbox in the items table (DM/owner only).
+Chosen over reusing the `item-availability` taxonomy: «нельзя купить» is an
+orthogonal hard purchase-gate, not a "where it's sold" label, and a boolean
+matches the requested checkbox UX with no migration. Reach: flagged items are
+excluded from the buy picker (single and set) and a set buy containing one is
+blocked at buy time; moves and equip are untouched. Enforcement is at buy time
+(not set-creation time) because the DM can toggle the flag after a set exists.
+
+**C-16 (FR-032). Set-buy approval aggregation.**
+**A**: A set bundles mixed rarities; the gate **aggregates by max** — the set
+buy needs approval if **any** constituent item's rarity requires it (FR-051).
+Affordability stays all-or-nothing against the set total (C-06). A pending set
+buy is one заявка (matching the single-batch model of FR-031), approved or
+rejected as a unit.
+
+**C-17 (FR-024, US3). Attunement soft cap & «настроен» vs «надето».**
+**A**: Reuse the existing `item_attributes.requires_attunement` flag (mig 055).
+Attunement is **derived from equipped state** — an equipped requires-attunement
+item counts toward the cap; there is **no separate «настроен» toggle** in v1
+(minimal, and a soft warning doesn't need the finer distinction). The cap is a
+**constant 3**, **non-blocking**: equipping a 4th is allowed and only raises a
+warning плашка («настроено N из 3»). Could become a DM-configured number later,
+but not in this spec. Free-text (non-catalog) items have no attunement.
+
+**C-18 (FR-025, US3). «Надето» in starting equipment.**
+**A**: The spec-019 starter-setup editor (desktop, DM-only) gains a per-starting
+-item «надето» toggle; **applying** the setup writes `pc_equipped` rows for the
+flagged items so the PC starts the loop already wearing them. This extends
+spec-019's apply path; no accounting change. Same loop-scoped equipped model as
+FR-023 / C-03.
+
+**C-19 (FR-035, US4). Edit-on-buy: one-off vs save-as.**
+**A**: The buy screen edits a **working copy** of the set — remove / change-qty
+/ add catalog item. Two non-destructive exits: **(a) one-off buy** of the
+adjusted contents (nothing persisted) or **(b) save-as a new set** owned by the
+acting player. The **source set is never overwritten** on the buy path —
+overwriting one's own set is the separate management path (FR-030). Both exits
+obey FR-032 purchase rules. This preserves copy-on-buy (FR-034) and the
+template semantics.
 
 ## Open Questions (resolved — see Clarifications above)
 
