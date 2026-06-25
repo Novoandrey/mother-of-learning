@@ -13,11 +13,14 @@ import {
   getAllBalancesTg,
   searchCampaignItemsTg,
   getPcItemHoldingsTg,
+  getPcInventoryTg,
+  getMyPendingTg,
   hasLoopCreditTg,
   getStashItemHoldingsTg,
   type TgWallet,
   type TgFeedRow,
   type TgBalanceRow,
+  type PcInventoryRowTg,
 } from '@/lib/queries/ledger-tg'
 import {
   formatDenoms,
@@ -30,6 +33,9 @@ import {
 import {
   createTransaction,
   createTransfer,
+  createItemTransfer,
+  deleteTransaction,
+  deleteTransfer,
   submitBatch,
   takeLoopCredit,
 } from '@/app/actions/transactions'
@@ -259,6 +265,8 @@ export function PcHome({
   showBack,
   onBack,
   onOpenLedger,
+  onOpenInventory,
+  onOpenRequests,
   onOpenBalances,
   onOpenEquip,
 }: {
@@ -266,6 +274,8 @@ export function PcHome({
   showBack: boolean
   onBack: () => void
   onOpenLedger: () => void
+  onOpenInventory: () => void
+  onOpenRequests: () => void
   onOpenBalances?: () => void
   onOpenEquip?: () => void
 }) {
@@ -277,6 +287,9 @@ export function PcHome({
           <OverflowMenu
             items={[
               { label: 'Балансы всех', onClick: onOpenBalances },
+              ...(character.isOwn
+                ? [{ label: 'Мои заявки', onClick: onOpenRequests }]
+                : []),
               ...(character.isOwn && onOpenEquip
                 ? [{ label: 'Стартовое снаряжение', onClick: onOpenEquip }]
                 : []),
@@ -295,8 +308,8 @@ export function PcHome({
       {/* Per-PC app launcher (C-04), pinned at the bottom. */}
       <div className="mt-3 grid shrink-0 grid-cols-3 gap-2">
         <AppButton icon="🛍" label="Деньги" onClick={onOpenLedger} />
+        <AppButton icon="🎒" label="Сумка" onClick={onOpenInventory} />
         <AppButton icon="📋" label="Лист" disabled />
-        <AppButton icon="＋" label="" disabled />
       </div>
     </div>
   )
@@ -616,6 +629,7 @@ function TransferSheet({
   actorPcId,
   others,
   initialDir,
+  initialAsset,
   onClose,
   onDone,
 }: {
@@ -625,10 +639,11 @@ function TransferSheet({
   actorPcId: string
   others: CampaignCharacter[]
   initialDir: TransferDir
+  initialAsset?: 'money' | 'item'
   onClose: () => void
   onDone: () => void
 }) {
-  const [asset, setAsset] = useState<'money' | 'item'>('money')
+  const [asset, setAsset] = useState<'money' | 'item'>(initialAsset ?? 'money')
   const [dir, setDir] = useState<TransferDir>(initialDir)
   const [recipient, setRecipient] = useState<string>(others[0]?.id ?? '')
   const [amount, setAmount] = useState('')
@@ -668,13 +683,13 @@ function TransferSheet({
 
   const switchAsset = (a: 'money' | 'item') => {
     setAsset(a)
-    if (a === 'item' && dir === 'player') setDir('to-stash')
     setError(null)
   }
 
   const dirOptions: { value: TransferDir; label: string }[] =
     asset === 'item'
       ? [
+          { value: 'player', label: 'Игроку' },
           { value: 'to-stash', label: 'В общак' },
           { value: 'from-stash', label: 'Из общака' },
         ]
@@ -703,6 +718,10 @@ function TransferSheet({
         setError(dir === 'from-stash' ? `В общаке только ${avail}` : `У тебя только ${avail}`)
         return
       }
+      if (dir === 'player' && !recipient) {
+        setError('Выберите получателя')
+        return
+      }
       setBusy(true)
       const payload = {
         campaignId,
@@ -714,7 +733,21 @@ function TransferSheet({
         dayInLoop: 1,
       }
       const res =
-        dir === 'from-stash' ? await takeItemFromStash(payload) : await putItemIntoStash(payload)
+        dir === 'player'
+          ? await createItemTransfer({
+              campaignId,
+              senderPcId: actorPcId,
+              recipientPcId: recipient,
+              itemName: name,
+              qty: n,
+              categorySlug: 'transfer',
+              comment: comment.trim(),
+              loopNumber,
+              dayInLoop: 1,
+            })
+          : dir === 'from-stash'
+            ? await takeItemFromStash(payload)
+            : await putItemIntoStash(payload)
       setBusy(false)
       if (!res.ok) {
         setError(res.error)
@@ -781,8 +814,7 @@ function TransferSheet({
         />
         <SegToggle value={dir} onChange={setDir} options={dirOptions} />
 
-        {asset === 'money' &&
-          dir === 'player' &&
+        {dir === 'player' &&
           (others.length > 0 ? (
             <select
               className={FIELD}
@@ -1090,6 +1122,288 @@ export function StashScreen({
           onClose={() => setSheet('none')}
           onDone={() => void reload()}
         />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────── spec-052 — inventory (US1/US3) ───────────────────────────
+
+export function InventoryScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  character,
+  others,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  character: CampaignCharacter
+  others: CampaignCharacter[]
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [rows, setRows] = useState<PcInventoryRowTg[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<'none' | 'move'>('none')
+
+  const reload = useCallback(async () => {
+    const inv = await getPcInventoryTg(supabase, campaignId, character.id, loopNumber)
+    setRows(inv)
+  }, [supabase, campaignId, character.id, loopNumber])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const inv = await getPcInventoryTg(
+          supabase,
+          campaignId,
+          character.id,
+          loopNumber,
+        )
+        if (alive) setRows(inv)
+      } catch {
+        if (alive) setError('Не удалось загрузить инвентарь.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, character.id, loopNumber, refreshKey])
+
+  const carried = (rows ?? []).filter((r) => !r.equipped)
+  const equipped = (rows ?? []).filter((r) => r.equipped)
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-3 text-lg font-semibold">Сумка — {character.title}</h1>
+      {error && <Centered>{error}</Centered>}
+      {!error && !rows && <Centered>Загрузка…</Centered>}
+      {rows && (
+        <>
+          {character.isOwn && (
+            <div className="mb-4">
+              <button
+                onClick={() => setSheet('move')}
+                className="w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Переместить
+              </button>
+            </div>
+          )}
+          {rows.length === 0 ? (
+            <Centered>Пусто. Предметы появятся после покупок и переводов.</Centered>
+          ) : (
+            <div className="space-y-4">
+              {equipped.length > 0 && (
+                <InventorySection title="Надето">
+                  {equipped.map((r) => (
+                    <InventoryRow key={r.name} row={r} />
+                  ))}
+                </InventorySection>
+              )}
+              <InventorySection title="В сумке">
+                {carried.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-neutral-500">
+                    — всё надето —
+                  </div>
+                ) : (
+                  carried.map((r) => <InventoryRow key={r.name} row={r} />)
+                )}
+              </InventorySection>
+            </div>
+          )}
+        </>
+      )}
+      {sheet === 'move' && (
+        <TransferSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          actorPcId={character.id}
+          others={others}
+          initialDir="to-stash"
+          initialAsset="item"
+          onClose={() => setSheet('none')}
+          onDone={() => void reload()}
+        />
+      )}
+    </div>
+  )
+}
+
+function InventorySection({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+        {title}
+      </h2>
+      <div className="overflow-hidden rounded-lg bg-neutral-900">{children}</div>
+    </div>
+  )
+}
+
+function InventoryRow({ row }: { row: PcInventoryRowTg }) {
+  return (
+    <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2 last:border-0">
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-neutral-100">{row.name}</span>
+        {row.requiresAttunement && (
+          <span title="Требует настройки" className="text-xs text-amber-400/80">
+            ✦
+          </span>
+        )}
+      </div>
+      <span className="font-mono text-sm tabular-nums text-neutral-400">
+        ×{row.qty}
+      </span>
+    </div>
+  )
+}
+
+// ─────────────────────────── spec-052 — «Мои заявки» (US1) ───────────────────────────
+
+export function RequestsScreen({
+  supabase,
+  pcId,
+  pcTitle,
+  userId,
+  categories,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  pcId: string
+  pcTitle: string
+  userId: string
+  categories: Map<string, string>
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [rows, setRows] = useState<TgFeedRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      setRows(await getMyPendingTg(supabase, pcId))
+    } catch {
+      setError('Не удалось загрузить заявки.')
+    }
+  }, [supabase, pcId])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await getMyPendingTg(supabase, pcId)
+        if (alive) setRows(r)
+      } catch {
+        if (alive) setError('Не удалось загрузить заявки.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, pcId, refreshKey])
+
+  // One entry per transfer (dedupe the sender/recipient legs by group).
+  const seen = new Set<string>()
+  const entries = (rows ?? []).filter((r) => {
+    if (r.kind === 'transfer' && r.transferGroupId) {
+      if (seen.has(r.transferGroupId)) return false
+      seen.add(r.transferGroupId)
+    }
+    return true
+  })
+
+  const cancel = async (r: TgFeedRow) => {
+    setError(null)
+    setBusyId(r.id)
+    const res =
+      r.kind === 'transfer' && r.transferGroupId
+        ? await deleteTransfer(r.transferGroupId)
+        : await deleteTransaction(r.id)
+    setBusyId(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await reload()
+  }
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-3 text-lg font-semibold">Мои заявки — {pcTitle}</h1>
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      {!rows && <Centered>Загрузка…</Centered>}
+      {rows && entries.length === 0 && <Centered>Нет заявок на рассмотрении.</Centered>}
+      {entries.length > 0 && (
+        <div className="overflow-hidden rounded-lg bg-neutral-900">
+          {entries.map((r) => (
+            <RequestRow
+              key={r.id}
+              row={r}
+              categories={categories}
+              canCancel={r.authorUserId === userId}
+              busy={busyId === r.id}
+              onCancel={() => void cancel(r)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RequestRow({
+  row,
+  categories,
+  canCancel,
+  busy,
+  onCancel,
+}: {
+  row: TgFeedRow
+  categories: Map<string, string>
+  canCancel: boolean
+  busy: boolean
+  onCancel: () => void
+}) {
+  const label =
+    row.kind === 'item'
+      ? `${row.itemName ?? '—'} ×${row.itemQty}`
+      : formatSignedGp(row.signedGp)
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2 last:border-0">
+      <div className="min-w-0">
+        <div className="truncate text-sm text-neutral-100">{label}</div>
+        <div className="truncate text-xs text-neutral-500">
+          {categories.get(row.categorySlug) ?? row.categorySlug}
+          {row.comment ? ` · ${row.comment}` : ''}
+        </div>
+      </div>
+      {canCancel ? (
+        <button
+          onClick={onCancel}
+          disabled={busy}
+          className="shrink-0 rounded-md bg-neutral-800 px-2.5 py-1 text-xs text-red-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+        >
+          {busy ? '…' : 'Отменить'}
+        </button>
+      ) : (
+        <span className="shrink-0 text-xs text-amber-400/70">ждёт</span>
       )}
     </div>
   )

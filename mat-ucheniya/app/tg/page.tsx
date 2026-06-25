@@ -28,6 +28,8 @@ import {
   CharacterList,
   PcHome,
   LedgerScreen,
+  InventoryScreen,
+  RequestsScreen,
   StashScreen,
   BalancesScreen,
   StarterEquipScreen,
@@ -203,6 +205,8 @@ type View =
   | { screen: 'list' }
   | { screen: 'home'; pc: CampaignCharacter }
   | { screen: 'ledger'; pc: CampaignCharacter }
+  | { screen: 'inventory'; pc: CampaignCharacter }
+  | { screen: 'requests'; pc: CampaignCharacter }
   | { screen: 'stash'; pc: CampaignCharacter }
   | { screen: 'equip'; pc: CampaignCharacter }
   | { screen: 'balances' }
@@ -262,8 +266,34 @@ function AppShell({ ready }: { ready: Ready }) {
           showBack={multi}
           onBack={() => setView({ screen: 'list' })}
           onOpenLedger={() => setView({ screen: 'ledger', pc: view.pc })}
+          onOpenInventory={() => setView({ screen: 'inventory', pc: view.pc })}
+          onOpenRequests={() => setView({ screen: 'requests', pc: view.pc })}
           onOpenBalances={() => setView({ screen: 'balances' })}
           onOpenEquip={() => setView({ screen: 'equip', pc: view.pc })}
+        />
+      )
+    case 'inventory':
+      return (
+        <InventoryScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          loopNumber={ready.loopNumber}
+          character={view.pc}
+          others={characters.filter((c) => c.id !== view.pc.id)}
+          onBack={() => setView({ screen: 'home', pc: view.pc })}
+          refreshKey={refreshKey}
+        />
+      )
+    case 'requests':
+      return (
+        <RequestsScreen
+          supabase={ready.supabase}
+          pcId={view.pc.id}
+          pcTitle={view.pc.title}
+          userId={ready.userId}
+          categories={ready.categories}
+          onBack={() => setView({ screen: 'home', pc: view.pc })}
+          refreshKey={refreshKey}
         />
       )
     case 'equip':

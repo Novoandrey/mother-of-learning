@@ -183,6 +183,49 @@ export async function getFeedTg(
   return { rows, nextCursor }
 }
 
+/**
+ * The PC's own pending submissions (spec-052 US1 — «Мои заявки»): status
+ * 'pending' rows awaiting a DM decision. The player can cancel them (own
+ * pending only, enforced server-side) with no balance effect. Transfers show
+ * as sender/recipient legs sharing transferGroupId — dedupe by group in the UI.
+ */
+export async function getMyPendingTg(
+  supabase: SupabaseClient,
+  pcId: string,
+): Promise<TgFeedRow[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(FEED_SELECT)
+    .eq('actor_pc_id', pcId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as FeedRawRow[]).map((r) => {
+    const coins: CoinSet = {
+      cp: r.amount_cp,
+      sp: r.amount_sp,
+      gp: r.amount_gp,
+      pp: r.amount_pp,
+    }
+    return {
+      id: r.id,
+      kind: r.kind,
+      status: r.status,
+      coins,
+      signedGp: aggregateGp(coins),
+      itemName: r.item_name,
+      itemQty: r.item_qty,
+      categorySlug: r.category_slug,
+      comment: r.comment,
+      loopNumber: r.loop_number,
+      dayInLoop: r.day_in_loop,
+      authorUserId: r.author_user_id,
+      transferGroupId: r.transfer_group_id,
+      createdAt: r.created_at,
+    }
+  })
+}
+
 /** Map of transaction category slug → display label for the campaign. */
 export async function getTxCategoriesTg(
   supabase: SupabaseClient,
@@ -319,6 +362,76 @@ export async function getPcItemHoldingsTg(
     .filter(([, qty]) => qty > 0)
     .map(([name, qty]) => ({ name, qty }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+}
+
+/**
+ * Full inventory view for the Mini App (spec-052, US1/US3): the PC's net
+ * current-loop holdings (via getPcItemHoldingsTg) enriched with two flags —
+ *   - equipped: a true row exists in pc_equipped for (pc, name, loop)
+ *   - requiresAttunement: the name resolves to a catalog item whose
+ *     item_attributes.requires_attunement is true (free-text ⇒ false)
+ * Drives the carried/«Надето» split and the attunement soft-cap плашка (C-17).
+ */
+export type PcInventoryRowTg = {
+  name: string
+  qty: number
+  equipped: boolean
+  requiresAttunement: boolean
+}
+
+export async function getPcInventoryTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  pcId: string,
+  loopNumber: number | null,
+): Promise<PcInventoryRowTg[]> {
+  const holdings = await getPcItemHoldingsTg(supabase, pcId, loopNumber)
+  if (holdings.length === 0) return []
+  const names = holdings.map((h) => h.name)
+
+  // Equipped names this loop (pc_equipped, equipped=true).
+  let eq = supabase
+    .from('pc_equipped')
+    .select('item_name')
+    .eq('pc_id', pcId)
+    .eq('equipped', true)
+  if (loopNumber !== null) eq = eq.eq('loop_number', loopNumber)
+  const { data: eqData } = await eq
+  const equippedNames = new Set(
+    ((eqData ?? []) as Array<{ item_name: string }>).map((r) => r.item_name),
+  )
+
+  // Attunement: resolve held names → catalog item_attributes.requires_attunement.
+  // !inner on both embeds so the name + type filters constrain the outer rows
+  // (avoids the PostgREST embed-only-filter trap).
+  const { data: attrData } = await supabase
+    .from('nodes')
+    .select(
+      'title, item_attributes!inner(requires_attunement), node_types!inner(slug)',
+    )
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .in('title', names)
+  const attuneByName = new Map<string, boolean>()
+  for (const r of (attrData ?? []) as Array<{
+    title: string
+    item_attributes:
+      | { requires_attunement: boolean | null }
+      | { requires_attunement: boolean | null }[]
+      | null
+  }>) {
+    const attrs = Array.isArray(r.item_attributes)
+      ? r.item_attributes[0]
+      : r.item_attributes
+    attuneByName.set(r.title, attrs?.requires_attunement === true)
+  }
+
+  return holdings.map((h) => ({
+    name: h.name,
+    qty: h.qty,
+    equipped: equippedNames.has(h.name),
+    requiresAttunement: attuneByName.get(h.name) ?? false,
+  }))
 }
 
 /** Whether the PC has already taken its loop credit (category 'credit') this loop. */
