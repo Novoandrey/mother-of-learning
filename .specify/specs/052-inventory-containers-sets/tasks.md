@@ -65,26 +65,26 @@ tasks) → `main` directly.
   pending заявка; balances unchanged. Demoable end-to-end.
 
 ## Phase 2a — US2 buy + DM purchase policy (P2)
-- [ ] **T013** 🤖 `app/c/[slug]/settings/actions.ts` — add
+- [x] **T013** 🤖 `app/c/[slug]/settings/actions.ts` — add
   `updateItemPurchasePolicy(slug, policy)` (sibling to `updateItemDefaultPrices`),
   DM/owner-gated, persists to `campaigns.settings`. (FR-050/051, PL-3) [needs
   T004]
-- [ ] **T014** 🤖 `components/item-purchase-policy-editor.tsx` — per-rarity row
+- [x] **T014** 🤖 `components/item-purchase-policy-editor.tsx` — per-rarity row
   `{coefficient input, approval checkbox}`, debounced persist like
   `DefaultPricesEditor`; mount on `app/c/[slug]/items/settings/page.tsx`.
   (FR-050/051) [needs T013]
-- [ ] **T015** 🤖 `components/item-form-page.tsx` + `app/actions/items.ts` — add
+- [x] **T015** 🤖 `components/item-form-page.tsx` + `app/actions/items.ts` — add
   `noPurchase` checkbox (mirror `requiresAttunement`), thread through
   `createItemAction` / `updateItemAction` (item `fields` jsonb). (FR-052, C-15,
   PL-4)
-- [ ] **T016** 🤖 `components/item-catalog-grid.tsx` — «нельзя купить» indicator
+- [x] **T016** 🤖 `components/item-catalog-grid.tsx` — «нельзя купить» indicator
   column + inline toggle via existing `quickUpdateItemAction` (already
   invalidates sidebar). (FR-052, PL-4) [needs T015]
-- [ ] **T017** 🤖 `app/tg/_components/ledger-app.tsx` — **buy screen**: pick item
+- [x] **T017** 🤖 `app/tg/_components/ledger-app.tsx` — **buy screen**: pick item
   + qty, funding source (own / shortfall / общак), confirm → `createPurchase`;
   exclude no_purchase + no-price items; optimistic + rollback. (FR-010..014, US2)
   [needs T006]
-- [ ] **T018** 🤖 ✅ **CHECKPOINT US2**: buy below threshold auto-approves, above
+- [x] **T018** 🤖 ✅ **CHECKPOINT US2**: buy below threshold auto-approves, above
   → pending; coefficient applied; «нельзя купить» not offered; DM editor
   persists. Demoable.
 

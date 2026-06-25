@@ -2,7 +2,7 @@
 
 **Feature Branch**: `052-inventory-containers-sets`
 **Created**: 2026-06-23 (chat 95)
-**Status**: Implement (next: T013 — DM purchase policy)
+**Status**: Implement (next: T019 — equipped state)
 **Depends on**: spec-044 (mobile ledger — wallet, item transfers, общак,
 starter-equip; this inventory UI extends 044's `/tg` screens and its holdings
 reader / transfer sheet), item catalog (spec-015/018) + default prices
