@@ -11,29 +11,29 @@ App code (`mat-ucheniya/**` except `*.md`) ships `claude/052-inventory-container
 tasks) → `main` directly.
 
 ## Phase 0 — Foundation (migrations + policy lib + purchase core)
-- [ ] **T001** 🤖 `supabase/migrations/118_pc_equipped.sql` — `create table if
+- [x] **T001** 🤖 `supabase/migrations/118_pc_equipped.sql` — `create table if
   not exists pc_equipped (pc_id uuid, item_name text, loop_number int, equipped
   bool, …)`; unique `(pc_id, item_name, loop_number)`; index for per-PC/per-loop
   read; RLS — member-wide `SELECT` (Mini App), write own-PC/DM (mirror
   `is_member` + ownership). Idempotent; `BEGIN;`/`COMMIT;`; ✅/❌ verification
   `SELECT` (table + policy exist) → `present_files`. (C-03/C-04, PL-5)
-- [ ] **T002** 🤖 `supabase/migrations/119_purchase_category_seed.sql` — seed the
+- [x] **T002** 🤖 `supabase/migrations/119_purchase_category_seed.sql` — seed the
   `'purchase'` `scope='transaction'` category for every campaign, like the
   existing six (mig 034/037); idempotent (`on conflict do nothing`); ✅/❌
   `SELECT` → `present_files`. ⚠️ Also confirm the **new-campaign** seed path
   emits `'purchase'` (risk R4). (C-02, PL-2)
-- [ ] **T003** 🤖 `supabase/migrations/120_set_node_type.sql` — seed the `set`
+- [x] **T003** 🤖 `supabase/migrations/120_set_node_type.sql` — seed the `set`
   node type (field schema: `items` list + `ownerUserId`) for campaigns, matching
   base-type seeding in `seed.sql`; idempotent; ✅/❌ `SELECT` → `present_files`.
   (PL-8) *(may be folded into 119.)*
-- [ ] **T004** 🤖 `lib/item-purchase-policy.ts` — `type ItemPurchasePolicy =
+- [x] **T004** 🤖 `lib/item-purchase-policy.ts` — `type ItemPurchasePolicy =
   { coefficient: Record<RarityKey, number>; approvalRequired: Record<RarityKey,
   boolean> }`, `DEFAULT_ITEM_PURCHASE_POLICY` (coef all 1; approval
   common/uncommon/rare=false, very-rare/legendary=true), `parseItemPurchase
   Policy(raw)` — reuse `RARITY_KEYS` from `item-default-prices`. (C-13/C-14, PL-3)
-- [ ] **T005** 🤖 Vitest for T004 (defaults; missing keys back-filled;
+- [x] **T005** 🤖 Vitest for T004 (defaults; missing keys back-filled;
   coefficient/approval shape). [needs T004]
-- [ ] **T006** 🤖 `app/actions/transactions.ts` — add `createPurchase`:
+- [x] **T006** 🤖 `app/actions/transactions.ts` — add `createPurchase`:
   money leg (−gp) + item leg (+qty, `item_node_id`) sharing one
   `transfer_group_id`, category `'purchase'`; money leg on PC (a/b) or общак (c),
   source (b) via `createExpenseWithStashShortfall` first; price `=
@@ -42,26 +42,26 @@ tasks) → `main` directly.
   guards — «нельзя купить», no effective price (C-10), source can't cover →
   blocked (no credit). Cookie `resolveAuth`. (C-02/C-13/C-14, PL-1/2) [needs
   T001, T004]
-- [ ] **T007** 🤖 Vitest for `createPurchase` logic (price resolution +
+- [x] **T007** 🤖 Vitest for `createPurchase` logic (price resolution +
   rounding; approval threshold, funding-agnostic pending; no_purchase / no-price
   / affordability guards). [needs T006]
 
 ## Phase 1 — US1 containers & moves + «мои заявки» (P1)
-- [ ] **T008** 🤖 `lib/queries/ledger-tg.ts` — extend `getPcItemHoldingsTg` to
+- [x] **T008** 🤖 `lib/queries/ledger-tg.ts` — extend `getPcItemHoldingsTg` to
   also return **equipped** (join `pc_equipped` by name + loop) and **attunement**
   (resolve `item_name` → catalog node → `item_attributes.requires_attunement`,
   mig 055). Free-text ⇒ no node ⇒ no attunement. (PL-5/6) [needs T001]
-- [ ] **T009** 🤖 `app/tg/_components/ledger-app.tsx` — per-PC **inventory
+- [x] **T009** 🤖 `app/tg/_components/ledger-app.tsx` — per-PC **inventory
   screen**: holdings as `×N`, carried vs equipped sections (equipped wired in
   Phase 2b). (FR-001, C-12) [needs T008]
-- [ ] **T010** 🤖 Container-model **move UI** (source container → destination →
+- [x] **T010** 🤖 Container-model **move UI** (source container → destination →
   item → qty) over existing `put|takeItemFromStash` / `createItemTransfer`;
   pickers list only real holdings, qty capped at availability. (FR-002/003/004,
   PL-10) [needs T009]
-- [ ] **T011** 🤖 **«Мои заявки»** view (filter own `pending`) + «Отменить»
+- [x] **T011** 🤖 **«Мои заявки»** view (filter own `pending`) + «Отменить»
   wired to existing `deleteTransaction` / `deleteTransfer` (own pending only, no
   balance effect). (FR-015, C-11, PL-11) [needs T009]
-- [ ] **T012** 🤖 ✅ **CHECKPOINT US1**: move own↔общак↔PC with qty; cancel a
+- [x] **T012** 🤖 ✅ **CHECKPOINT US1**: move own↔общак↔PC with qty; cancel a
   pending заявка; balances unchanged. Demoable end-to-end.
 
 ## Phase 2a — US2 buy + DM purchase policy (P2)
