@@ -65,6 +65,7 @@ function hydrate(node: NodeRow, attrs: ItemAttrsRow | null): ItemNode | null {
     typeof fields.source_detail === 'string' ? fields.source_detail : null;
   const dndsuUrl =
     typeof fields.dndsu_url === 'string' ? fields.dndsu_url : null;
+  const noPurchase = fields.no_purchase === true;
 
   return {
     id: node.id,
@@ -79,6 +80,7 @@ function hydrate(node: NodeRow, attrs: ItemAttrsRow | null): ItemNode | null {
     availabilitySlug: attrs.availability_slug,
     useDefaultPrice: attrs.use_default_price ?? true,
     requiresAttunement: attrs.requires_attunement ?? false,
+    noPurchase,
     srdSlug,
     description,
     sourceDetail,

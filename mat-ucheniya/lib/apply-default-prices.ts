@@ -59,7 +59,7 @@ const RARITY_KEYS_IN_DEFAULTS: ReadonlySet<string> = new Set<RarityKey>([
   'legendary',
 ])
 
-function pickBucket(categorySlug: string): keyof ItemDefaultPrices {
+export function pickBucket(categorySlug: string): keyof ItemDefaultPrices {
   return categorySlug === 'consumable' ? 'consumable' : 'magic'
 }
 
