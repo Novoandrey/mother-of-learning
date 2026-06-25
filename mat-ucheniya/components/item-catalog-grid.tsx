@@ -16,6 +16,7 @@ import {
   EditableSourceCell,
   EditableTitleCell,
 } from './item-catalog-edit-cells'
+import { quickUpdateItemAction } from '@/app/actions/items'
 
 type SlugLabels = {
   category: Record<string, string>
@@ -241,6 +242,12 @@ export default function ItemCatalogGrid({
                       >
                         Н
                       </th>
+                      <th
+                        className="px-3 py-1.5 text-center font-normal"
+                        title="Нельзя купить (spec-052) — предмет исключён из покупки в Telegram."
+                      >
+                        🚫
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -300,6 +307,7 @@ function ItemRow({
     title?: string
     priceGp?: number | null
     sourceSlug?: string | null
+    noPurchase?: boolean
   }
   const [optimistic, setOptimistic] = useState<Optimistic>({})
 
@@ -317,6 +325,11 @@ function ItemRow({
     optimistic.sourceSlug !== item.sourceSlug
       ? optimistic.sourceSlug
       : item.sourceSlug
+  const displayNoPurchase =
+    optimistic.noPurchase !== undefined &&
+    optimistic.noPurchase !== item.noPurchase
+      ? optimistic.noPurchase
+      : item.noPurchase
 
   function startEdit(mode: EditMode, e: React.MouseEvent) {
     if (!canEdit) return
@@ -454,10 +467,38 @@ function ItemRow({
             </span>
           )}
         </td>
+        <td
+          className={`px-3 py-1.5 text-center ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+          title={
+            displayNoPurchase
+              ? 'Нельзя купить — клик, чтобы разрешить.'
+              : canEdit
+                ? 'Можно купить — клик, чтобы запретить.'
+                : 'Можно купить.'
+          }
+          onClick={
+            canEdit
+              ? (e) => {
+                  e.stopPropagation()
+                  const next = !displayNoPurchase
+                  setOptimistic((p) => ({ ...p, noPurchase: next }))
+                  void quickUpdateItemAction(campaignId, item.id, {
+                    noPurchase: next,
+                  })
+                }
+              : undefined
+          }
+        >
+          {displayNoPurchase ? (
+            <span aria-label="нельзя купить">🚫</span>
+          ) : canEdit ? (
+            <span className="text-gray-200">🚫</span>
+          ) : null}
+        </td>
       </tr>
       {expanded && (
         <tr className="border-b border-gray-200 bg-gray-50">
-          <td colSpan={10} className="px-6 py-2 text-sm text-gray-700">
+          <td colSpan={11} className="px-6 py-2 text-sm text-gray-700">
             {item.description ? (
               <div className="whitespace-pre-wrap">{item.description}</div>
             ) : (

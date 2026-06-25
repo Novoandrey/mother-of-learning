@@ -8,6 +8,7 @@ import { getMembership, requireAuth } from '@/lib/auth'
 import { listCategories } from '@/lib/categories'
 import CategorySettings from '@/components/category-settings'
 import DefaultPricesEditor from '@/components/default-prices-editor'
+import ItemPurchasePolicyEditor from '@/components/item-purchase-policy-editor'
 import ApplyDefaultPricesButton from '@/components/apply-default-prices-button'
 
 export async function generateMetadata({
@@ -164,6 +165,17 @@ export default async function ItemsSettingsPage({
               <ApplyDefaultPricesButton slug={slug} />
             </div>
           )}
+        </Section>
+
+        <Section
+          title="Покупка предметов"
+          subtitle="Коэффициент цены и порог одобрения по редкости — для покупок из Telegram (spec-052)."
+        >
+          <ItemPurchasePolicyEditor
+            campaignSlug={slug}
+            initial={campaign.settings.item_purchase_policy}
+            canEdit={isManager}
+          />
         </Section>
       </div>
     </div>

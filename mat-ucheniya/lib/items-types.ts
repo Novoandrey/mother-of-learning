@@ -169,4 +169,9 @@ export type ItemPayload = {
    * of price autoflag (different concept).
    */
   requiresAttunement: boolean;
+  /**
+   * Spec-052 (C-15). DM «нельзя купить» — excludes the item from buying
+   * (single + set). Stored in nodes.fields.no_purchase.
+   */
+  noPurchase: boolean;
 };

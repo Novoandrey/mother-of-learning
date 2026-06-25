@@ -1,6 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { aggregateGp } from '@/lib/transaction-resolver'
 import type { CoinSet } from '@/lib/transactions'
+import {
+  parseItemDefaultPrices,
+  type ItemDefaultPrices,
+} from '@/lib/item-default-prices'
+import {
+  parseItemPurchasePolicy,
+  type ItemPurchasePolicy,
+} from '@/lib/item-purchase-policy'
 
 /**
  * Read-side queries for the Telegram Mini App ledger (spec-044, PL-5).
@@ -331,6 +339,88 @@ export async function searchCampaignItemsTg(
     id: r.id,
     title: r.title,
   }))
+}
+
+/**
+ * Buyable catalog items for the /tg buy screen (spec-052, US2). Like
+ * searchCampaignItemsTg but joins item_attributes for the data needed to
+ * preview the price, and excludes «нельзя купить» items (C-15). The charged
+ * price is computed client-side with resolveBuyUnitPriceGp + getCampaignBuyConfigTg.
+ */
+export type BuyableItemTg = {
+  id: string
+  title: string
+  priceGp: number | null
+  rarity: string | null
+  categorySlug: string
+}
+
+export async function searchBuyableItemsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  query: string,
+  limit = 12,
+): Promise<BuyableItemTg[]> {
+  const q = query.trim()
+  if (!q) return []
+  const { data } = await supabase
+    .from('nodes')
+    .select(
+      'id, title, fields, item_attributes!inner(price_gp, rarity, category_slug), node_types!inner(slug)',
+    )
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .ilike('title', `%${q}%`)
+    .order('title', { ascending: true })
+    .limit(limit * 2) // over-fetch; no_purchase is filtered client-side
+  const rows = (data ?? []) as Array<{
+    id: string
+    title: string
+    fields: Record<string, unknown> | null
+    item_attributes:
+      | { price_gp: number | null; rarity: string | null; category_slug: string }
+      | { price_gp: number | null; rarity: string | null; category_slug: string }[]
+      | null
+  }>
+  const out: BuyableItemTg[] = []
+  for (const r of rows) {
+    if ((r.fields ?? {}).no_purchase === true) continue // C-15
+    const attrs = Array.isArray(r.item_attributes)
+      ? r.item_attributes[0]
+      : r.item_attributes
+    if (!attrs) continue
+    out.push({
+      id: r.id,
+      title: r.title,
+      priceGp: attrs.price_gp,
+      rarity: attrs.rarity,
+      categorySlug: attrs.category_slug,
+    })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/**
+ * The campaign's buy config (default prices + purchase policy) from
+ * campaigns.settings — loaded once by the buy/sets screens to preview the
+ * charged price and the approval gate client-side (spec-052, C-13/C-14).
+ */
+export async function getCampaignBuyConfigTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+): Promise<{ defaults: ItemDefaultPrices; policy: ItemPurchasePolicy }> {
+  const { data } = await supabase
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .single()
+  const settings =
+    (data as { settings?: Record<string, unknown> } | null)?.settings ?? {}
+  return {
+    defaults: parseItemDefaultPrices(settings.item_default_prices),
+    policy: parseItemPurchasePolicy(settings.item_purchase_policy),
+  }
 }
 
 /**

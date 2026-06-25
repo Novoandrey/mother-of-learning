@@ -15,12 +15,15 @@ import {
   getPcItemHoldingsTg,
   getPcInventoryTg,
   getMyPendingTg,
+  searchBuyableItemsTg,
+  getCampaignBuyConfigTg,
   hasLoopCreditTg,
   getStashItemHoldingsTg,
   type TgWallet,
   type TgFeedRow,
   type TgBalanceRow,
   type PcInventoryRowTg,
+  type BuyableItemTg,
 } from '@/lib/queries/ledger-tg'
 import {
   formatDenoms,
@@ -34,11 +37,17 @@ import {
   createTransaction,
   createTransfer,
   createItemTransfer,
+  createPurchase,
   deleteTransaction,
   deleteTransfer,
   submitBatch,
   takeLoopCredit,
 } from '@/app/actions/transactions'
+import {
+  resolveBuyUnitPriceGp,
+  approvalRequiredFor,
+  normalizeRarity,
+} from '@/lib/item-purchase-policy'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import {
   putMoneyIntoStash,
@@ -1129,6 +1138,220 @@ export function StashScreen({
 
 // ─────────────────────────── spec-052 — inventory (US1/US3) ───────────────────────────
 
+// T017 — buy a catalog item for gold (US2). Search → preview price → pick qty +
+// funding source → createPurchase. Excludes «нельзя купить» + priceless items.
+function BuySheet({
+  supabase,
+  campaignId,
+  loopNumber,
+  buyerPcId,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  buyerPcId: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [config, setConfig] = useState<Awaited<
+    ReturnType<typeof getCampaignBuyConfigTg>
+  > | null>(null)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<BuyableItemTg[]>([])
+  const [picked, setPicked] = useState<BuyableItemTg | null>(null)
+  const [qty, setQty] = useState('1')
+  const [funding, setFunding] = useState<'pc' | 'pc_with_stash' | 'stash'>('pc')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const c = await getCampaignBuyConfigTg(supabase, campaignId)
+        if (alive) setConfig(c)
+      } catch {
+        /* preview just won't render; createPurchase still validates server-side */
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId])
+
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return // stale results are hidden by the render guard below
+    let alive = true
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchBuyableItemsTg(supabase, campaignId, q)
+        if (alive) setResults(r)
+      } catch {
+        if (alive) setResults([])
+      }
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [query, supabase, campaignId])
+
+  const n = Math.max(0, parseInt(qty, 10) || 0)
+  const unitGp =
+    picked && config
+      ? resolveBuyUnitPriceGp({
+          priceGp: picked.priceGp,
+          categorySlug: picked.categorySlug,
+          rarity: normalizeRarity(picked.rarity),
+          defaults: config.defaults,
+          policy: config.policy,
+        })
+      : null
+  const totalGp = unitGp != null ? unitGp * Math.max(1, n) : null
+  const needsApproval =
+    picked && config
+      ? approvalRequiredFor(config.policy, normalizeRarity(picked.rarity))
+      : false
+
+  const submit = async () => {
+    setError(null)
+    if (!picked) {
+      setError('Выберите предмет')
+      return
+    }
+    if (n < 1) {
+      setError('Количество ≥ 1')
+      return
+    }
+    if (unitGp == null) {
+      setError('У предмета нет цены — покупка недоступна')
+      return
+    }
+    setBusy(true)
+    const res = await createPurchase({
+      campaignId,
+      buyerPcId,
+      itemNodeId: picked.id,
+      qty: n,
+      fundingSource: funding,
+      loopNumber,
+      dayInLoop: 1,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title="Купить" onClose={onClose}>
+      <div className="space-y-3">
+        {!picked ? (
+          <>
+            <input
+              className={FIELD}
+              placeholder="Поиск предмета…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
+            />
+            {query.trim() !== '' && results.length > 0 && (
+              <div className="max-h-60 overflow-y-auto rounded-lg bg-neutral-900">
+                {results.map((it) => (
+                  <button
+                    key={it.id}
+                    onClick={() => {
+                      setPicked(it)
+                      setError(null)
+                    }}
+                    className="block w-full border-b border-neutral-800 px-3 py-2 text-left text-sm text-neutral-100 last:border-0 hover:bg-neutral-800"
+                  >
+                    {it.title}
+                  </button>
+                ))}
+              </div>
+            )}
+            {query.trim() !== '' && results.length === 0 && (
+              <p className="text-sm text-neutral-500">Ничего не найдено.</p>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between rounded-lg bg-neutral-900 px-3 py-2">
+              <span className="text-sm text-neutral-100">{picked.title}</span>
+              <button
+                onClick={() => {
+                  setPicked(null)
+                  setError(null)
+                }}
+                className="text-xs text-neutral-400 hover:text-neutral-200"
+              >
+                сменить
+              </button>
+            </div>
+
+            {unitGp == null ? (
+              <p className="text-sm text-amber-400">
+                У этого предмета нет цены — купить нельзя.
+              </p>
+            ) : (
+              <>
+                <input
+                  className={FIELD}
+                  inputMode="numeric"
+                  placeholder="Количество"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+                <SegToggle
+                  value={funding}
+                  onChange={setFunding}
+                  options={[
+                    { value: 'pc', label: 'За свои' },
+                    { value: 'pc_with_stash', label: 'Свои+общак' },
+                    { value: 'stash', label: 'Из общака' },
+                  ]}
+                />
+                <div className="rounded-lg bg-neutral-900 px-3 py-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-400">Цена за шт.</span>
+                    <span className="font-mono tabular-nums text-neutral-200">
+                      {formatGp(unitGp)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex justify-between">
+                    <span className="text-neutral-400">Итого</span>
+                    <span className="font-mono tabular-nums text-neutral-100">
+                      {totalGp != null ? formatGp(totalGp) : '—'}
+                    </span>
+                  </div>
+                  {needsApproval && (
+                    <div className="mt-1 text-xs text-amber-400/80">
+                      Уйдёт ведущему на одобрение.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {picked && unitGp != null && (
+        <SubmitButton busy={busy} onClick={submit}>
+          Купить
+        </SubmitButton>
+      )}
+    </Sheet>
+  )
+}
+
 export function InventoryScreen({
   supabase,
   campaignId,
@@ -1148,7 +1371,7 @@ export function InventoryScreen({
 }) {
   const [rows, setRows] = useState<PcInventoryRowTg[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [sheet, setSheet] = useState<'none' | 'move'>('none')
+  const [sheet, setSheet] = useState<'none' | 'move' | 'buy'>('none')
 
   const reload = useCallback(async () => {
     const inv = await getPcInventoryTg(supabase, campaignId, character.id, loopNumber)
@@ -1187,10 +1410,16 @@ export function InventoryScreen({
       {rows && (
         <>
           {character.isOwn && (
-            <div className="mb-4">
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setSheet('buy')}
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Купить
+              </button>
               <button
                 onClick={() => setSheet('move')}
-                className="w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
               >
                 Переместить
               </button>
@@ -1229,6 +1458,16 @@ export function InventoryScreen({
           others={others}
           initialDir="to-stash"
           initialAsset="item"
+          onClose={() => setSheet('none')}
+          onDone={() => void reload()}
+        />
+      )}
+      {sheet === 'buy' && (
+        <BuySheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          buyerPcId={character.id}
           onClose={() => setSheet('none')}
           onDone={() => void reload()}
         />
