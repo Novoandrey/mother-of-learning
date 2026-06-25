@@ -2,7 +2,7 @@
 
 **Feature Branch**: `052-inventory-containers-sets`
 **Created**: 2026-06-23 (chat 95)
-**Status**: Plan ready — awaiting Tasks
+**Status**: Implement (next: T001 — 118_pc_equipped.sql)
 **Depends on**: spec-044 (mobile ledger — wallet, item transfers, общак,
 starter-equip; this inventory UI extends 044's `/tg` screens and its holdings
 reader / transfer sheet), item catalog (spec-015/018) + default prices
