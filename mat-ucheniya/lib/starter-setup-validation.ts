@@ -54,7 +54,11 @@ export function validateStarterItems(
     if (!item || typeof item !== 'object') {
       return { ok: false, error: `Элемент #${i + 1}: ожидается { name, qty }` }
     }
-    const { name, qty } = item as { name?: unknown; qty?: unknown }
+    const { name, qty, equipped } = item as {
+      name?: unknown
+      qty?: unknown
+      equipped?: unknown
+    }
     if (typeof name !== 'string' || name.trim().length === 0) {
       return {
         ok: false,
@@ -73,7 +77,11 @@ export function validateStarterItems(
         error: `Элемент #${i + 1} ("${name}"): количество должно быть ≥ 1`,
       }
     }
-    out.push({ name: name.trim(), qty })
+    out.push(
+      equipped === true
+        ? { name: name.trim(), qty, equipped: true }
+        : { name: name.trim(), qty },
+    )
   }
   return { ok: true, value: out }
 }

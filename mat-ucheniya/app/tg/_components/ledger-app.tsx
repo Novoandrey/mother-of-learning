@@ -48,6 +48,7 @@ import {
   approvalRequiredFor,
   normalizeRarity,
 } from '@/lib/item-purchase-policy'
+import { setEquipped } from '@/app/actions/equipped'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import {
   putMoneyIntoStash,
@@ -1372,6 +1373,7 @@ export function InventoryScreen({
   const [rows, setRows] = useState<PcInventoryRowTg[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'none' | 'move' | 'buy'>('none')
+  const [togglingName, setTogglingName] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     const inv = await getPcInventoryTg(supabase, campaignId, character.id, loopNumber)
@@ -1400,6 +1402,28 @@ export function InventoryScreen({
 
   const carried = (rows ?? []).filter((r) => !r.equipped)
   const equipped = (rows ?? []).filter((r) => r.equipped)
+  const ATTUNE_CAP = 3
+  const attunedCount = (rows ?? []).filter(
+    (r) => r.equipped && r.requiresAttunement,
+  ).length
+
+  const toggleEquip = async (row: PcInventoryRowTg) => {
+    setError(null)
+    setTogglingName(row.name)
+    const res = await setEquipped({
+      campaignId,
+      pcId: character.id,
+      itemName: row.name,
+      loopNumber,
+      equipped: !row.equipped,
+    })
+    setTogglingName(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await reload()
+  }
 
   return (
     <div className="mx-auto max-w-sm pb-6">
@@ -1425,6 +1449,12 @@ export function InventoryScreen({
               </button>
             </div>
           )}
+          {attunedCount > ATTUNE_CAP && (
+            <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              Настроено {attunedCount} из {ATTUNE_CAP} — превышен лимит (5e:
+              максимум 3 предмета с настройкой). Это просто предупреждение.
+            </div>
+          )}
           {rows.length === 0 ? (
             <Centered>Пусто. Предметы появятся после покупок и переводов.</Centered>
           ) : (
@@ -1432,7 +1462,14 @@ export function InventoryScreen({
               {equipped.length > 0 && (
                 <InventorySection title="Надето">
                   {equipped.map((r) => (
-                    <InventoryRow key={r.name} row={r} />
+                    <InventoryRow
+                      key={r.name}
+                      row={r}
+                      onToggleEquip={
+                        character.isOwn ? () => void toggleEquip(r) : undefined
+                      }
+                      busy={togglingName === r.name}
+                    />
                   ))}
                 </InventorySection>
               )}
@@ -1442,7 +1479,16 @@ export function InventoryScreen({
                     — всё надето —
                   </div>
                 ) : (
-                  carried.map((r) => <InventoryRow key={r.name} row={r} />)
+                  carried.map((r) => (
+                    <InventoryRow
+                      key={r.name}
+                      row={r}
+                      onToggleEquip={
+                        character.isOwn ? () => void toggleEquip(r) : undefined
+                      }
+                      busy={togglingName === r.name}
+                    />
+                  ))
                 )}
               </InventorySection>
             </div>
@@ -1493,20 +1539,39 @@ function InventorySection({
   )
 }
 
-function InventoryRow({ row }: { row: PcInventoryRowTg }) {
+function InventoryRow({
+  row,
+  onToggleEquip,
+  busy,
+}: {
+  row: PcInventoryRowTg
+  onToggleEquip?: () => void
+  busy?: boolean
+}) {
   return (
-    <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2 last:border-0">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-neutral-100">{row.name}</span>
+    <div className="flex items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2 last:border-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-sm text-neutral-100">{row.name}</span>
         {row.requiresAttunement && (
-          <span title="Требует настройки" className="text-xs text-amber-400/80">
+          <span title="Требует настройки" className="shrink-0 text-xs text-amber-400/80">
             ✦
           </span>
         )}
       </div>
-      <span className="font-mono text-sm tabular-nums text-neutral-400">
-        ×{row.qty}
-      </span>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="font-mono text-sm tabular-nums text-neutral-400">
+          ×{row.qty}
+        </span>
+        {onToggleEquip && (
+          <button
+            onClick={onToggleEquip}
+            disabled={busy}
+            className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+          >
+            {busy ? '…' : row.equipped ? 'Снять' : 'Надеть'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

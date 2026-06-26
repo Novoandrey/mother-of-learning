@@ -21,6 +21,12 @@ export type StarterItem = {
   name: string
   /** Integer ≥ 1. Validated by `starter-setup-validation.ts`. */
   qty: number
+  /**
+   * Spec-052 (C-18). When true, applyLoopStartSetup also writes a pc_equipped
+   * row so the PC starts the loop with this item equipped. Optional —
+   * undefined/false means «в сумке». Only meaningful for per-PC startingItems.
+   */
+  equipped?: boolean
 }
 
 export type CampaignStarterConfig = {
