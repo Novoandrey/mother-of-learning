@@ -402,6 +402,54 @@ export async function searchBuyableItemsTg(
 }
 
 /**
+ * Campaign-shared item sets (spec-052, US4) for the /tg sets screen. Each set
+ * is a node of type 'set'; contents + author live in nodes.fields jsonb.
+ */
+export type CampaignSetTg = {
+  id: string
+  title: string
+  items: { itemNodeId: string; name: string; qty: number }[]
+  ownerUserId: string | null
+}
+
+export async function getCampaignSetsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+): Promise<CampaignSetTg[]> {
+  const { data } = await supabase
+    .from('nodes')
+    .select('id, title, fields, node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'set')
+    .order('title', { ascending: true })
+  const rows = (data ?? []) as Array<{
+    id: string
+    title: string
+    fields: Record<string, unknown> | null
+  }>
+  return rows.map((r) => {
+    const f = r.fields ?? {}
+    const itemsRaw = Array.isArray(f.items) ? f.items : []
+    const items = itemsRaw
+      .filter(
+        (x): x is Record<string, unknown> => !!x && typeof x === 'object',
+      )
+      .map((x) => ({
+        itemNodeId: typeof x.itemNodeId === 'string' ? x.itemNodeId : '',
+        name: typeof x.name === 'string' ? x.name : '',
+        qty: typeof x.qty === 'number' ? x.qty : 1,
+      }))
+      .filter((x) => x.itemNodeId && x.name)
+    return {
+      id: r.id,
+      title: r.title,
+      items,
+      ownerUserId: typeof f.ownerUserId === 'string' ? f.ownerUserId : null,
+    }
+  })
+}
+
+/**
  * The campaign's buy config (default prices + purchase policy) from
  * campaigns.settings — loaded once by the buy/sets screens to preview the
  * charged price and the approval gate client-side (spec-052, C-13/C-14).

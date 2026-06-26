@@ -17,13 +17,16 @@ import {
   getMyPendingTg,
   searchBuyableItemsTg,
   getCampaignBuyConfigTg,
+  getCampaignSetsTg,
   hasLoopCreditTg,
   getStashItemHoldingsTg,
   type TgWallet,
+  type TgRole,
   type TgFeedRow,
   type TgBalanceRow,
   type PcInventoryRowTg,
   type BuyableItemTg,
+  type CampaignSetTg,
 } from '@/lib/queries/ledger-tg'
 import {
   formatDenoms,
@@ -49,6 +52,13 @@ import {
   normalizeRarity,
 } from '@/lib/item-purchase-policy'
 import { setEquipped } from '@/app/actions/equipped'
+import {
+  createSet,
+  updateSet,
+  deleteSet,
+  buyItems,
+  type SetItem,
+} from '@/app/actions/sets'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import {
   putMoneyIntoStash,
@@ -1359,6 +1369,7 @@ export function InventoryScreen({
   loopNumber,
   character,
   others,
+  onOpenSets,
   onBack,
   refreshKey,
 }: {
@@ -1367,6 +1378,7 @@ export function InventoryScreen({
   loopNumber: number
   character: CampaignCharacter
   others: CampaignCharacter[]
+  onOpenSets: () => void
   onBack: () => void
   refreshKey: number
 }) {
@@ -1434,12 +1446,18 @@ export function InventoryScreen({
       {rows && (
         <>
           {character.isOwn && (
-            <div className="mb-4 grid grid-cols-2 gap-2">
+            <div className="mb-4 grid grid-cols-3 gap-2">
               <button
                 onClick={() => setSheet('buy')}
                 className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
               >
                 Купить
+              </button>
+              <button
+                onClick={onOpenSets}
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Наборы
               </button>
               <button
                 onClick={() => setSheet('move')}
@@ -1710,6 +1728,486 @@ function RequestRow({
         <span className="shrink-0 text-xs text-amber-400/70">ждёт</span>
       )}
     </div>
+  )
+}
+
+// ─────────────────────────── spec-052 — sets (US4) ───────────────────────────
+
+export function SetsScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  buyerPc,
+  userId,
+  role,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  buyerPc: CampaignCharacter
+  userId: string
+  role: TgRole
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [sets, setSets] = useState<CampaignSetTg[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<
+    | { mode: 'none' }
+    | { mode: 'create' }
+    | { mode: 'edit'; set: CampaignSetTg }
+    | { mode: 'buy'; set: CampaignSetTg }
+  >({ mode: 'none' })
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      setSets(await getCampaignSetsTg(supabase, campaignId))
+    } catch {
+      setError('Не удалось загрузить наборы.')
+    }
+  }, [supabase, campaignId])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const s = await getCampaignSetsTg(supabase, campaignId)
+        if (alive) setSets(s)
+      } catch {
+        if (alive) setError('Не удалось загрузить наборы.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, refreshKey])
+
+  const canManage = (s: CampaignSetTg) =>
+    role === 'owner' || role === 'dm' || s.ownerUserId === userId
+
+  const doDelete = async (id: string) => {
+    setError(null)
+    setBusyId(id)
+    const res = await deleteSet({ campaignId, setId: id })
+    setBusyId(null)
+    setConfirmDelete(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await reload()
+  }
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-1 text-lg font-semibold">Наборы</h1>
+      <p className="mb-3 text-xs text-neutral-500">Покупатель: {buyerPc.title}</p>
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      <button
+        onClick={() => setSheet({ mode: 'create' })}
+        className="mb-4 w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+      >
+        + Новый набор
+      </button>
+      {!sets && <Centered>Загрузка…</Centered>}
+      {sets && sets.length === 0 && <Centered>Пока нет наборов.</Centered>}
+      {sets && sets.length > 0 && (
+        <div className="space-y-2">
+          {sets.map((s) => (
+            <div key={s.id} className="rounded-lg bg-neutral-900 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm text-neutral-100">{s.title}</span>
+                <span className="shrink-0 text-xs text-neutral-500">
+                  {s.items.length} поз.
+                </span>
+              </div>
+              <div className="mt-1 truncate text-xs text-neutral-500">
+                {s.items.map((i) => `${i.name}×${i.qty}`).join(', ') || '—'}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSheet({ mode: 'buy', set: s })}
+                  className="rounded-md bg-neutral-700 px-2 py-0.5 text-xs text-neutral-100 transition-colors hover:bg-neutral-600"
+                >
+                  Купить
+                </button>
+                {canManage(s) && (
+                  <>
+                    <button
+                      onClick={() => setSheet({ mode: 'edit', set: s })}
+                      className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-700"
+                    >
+                      Изменить
+                    </button>
+                    {confirmDelete === s.id ? (
+                      <button
+                        onClick={() => void doDelete(s.id)}
+                        disabled={busyId === s.id}
+                        className="rounded-md bg-red-900/40 px-2 py-0.5 text-xs text-red-300 disabled:opacity-50"
+                      >
+                        {busyId === s.id ? '…' : 'Точно удалить?'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(s.id)}
+                        className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-red-300/80 transition-colors hover:bg-neutral-700"
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {(sheet.mode === 'create' || sheet.mode === 'edit') && (
+        <SetEditSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          existing={sheet.mode === 'edit' ? sheet.set : null}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={() => void reload()}
+        />
+      )}
+      {sheet.mode === 'buy' && (
+        <SetBuySheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          buyerPcId={buyerPc.id}
+          set={sheet.set}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={() => void reload()}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Shared working-copy editor for a set's item list (used by edit + buy). */
+function SetItemsEditor({
+  supabase,
+  campaignId,
+  items,
+  setItems,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  items: SetItem[]
+  setItems: React.Dispatch<React.SetStateAction<SetItem[]>>
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<BuyableItemTg[]>([])
+
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return
+    let alive = true
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchBuyableItemsTg(supabase, campaignId, q)
+        if (alive) setResults(r)
+      } catch {
+        if (alive) setResults([])
+      }
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [query, supabase, campaignId])
+
+  const addItem = (it: BuyableItemTg) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((p) => p.itemNodeId === it.id)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
+        return next
+      }
+      return [...prev, { itemNodeId: it.id, name: it.title, qty: 1 }]
+    })
+    setQuery('')
+    setResults([])
+  }
+  const removeItem = (id: string) =>
+    setItems((prev) => prev.filter((p) => p.itemNodeId !== id))
+  const setQty = (id: string, raw: string) => {
+    const n = parseInt(raw, 10)
+    setItems((prev) =>
+      prev.map((p) =>
+        p.itemNodeId === id
+          ? { ...p, qty: Number.isFinite(n) && n >= 1 ? n : 1 }
+          : p,
+      ),
+    )
+  }
+
+  return (
+    <>
+      {items.length > 0 && (
+        <div className="rounded-lg bg-neutral-900">
+          {items.map((it) => (
+            <div
+              key={it.itemNodeId}
+              className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2 last:border-0"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
+                {it.name}
+              </span>
+              <input
+                className="w-14 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100"
+                inputMode="numeric"
+                value={String(it.qty)}
+                onChange={(e) => setQty(it.itemNodeId, e.target.value)}
+              />
+              <button
+                onClick={() => removeItem(it.itemNodeId)}
+                className="text-xs text-neutral-500 hover:text-red-300"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        className={FIELD}
+        placeholder="Добавить предмет…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {query.trim() !== '' && results.length > 0 && (
+        <div className="max-h-48 overflow-y-auto rounded-lg bg-neutral-900">
+          {results.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => addItem(it)}
+              className="block w-full border-b border-neutral-800 px-3 py-2 text-left text-sm text-neutral-100 last:border-0 hover:bg-neutral-800"
+            >
+              {it.title}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function SetEditSheet({
+  supabase,
+  campaignId,
+  existing,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  existing: CampaignSetTg | null
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [title, setTitle] = useState(existing?.title ?? '')
+  const [items, setItems] = useState<SetItem[]>(
+    existing?.items.map((i) => ({
+      itemNodeId: i.itemNodeId,
+      name: i.name,
+      qty: i.qty,
+    })) ?? [],
+  )
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    setError(null)
+    if (!title.trim()) {
+      setError('Введите название')
+      return
+    }
+    if (items.length === 0) {
+      setError('Добавьте хотя бы один предмет')
+      return
+    }
+    setBusy(true)
+    const res = existing
+      ? await updateSet({ campaignId, setId: existing.id, title: title.trim(), items })
+      : await createSet({ campaignId, title: title.trim(), items })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title={existing ? 'Изменить набор' : 'Новый набор'} onClose={onClose}>
+      <div className="space-y-3">
+        <input
+          className={FIELD}
+          placeholder="Название набора"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <SetItemsEditor
+          supabase={supabase}
+          campaignId={campaignId}
+          items={items}
+          setItems={setItems}
+        />
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        {existing ? 'Сохранить' : 'Создать'}
+      </SubmitButton>
+    </Sheet>
+  )
+}
+
+// Edit-on-buy (C-19): buy a set with an editable working copy. Two exits — a
+// one-off buy of the edited list (buyItems, no persist) or save-as a new set
+// (createSet). The source set is never overwritten.
+function SetBuySheet({
+  supabase,
+  campaignId,
+  loopNumber,
+  buyerPcId,
+  set,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  buyerPcId: string
+  set: CampaignSetTg
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [items, setItems] = useState<SetItem[]>(
+    set.items.map((i) => ({ itemNodeId: i.itemNodeId, name: i.name, qty: i.qty })),
+  )
+  const [funding, setFunding] = useState<'pc' | 'stash'>('pc')
+  const [busy, setBusy] = useState<'none' | 'buy' | 'save'>('none')
+  const [error, setError] = useState<string | null>(null)
+  const [showSaveAs, setShowSaveAs] = useState(false)
+  const [saveTitle, setSaveTitle] = useState(`${set.title} (копия)`)
+
+  const dirty =
+    items.length !== set.items.length ||
+    items.some((it, i) => {
+      const o = set.items[i]
+      return !o || o.itemNodeId !== it.itemNodeId || o.qty !== it.qty
+    })
+
+  const buyNow = async () => {
+    setError(null)
+    if (items.length === 0) {
+      setError('Список пуст')
+      return
+    }
+    setBusy('buy')
+    const res = await buyItems({
+      campaignId,
+      items,
+      buyerPcId,
+      fundingSource: funding,
+      loopNumber,
+      dayInLoop: 1,
+      comment: `Набор: ${set.title}`,
+    })
+    setBusy('none')
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  const saveAs = async () => {
+    setError(null)
+    if (!saveTitle.trim()) {
+      setError('Введите название нового набора')
+      return
+    }
+    if (items.length === 0) {
+      setError('Список пуст')
+      return
+    }
+    setBusy('save')
+    const res = await createSet({ campaignId, title: saveTitle.trim(), items })
+    setBusy('none')
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title={`Купить: ${set.title}`} onClose={onClose}>
+      <div className="space-y-3">
+        <SetItemsEditor
+          supabase={supabase}
+          campaignId={campaignId}
+          items={items}
+          setItems={setItems}
+        />
+        <SegToggle
+          value={funding}
+          onChange={setFunding}
+          options={[
+            { value: 'pc', label: 'За свои' },
+            { value: 'stash', label: 'Из общака' },
+          ]}
+        />
+        {dirty && (
+          <p className="text-xs text-amber-400/80">
+            Список изменён — это разовая правка, исходный набор не меняется.
+          </p>
+        )}
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy === 'buy'} onClick={buyNow}>
+        Купить ({items.length} поз.)
+      </SubmitButton>
+      <div className="mt-2">
+        {showSaveAs ? (
+          <div className="space-y-2">
+            <input
+              className={FIELD}
+              placeholder="Название нового набора"
+              value={saveTitle}
+              onChange={(e) => setSaveTitle(e.target.value)}
+            />
+            <button
+              onClick={() => void saveAs()}
+              disabled={busy === 'save'}
+              className="w-full rounded-lg bg-neutral-800 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+            >
+              {busy === 'save' ? '…' : 'Сохранить как новый набор'}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowSaveAs(true)}
+            className="w-full text-center text-xs text-neutral-400 hover:text-neutral-200"
+          >
+            Сохранить изменения как новый набор…
+          </button>
+        )}
+      </div>
+    </Sheet>
   )
 }
 

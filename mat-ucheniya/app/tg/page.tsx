@@ -22,6 +22,7 @@ import {
   getMyCampaign,
   getCurrentLoopNumber,
   getTxCategoriesTg,
+  type TgRole,
 } from '@/lib/queries/ledger-tg'
 import {
   Centered,
@@ -29,6 +30,7 @@ import {
   PcHome,
   LedgerScreen,
   InventoryScreen,
+  SetsScreen,
   RequestsScreen,
   StashScreen,
   BalancesScreen,
@@ -52,6 +54,7 @@ type Ready = {
   phase: 'ready'
   supabase: SupabaseClient
   userId: string
+  role: TgRole
   campaignId: string
   loopNumber: number
   characters: CampaignCharacter[]
@@ -144,6 +147,7 @@ export default function TgPage() {
         phase: 'ready',
         supabase,
         userId,
+        role: campaign.role,
         campaignId: campaign.campaignId,
         loopNumber,
         characters,
@@ -206,6 +210,7 @@ type View =
   | { screen: 'home'; pc: CampaignCharacter }
   | { screen: 'ledger'; pc: CampaignCharacter }
   | { screen: 'inventory'; pc: CampaignCharacter }
+  | { screen: 'sets'; pc: CampaignCharacter }
   | { screen: 'requests'; pc: CampaignCharacter }
   | { screen: 'stash'; pc: CampaignCharacter }
   | { screen: 'equip'; pc: CampaignCharacter }
@@ -280,7 +285,21 @@ function AppShell({ ready }: { ready: Ready }) {
           loopNumber={ready.loopNumber}
           character={view.pc}
           others={characters.filter((c) => c.id !== view.pc.id)}
+          onOpenSets={() => setView({ screen: 'sets', pc: view.pc })}
           onBack={() => setView({ screen: 'home', pc: view.pc })}
+          refreshKey={refreshKey}
+        />
+      )
+    case 'sets':
+      return (
+        <SetsScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          loopNumber={ready.loopNumber}
+          buyerPc={view.pc}
+          userId={ready.userId}
+          role={ready.role}
+          onBack={() => setView({ screen: 'inventory', pc: view.pc })}
           refreshKey={refreshKey}
         />
       )
