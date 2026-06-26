@@ -107,22 +107,22 @@ tasks) → `main` directly.
   attunement warns not blocks; starter «надето» → PC begins equipped. Demoable.
 
 ## Phase 3 — US4 sets + edit-on-buy (P3)
-- [ ] **T025** 🤖 `app/actions/sets.ts` — `createSet` / `updateSet` / `deleteSet`
+- [x] **T025** 🤖 `app/actions/sets.ts` — `createSet` / `updateSet` / `deleteSet`
   on the `set` node type (`fields` jsonb `items` + `ownerUserId`); edit/delete
   gated author|DM (C-05); create/view/buy open to any player; `invalidateSidebar`
   on mutation. (FR-030/033, PL-8) [needs T003]
-- [ ] **T026** 🤖 `app/tg/_components/ledger-app.tsx` — **sets list** + create /
+- [x] **T026** 🤖 `app/tg/_components/ledger-app.tsx` — **sets list** + create /
   edit / delete UI (own-or-DM edit). (FR-030/033) [needs T025]
-- [ ] **T027** 🤖 `buySet` (in `app/actions/sets.ts`) — batch of `createPurchase`
+- [x] **T027** 🤖 `buySet` (in `app/actions/sets.ts`) — batch of `createPurchase`
   legs sharing one `transfer_group_id`; all-or-nothing affordability against the
   set total (C-06); approval **aggregates by max rarity** (C-16); blocked if any
   constituent «нельзя купить» (FR-052). One заявка per set buy. (FR-031/032)
   [needs T006, T025]
-- [ ] **T028** 🤖 **Edit-on-buy**: buy screen edits a working copy (add / remove
+- [x] **T028** 🤖 **Edit-on-buy**: buy screen edits a working copy (add / remove
   / change qty) → (a) one-off `buySet` over the edited list (no persist) or (b)
   **save-as a new set** (`createSet`); source set never overwritten. (FR-035,
   C-19, PL-9) [needs T027]
-- [ ] **T029** 🤖 ✅ **CHECKPOINT US4**: one-tap set buy (aggregated approval);
+- [x] **T029** 🤖 ✅ **CHECKPOINT US4**: one-tap set buy (aggregated approval);
   edit-on-buy leaves the source set intact. Demoable.
 
 ## Phase 4 — Staging E2E + ship
