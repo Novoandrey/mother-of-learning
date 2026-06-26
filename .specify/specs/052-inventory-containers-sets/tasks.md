@@ -89,21 +89,21 @@ tasks) → `main` directly.
   persists. Demoable.
 
 ## Phase 2b — US3 equipped + attunement + starter (P2)
-- [ ] **T019** 🤖 `app/actions/equipped.ts` — `setEquipped(pcId, itemName,
+- [x] **T019** 🤖 `app/actions/equipped.ts` — `setEquipped(pcId, itemName,
   loopNumber, equipped)`, cookie-gated own-PC/DM, writes `pc_equipped`. (FR-020,
   PL-5) [needs T001]
-- [ ] **T020** 🤖 `app/tg/_components/ledger-app.tsx` — inventory **equipped
+- [x] **T020** 🤖 `app/tg/_components/ledger-app.tsx` — inventory **equipped
   display** (carried vs «Надето») + equip/un-equip control; row hidden when net
   holding hits 0. (FR-020/021/022, C-03) [needs T019, T009]
-- [ ] **T021** 🤖 **Attunement плашка**: count equipped × `requires_attunement`
+- [x] **T021** 🤖 **Attunement плашка**: count equipped × `requires_attunement`
   (from T008); show «настроено N из 3» warning at > 3, **non-blocking**. (FR-024,
   C-17, PL-6) [needs T020]
-- [ ] **T022** 🤖 `components/starting-items-editor-client.tsx` — per-item
+- [x] **T022** 🤖 `components/starting-items-editor-client.tsx` — per-item
   **«надето»** toggle in the starter config. (FR-025, C-18, PL-7)
-- [ ] **T023** 🤖 `app/actions/starter-setup.ts` — extend `applyLoopStartSetup`
+- [x] **T023** 🤖 `app/actions/starter-setup.ts` — extend `applyLoopStartSetup`
   to write `pc_equipped` rows for flagged starting items at the target loop.
   (FR-025, C-18, PL-7) [needs T001, T022]
-- [ ] **T024** 🤖 ✅ **CHECKPOINT US3**: equip persists within loop; 4th
+- [x] **T024** 🤖 ✅ **CHECKPOINT US3**: equip persists within loop; 4th
   attunement warns not blocks; starter «надето» → PC begins equipped. Demoable.
 
 ## Phase 3 — US4 sets + edit-on-buy (P3)
