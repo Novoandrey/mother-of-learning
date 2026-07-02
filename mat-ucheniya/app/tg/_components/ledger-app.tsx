@@ -182,10 +182,12 @@ export function CharacterList({
   characters,
   onSelect,
   onOpenBalances,
+  onOpenWiki,
 }: {
   characters: CampaignCharacter[]
   onSelect: (c: CampaignCharacter) => void
   onOpenBalances?: () => void
+  onOpenWiki?: () => void
 }) {
   const own = characters.filter((c) => c.isOwn)
   const others = characters.filter((c) => !c.isOwn)
@@ -194,8 +196,13 @@ export function CharacterList({
     <div className="mx-auto max-w-sm">
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-lg font-semibold">Персонажи</h1>
-        {onOpenBalances && (
-          <OverflowMenu items={[{ label: 'Балансы всех', onClick: onOpenBalances }]} />
+        {(onOpenBalances || onOpenWiki) && (
+          <OverflowMenu
+            items={[
+              ...(onOpenBalances ? [{ label: 'Балансы всех', onClick: onOpenBalances }] : []),
+              ...(onOpenWiki ? [{ label: '📖 Каталог', onClick: onOpenWiki }] : []),
+            ]}
+          />
         )}
       </div>
       {own.length > 0 && (
@@ -261,6 +268,7 @@ export function PcHome({
   onOpenLedger,
   onOpenBalances,
   onOpenEquip,
+  onOpenWiki,
 }: {
   character: CampaignCharacter
   showBack: boolean
@@ -268,6 +276,7 @@ export function PcHome({
   onOpenLedger: () => void
   onOpenBalances?: () => void
   onOpenEquip?: () => void
+  onOpenWiki?: () => void
 }) {
   return (
     <div className="mx-auto flex h-[calc(100dvh-3rem)] max-w-sm flex-col">
@@ -295,7 +304,7 @@ export function PcHome({
       {/* Per-PC app launcher (C-04), pinned at the bottom. */}
       <div className="mt-3 grid shrink-0 grid-cols-3 gap-2">
         <AppButton icon="🛍" label="Деньги" onClick={onOpenLedger} />
-        <AppButton icon="📋" label="Лист" disabled />
+        <AppButton icon="📖" label="Каталог" onClick={onOpenWiki} disabled={!onOpenWiki} />
         <AppButton icon="＋" label="" disabled />
       </div>
     </div>
