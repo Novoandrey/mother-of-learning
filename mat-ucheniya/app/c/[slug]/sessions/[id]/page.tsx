@@ -13,6 +13,7 @@ import { Chronicles } from '@/components/chronicles'
 import { EdgeList } from '@/components/edge-list'
 import { getTransactionsBySession } from '@/lib/transactions'
 import { formatAmount } from '@/lib/transaction-format'
+import { getWikiTitleIndex } from '@/lib/queries/wiki'
 
 export async function generateMetadata({
   params,
@@ -81,9 +82,10 @@ export default async function SessionDetailPage({
   const session = await getSessionById(id)
   if (!session) notFound()
 
-  // Parallel fetch: edges (both directions) + chronicles + session transactions.
+  // Parallel fetch: edges (both directions) + chronicles + session transactions
+  // + wikilink title index (spec-021).
   const supabase = await createClient()
-  const [edgeRes, chroniclesRes, sessionTxs] = await Promise.all([
+  const [edgeRes, chroniclesRes, sessionTxs, wikiNodes] = await Promise.all([
     supabase
       .from('edges')
       .select(
@@ -100,6 +102,7 @@ export default async function SessionDetailPage({
       .order('loop_number', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false }),
     getTransactionsBySession(id),
+    getWikiTitleIndex(supabase, campaign.id).catch(() => []),
   ])
 
   type EdgeRow = {
@@ -253,6 +256,8 @@ export default async function SessionDetailPage({
       <MarkdownContent
         nodeId={session.id}
         initialContent={session.content}
+        campaignSlug={slug}
+        wikiNodes={wikiNodes}
       />
 
       {/* Spec-010 phase 13 (stretch): transactions attached to this session. */}

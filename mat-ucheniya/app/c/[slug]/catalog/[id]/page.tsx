@@ -21,6 +21,7 @@ import InventoryTab from '@/components/inventory-tab'
 import type { InventoryTabLoop } from '@/components/inventory-tab-controls'
 import type { GroupBy } from '@/lib/items-types'
 import type { OwnerContext } from '@/components/node-owner-section'
+import { getWikiTitleIndex } from '@/lib/queries/wiki'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -100,7 +101,7 @@ export default async function NodePage({
   // Parallel fetch: node + edges (both directions in one .or() query) + chronicles.
   // The merged edges query includes type joins for children, so we don't need a
   // second "fetch node_types for child ids" roundtrip afterward.
-  const [nodeRes, edgeRes, chroniclesRes] = await Promise.all([
+  const [nodeRes, edgeRes, chroniclesRes, wikiNodes] = await Promise.all([
     supabase
       .from('nodes')
       .select('id, title, fields, content, type:node_types(slug, label, icon)')
@@ -121,6 +122,8 @@ export default async function NodePage({
       .eq('node_id', id)
       .order('loop_number', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false }),
+    // Wikilink index (spec-021): character/npc/creature titles for [[…]] resolution.
+    getWikiTitleIndex(supabase, campaign.id).catch(() => []),
   ])
 
   const node = nodeRes.data
@@ -506,6 +509,7 @@ export default async function NodePage({
         frontierCard={frontierCard}
         portraits={portraits}
         canEdit={canEdit}
+        wikiNodes={wikiNodes}
       />
     </div>
   )

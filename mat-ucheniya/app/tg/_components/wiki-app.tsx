@@ -3,19 +3,21 @@
 /* eslint-disable @next/next/no-img-element */
 
 /**
- * Telegram Mini App — wiki/catalog (spec-030, Phase 2). Read-only browsing of
- * the campaign's people & creatures: a searchable list of character/npc/creature
+ * Telegram Mini App — wiki/catalog (spec-030 read + spec-021 edit). Browse the
+ * campaign's people & creatures: a searchable list of character/npc/creature
  * nodes → a node view with a dark, touch-friendly portrait carousel + the
- * markdown article. No editing here (that's spec-021).
+ * markdown article. spec-021 adds in-place editing of the article body and
+ * `[[wikilinks]]` between nodes.
  *
  * Dark-native by design: the desktop PortraitCarousel / MarkdownContent are
  * light (bg-white) and can't be reused on the /tg neutral-950 surface, so this
- * file ships its own dark carousel + a tiny read-only markdown renderer.
+ * file ships its own dark carousel + a tiny markdown renderer/editor.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import ReactMarkdown from 'react-markdown'
+import type { PluggableList } from 'unified'
 import remarkGfm from 'remark-gfm'
 import { portraitUrl, type Portrait } from '@/lib/portraits'
 import {
@@ -25,6 +27,7 @@ import {
   type WikiNode,
   type WikiType,
 } from '@/lib/queries/wiki-tg'
+import { buildTitleIndex, remarkWikilinks, WIKILINK_ID_ATTR } from '@/lib/wikilinks'
 import { initialOf } from './format'
 
 // Russian labels for the three catalog types (badge + section headings).
@@ -203,28 +206,44 @@ export function WikiListScreen({
 
 export function WikiNodeScreen({
   supabase,
+  campaignId,
   nodeId,
   title,
   onBack,
+  onOpenNode,
 }: {
   supabase: SupabaseClient
+  campaignId: string
   nodeId: string
   /** Title from the list row — shown immediately, before the body loads. */
   title: string
   onBack: () => void
+  /** Open another node in-app (wikilink tap). */
+  onOpenNode: (nodeId: string, title: string) => void
 }) {
   // Keyed on nodeId by the parent, so a new node remounts this component with
   // fresh null state — no need to reset inside the effect (which the
   // set-state-in-effect lint rule forbids).
   const [node, setNode] = useState<WikiNode | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Title→id index for resolving [[wikilinks]] (character+npc+creature). Loaded
+  // once alongside the node; an empty map just means every link stays plain text.
+  const [titleIndex, setTitleIndex] = useState<Map<string, string>>(() => new Map())
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     let alive = true
     ;(async () => {
       try {
-        const n = await getWikiNode(supabase, nodeId)
-        if (alive) setNode(n)
+        // Node body + the campaign's title index in parallel. The index is a
+        // nice-to-have for links, so a failure there doesn't block the article.
+        const [n, list] = await Promise.all([
+          getWikiNode(supabase, nodeId),
+          getWikiNodes(supabase, campaignId).catch(() => [] as WikiListItem[]),
+        ])
+        if (!alive) return
+        setNode(n)
+        setTitleIndex(buildTitleIndex(list))
       } catch {
         if (alive) setError('Не удалось загрузить статью.')
       }
@@ -232,20 +251,149 @@ export function WikiNodeScreen({
     return () => {
       alive = false
     }
-  }, [supabase, nodeId])
+  }, [supabase, campaignId, nodeId])
+
+  // Edit affordance mirrors what the server will allow without a 403: any
+  // member can edit non-character nodes (shared world); character nodes need
+  // ownership we can't cheaply check here, so we hide the button and leave PC
+  // editing to desktop. See canEditNode (lib/auth.ts).
+  const canEdit = node != null && node.type !== 'character'
 
   return (
     <div className="mx-auto max-w-sm pb-10">
       <BackLink onClick={onBack}>каталог</BackLink>
-      <h1 className="mb-3 text-lg font-semibold">{node?.title ?? title}</h1>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
+          {node?.title ?? title}
+        </h1>
+        {canEdit && !editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="shrink-0 text-sm text-blue-400 transition-colors hover:text-blue-300"
+          >
+            Редактировать
+          </button>
+        )}
+      </div>
 
       {error && <Centered>{error}</Centered>}
       {!error && !node && <Centered>Загрузка…</Centered>}
       {node && (
         <>
           <DarkCarousel name={node.title} portraits={node.portraits} />
-          <Article content={node.content} />
+          {editing ? (
+            <ArticleEditor
+              nodeId={nodeId}
+              initialContent={node.content}
+              titleIndex={titleIndex}
+              onCancel={() => setEditing(false)}
+              onSaved={(content) => {
+                setNode((prev) => (prev ? { ...prev, content } : prev))
+                setEditing(false)
+              }}
+            />
+          ) : (
+            <Article
+              content={node.content}
+              titleIndex={titleIndex}
+              onOpenNode={onOpenNode}
+            />
+          )}
         </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Dark markdown editor for /tg: textarea + live preview + Save/Cancel. Saves
+ * through the same gated route the desktop editor uses
+ * (`PUT /api/nodes/[id]/content`). Draft is kept in local state only — no
+ * cross-reload autosave here (that hook is desktop-shaped); losing an unsaved
+ * /tg edit on reload is an acceptable v1 gap.
+ */
+function ArticleEditor({
+  nodeId,
+  initialContent,
+  titleIndex,
+  onCancel,
+  onSaved,
+}: {
+  nodeId: string
+  initialContent: string
+  titleIndex: Map<string, string>
+  onCancel: () => void
+  onSaved: (content: string) => void
+}) {
+  const [draft, setDraft] = useState(initialContent)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleSave = useCallback(async () => {
+    setSaving(true)
+    setErr(null)
+    try {
+      const res = await fetch(`/api/nodes/${nodeId}/content`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: draft }),
+      })
+      if (res.status === 403) {
+        setErr('Нет прав на редактирование.')
+        return
+      }
+      if (!res.ok) {
+        setErr('Не удалось сохранить. Попробуй ещё раз.')
+        return
+      }
+      onSaved(draft)
+    } catch {
+      setErr('Сеть недоступна. Попробуй позже.')
+    } finally {
+      setSaving(false)
+    }
+  }, [nodeId, draft, onSaved])
+
+  return (
+    <div className="rounded-2xl bg-neutral-900 p-3">
+      <div className="mb-2 flex items-center justify-end gap-2">
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="rounded-lg px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:text-neutral-200 disabled:opacity-50"
+        >
+          Отмена
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+        >
+          {saving ? 'Сохраняю…' : 'Сохранить'}
+        </button>
+      </div>
+
+      {err && (
+        <p className="mb-2 rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300">{err}</p>
+      )}
+
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Markdown: # Заголовок, **жирно**, - списки, [[Ссылка на ноду]]…"
+        className="min-h-[240px] w-full resize-y rounded-lg bg-neutral-800 p-3 font-mono text-sm text-neutral-100 placeholder:text-neutral-500 outline-none focus:ring-1 focus:ring-neutral-600"
+        autoFocus
+      />
+
+      {draft.trim() && (
+        <div className="mt-3 border-t border-neutral-800 pt-3">
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Превью
+          </div>
+          {/* Preview resolves links but they aren't tappable here (no navigation
+              mid-edit) — rendered muted so it reads as preview, not live. */}
+          <Article content={draft} titleIndex={titleIndex} onOpenNode={null} />
+        </div>
       )}
     </div>
   )
@@ -331,14 +479,67 @@ function DarkCarousel({ name, portraits }: { name: string; portraits: Portrait[]
   )
 }
 
-/** Read-only markdown article, dark prose. Soft placeholder when empty. */
-function Article({ content }: { content: string }) {
+/**
+ * Markdown article, dark prose, with `[[wikilinks]]` resolved against
+ * `titleIndex`. When `onOpenNode` is a function, a resolved link is a tappable
+ * button that navigates in-app; when null (edit preview) it renders inert.
+ * Unresolved `[[Name]]` degrades to the plain bracketed text (never a link).
+ */
+function Article({
+  content,
+  titleIndex,
+  onOpenNode,
+}: {
+  content: string
+  titleIndex: Map<string, string>
+  onOpenNode: ((nodeId: string, title: string) => void) | null
+}) {
+  // Tuple form `[attacher, options]` — unified's plugin contract. Passing the
+  // bare transformer `remarkWikilinks(titleIndex)` makes unified call it with no
+  // tree and crash. See lib/wikilinks.ts.
+  const plugins = useMemo<PluggableList>(
+    () => [remarkGfm, [remarkWikilinks, titleIndex]],
+    [titleIndex],
+  )
+
   if (!content.trim()) {
     return <p className="px-1 py-4 text-sm italic text-neutral-500">Статья пока пустая.</p>
   }
   return (
     <div className="prose prose-invert prose-sm max-w-none prose-headings:text-neutral-100 prose-a:text-blue-400 prose-strong:text-neutral-100">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={plugins}
+        components={{
+          a({ node, children, href, ...rest }) {
+            // hProperties are copied verbatim onto the hast node, so the key is
+            // the literal attr string (not camelCased — that only happens when
+            // the DOM element is built).
+            const wikiId = node?.properties?.[WIKILINK_ID_ATTR] as string | undefined
+            if (wikiId) {
+              const label = typeof children === 'string' ? children : String(children)
+              // Inline button styled like a link — tap opens the node in-app.
+              return (
+                <button
+                  type="button"
+                  onClick={() => onOpenNode?.(wikiId, label)}
+                  disabled={!onOpenNode}
+                  className="text-blue-400 underline underline-offset-2 transition-colors hover:text-blue-300 disabled:no-underline disabled:opacity-80"
+                >
+                  {children}
+                </button>
+              )
+            }
+            // Normal link — open external targets in a new tab.
+            return (
+              <a href={href} target="_blank" rel="noreferrer noopener" {...rest}>
+                {children}
+              </a>
+            )
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   )
 }

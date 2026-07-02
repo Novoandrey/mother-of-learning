@@ -310,9 +310,11 @@ function AppShell({ ready }: { ready: Ready }) {
         <WikiNodeScreen
           key={view.nodeId}
           supabase={ready.supabase}
+          campaignId={ready.campaignId}
           nodeId={view.nodeId}
           title={view.title}
           onBack={() => setView({ screen: 'wiki' })}
+          onOpenNode={(nodeId, title) => setView({ screen: 'wiki-node', nodeId, title })}
         />
       )
     case 'ledger':
