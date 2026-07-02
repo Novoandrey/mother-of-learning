@@ -30,19 +30,15 @@
 
 ## Активная работа
 
-1. **spec-052 Inventory — КОД ГОТОВ (T001–T029), ждёт T030–T032.** Ветка
-   `claude/052-inventory-containers-sets` (5 коммитов: Phase 0
-   миграции+политика+`createPurchase`; US1 инвентарь/ходы/«мои заявки»; US2
-   покупка+DM-настройки (политика цен/одобрения, «нельзя купить»); US3
-   надето/настройка-плашка/стартовое «надето»; US4 наборы+edit-on-buy). Гейт
-   зелёный (tsc 0 / eslint 0 / vitest 439). **🧑 Andrey (T030/T031):** залить
-   ветку на staging + накатить миграции **118/119/120** (Studio SQL Editor,
-   порядок 118→119→120) + E2E на iOS/Android (T031 в `tasks.md`: покупка
-   ниже/выше порога авто-vs-pending, общак→very-rare→pending C-14, коэффициент,
-   «нельзя купить» скрыт-но-двигается, надеть+4-я настройка плашка, стартовое
-   pre-equipped, набор one-tap + edit-on-buy исходник цел, «мои заявки»
-   отмена). **🤖 T032:** PR `claude/052` → `main` после E2E.
-   Спека: `052-inventory-containers-sets/`.
+1. **spec-052 Inventory — на staging, ждёт E2E (2026-07-03).** Ветка
+   `claude/052-inventory-containers-sets` (5 коммитов, гейт зелёный tsc0/
+   eslint0/vitest439) влита в `staging` (= main+052), Dokploy задеплоил;
+   миграции **118/119/120** Андрей накатил. **🧑 Andrey (T031):** E2E на
+   iOS/Android по чеклисту `tasks.md` (покупка ниже/выше порога авто-vs-pending,
+   общак→very-rare→pending C-14, коэффициент, «нельзя купить» скрыт-но-двигается,
+   надеть+4-я настройка плашка, стартовое pre-equipped, набор one-tap +
+   edit-on-buy исходник цел, «мои заявки» отмена). **🤖 T032:** PR
+   `claude/052`→`main` после зелёного E2E. Спека: `052-inventory-containers-sets/`.
 
 2. **Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
    (E1–E11, R1–R12; карта v1.6.0: телега(046) ∥ ledger(044) → движок(045) →
@@ -55,8 +51,18 @@
 
 ## Очередь до 030
 
+- **spec-030 Portraits — Phase 1+2 КОД ГОТОВ** (ветка `claude/030-portraits`,
+  гейт зелёный tsc0/lint0/тесты418). P1: карусель на десктоп-нодах + миграция
+  121 (carousel-колонки) + `seed-portraits.ts` v2 (npc+creature, 126/126
+  артов размещаются). P2: каталог неписей в /tg (список+поиск → арт-карусель +
+  markdown-статья, read). P3 (загрузка из приложения) ждёт: решение C-05
+  (presigned vs proxy) + R2-write ключи в env приложения. 🧑 Andrey: mig 121
+  на staging + `seed-portraits -- --dir ./AI-Art/AI` (dry→--commit, R2-creds).
+  AI-Art.zip локально, gitignored. Спека: `030-portraits/`.
 - **spec-020 PC Holdings Overview** — Plan ready, awaiting Tasks.
-- **spec-021 Wiki editor** — дизайн-пак получен, папка спеки не создана.
+- **spec-021 Wiki editor** — Specify draft (мини-спека: TG Mini App first,
+  БЕЗ visibility — вводная 2026-07-03), awaiting Clarify C-01…C-10. Часть
+  чтения статьи в /tg уже прилетела с spec-030 P2 (каталог); 021 = редактор.
 
 ## Роадмап 030+ (номера зафиксированы chat 87)
 
