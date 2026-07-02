@@ -7,6 +7,7 @@ import { getMembership, requireAuth } from '@/lib/auth'
 import { getCurrentLoop, getLoops } from '@/lib/loops'
 import { notFound, redirect } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
+import { orderPortraits, PORTRAIT_COLUMNS, type Portrait } from '@/lib/portraits'
 import { CharacterFrontierCard } from '@/components/character-frontier-card'
 import WalletBlock from '@/components/wallet-block'
 import {
@@ -219,6 +220,18 @@ export default async function NodePage({
     ? (typeRaw[0] as { slug?: string } | undefined)?.slug
     : (typeRaw as { slug?: string } | null)?.slug
   let ownerContext: OwnerContext | undefined
+
+  // Portraits (spec-030): character/npc/creature nodes get a carousel.
+  // Decorative — a null/failed fetch degrades to []. RLS select policy
+  // (is_member) already lets any member read.
+  let portraits: Portrait[] = []
+  if (typeSlug === 'character' || typeSlug === 'npc' || typeSlug === 'creature') {
+    const { data: portraitRows } = await supabase
+      .from('character_portraits')
+      .select(PORTRAIT_COLUMNS)
+      .eq('character_node_id', id)
+    portraits = orderPortraits((portraitRows ?? []) as Portrait[])
+  }
 
   if (typeSlug === 'character') {
     const admin = createAdminClient()
@@ -491,6 +504,7 @@ export default async function NodePage({
         campaignId={campaign.id}
         ownerContext={ownerContext}
         frontierCard={frontierCard}
+        portraits={portraits}
         canEdit={canEdit}
       />
     </div>

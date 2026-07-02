@@ -4,7 +4,9 @@ import { EdgeList } from './edge-list'
 import { CreateEdgeForm } from './create-edge-form'
 import { MarkdownContent } from './markdown-content'
 import { Chronicles } from './chronicles'
+import { PortraitCarousel } from './portrait-carousel'
 import { NodeOwnerSection, type OwnerContext } from './node-owner-section'
+import type { Portrait } from '@/lib/portraits'
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -62,6 +64,11 @@ type Props = {
    */
   frontierCard?: React.ReactNode
   /**
+   * Spec-030: portraits for character/npc/creature nodes. Empty for other
+   * types (or unseeded nodes) — the carousel renders nothing when empty.
+   */
+  portraits?: Portrait[]
+  /**
    * Spec-006 increment 3: infrastructure only. When false, write-capable UI
    * is suppressed (edit/delete buttons, tag editor, create-edge form).
    * Call-sites currently always pass `true` — the switch will be flipped
@@ -118,6 +125,7 @@ export function NodeDetail({
   campaignId,
   ownerContext,
   frontierCard,
+  portraits = [],
   canEdit = true,
 }: Props) {
   const router = useRouter()
@@ -264,6 +272,10 @@ export function NodeDetail({
           )}
         </div>
       </div>
+
+      {/* Portraits (spec-030) — carousel for character/npc/creature; renders
+          nothing when the node has no portraits. */}
+      <PortraitCarousel name={node.title} portraits={portraits} />
 
       {/* Children (contains) */}
       {childNodes.length > 0 && (
