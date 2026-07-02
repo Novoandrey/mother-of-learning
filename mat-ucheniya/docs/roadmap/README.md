@@ -40,9 +40,9 @@
 
 ## Текущая очередь (краткий снимок)
 
-На момент написания активная работа — **spec-052 Inventory** (Specify
-draft, ожидает Clarify) и **эпик «RPG-движок»** (spec-045 Engine Core —
-Specify draft, spec-022 ждёт 045).
+На момент написания активная работа — **spec-052 Inventory** (код готов,
+T001–T029; ждёт T030–T032: staging + миграции + E2E, затем PR) и **эпик
+«RPG-движок»** (spec-045 Engine Core — Specify draft, spec-022 ждёт 045).
 
 Полная таблица роадмапа 030+ — в [`near-term.md`](near-term.md).
 
