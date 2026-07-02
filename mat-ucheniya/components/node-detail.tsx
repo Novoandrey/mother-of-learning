@@ -3,6 +3,7 @@
 import { EdgeList } from './edge-list'
 import { CreateEdgeForm } from './create-edge-form'
 import { MarkdownContent } from './markdown-content'
+import type { WikiTitleEntry } from '@/lib/wikilinks'
 import { Chronicles } from './chronicles'
 import { PortraitCarousel } from './portrait-carousel'
 import { NodeOwnerSection, type OwnerContext } from './node-owner-section'
@@ -75,6 +76,11 @@ type Props = {
    * for players in increment 4 together with RLS.
    */
   canEdit?: boolean
+  /**
+   * Spec-021: campaign catalog nodes for `[[wikilink]]` resolution in the
+   * markdown body. Passed straight through to MarkdownContent.
+   */
+  wikiNodes?: WikiTitleEntry[]
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -127,6 +133,7 @@ export function NodeDetail({
   frontierCard,
   portraits = [],
   canEdit = true,
+  wikiNodes,
 }: Props) {
   const router = useRouter()
   const { toast } = useToast()
@@ -362,6 +369,8 @@ export function NodeDetail({
       <MarkdownContent
         nodeId={node.id}
         initialContent={node.content || ''}
+        campaignSlug={campaignSlug}
+        wikiNodes={wikiNodes}
       />
 
       <Chronicles
