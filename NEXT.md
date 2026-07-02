@@ -30,8 +30,14 @@
 
 ## Активная работа
 
-1. **spec-052 Inventory — КОД ГОТОВ (T001–T029), ждёт T030–T032.** Ветка
-   `claude/052-inventory-containers-sets` (5 коммитов: Phase 0
+1. **spec-052 Inventory — ⚠️ КОД НЕДОСТИЖИМ (2026-07-03).** Ветка
+   `claude/052-inventory-containers-sets` НЕ найдена ни на origin (ноль
+   CI-прогонов), ни локально (reflog/stash/fsck пусты, миграций 118–120 не
+   существует); «spec-052»-коммиты на main — только мета (галочки tasks.md).
+   Chatlog chat 99 не записан. Сессия chat 99 шла не на основной машине
+   (другой комп / cloud?). 🧑 Andrey: найти и запушить ветку, либо отмашка
+   Claude на реимплементацию по spec/plan/tasks (целы на main). Прод НЕ
+   задет. Исходный план был: ветка (5 коммитов: Phase 0
    миграции+политика+`createPurchase`; US1 инвентарь/ходы/«мои заявки»; US2
    покупка+DM-настройки (политика цен/одобрения, «нельзя купить»); US3
    надето/настройка-плашка/стартовое «надето»; US4 наборы+edit-on-buy). Гейт
@@ -56,7 +62,9 @@
 ## Очередь до 030
 
 - **spec-020 PC Holdings Overview** — Plan ready, awaiting Tasks.
-- **spec-021 Wiki editor** — дизайн-пак получен, папка спеки не создана.
+- **spec-021 Wiki editor** — Specify draft (мини-спека: TG Mini App first,
+  БЕЗ visibility — вводная 2026-07-03), awaiting Clarify C-01…C-10.
+  Дизайн-пак: `colors_and_type.css` в репо нет — запросить или снять C-05.
 
 ## Роадмап 030+ (номера зафиксированы chat 87)
 
