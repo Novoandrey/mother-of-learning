@@ -1,13 +1,30 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
+import type { PluggableList } from 'unified'
 import remarkGfm from 'remark-gfm'
 import { useFormDraft } from '@/hooks/use-form-draft'
+import {
+  buildTitleIndex,
+  remarkWikilinks,
+  WIKILINK_ID_ATTR,
+  type WikiTitleEntry,
+} from '@/lib/wikilinks'
 
 type Props = {
   nodeId: string
   initialContent: string
+  /**
+   * Wikilinks (spec-021): campaign catalog nodes as `{ id, title }` so
+   * `[[Название]]` resolves to `/c/<campaignSlug>/catalog/<id>`. Both are
+   * optional — omit them and `[[…]]` just renders as plain bracketed text
+   * (used by call-sites that don't fetch the index).
+   */
+  campaignSlug?: string
+  wikiNodes?: WikiTitleEntry[]
 }
 
 type DraftSnapshot = { draft: string }
@@ -26,11 +43,57 @@ function formatDraftTime(iso: string): string {
   }
 }
 
-export function MarkdownContent({ nodeId, initialContent }: Props) {
+export function MarkdownContent({
+  nodeId,
+  initialContent,
+  campaignSlug,
+  wikiNodes,
+}: Props) {
   const [content, setContent] = useState(initialContent)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(initialContent)
   const [saving, setSaving] = useState(false)
+
+  // ── Wikilinks ──────────────────────────────────────────────────────
+  // Build the title→id index once from the passed catalog list, then the
+  // remark plugin + an `a`-override that turns resolved links into <Link>s.
+  // Without campaignSlug (no route to point at) links fall back to plain text.
+  const titleIndex = useMemo(
+    () => buildTitleIndex(wikiNodes ?? []),
+    [wikiNodes],
+  )
+  // Tuple form `[attacher, options]` is the unified plugin contract — passing
+  // `remarkWikilinks(titleIndex)` (a bare transformer) makes unified mis-invoke
+  // it with no tree and crash. See lib/wikilinks.ts.
+  const remarkPlugins = useMemo<PluggableList>(
+    () => [remarkGfm, [remarkWikilinks, titleIndex]],
+    [titleIndex],
+  )
+  const mdComponents = useMemo<Components>(
+    () => ({
+      a({ node, children, href, ...rest }) {
+        // hProperties land verbatim on the hast node, so read the raw attr key.
+        const wikiId = node?.properties?.[WIKILINK_ID_ATTR] as string | undefined
+        if (wikiId && campaignSlug) {
+          return (
+            <Link
+              href={`/c/${campaignSlug}/catalog/${wikiId}`}
+              className="text-blue-600 hover:underline"
+            >
+              {children}
+            </Link>
+          )
+        }
+        // A resolved wikilink with no campaignSlug, or a normal link.
+        return (
+          <a href={href} {...rest}>
+            {children}
+          </a>
+        )
+      },
+    }),
+    [campaignSlug],
+  )
 
   // ── Local autosave for the markdown editor ─────────────────────────
   // Only enabled while the user is in editing mode — that's the only
@@ -150,7 +213,9 @@ export function MarkdownContent({ nodeId, initialContent }: Props) {
           <div className="border-t border-gray-100 p-4">
             <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Превью</div>
             <div className="prose prose-sm max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={remarkPlugins} components={mdComponents}>
+                {draft}
+              </ReactMarkdown>
             </div>
           </div>
         )}
@@ -177,7 +242,9 @@ export function MarkdownContent({ nodeId, initialContent }: Props) {
         </div>
       ) : (
         <div className="prose prose-sm max-w-none p-4">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={remarkPlugins} components={mdComponents}>
+            {content}
+          </ReactMarkdown>
         </div>
       )}
     </div>

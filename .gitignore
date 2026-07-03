@@ -1,3 +1,8 @@
 # Local MCP client configs may contain DB credentials (spec-029) — never commit.
 .mcp.json
 **/.mcp.json
+
+# Bulk art/media drops staged locally for import (IDEA-070) — never commit blobs.
+AI-Art.zip
+AI-Art/
+*.zip

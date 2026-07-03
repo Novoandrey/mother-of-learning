@@ -7,6 +7,7 @@ import { getMembership, requireAuth } from '@/lib/auth'
 import { getCurrentLoop, getLoops } from '@/lib/loops'
 import { notFound, redirect } from 'next/navigation'
 import { NodeDetail } from '@/components/node-detail'
+import { orderPortraits, PORTRAIT_COLUMNS, type Portrait } from '@/lib/portraits'
 import { CharacterFrontierCard } from '@/components/character-frontier-card'
 import WalletBlock from '@/components/wallet-block'
 import {
@@ -20,6 +21,7 @@ import InventoryTab from '@/components/inventory-tab'
 import type { InventoryTabLoop } from '@/components/inventory-tab-controls'
 import type { GroupBy } from '@/lib/items-types'
 import type { OwnerContext } from '@/components/node-owner-section'
+import { getWikiTitleIndex } from '@/lib/queries/wiki'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -99,7 +101,7 @@ export default async function NodePage({
   // Parallel fetch: node + edges (both directions in one .or() query) + chronicles.
   // The merged edges query includes type joins for children, so we don't need a
   // second "fetch node_types for child ids" roundtrip afterward.
-  const [nodeRes, edgeRes, chroniclesRes] = await Promise.all([
+  const [nodeRes, edgeRes, chroniclesRes, wikiNodes] = await Promise.all([
     supabase
       .from('nodes')
       .select('id, title, fields, content, type:node_types(slug, label, icon)')
@@ -120,6 +122,8 @@ export default async function NodePage({
       .eq('node_id', id)
       .order('loop_number', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false }),
+    // Wikilink index (spec-021): character/npc/creature titles for [[…]] resolution.
+    getWikiTitleIndex(supabase, campaign.id).catch(() => []),
   ])
 
   const node = nodeRes.data
@@ -219,6 +223,18 @@ export default async function NodePage({
     ? (typeRaw[0] as { slug?: string } | undefined)?.slug
     : (typeRaw as { slug?: string } | null)?.slug
   let ownerContext: OwnerContext | undefined
+
+  // Portraits (spec-030): character/npc/creature nodes get a carousel.
+  // Decorative — a null/failed fetch degrades to []. RLS select policy
+  // (is_member) already lets any member read.
+  let portraits: Portrait[] = []
+  if (typeSlug === 'character' || typeSlug === 'npc' || typeSlug === 'creature') {
+    const { data: portraitRows } = await supabase
+      .from('character_portraits')
+      .select(PORTRAIT_COLUMNS)
+      .eq('character_node_id', id)
+    portraits = orderPortraits((portraitRows ?? []) as Portrait[])
+  }
 
   if (typeSlug === 'character') {
     const admin = createAdminClient()
@@ -491,7 +507,9 @@ export default async function NodePage({
         campaignId={campaign.id}
         ownerContext={ownerContext}
         frontierCard={frontierCard}
+        portraits={portraits}
         canEdit={canEdit}
+        wikiNodes={wikiNodes}
       />
     </div>
   )

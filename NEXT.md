@@ -4,9 +4,9 @@
 > (включая `chatlog/_legacy-NEXT-archive.md` — полные тексты прежних NEXT).
 > Протокол старта сессии: `bash scripts/dev/status.sh` → этот файл →
 > `tasks.md` активной спеки. Лимит файла: 150 строк / 10 KB (следит status.sh).
-> Last updated: 2026-06-23 (chat 98 — spec-044 + spec-046 ВЫКАЧЕНЫ В ПРОД:
-> мобильный кошелёк/бухгалтерия + auth/карточка PC + realtime live
-> (DEBT-011 закрыт) + WAL-монитор слота; spec-052 Inventory — next, Clarify)
+> Last updated: 2026-06-26 (chat 99 — spec-052 Inventory КОД ГОТОВ: ветка
+> claude/052, T001–T029, гейт зелёный; ждёт Andrey staging+миграции 118/119/120
+> +E2E (T030/T031), затем PR T032)
 
 ## Прод
 
@@ -30,13 +30,15 @@
 
 ## Активная работа
 
-1. **spec-052 Inventory — Specify draft, awaiting Clarify (СЛЕДУЮЩЕЕ).** Поверх
-   044: контейнеры (передача/забор), покупка за голду, наборы (создают+покупают
-   одной кнопкой), статус «Надето». **Бухгалтерию не трогает** (ходы=item-tx,
-   покупка=деньги+предмет; новое — флаг «Надето» + наборы). + прод-фидбэк
-   (chat 98): свои pending-заявки с отменой (FR-015); «количество» как
-   первоклассное поле везде (FR-016, C-12). Дальше **Clarify** (C-01..C-12).
-   Спека: `052-inventory-containers-sets/spec.md`.
+1. **spec-052 Inventory — на staging, ждёт E2E (2026-07-03).** Ветка
+   `claude/052-inventory-containers-sets` (5 коммитов, гейт зелёный tsc0/
+   eslint0/vitest439) влита в `staging` (= main+052), Dokploy задеплоил;
+   миграции **118/119/120** Андрей накатил. **🧑 Andrey (T031):** E2E на
+   iOS/Android по чеклисту `tasks.md` (покупка ниже/выше порога авто-vs-pending,
+   общак→very-rare→pending C-14, коэффициент, «нельзя купить» скрыт-но-двигается,
+   надеть+4-я настройка плашка, стартовое pre-equipped, набор one-tap +
+   edit-on-buy исходник цел, «мои заявки» отмена). **🤖 T032:** PR
+   `claude/052`→`main` после зелёного E2E. Спека: `052-inventory-containers-sets/`.
 
 2. **Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
    (E1–E11, R1–R12; карта v1.6.0: телега(046) ∥ ledger(044) → движок(045) →
@@ -49,8 +51,18 @@
 
 ## Очередь до 030
 
+- **spec-030 Portraits — Phase 1+2 КОД ГОТОВ** (ветка `claude/030-portraits`,
+  гейт зелёный tsc0/lint0/тесты418). P1: карусель на десктоп-нодах + миграция
+  121 (carousel-колонки) + `seed-portraits.ts` v2 (npc+creature, 126/126
+  артов размещаются). P2: каталог неписей в /tg (список+поиск → арт-карусель +
+  markdown-статья, read). P3 (загрузка из приложения) ждёт: решение C-05
+  (presigned vs proxy) + R2-write ключи в env приложения. 🧑 Andrey: mig 121
+  на staging + `seed-portraits -- --dir ./AI-Art/AI` (dry→--commit, R2-creds).
+  AI-Art.zip локально, gitignored. Спека: `030-portraits/`.
 - **spec-020 PC Holdings Overview** — Plan ready, awaiting Tasks.
-- **spec-021 Wiki editor** — дизайн-пак получен, папка спеки не создана.
+- **spec-021 Wiki editor** — Specify draft (мини-спека: TG Mini App first,
+  БЕЗ visibility — вводная 2026-07-03), awaiting Clarify C-01…C-10. Часть
+  чтения статьи в /tg уже прилетела с spec-030 P2 (каталог); 021 = редактор.
 
 ## Роадмап 030+ (номера зафиксированы chat 87)
 
@@ -74,7 +86,7 @@
 
 | № | Спека | Зависит / зачем |
 |---|---|---|
-| 044 | Mobile Ledger — кошелёк/бухгалтерия игрока **в Mini App (046)** | АКТИВНА; параллельно движку |
+| 044 | Mobile Ledger — кошелёк/бухгалтерия игрока **в Mini App (046)** | ✅ в проде (chat 98) |
 | 045 | RPG Engine Core: модули, эффекты, ресурсы, слой-0 | фундамент; Specify v2 |
 | 022 | Player Mobile Mode v3 — лист поверх модулей | 045 P1; Mini App (046) |
 | 046 | База контента: спеллы (+машинерия баз) | 045; поглощает 039 |

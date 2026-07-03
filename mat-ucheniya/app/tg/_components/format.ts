@@ -33,18 +33,6 @@ export function initialOf(name: string): string {
   return name.trim().charAt(0).toUpperCase() || '?'
 }
 
-/**
- * R2 portrait URL from a key, or null when no key / base configured.
- * With `opts.width`, returns a Cloudflare Image-Resizing URL (smaller WebP
- * thumbnail). If the zone doesn't have Transformations enabled, callers should
- * fall back to the un-resized URL via the <img> onError.
- */
-export function portraitUrl(key: string | null, opts?: { width?: number }): string | null {
-  const base = process.env.NEXT_PUBLIC_R2_PORTRAIT_BASE
-  if (!key || !base) return null
-  const root = base.replace(/\/$/, '')
-  if (opts?.width) {
-    return `${root}/cdn-cgi/image/width=${opts.width},quality=80,format=auto/${key}`
-  }
-  return `${root}/${key}`
-}
+// portraitUrl moved to lib/portraits.ts (spec-030) so desktop + Mini App share
+// one implementation. Re-exported here for existing ./format importers.
+export { portraitUrl } from '@/lib/portraits'

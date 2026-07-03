@@ -36,6 +36,7 @@ import {
   BalancesScreen,
   StarterEquipScreen,
 } from './_components/ledger-app'
+import { WikiListScreen, WikiNodeScreen } from './_components/wiki-app'
 
 declare global {
   interface Window {
@@ -215,6 +216,8 @@ type View =
   | { screen: 'stash'; pc: CampaignCharacter }
   | { screen: 'equip'; pc: CampaignCharacter }
   | { screen: 'balances' }
+  | { screen: 'wiki' }
+  | { screen: 'wiki-node'; nodeId: string; title: string }
 
 function AppShell({ ready }: { ready: Ready }) {
   const { characters, supabase, campaignId } = ready
@@ -262,6 +265,7 @@ function AppShell({ ready }: { ready: Ready }) {
           characters={characters}
           onSelect={(pc) => setView({ screen: 'home', pc })}
           onOpenBalances={() => setView({ screen: 'balances' })}
+          onOpenWiki={() => setView({ screen: 'wiki' })}
         />
       )
     case 'home':
@@ -275,6 +279,7 @@ function AppShell({ ready }: { ready: Ready }) {
           onOpenRequests={() => setView({ screen: 'requests', pc: view.pc })}
           onOpenBalances={() => setView({ screen: 'balances' })}
           onOpenEquip={() => setView({ screen: 'equip', pc: view.pc })}
+          onOpenWiki={() => setView({ screen: 'wiki' })}
         />
       )
     case 'inventory':
@@ -336,6 +341,29 @@ function AppShell({ ready }: { ready: Ready }) {
           onBack={() => setView(rootView)}
           onSelect={(pc) => setView({ screen: 'home', pc })}
           refreshKey={refreshKey}
+        />
+      )
+    case 'wiki':
+      return (
+        <WikiListScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          onSelect={(item) =>
+            setView({ screen: 'wiki-node', nodeId: item.id, title: item.title })
+          }
+          onBack={() => setView(rootView)}
+        />
+      )
+    case 'wiki-node':
+      return (
+        <WikiNodeScreen
+          key={view.nodeId}
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          nodeId={view.nodeId}
+          title={view.title}
+          onBack={() => setView({ screen: 'wiki' })}
+          onOpenNode={(nodeId, title) => setView({ screen: 'wiki-node', nodeId, title })}
         />
       )
     case 'ledger':
