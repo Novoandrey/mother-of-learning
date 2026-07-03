@@ -276,7 +276,6 @@ function AppShell({ ready }: { ready: Ready }) {
           onBack={() => setView({ screen: 'list' })}
           onOpenLedger={() => setView({ screen: 'ledger', pc: view.pc })}
           onOpenInventory={() => setView({ screen: 'inventory', pc: view.pc })}
-          onOpenRequests={() => setView({ screen: 'requests', pc: view.pc })}
           onOpenBalances={() => setView({ screen: 'balances' })}
           onOpenEquip={() => setView({ screen: 'equip', pc: view.pc })}
           onOpenWiki={() => setView({ screen: 'wiki' })}

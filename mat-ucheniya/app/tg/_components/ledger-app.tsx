@@ -48,7 +48,6 @@ import {
 } from '@/app/actions/transactions'
 import {
   resolveBuyUnitPriceGp,
-  approvalRequiredFor,
   normalizeRarity,
 } from '@/lib/item-purchase-policy'
 import { setEquipped } from '@/app/actions/equipped'
@@ -293,7 +292,6 @@ export function PcHome({
   onBack,
   onOpenLedger,
   onOpenInventory,
-  onOpenRequests,
   onOpenBalances,
   onOpenEquip,
   onOpenWiki,
@@ -303,7 +301,6 @@ export function PcHome({
   onBack: () => void
   onOpenLedger: () => void
   onOpenInventory: () => void
-  onOpenRequests: () => void
   onOpenBalances?: () => void
   onOpenEquip?: () => void
   onOpenWiki?: () => void
@@ -331,9 +328,8 @@ export function PcHome({
         {onOpenBalances && (
           <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />
         )}
-        {character.isOwn && (
-          <AppButton icon="📋" label="Заявки" onClick={onOpenRequests} />
-        )}
+        {/* «Заявки» скрыт: апрувы выключены (spec-053), pending не создаётся.
+            Вернётся вместе с approval-UI, если approvals_enabled снова true. */}
         {character.isOwn && onOpenEquip && (
           <AppButton icon="🎽" label="Снаряжение" onClick={onOpenEquip} />
         )}
@@ -1287,10 +1283,6 @@ function BuySheet({
         })
       : null
   const totalGp = unitGp != null ? unitGp * Math.max(1, n) : null
-  const needsApproval =
-    picked && config
-      ? approvalRequiredFor(config.policy, normalizeRarity(picked.rarity))
-      : false
 
   const submit = async () => {
     setError(null)
@@ -1413,11 +1405,6 @@ function BuySheet({
                       {totalGp != null ? formatGp(totalGp) : '—'}
                     </span>
                   </div>
-                  {needsApproval && (
-                    <div className="mt-1 text-xs text-amber-400/80">
-                      Уйдёт ведущему на одобрение.
-                    </div>
-                  )}
                 </div>
               </>
             )}
@@ -2546,7 +2533,7 @@ export function StarterEquipScreen({
           <div>
             <div className="text-4xl">✓</div>
             <p className="mt-3">
-              Отправлено: {submitted}. Ждёт одобрения ведущего — появится в листе после подтверждения.
+              Записано: {submitted}. Уже в листе.
             </p>
             <button
               onClick={() => {
@@ -2568,7 +2555,7 @@ export function StarterEquipScreen({
       <BackLink onClick={onBack}>{character.title}</BackLink>
       <h1 className="text-lg font-semibold">Стартовое снаряжение</h1>
       <p className="mb-3 text-xs text-neutral-500">
-        Собери список — он уйдёт ведущему на одобрение.
+        Собери список — он применится сразу.
       </p>
 
       <div className="relative">
@@ -2665,7 +2652,7 @@ export function StarterEquipScreen({
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       {rows.length > 0 && (
         <SubmitButton busy={busy} onClick={submit}>
-          Отправить на одобрение
+          Записать
         </SubmitButton>
       )}
 
@@ -2683,7 +2670,7 @@ export function StarterEquipScreen({
               : `Взять кредит · ${LOOP_CREDIT_GP} ЗМ`}
         </button>
         <p className="mt-1 px-1 text-xs text-neutral-500">
-          Один раз за петлю, без одобрения ведущего.
+          Один раз за петлю.
         </p>
         {creditMsg && <p className="mt-1 px-1 text-xs text-neutral-400">{creditMsg}</p>}
       </div>
