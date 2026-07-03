@@ -82,6 +82,32 @@ describe('resolveSpend', () => {
   });
 });
 
+// The guard `resolveAndCheckSpend` (app/actions/transactions.ts, spec-030)
+// rejects a spend when resolveSpend under-covers. It compares
+// |aggregateGp(resolved)| to the target — this documents the three outcomes
+// that comparison distinguishes, purely (no DB).
+describe('spend coverage predicate (spec-030 guard)', () => {
+  const covered = (holdings: Parameters<typeof resolveSpend>[0], target: number) =>
+    Math.abs(aggregateGp(resolveSpend(holdings, target)));
+
+  it('partial holdings under-cover → guard rejects (have 0.5, want 5)', () => {
+    // Silent-partial bug: pre-fix this moved 0.5 gp on a 5 gp request.
+    expect(covered({ ...Z, cp: 50 }, 5)).toBeCloseTo(0.5);
+    expect(covered({ ...Z, cp: 50 }, 5)).toBeLessThan(5);
+  });
+
+  it("can't-make-change under-covers to zero (1pp, want 5 gp)", () => {
+    // aggregate (10) ≥ target (5), but resolveSpend won't break the pp →
+    // covered 0 < 5 → guard's "без размена" branch.
+    expect(covered({ ...Z, pp: 1 }, 5)).toBe(0);
+    expect(aggregateGp({ ...Z, pp: 1 })).toBe(10);
+  });
+
+  it('exact coverage passes (500cp, want 5 gp)', () => {
+    expect(covered({ ...Z, cp: 500 }, 5)).toBeCloseTo(5);
+  });
+});
+
 describe('resolveEarn', () => {
   it('credits to gp pile', () => {
     expect(resolveEarn(5)).toEqual({ cp: 0, sp: 0, gp: 5, pp: 0 });

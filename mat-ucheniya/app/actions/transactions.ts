@@ -30,6 +30,7 @@ import {
   resolveSpend,
   resolveEarn,
   signedCoinsToStored,
+  aggregateGp,
   DENOMINATIONS,
 } from '@/lib/transaction-resolver'
 import {
@@ -151,6 +152,36 @@ async function resolveCoinsForMoney(
   return signedCoinsToStored(false, resolveEarn(amountGp))
 }
 
+/**
+ * Resolve a spend AND verify it fully covers `absGp` — one wallet fetch.
+ *
+ * `resolveSpend` deliberately returns a *partial* set when holdings fall short
+ * (it's a pure helper; the caller owns "insufficient funds"). Before spec-030
+ * only a fully-zero result was rejected, so a spend of 10 gp against a 3 gp
+ * wallet silently moved 3 gp — real money leaving without the user asking.
+ * This guards it, mirroring the item path's `owned < qty`. Two failure modes,
+ * distinct messages: not enough total vs. enough total but can't make change
+ * (e.g. one platinum, spend 3 gp — resolveSpend won't break the coin).
+ */
+async function resolveAndCheckSpend(
+  actorPcId: string,
+  loopNumber: number,
+  absGp: number,
+): Promise<{ ok: true; coins: CoinSet } | { ok: false; error: string }> {
+  const wallet = await getWallet(actorPcId, loopNumber)
+  const coins = resolveSpend(wallet.coins, absGp)
+  const covered = Math.abs(aggregateGp(coins))
+  if (covered + 1e-9 >= absGp) return { ok: true, coins }
+  const have = aggregateGp(wallet.coins)
+  return {
+    ok: false,
+    error:
+      have + 1e-9 < absGp
+        ? `Недостаточно монет — доступно ${Math.round(have * 100) / 100} зм`
+        : 'Недостаточно монет для операции без размена',
+  }
+}
+
 // ============================================================================
 // createTransaction
 // ============================================================================
@@ -181,21 +212,24 @@ export async function createTransaction(
     } else {
       const amountErr = validateAmountSign(input.amountGp)
       if (amountErr) return { ok: false, error: amountErr }
-      coins = await resolveCoinsForMoney(
-        input.actorPcId,
-        input.loopNumber,
-        input.amountGp!,
-        undefined,
-      )
-      // Defensive: resolver shouldn't produce all-zero except for
-      // insufficient-holdings on a spend. If that happens, surface it —
-      // silently inserting a 0-coin row would also fail the CHECK.
-      const anyNonZero = DENOMINATIONS.some((d) => coins[d] !== 0)
-      if (!anyNonZero) {
-        return {
-          ok: false,
-          error: 'Недостаточно монет для операции без размена',
-        }
+      if (input.amountGp! < 0) {
+        // Spend: resolve + verify it fully covers the amount (guards a silent
+        // partial spend — see resolveAndCheckSpend).
+        const res = await resolveAndCheckSpend(
+          input.actorPcId,
+          input.loopNumber,
+          Math.abs(input.amountGp!),
+        )
+        if (!res.ok) return { ok: false, error: res.error }
+        coins = res.coins
+      } else {
+        // Earn: credit to the gp pile, no coverage check.
+        coins = await resolveCoinsForMoney(
+          input.actorPcId,
+          input.loopNumber,
+          input.amountGp!,
+          undefined,
+        )
       }
     }
   } else {
@@ -710,19 +744,16 @@ export async function createTransfer(
     const amountErr = validateAmountSign(input.amountGp)
     if (amountErr) return { ok: false, error: amountErr }
     const absAmount = Math.abs(input.amountGp)
-    senderCoins = await resolveCoinsForMoney(
+    // Verify the sender can cover the full transfer. A partial would silently
+    // move less than asked — общак-take of 10 gp from a 3 gp pool moved 3 with
+    // no warning (items were already guarded by `owned < qty`; money wasn't).
+    const res = await resolveAndCheckSpend(
       input.senderPcId,
       input.loopNumber,
-      -absAmount, // force spend path
-      undefined,
+      absAmount,
     )
-    const anyNonZero = DENOMINATIONS.some((d) => senderCoins[d] !== 0)
-    if (!anyNonZero) {
-      return {
-        ok: false,
-        error: 'Недостаточно монет для перевода без размена',
-      }
-    }
+    if (!res.ok) return { ok: false, error: res.error }
+    senderCoins = res.coins
   }
 
   // Mirror recipient inflow — same magnitude, opposite sign.
