@@ -2,7 +2,7 @@
 
 **Feature Branch**: `052-inventory-containers-sets`
 **Created**: 2026-06-23 (chat 95)
-**Status**: Implement complete (code) — awaiting T030–T031 (staging + migrations + E2E) by Andrey, then T032 PR
+**Status**: ✅ Shipped to prod (2026-07-03, PR #12; migrations 118–120). Tails: T033/T034 (deferred, not blockers)
 **Depends on**: spec-044 (mobile ledger — wallet, item transfers, общак,
 starter-equip; this inventory UI extends 044's `/tg` screens and its holdings
 reader / transfer sheet), item catalog (spec-015/018) + default prices
