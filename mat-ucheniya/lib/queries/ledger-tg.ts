@@ -402,6 +402,53 @@ export async function searchBuyableItemsTg(
 }
 
 /**
+ * Spec-053: buyable attrs (price/rarity/category) for a set of item node ids,
+ * so the client can price a whole набор for the «баланс → после» preview
+ * (buyItems still prices authoritatively server-side). `no_purchase` items are
+ * dropped — a set with one blocks the buy anyway, and it just won't be priced.
+ */
+export async function getBuyableItemsByIdsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  ids: string[],
+): Promise<BuyableItemTg[]> {
+  if (ids.length === 0) return []
+  const { data } = await supabase
+    .from('nodes')
+    .select(
+      'id, title, fields, item_attributes!inner(price_gp, rarity, category_slug), node_types!inner(slug)',
+    )
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .in('id', ids)
+  const rows = (data ?? []) as Array<{
+    id: string
+    title: string
+    fields: Record<string, unknown> | null
+    item_attributes:
+      | { price_gp: number | null; rarity: string | null; category_slug: string }
+      | { price_gp: number | null; rarity: string | null; category_slug: string }[]
+      | null
+  }>
+  const byId = new Map<string, BuyableItemTg>()
+  for (const r of rows) {
+    if ((r.fields ?? {}).no_purchase === true) continue
+    const attrs = Array.isArray(r.item_attributes)
+      ? r.item_attributes[0]
+      : r.item_attributes
+    if (!attrs) continue
+    byId.set(r.id, {
+      id: r.id,
+      title: r.title,
+      priceGp: attrs.price_gp,
+      rarity: attrs.rarity,
+      categorySlug: attrs.category_slug,
+    })
+  }
+  return [...byId.values()]
+}
+
+/**
  * Campaign-shared item sets (spec-052, US4) for the /tg sets screen. Each set
  * is a node of type 'set'; contents + author live in nodes.fields jsonb.
  */

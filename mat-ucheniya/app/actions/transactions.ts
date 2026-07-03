@@ -1369,6 +1369,12 @@ export type CreatePurchaseInput = {
    * (set-buy) leaves it off and emits one aggregate «взят набор» itself.
    */
   notify?: boolean
+  /**
+   * Spec-053 «оставить на руках»: floor of the buyer's own wallet to preserve
+   * when fundingSource='pc_with_stash'. Spend own down to keepGp, borrow the
+   * rest from the общак. Ignored for 'pc' / 'stash'. Default 0.
+   */
+  keepGp?: number
 }
 
 /**
@@ -1485,6 +1491,7 @@ export async function createPurchase(
       pcW.aggregate_gp,
       totalGp,
       stashW.aggregate_gp,
+      input.keepGp ?? 0,
     )
     if (remainderNegative > 0) {
       return { ok: false, error: 'Недостаточно золота даже с общаком' }

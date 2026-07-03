@@ -16,9 +16,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, getMembership } from '@/lib/auth'
 import { invalidateSidebar } from '@/lib/sidebar-cache'
 import type { Role } from '@/lib/auth'
-import { createPurchase } from '@/app/actions/transactions'
+import { createPurchase, createTransfer } from '@/app/actions/transactions'
 import { getWallet } from '@/lib/transactions'
 import { getStashNode } from '@/lib/stash'
+import { computeShortfall } from '@/lib/transaction-resolver'
 import { parseItemDefaultPrices, type RarityKey } from '@/lib/item-default-prices'
 import {
   parseItemPurchasePolicy,
@@ -299,29 +300,38 @@ export async function deleteSet(input: {
  * (C-19). All-or-nothing: the total is pre-checked against the funding source,
  * then each item is bought through createPurchase sharing one batch + one
  * status. Approval aggregates by max rarity (C-16). Any «нельзя купить» or
- * priceless item blocks the buy. Funding is own gold or общак directly — the
- * topup source isn't offered here, because draining общак across several
- * per-item topups can't be pre-validated cleanly.
+ * priceless item blocks the buy.
  *
- * Partial-insert note: the up-front guards make a mid-loop failure unlikely,
- * but createPurchase writes per item, so a rare mid-loop DB error can leave
- * the already-inserted legs in place (the DM can reject the batch).
+ * Funding (spec-053): own gold, общак directly, or `pc_with_stash` (own +
+ * общак with an optional `keepGp` floor). For pc_with_stash the shortfall is
+ * borrowed ONCE up front on the aggregated set total (a per-item topup would
+ * re-apply keep and misread the wallet), then every item is bought as 'pc'.
+ *
+ * Atomicity: the topup + every purchase share one `batchId`, and a mid-loop
+ * failure deletes the whole batch — so a failed set-buy never strands общак
+ * gold on the buyer's wallet.
  */
 export async function buyItems(input: {
   campaignId: string
   items: SetItem[]
   buyerPcId: string
-  fundingSource: 'pc' | 'stash'
+  fundingSource: 'pc' | 'stash' | 'pc_with_stash'
   loopNumber: number
   dayInLoop: number
   comment?: string
   /** Spec-053: set title for the «взят набор» feed post. Edit-on-buy omits it. */
   setTitle?: string
+  /** Spec-053 «оставить на руках»: own-wallet floor for pc_with_stash. */
+  keepGp?: number
 }): Promise<ActionResult<{ status: 'approved' | 'pending'; count: number }>> {
   if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
   if (!input.buyerPcId) return { ok: false, error: 'Не выбран персонаж' }
-  if (input.fundingSource !== 'pc' && input.fundingSource !== 'stash') {
-    return { ok: false, error: 'Купить можно за свои или из общака' }
+  if (
+    input.fundingSource !== 'pc' &&
+    input.fundingSource !== 'stash' &&
+    input.fundingSource !== 'pc_with_stash'
+  ) {
+    return { ok: false, error: 'Купить можно за свои, из общака или свои+общак' }
   }
 
   const user = await getCurrentUser()
@@ -423,24 +433,75 @@ export async function buyItems(input: {
       ? 'pending'
       : 'approved'
 
-  // All-or-nothing affordability pre-check (avoids partial inserts).
+  // All-or-nothing affordability pre-check (avoids partial inserts). For
+  // pc_with_stash we also compute the single aggregated topup up front.
+  const stashNode =
+    input.fundingSource === 'pc' ? null : await getStashNode(input.campaignId)
+  if (input.fundingSource !== 'pc' && !stashNode) {
+    return { ok: false, error: 'Общак не найден' }
+  }
+  let toBorrow = 0
   if (input.fundingSource === 'pc') {
     const w = await getWallet(input.buyerPcId, input.loopNumber)
     if (w.aggregate_gp < totalGp) {
       return { ok: false, error: 'Недостаточно золота на весь набор' }
     }
-  } else {
-    const stash = await getStashNode(input.campaignId)
-    if (!stash) return { ok: false, error: 'Общак не найден' }
-    const w = await getWallet(stash.nodeId, input.loopNumber)
+  } else if (input.fundingSource === 'stash') {
+    const w = await getWallet(stashNode!.nodeId, input.loopNumber)
     if (w.aggregate_gp < totalGp) {
       return { ok: false, error: 'В общаке недостаточно золота на весь набор' }
     }
+  } else {
+    // pc_with_stash — no общак coverage for a set on approval (C-14 parity).
+    if (status === 'pending') {
+      return {
+        ok: false,
+        error:
+          'Покрытие из общака недоступно для набора на одобрении — купи за свои или из общака напрямую',
+      }
+    }
+    const [pcW, stashW] = await Promise.all([
+      getWallet(input.buyerPcId, input.loopNumber),
+      getWallet(stashNode!.nodeId, input.loopNumber),
+    ])
+    const sf = computeShortfall(
+      pcW.aggregate_gp,
+      totalGp,
+      stashW.aggregate_gp,
+      input.keepGp ?? 0,
+    )
+    if (sf.remainderNegative > 0) {
+      return { ok: false, error: 'Недостаточно золота даже с общаком' }
+    }
+    toBorrow = sf.toBorrow
   }
 
   // Execute: one batch, one shared status, routed through createPurchase.
   const batchId = crypto.randomUUID()
   const comment = input.comment ?? 'Покупка'
+
+  // pc_with_stash: borrow the whole set's shortfall ONCE (общак → buyer,
+  // auto-approved, same batch), then buy every item as 'pc'. Keeps the wallet
+  // read once and centralises keep, vs a per-item topup that would drift.
+  if (toBorrow > 0) {
+    const topup = await createTransfer({
+      campaignId: input.campaignId,
+      senderPcId: stashNode!.nodeId,
+      recipientPcId: input.buyerPcId,
+      amountGp: toBorrow,
+      categorySlug: 'transfer',
+      comment: `Покрытие набора: ${input.setTitle ?? comment}`,
+      loopNumber: input.loopNumber,
+      dayInLoop: input.dayInLoop,
+      autoApprove: true,
+      batchId,
+    })
+    if (!topup.ok) return topup
+  }
+  // After the topup the buyer holds enough, so each item is a plain 'pc' buy.
+  const perItemFunding: 'pc' | 'stash' =
+    input.fundingSource === 'stash' ? 'stash' : 'pc'
+
   let count = 0
   for (const it of items) {
     const res = await createPurchase({
@@ -448,7 +509,7 @@ export async function buyItems(input: {
       buyerPcId: input.buyerPcId,
       itemNodeId: it.itemNodeId,
       qty: it.qty,
-      fundingSource: input.fundingSource,
+      fundingSource: perItemFunding,
       loopNumber: input.loopNumber,
       dayInLoop: input.dayInLoop,
       batchId,
@@ -456,7 +517,10 @@ export async function buyItems(input: {
       comment,
     })
     if (!res.ok) {
-      return { ok: false, error: `Куплено позиций: ${count}. Дальше ошибка: ${res.error}` }
+      // Roll back the whole batch — completed purchases AND the topup share
+      // batchId — so a mid-loop failure doesn't strand общак gold on the buyer.
+      await admin.from('transactions').delete().eq('batch_id', batchId)
+      return { ok: false, error: `Ошибка на позиции ${count + 1}: ${res.error}` }
     }
     count++
   }
@@ -486,9 +550,10 @@ export async function buySet(input: {
   campaignId: string
   setId: string
   buyerPcId: string
-  fundingSource: 'pc' | 'stash'
+  fundingSource: 'pc' | 'stash' | 'pc_with_stash'
   loopNumber: number
   dayInLoop: number
+  keepGp?: number
 }): Promise<ActionResult<{ status: 'approved' | 'pending'; count: number }>> {
   if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
   if (!input.setId) return { ok: false, error: 'Не указан набор' }
@@ -511,6 +576,7 @@ export async function buySet(input: {
     items,
     buyerPcId: input.buyerPcId,
     fundingSource: input.fundingSource,
+    keepGp: input.keepGp,
     loopNumber: input.loopNumber,
     dayInLoop: input.dayInLoop,
     comment: setTitle ? `Набор: ${setTitle}` : 'Набор',

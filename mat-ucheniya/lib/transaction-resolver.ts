@@ -119,7 +119,8 @@ export type ShortfallResult = {
 /**
  * Decide how much to borrow from the stash to cover an expense.
  *
- *   shortfall         = max(0, |expenseGp| − walletGp)
+ *   spendable         = max(0, walletGp − keepGp)
+ *   shortfall         = max(0, |expenseGp| − spendable)
  *   toBorrow          = min(shortfall, stashGp)
  *   remainderNegative = shortfall − toBorrow
  *
@@ -130,6 +131,10 @@ export type ShortfallResult = {
  *     the user as "PC wallet will go negative" (spec-010 baseline).
  *   - Partial cover (stash poor): `toBorrow = stashGp`, remainder still
  *     surfaces as a PC-side negative-wallet warning.
+ *   - `keepGp` (spec-053, «оставить на руках») reserves a floor of the
+ *     buyer's own wallet: they spend down to `keepGp`, and the rest is
+ *     borrowed from the stash. `keepGp = 0` (the default) is byte-for-byte
+ *     the original behaviour — the whole wallet is spendable.
  *
  * `expenseGp` may be passed signed (e.g. `-5`) or as a magnitude (`5`) —
  * we take the absolute value so callers don't have to normalize first.
@@ -142,9 +147,11 @@ export function computeShortfall(
   walletGp: number,
   expenseGp: number,
   stashGp: number,
+  keepGp = 0,
 ): ShortfallResult {
   const expenseMag = Math.abs(expenseGp);
-  const shortfall = Math.max(0, expenseMag - walletGp);
+  const spendable = Math.max(0, walletGp - Math.max(0, keepGp));
+  const shortfall = Math.max(0, expenseMag - spendable);
   const toBorrow = Math.min(shortfall, Math.max(0, stashGp));
   const remainderNegative = shortfall - toBorrow;
   return { shortfall, toBorrow, remainderNegative };
