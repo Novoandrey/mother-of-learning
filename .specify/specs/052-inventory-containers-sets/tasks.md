@@ -126,17 +126,17 @@ tasks) → `main` directly.
   edit-on-buy leaves the source set intact. Demoable.
 
 ## Phase 4 — Staging E2E + ship
-- [ ] **T030** 🧑 Deploy `claude/052-inventory-containers-sets` → `staging`;
+- [x] **T030** 🧑 Deploy `claude/052-inventory-containers-sets` → `staging`;
   apply **118 / 119 / 120** to staging by hand (prod via Studio at ship). [needs
   green Phase 0–3]
-- [ ] **T031** 🧑 E2E on staging: buy below vs above threshold (auto vs pending);
+- [x] **T031** 🧑 E2E on staging: buy below vs above threshold (auto vs pending);
   общак-funded very-rare → pending (C-14 behavior change); coefficient visible;
   «нельзя купить» hidden from buy yet movable/equippable; equip + 4th-attunement
   плашка; starter «надето» → PC starts equipped; set one-tap buy; edit-on-buy →
   source set intact; «мои заявки» cancel removes the pending. Real iOS + Android.
   [needs T030]
-- [ ] **T032** 🤖 Open PR `claude/052-inventory-containers-sets` → `main` (human
-  merges). [needs green staging]
+- [x] **T032** 🤖 Open PR `claude/052-inventory-containers-sets` → `main` (human
+  merges). [needs green staging] — PR #12 merged 2026-07-03.
 
 ## Tails (deferred — not blockers)
 - [ ] **(tail) T033** 🤖 Move-UI interaction polish (two-pane / drag) once the

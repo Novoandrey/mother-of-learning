@@ -4,9 +4,12 @@
 > (включая `chatlog/_legacy-NEXT-archive.md` — полные тексты прежних NEXT).
 > Протокол старта сессии: `bash scripts/dev/status.sh` → этот файл →
 > `tasks.md` активной спеки. Лимит файла: 150 строк / 10 KB (следит status.sh).
-> Last updated: 2026-06-26 (chat 99 — spec-052 Inventory КОД ГОТОВ: ветка
-> claude/052, T001–T029, гейт зелёный; ждёт Andrey staging+миграции 118/119/120
-> +E2E (T030/T031), затем PR T032)
+> Last updated: 2026-07-03 — в прод уехали: **spec-052 Inventory** (покупка/
+> наборы/«Надето»), контент-миграция 122 (8 статуэток чудесной силы SRD + рен
+> 7 «Инструмент бардов - X»), баг-фиксы /tg (P1 овердрафт общака, кредит-гонка
+> мигр 123, loadMore, «Собрать ещё»), новое меню персонажа (6 видимых кнопок
+> вместо ⋮), хотфикс зависания сабмитов снаряжения/покупки. Миграции 118–123
+> на проде, staging=main. Портреты проверены на staging и проде.
 
 ## Прод
 
@@ -30,32 +33,30 @@
 
 ## Активная работа
 
-1. **spec-052 Inventory — на staging, ждёт E2E (2026-07-03).** Ветка
-   `claude/052-inventory-containers-sets` (5 коммитов, гейт зелёный tsc0/
-   eslint0/vitest439) влита в `staging` (= main+052), Dokploy задеплоил;
-   миграции **118/119/120** Андрей накатил. **🧑 Andrey (T031):** E2E на
-   iOS/Android по чеклисту `tasks.md` (покупка ниже/выше порога авто-vs-pending,
-   общак→very-rare→pending C-14, коэффициент, «нельзя купить» скрыт-но-двигается,
-   надеть+4-я настройка плашка, стартовое pre-equipped, набор one-tap +
-   edit-on-buy исходник цел, «мои заявки» отмена). **🤖 T032:** PR
-   `claude/052`→`main` после зелёного E2E. Спека: `052-inventory-containers-sets/`.
+Кода в полёте прямо сейчас нет — сессия отгрузила 052 + правки /tg. Развилка
+«что дальше» (в приоритете — фидбек по бухгалтерии):
 
-2. **Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
-   (E1–E11, R1–R12; карта v1.6.0: телега(046) ∥ ledger(044) → движок(045) →
-   лист(022) → базы → форк → пирамида → классы → конструктор). **spec-045
-   Engine Core — Specify draft, awaiting Clarify** (C-01…C-05; C-06=R6).
-   Ресерч-решения D-1…D-13 ждут Андрея →
-   `epics/rpg-engine/research/best-practices-review.md` (same-op, add↔mult,
-   roll-эффекты, дельты vs LWW, R9-неопознанные). R6-прозрачность; spec-022
-   ждёт 045; мана = DMG Spell Points (R12/FR-025).
+- **Фидбек по бухгалтерии** (spec-044 Mobile Ledger) — правки по итогам прод-
+  использования. Andrey хочет заняться этим; собрать список правок → мини-спека/
+  задачи.
+- **spec-045 Clarify** (разблокировать эпик RPG-движка) — ждёт ответы Andrey
+  C-01…C-05 + ресёрч-решения D-1…D-13.
+- **spec-030 Portraits P3** (загрузка портретов из приложения) — ждёт C-05
+  presigned-vs-proxy + R2-write ключи в env.
+- **spec-020 PC Holdings** — Plan готов, ждёт Tasks.
 
-## Очередь до 030
+> ⚠️ На локальном `main` непушнутый коммит `a0b9394 infra/portraits-seeding.md`
+> (runbook). Docs-only PR застрянет на Quality gate ([[docs-only-pr-gate-gotcha]]) —
+> довезти прицепом к ближайшему feature-PR или отдать Andrey на прямой push.
 
-- **spec-020 PC Holdings Overview** — Plan ready, awaiting Tasks.
-- **spec-030 Portraits P3** (загрузка портретов из приложения) — не начат;
-  ждёт решение C-05 (presigned vs proxy) + R2-write ключи в env приложения.
-  🧑 Andrey для показа артов на проде: `seed-portraits -- --dir ./AI-Art/AI
-  --commit` с R2-creds (mig 121 накатана, «Адам Ларч» создан на prod+staging).
+**Эпик «RPG-движок»** — канон `.specify/epics/rpg-engine/constitution.md`
+(E1–E11, R1–R12; карта v1.6.0: телега(046) ∥ ledger(044) → движок(045) →
+лист(022) → базы → форк → пирамида → классы → конструктор). **spec-045
+Engine Core — Specify draft, awaiting Clarify** (C-01…C-05; C-06=R6).
+Ресерч-решения D-1…D-13 ждут Андрея →
+`epics/rpg-engine/research/best-practices-review.md` (same-op, add↔mult,
+roll-эффекты, дельты vs LWW, R9-неопознанные). R6-прозрачность; spec-022
+ждёт 045; мана = DMG Spell Points (R12/FR-025).
 
 ## Роадмап 030+ (номера зафиксированы chat 87)
 
@@ -119,8 +120,10 @@
 | 043 | Staging: облачная staging-БД + staging.theloopers.org + PR-only `main` |
 | 044 | Mobile Ledger в Telegram Mini App (`/tg`): кошелёк/бухгалтерия игрока, realtime-обновления, предметы в-из общака, стартовый набор |
 | 046 | Telegram Mini App auth (real GoTrue session) + карточка PC с портретом; DM-привязка `/c/<slug>/settings/telegram`; миграции 115/116; сид 31 портрета |
-| 030 | Portraits P1+2 (PR #9): карусель портретов на десктоп-нодах + каталог неписей в /tg (список/поиск → арт + markdown-статья). Миг 121, `seed-portraits` v2 (npc+creature). Арты появятся после сида с R2 (отложено). P3 (загрузка из app) — в очереди |
+| 030 | Portraits P1+2 (PR #9): карусель портретов на десктоп-нодах + каталог неписей в /tg (список/поиск → арт + markdown-статья). Миг 121, `seed-portraits` v2 (npc+creature). Арты засижены с R2 и проверены на staging+проде (2026-07-03). P3 (загрузка из app) — в очереди |
 | 021 | Wiki editor (PR #10): правка статьи в /tg (гейтованный content-API) + wikilinks `[[Имя]]` на десктопе и в /tg. Десктоп-редактор статьи был и раньше (MarkdownContent) |
+| 052 | Инвентарь v2 в /tg (PR #12): покупка (авто ниже порога / pending выше, коэффициент), контейнеры, наборы (one-tap + edit-on-buy), «Надето»/снаряжение, стартовое pre-equipped. Миграции 118–120 |
+| — | Пост-релиз /tg (2026-07-03): контент — 8 статуэток чудесной силы SRD + рен 7 «Инструмент бардов - X» (миг 122, PR #13); фиксы — P1 овердрафт общака + кредит-гонка (миг 123) + loadMore + «Собрать ещё» (PR #14); UX — меню персонажа 6 видимых кнопок вместо ⋮ (PR #15); хотфикс зависания сабмитов снаряжения/покупки (PR #16) |
 
 ## Хвосты (не блокеры)
 
