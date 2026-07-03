@@ -43,39 +43,58 @@ export function ledgerFeedConfigured(): boolean {
   return feedConfig() !== null
 }
 
+// Hard cap on any Bot API call. The feed runs off the write path (see
+// notifyLedgerEvent → after()), but a bare fetch has no connect timeout — if
+// the box can't reach api.telegram.org (egress/IPv6 stall) the socket hangs for
+// minutes. This bounds every call so a hung Telegram can never pile up work.
+const BOT_TIMEOUT_MS = 4000
+
+async function botCall(method: string, payload: unknown): Promise<Response | null> {
+  const c = feedConfig()
+  if (!c) return null
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), BOT_TIMEOUT_MS)
+  try {
+    return await fetch(`${API}/bot${c.token}/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+  } catch (e) {
+    // AbortError (timeout) or network failure — both are non-fatal for the feed.
+    console.error(`[ledger-feed] ${method} error`, e)
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Post a new message to the ledger topic. Returns the message id, or null. */
 export async function sendLedgerMessage(html: string): Promise<number | null> {
   const c = feedConfig()
   if (!c) return null
-  try {
-    const res = await fetch(`${API}/bot${c.token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: c.chatId,
-        ...(c.threadId !== undefined ? { message_thread_id: c.threadId } : {}),
-        text: html,
-        parse_mode: 'HTML',
-        link_preview_options: { is_disabled: true },
-      }),
-    })
-    if (!res.ok) {
-      console.error(
-        '[ledger-feed] sendMessage failed',
-        res.status,
-        await res.text().catch(() => ''),
-      )
-      return null
-    }
-    const data = (await res.json()) as {
-      ok: boolean
-      result?: { message_id: number }
-    }
-    return data.ok ? (data.result?.message_id ?? null) : null
-  } catch (e) {
-    console.error('[ledger-feed] sendMessage error', e)
+  const res = await botCall('sendMessage', {
+    chat_id: c.chatId,
+    ...(c.threadId !== undefined ? { message_thread_id: c.threadId } : {}),
+    text: html,
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true },
+  })
+  if (!res) return null
+  if (!res.ok) {
+    console.error(
+      '[ledger-feed] sendMessage failed',
+      res.status,
+      await res.text().catch(() => ''),
+    )
     return null
   }
+  const data = (await res.json().catch(() => null)) as {
+    ok: boolean
+    result?: { message_id: number }
+  } | null
+  return data?.ok ? (data.result?.message_id ?? null) : null
 }
 
 /**
@@ -87,30 +106,20 @@ export async function editLedgerMessage(
   messageId: number,
   html: string,
 ): Promise<boolean> {
-  const c = feedConfig()
-  if (!c) return false
-  try {
-    const res = await fetch(`${API}/bot${c.token}/editMessageText`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: c.chatId,
-        message_id: messageId,
-        text: html,
-        parse_mode: 'HTML',
-        link_preview_options: { is_disabled: true },
-      }),
-    })
-    if (!res.ok) {
-      console.error(
-        '[ledger-feed] editMessage failed',
-        res.status,
-        await res.text().catch(() => ''),
-      )
-    }
-    return res.ok
-  } catch (e) {
-    console.error('[ledger-feed] editMessage error', e)
-    return false
+  const res = await botCall('editMessageText', {
+    chat_id: feedConfig()?.chatId,
+    message_id: messageId,
+    text: html,
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true },
+  })
+  if (!res) return false
+  if (!res.ok) {
+    console.error(
+      '[ledger-feed] editMessage failed',
+      res.status,
+      await res.text().catch(() => ''),
+    )
   }
+  return res.ok
 }

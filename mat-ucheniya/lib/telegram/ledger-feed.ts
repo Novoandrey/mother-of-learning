@@ -9,6 +9,7 @@
  * instantly when the feed isn't configured (staging/dev — see bot.ts).
  */
 
+import { after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ledgerFeedConfigured, sendLedgerMessage } from '@/lib/telegram/bot'
 import {
@@ -64,17 +65,29 @@ async function resolveNames(
 }
 
 /**
- * Resolve names, format, and post an event to the ledger topic. Await it from
- * the transaction actions after a successful write. Never throws and does zero
- * work when the feed isn't configured, so it's safe on every path.
+ * Post an event to the ledger topic — OFF the write's critical path.
+ *
+ * Callers `await` this, but it returns almost immediately: the actual name
+ * resolution + Telegram send are handed to `after()`, which runs them once the
+ * response is sent. So a slow or unreachable Telegram (the bot fetch is also
+ * timeout-bounded) can never delay, block, or hang the transaction that
+ * triggered it. Never throws; does zero work when the feed isn't configured.
  */
 export async function notifyLedgerEvent(event: LedgerEvent): Promise<void> {
+  if (!ledgerFeedConfigured()) return
   try {
-    if (!ledgerFeedConfigured()) return
-    const admin = createAdminClient()
-    const names = await resolveNames(admin, event)
-    await sendLedgerMessage(formatLedgerEvent(event, names))
+    after(async () => {
+      try {
+        const admin = createAdminClient()
+        const names = await resolveNames(admin, event)
+        await sendLedgerMessage(formatLedgerEvent(event, names))
+      } catch (e) {
+        console.error('[ledger-feed] notify error', e)
+      }
+    })
   } catch (e) {
-    console.error('[ledger-feed] notify error', e)
+    // after() outside a request scope (shouldn't happen from actions) — degrade
+    // to a silent no-op rather than let it bubble into the write path.
+    console.error('[ledger-feed] after() unavailable', e)
   }
 }
