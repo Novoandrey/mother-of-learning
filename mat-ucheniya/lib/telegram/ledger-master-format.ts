@@ -73,9 +73,17 @@ export function renderMasterMessageHtml(state: MasterState): string {
 
   const stash = `💰 Общак: <b>${zm(state.stashGp)}</b>`
 
-  const pcBlock = state.pcs.length
-    ? state.pcs.map((p) => `• ${esc(p.title)} — ${zm(p.gp)}`).join('\n')
-    : '<i>Пока нет персонажей.</i>'
+  // Hide exact-zero PC balances so the dashboard doesn't fill with
+  // "• Name — 0 зм": balances are per-loop, so most PCs sit at 0 early in a
+  // loop. Negative balances are kept (a real state worth surfacing). The общак
+  // line above always shows, even at 0 — it's the headline number, not clutter.
+  const shownPcs = state.pcs.filter((p) => p.gp !== 0)
+  const pcBlock =
+    state.pcs.length === 0
+      ? '<i>Пока нет персонажей.</i>'
+      : shownPcs.length === 0
+        ? '<i>Все балансы по нулям.</i>'
+        : shownPcs.map((p) => `• ${esc(p.title)} — ${zm(p.gp)}`).join('\n')
 
   const dashboard = `${head}\n\n${stash}\n\n${pcBlock}`
 

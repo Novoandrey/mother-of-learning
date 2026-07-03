@@ -75,7 +75,10 @@ refresh trigger + per-loop rotation** — not a build.
 - **FR-001** The master message MUST show: current loop number, общак (stash)
   gp balance, and each campaign PC's **money** balance (gp-aggregate; **no**
   item holdings). The recent transaction feed MUST sit under a collapsible
-  `<blockquote expandable>` in the same message.
+  `<blockquote expandable>` in the same message. PC lines with an **exact-zero**
+  balance are hidden to cut clutter (balances are per-loop, so most PCs sit at 0
+  early in a loop); negative balances are shown; the общак line always shows.
+  When every PC is at zero, a single «все по нулям» note replaces the list.
 - **FR-002** The message MUST be re-rendered and edited in place on **every**
   ledger event, from inside `notifyLedgerEvent`'s `after()` — off the write
   path. A failure to refresh MUST NOT throw into the event send or the write.
