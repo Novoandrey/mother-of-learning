@@ -30,6 +30,8 @@ import {
   resolveSpend,
   resolveEarn,
   signedCoinsToStored,
+  aggregateGp,
+  computeShortfall,
   DENOMINATIONS,
 } from '@/lib/transaction-resolver'
 import {
@@ -40,6 +42,14 @@ import {
 } from '@/lib/transaction-validation'
 import { getItemById } from '@/lib/items'
 import { getWallet } from '@/lib/transactions'
+import { getStashNode } from '@/lib/stash'
+import { parseItemDefaultPrices } from '@/lib/item-default-prices'
+import {
+  parseItemPurchasePolicy,
+  normalizeRarity,
+  resolveBuyUnitPriceGp,
+  approvalRequiredFor,
+} from '@/lib/item-purchase-policy'
 
 export type ActionResult<T = object> =
   | ({ ok: true } & T)
@@ -151,6 +161,36 @@ async function resolveCoinsForMoney(
   return signedCoinsToStored(false, resolveEarn(amountGp))
 }
 
+/**
+ * Resolve a spend AND verify it fully covers `absGp` — one wallet fetch.
+ *
+ * `resolveSpend` deliberately returns a *partial* set when holdings fall short
+ * (it's a pure helper; the caller owns "insufficient funds"). Before spec-030
+ * only a fully-zero result was rejected, so a spend of 10 gp against a 3 gp
+ * wallet silently moved 3 gp — real money leaving without the user asking.
+ * This guards it, mirroring the item path's `owned < qty`. Two failure modes,
+ * distinct messages: not enough total vs. enough total but can't make change
+ * (e.g. one platinum, spend 3 gp — resolveSpend won't break the coin).
+ */
+async function resolveAndCheckSpend(
+  actorPcId: string,
+  loopNumber: number,
+  absGp: number,
+): Promise<{ ok: true; coins: CoinSet } | { ok: false; error: string }> {
+  const wallet = await getWallet(actorPcId, loopNumber)
+  const coins = resolveSpend(wallet.coins, absGp)
+  const covered = Math.abs(aggregateGp(coins))
+  if (covered + 1e-9 >= absGp) return { ok: true, coins }
+  const have = aggregateGp(wallet.coins)
+  return {
+    ok: false,
+    error:
+      have + 1e-9 < absGp
+        ? `Недостаточно монет — доступно ${Math.round(have * 100) / 100} зм`
+        : 'Недостаточно монет для операции без размена',
+  }
+}
+
 // ============================================================================
 // createTransaction
 // ============================================================================
@@ -181,21 +221,24 @@ export async function createTransaction(
     } else {
       const amountErr = validateAmountSign(input.amountGp)
       if (amountErr) return { ok: false, error: amountErr }
-      coins = await resolveCoinsForMoney(
-        input.actorPcId,
-        input.loopNumber,
-        input.amountGp!,
-        undefined,
-      )
-      // Defensive: resolver shouldn't produce all-zero except for
-      // insufficient-holdings on a spend. If that happens, surface it —
-      // silently inserting a 0-coin row would also fail the CHECK.
-      const anyNonZero = DENOMINATIONS.some((d) => coins[d] !== 0)
-      if (!anyNonZero) {
-        return {
-          ok: false,
-          error: 'Недостаточно монет для операции без размена',
-        }
+      if (input.amountGp! < 0) {
+        // Spend: resolve + verify it fully covers the amount (guards a silent
+        // partial spend — see resolveAndCheckSpend).
+        const res = await resolveAndCheckSpend(
+          input.actorPcId,
+          input.loopNumber,
+          Math.abs(input.amountGp!),
+        )
+        if (!res.ok) return { ok: false, error: res.error }
+        coins = res.coins
+      } else {
+        // Earn: credit to the gp pile, no coverage check.
+        coins = await resolveCoinsForMoney(
+          input.actorPcId,
+          input.loopNumber,
+          input.amountGp!,
+          undefined,
+        )
       }
     }
   } else {
@@ -289,9 +332,9 @@ export async function createTransaction(
  * no DM approval, but only once per loop. Server-controlled end to end: the
  * client picks nothing but which PC, so the amount and the once-per-loop rule
  * can't be tampered with. The guard SELECT covers normal use (and disables the
- * button); a true concurrent double-tap is the only gap and is harmless for a
- * trusted table — add a partial unique index on (campaign_id, actor_pc_id,
- * loop_number) WHERE category_slug='credit' if hard enforcement is ever needed.
+ * button); a concurrent double-tap that races past it is caught hard by the
+ * partial unique index `uniq_loop_credit` (mig 123) — the second insert fails
+ * with 23505 and we surface it as the same friendly "already taken".
  */
 export async function takeLoopCredit(
   campaignId: string,
@@ -352,6 +395,11 @@ export async function takeLoopCredit(
     .single()
 
   if (error) {
+    // Concurrent double-tap raced past the guard SELECT → the partial unique
+    // index (mig 123) rejects the second insert. Same friendly message.
+    if ((error as { code?: string }).code === '23505') {
+      return { ok: false, error: 'Кредит за эту петлю уже взят' }
+    }
     return { ok: false, error: `Не удалось взять кредит: ${error.message}` }
   }
   return { ok: true, id: (data as { id: string }).id }
@@ -710,19 +758,16 @@ export async function createTransfer(
     const amountErr = validateAmountSign(input.amountGp)
     if (amountErr) return { ok: false, error: amountErr }
     const absAmount = Math.abs(input.amountGp)
-    senderCoins = await resolveCoinsForMoney(
+    // Verify the sender can cover the full transfer. A partial would silently
+    // move less than asked — общак-take of 10 gp from a 3 gp pool moved 3 with
+    // no warning (items were already guarded by `owned < qty`; money wasn't).
+    const res = await resolveAndCheckSpend(
       input.senderPcId,
       input.loopNumber,
-      -absAmount, // force spend path
-      undefined,
+      absAmount,
     )
-    const anyNonZero = DENOMINATIONS.some((d) => senderCoins[d] !== 0)
-    if (!anyNonZero) {
-      return {
-        ok: false,
-        error: 'Недостаточно монет для перевода без размена',
-      }
-    }
+    if (!res.ok) return { ok: false, error: res.error }
+    senderCoins = res.coins
   }
 
   // Mirror recipient inflow — same magnitude, opposite sign.
@@ -1188,6 +1233,232 @@ export type SubmitBatchResult =
       /** clientId of the row that broke, if known. */
       failedClientId?: string
     }
+
+// ============================================================================
+// createPurchase (spec-052 — C-02 / C-13 / C-14)
+// ============================================================================
+
+export type PurchaseFundingSource = 'pc' | 'pc_with_stash' | 'stash'
+
+export type CreatePurchaseInput = {
+  campaignId: string
+  /** PC that receives the item and (for 'pc'/'pc_with_stash') pays. */
+  buyerPcId: string
+  /** Catalog item being bought (its title is snapshotted on the item leg). */
+  itemNodeId: string
+  /** Integer ≥ 1; default 1. */
+  qty?: number
+  fundingSource: PurchaseFundingSource
+  loopNumber: number
+  dayInLoop: number
+  sessionId?: string | null
+  comment?: string
+  /** Set-buy (T027): share one batch across the set's items. */
+  batchId?: string
+  /**
+   * Set-buy (C-16): aggregated approval decision overriding the item's own
+   * rarity gate. Single buys leave it undefined → rarity decides.
+   */
+  forceStatus?: 'approved' | 'pending'
+}
+
+/**
+ * Buy a catalog item for gold (US2). Writes a money leg (−gp) + an item leg
+ * (+qty) sharing a `transfer_group_id` under the 'purchase' category (C-02);
+ * the accounting backend is otherwise untouched (FR-041). Unit price =
+ * round((item.price_gp ?? rarity-default[bucket]) × coefficient[rarity])
+ * (C-13). Approval is decided by the item's rarity, funding-agnostic (C-14).
+ * Funding source is player-selected (C-01):
+ *   - 'pc'            money leg on the buyer (own wallet)
+ *   - 'stash'         money leg on the общак node (общак pays directly)
+ *   - 'pc_with_stash' общак tops up the shortfall first, then the buyer pays.
+ *                     Auto-approved buys only — a *pending* top-up can't be
+ *                     coin-distributed before it is applied, so a rarity-gated
+ *                     buy must use 'pc' or 'stash'.
+ */
+export async function createPurchase(
+  input: CreatePurchaseInput,
+): Promise<ActionResult<{ groupId: string; status: 'approved' | 'pending' }>> {
+  if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
+  if (!input.buyerPcId) return { ok: false, error: 'Не выбран персонаж' }
+  if (!input.itemNodeId) return { ok: false, error: 'Не выбран предмет' }
+
+  const qty = input.qty ?? 1
+  const qtyErr = validateItemQty(qty)
+  if (qtyErr) return { ok: false, error: qtyErr }
+
+  const dayErr = validateDayInLoop(input.dayInLoop, 365)
+  if (dayErr) return { ok: false, error: dayErr }
+
+  // --- Resolve item + «нельзя купить» guard (C-15) ---
+  const item = await getItemById(input.campaignId, input.itemNodeId)
+  if (!item) return { ok: false, error: 'Предмет не найден в каталоге' }
+  if (item.noPurchase) {
+    return { ok: false, error: `«${item.title}» помечен как «нельзя купить»` }
+  }
+
+  // --- Price: (price_gp ?? rarity-default[bucket]) × coefficient[rarity] ---
+  const admin = createAdminClient()
+  const { data: campRow, error: campErr } = await admin
+    .from('campaigns')
+    .select('settings')
+    .eq('id', input.campaignId)
+    .single()
+  if (campErr) {
+    return { ok: false, error: `Не удалось прочитать настройки: ${campErr.message}` }
+  }
+  const settings =
+    (campRow as { settings?: Record<string, unknown> }).settings ?? {}
+  const defaults = parseItemDefaultPrices(settings.item_default_prices)
+  const policy = parseItemPurchasePolicy(settings.item_purchase_policy)
+  const rarity = normalizeRarity(item.rarity)
+  const unitGp = resolveBuyUnitPriceGp({
+    priceGp: item.priceGp,
+    categorySlug: item.categorySlug,
+    rarity,
+    defaults,
+    policy,
+  })
+  if (unitGp == null) {
+    return { ok: false, error: `У «${item.title}» нет цены — покупка недоступна` }
+  }
+  const totalGp = unitGp * qty
+
+  // --- Auth + ownership ---
+  const auth = await resolveAuth(input.campaignId)
+  if (!auth.ok) return auth
+  if (auth.role === 'player') {
+    const owned = await isPcOwner(input.buyerPcId, auth.userId)
+    if (!owned) return { ok: false, error: 'Нельзя покупать за чужого персонажа' }
+  }
+
+  // --- Approval gate: rarity-driven, funding-agnostic (C-14); set-buy may
+  //     override with the aggregated decision (C-16). ---
+  const needsApproval =
+    input.forceStatus != null
+      ? input.forceStatus === 'pending'
+      : approvalRequiredFor(policy, rarity)
+  const status: 'approved' | 'pending' = needsApproval ? 'pending' : 'approved'
+  const nowIso = new Date().toISOString()
+  const batchId =
+    input.batchId ?? (status === 'pending' ? crypto.randomUUID() : null)
+
+  const stash = await getStashNode(input.campaignId)
+
+  // --- Affordability per funding source — no implicit credit (C-01) ---
+  if (input.fundingSource === 'pc') {
+    const w = await getWallet(input.buyerPcId, input.loopNumber)
+    if (w.aggregate_gp < totalGp) return { ok: false, error: 'Недостаточно золота' }
+  } else if (input.fundingSource === 'stash') {
+    if (!stash) return { ok: false, error: 'Общак не найден' }
+    const w = await getWallet(stash.nodeId, input.loopNumber)
+    if (w.aggregate_gp < totalGp) {
+      return { ok: false, error: 'В общаке недостаточно золота' }
+    }
+  } else {
+    // pc_with_stash
+    if (!stash) return { ok: false, error: 'Общак не найден' }
+    if (status === 'pending') {
+      return {
+        ok: false,
+        error:
+          'Покрытие из общака недоступно для предметов на одобрении — купи за свои или из общака напрямую',
+      }
+    }
+    const [pcW, stashW] = await Promise.all([
+      getWallet(input.buyerPcId, input.loopNumber),
+      getWallet(stash.nodeId, input.loopNumber),
+    ])
+    const { toBorrow, remainderNegative } = computeShortfall(
+      pcW.aggregate_gp,
+      totalGp,
+      stashW.aggregate_gp,
+    )
+    if (remainderNegative > 0) {
+      return { ok: false, error: 'Недостаточно золота даже с общаком' }
+    }
+    // Top up the shortfall first (общак → PC), auto-approved, same batch.
+    if (toBorrow > 0) {
+      const topup = await createTransfer({
+        campaignId: input.campaignId,
+        senderPcId: stash.nodeId,
+        recipientPcId: input.buyerPcId,
+        amountGp: toBorrow,
+        categorySlug: 'transfer',
+        comment: `Покрытие: ${item.title}`,
+        loopNumber: input.loopNumber,
+        dayInLoop: input.dayInLoop,
+        sessionId: input.sessionId ?? null,
+        autoApprove: true,
+        batchId: batchId ?? undefined,
+      })
+      if (!topup.ok) return topup
+    }
+  }
+
+  // --- Money leg + item leg, shared group, 'purchase' category ---
+  const payerNode =
+    input.fundingSource === 'stash' ? stash!.nodeId : input.buyerPcId
+  const spendCoins = await resolveCoinsForMoney(
+    payerNode,
+    input.loopNumber,
+    -totalGp,
+    undefined,
+  )
+  if (!DENOMINATIONS.some((d) => spendCoins[d] !== 0)) {
+    return { ok: false, error: 'Недостаточно монет для покупки без размена' }
+  }
+
+  const groupId = crypto.randomUUID()
+  const comment =
+    input.comment ?? `Покупка: ${item.title}${qty > 1 ? ` ×${qty}` : ''}`
+  const baseRow = {
+    campaign_id: input.campaignId,
+    category_slug: 'purchase',
+    comment,
+    loop_number: input.loopNumber,
+    day_in_loop: input.dayInLoop,
+    session_id: input.sessionId ?? null,
+    transfer_group_id: groupId,
+    status,
+    author_user_id: auth.userId,
+    batch_id: batchId,
+    approved_by_user_id: status === 'approved' ? auth.userId : null,
+    approved_at: status === 'approved' ? nowIso : null,
+  }
+
+  const { error } = await admin.from('transactions').insert([
+    {
+      ...baseRow,
+      actor_pc_id: payerNode,
+      kind: 'money',
+      amount_cp: spendCoins.cp,
+      amount_sp: spendCoins.sp,
+      amount_gp: spendCoins.gp,
+      amount_pp: spendCoins.pp,
+      item_name: null,
+      item_node_id: null,
+      item_qty: 1,
+    },
+    {
+      ...baseRow,
+      actor_pc_id: input.buyerPcId,
+      kind: 'item',
+      amount_cp: 0,
+      amount_sp: 0,
+      amount_gp: 0,
+      amount_pp: 0,
+      item_name: item.title,
+      item_node_id: input.itemNodeId,
+      item_qty: qty,
+    },
+  ])
+  if (error) {
+    return { ok: false, error: `Не удалось сохранить покупку: ${error.message}` }
+  }
+
+  return { ok: true, groupId, status }
+}
 
 export async function submitBatch(
   input: SubmitBatchInput,

@@ -13,11 +13,20 @@ import {
   getAllBalancesTg,
   searchCampaignItemsTg,
   getPcItemHoldingsTg,
+  getPcInventoryTg,
+  getMyPendingTg,
+  searchBuyableItemsTg,
+  getCampaignBuyConfigTg,
+  getCampaignSetsTg,
   hasLoopCreditTg,
   getStashItemHoldingsTg,
   type TgWallet,
+  type TgRole,
   type TgFeedRow,
   type TgBalanceRow,
+  type PcInventoryRowTg,
+  type BuyableItemTg,
+  type CampaignSetTg,
 } from '@/lib/queries/ledger-tg'
 import {
   formatDenoms,
@@ -30,9 +39,26 @@ import {
 import {
   createTransaction,
   createTransfer,
+  createItemTransfer,
+  createPurchase,
+  deleteTransaction,
+  deleteTransfer,
   submitBatch,
   takeLoopCredit,
 } from '@/app/actions/transactions'
+import {
+  resolveBuyUnitPriceGp,
+  approvalRequiredFor,
+  normalizeRarity,
+} from '@/lib/item-purchase-policy'
+import { setEquipped } from '@/app/actions/equipped'
+import {
+  createSet,
+  updateSet,
+  deleteSet,
+  buyItems,
+  type SetItem,
+} from '@/app/actions/sets'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import {
   putMoneyIntoStash,
@@ -266,6 +292,8 @@ export function PcHome({
   showBack,
   onBack,
   onOpenLedger,
+  onOpenInventory,
+  onOpenRequests,
   onOpenBalances,
   onOpenEquip,
   onOpenWiki,
@@ -274,6 +302,8 @@ export function PcHome({
   showBack: boolean
   onBack: () => void
   onOpenLedger: () => void
+  onOpenInventory: () => void
+  onOpenRequests: () => void
   onOpenBalances?: () => void
   onOpenEquip?: () => void
   onOpenWiki?: () => void
@@ -294,14 +324,18 @@ export function PcHome({
       {/* Per-PC app launcher (C-04), pinned at the bottom. Every action is a
           visible button — balances + starter were buried in a ⋮ menu before
           (nobody found them); an even flex row adapts to 3 or 4 actions. */}
-      <div className="mt-3 flex shrink-0 gap-2">
+      <div className="mt-3 grid shrink-0 grid-cols-3 gap-2">
         <AppButton icon="🛍" label="Деньги" onClick={onOpenLedger} />
+        <AppButton icon="🎒" label="Сумка" onClick={onOpenInventory} />
         <AppButton icon="📖" label="Каталог" onClick={onOpenWiki} disabled={!onOpenWiki} />
         {onOpenBalances && (
           <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />
         )}
+        {character.isOwn && (
+          <AppButton icon="📋" label="Заявки" onClick={onOpenRequests} />
+        )}
         {character.isOwn && onOpenEquip && (
-          <AppButton icon="🎒" label="Снаряжение" onClick={onOpenEquip} />
+          <AppButton icon="🎽" label="Снаряжение" onClick={onOpenEquip} />
         )}
       </div>
     </div>
@@ -622,6 +656,7 @@ function TransferSheet({
   actorPcId,
   others,
   initialDir,
+  initialAsset,
   onClose,
   onDone,
 }: {
@@ -631,10 +666,11 @@ function TransferSheet({
   actorPcId: string
   others: CampaignCharacter[]
   initialDir: TransferDir
+  initialAsset?: 'money' | 'item'
   onClose: () => void
   onDone: () => void
 }) {
-  const [asset, setAsset] = useState<'money' | 'item'>('money')
+  const [asset, setAsset] = useState<'money' | 'item'>(initialAsset ?? 'money')
   const [dir, setDir] = useState<TransferDir>(initialDir)
   const [recipient, setRecipient] = useState<string>(others[0]?.id ?? '')
   const [amount, setAmount] = useState('')
@@ -674,13 +710,13 @@ function TransferSheet({
 
   const switchAsset = (a: 'money' | 'item') => {
     setAsset(a)
-    if (a === 'item' && dir === 'player') setDir('to-stash')
     setError(null)
   }
 
   const dirOptions: { value: TransferDir; label: string }[] =
     asset === 'item'
       ? [
+          { value: 'player', label: 'Игроку' },
           { value: 'to-stash', label: 'В общак' },
           { value: 'from-stash', label: 'Из общака' },
         ]
@@ -709,6 +745,10 @@ function TransferSheet({
         setError(dir === 'from-stash' ? `В общаке только ${avail}` : `У тебя только ${avail}`)
         return
       }
+      if (dir === 'player' && !recipient) {
+        setError('Выберите получателя')
+        return
+      }
       setBusy(true)
       const payload = {
         campaignId,
@@ -720,7 +760,21 @@ function TransferSheet({
         dayInLoop: 1,
       }
       const res =
-        dir === 'from-stash' ? await takeItemFromStash(payload) : await putItemIntoStash(payload)
+        dir === 'player'
+          ? await createItemTransfer({
+              campaignId,
+              senderPcId: actorPcId,
+              recipientPcId: recipient,
+              itemName: name,
+              qty: n,
+              categorySlug: 'transfer',
+              comment: comment.trim(),
+              loopNumber,
+              dayInLoop: 1,
+            })
+          : dir === 'from-stash'
+            ? await takeItemFromStash(payload)
+            : await putItemIntoStash(payload)
       setBusy(false)
       if (!res.ok) {
         setError(res.error)
@@ -787,8 +841,7 @@ function TransferSheet({
         />
         <SegToggle value={dir} onChange={setDir} options={dirOptions} />
 
-        {asset === 'money' &&
-          dir === 'player' &&
+        {dir === 'player' &&
           (others.length > 0 ? (
             <select
               className={FIELD}
@@ -886,6 +939,7 @@ export function LedgerScreen({
   const [data, setData] = useState<LedgerData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'none' | 'record' | 'transfer'>('none')
 
   const reload = useCallback(async () => {
@@ -919,6 +973,7 @@ export function LedgerScreen({
   const loadMore = useCallback(async () => {
     if (!data?.nextCursor || loadingMore) return
     setLoadingMore(true)
+    setMoreError(null)
     try {
       const more = await getFeedTg(supabase, character.id, loopNumber, {
         before: data.nextCursor,
@@ -927,6 +982,9 @@ export function LedgerScreen({
       setData((d) =>
         d ? { ...d, rows: [...d.rows, ...more.rows], nextCursor: more.nextCursor } : d,
       )
+    } catch {
+      // Feedback instead of a silently-stuck button (spec-030 UX pass).
+      setMoreError('Не удалось подгрузить — нажми ещё раз.')
     } finally {
       setLoadingMore(false)
     }
@@ -967,6 +1025,9 @@ export function LedgerScreen({
               >
                 {loadingMore ? 'Загрузка…' : 'Показать ещё'}
               </button>
+            )}
+            {moreError && (
+              <p className="mt-2 text-center text-xs text-red-400">{moreError}</p>
             )}
           </div>
         </>
@@ -1098,6 +1159,1070 @@ export function StashScreen({
         />
       )}
     </div>
+  )
+}
+
+// ─────────────────────────── spec-052 — inventory (US1/US3) ───────────────────────────
+
+// T017 — buy a catalog item for gold (US2). Search → preview price → pick qty +
+// funding source → createPurchase. Excludes «нельзя купить» + priceless items.
+function BuySheet({
+  supabase,
+  campaignId,
+  loopNumber,
+  buyerPcId,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  buyerPcId: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [config, setConfig] = useState<Awaited<
+    ReturnType<typeof getCampaignBuyConfigTg>
+  > | null>(null)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<BuyableItemTg[]>([])
+  const [picked, setPicked] = useState<BuyableItemTg | null>(null)
+  const [qty, setQty] = useState('1')
+  const [funding, setFunding] = useState<'pc' | 'pc_with_stash' | 'stash'>('pc')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const c = await getCampaignBuyConfigTg(supabase, campaignId)
+        if (alive) setConfig(c)
+      } catch {
+        /* preview just won't render; createPurchase still validates server-side */
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId])
+
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return // stale results are hidden by the render guard below
+    let alive = true
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchBuyableItemsTg(supabase, campaignId, q)
+        if (alive) setResults(r)
+      } catch {
+        if (alive) setResults([])
+      }
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [query, supabase, campaignId])
+
+  const n = Math.max(0, parseInt(qty, 10) || 0)
+  const unitGp =
+    picked && config
+      ? resolveBuyUnitPriceGp({
+          priceGp: picked.priceGp,
+          categorySlug: picked.categorySlug,
+          rarity: normalizeRarity(picked.rarity),
+          defaults: config.defaults,
+          policy: config.policy,
+        })
+      : null
+  const totalGp = unitGp != null ? unitGp * Math.max(1, n) : null
+  const needsApproval =
+    picked && config
+      ? approvalRequiredFor(config.policy, normalizeRarity(picked.rarity))
+      : false
+
+  const submit = async () => {
+    setError(null)
+    if (!picked) {
+      setError('Выберите предмет')
+      return
+    }
+    if (n < 1) {
+      setError('Количество ≥ 1')
+      return
+    }
+    if (unitGp == null) {
+      setError('У предмета нет цены — покупка недоступна')
+      return
+    }
+    setBusy(true)
+    const res = await createPurchase({
+      campaignId,
+      buyerPcId,
+      itemNodeId: picked.id,
+      qty: n,
+      fundingSource: funding,
+      loopNumber,
+      dayInLoop: 1,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title="Купить" onClose={onClose}>
+      <div className="space-y-3">
+        {!picked ? (
+          <>
+            <input
+              className={FIELD}
+              placeholder="Поиск предмета…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
+            />
+            {query.trim() !== '' && results.length > 0 && (
+              <div className="max-h-60 overflow-y-auto rounded-lg bg-neutral-900">
+                {results.map((it) => (
+                  <button
+                    key={it.id}
+                    onClick={() => {
+                      setPicked(it)
+                      setError(null)
+                    }}
+                    className="block w-full border-b border-neutral-800 px-3 py-2 text-left text-sm text-neutral-100 last:border-0 hover:bg-neutral-800"
+                  >
+                    {it.title}
+                  </button>
+                ))}
+              </div>
+            )}
+            {query.trim() !== '' && results.length === 0 && (
+              <p className="text-sm text-neutral-500">Ничего не найдено.</p>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between rounded-lg bg-neutral-900 px-3 py-2">
+              <span className="text-sm text-neutral-100">{picked.title}</span>
+              <button
+                onClick={() => {
+                  setPicked(null)
+                  setError(null)
+                }}
+                className="text-xs text-neutral-400 hover:text-neutral-200"
+              >
+                сменить
+              </button>
+            </div>
+
+            {unitGp == null ? (
+              <p className="text-sm text-amber-400">
+                У этого предмета нет цены — купить нельзя.
+              </p>
+            ) : (
+              <>
+                <input
+                  className={FIELD}
+                  inputMode="numeric"
+                  placeholder="Количество"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                />
+                <SegToggle
+                  value={funding}
+                  onChange={setFunding}
+                  options={[
+                    { value: 'pc', label: 'За свои' },
+                    { value: 'pc_with_stash', label: 'Свои+общак' },
+                    { value: 'stash', label: 'Из общака' },
+                  ]}
+                />
+                <div className="rounded-lg bg-neutral-900 px-3 py-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-400">Цена за шт.</span>
+                    <span className="font-mono tabular-nums text-neutral-200">
+                      {formatGp(unitGp)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex justify-between">
+                    <span className="text-neutral-400">Итого</span>
+                    <span className="font-mono tabular-nums text-neutral-100">
+                      {totalGp != null ? formatGp(totalGp) : '—'}
+                    </span>
+                  </div>
+                  {needsApproval && (
+                    <div className="mt-1 text-xs text-amber-400/80">
+                      Уйдёт ведущему на одобрение.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {picked && unitGp != null && (
+        <SubmitButton busy={busy} onClick={submit}>
+          Купить
+        </SubmitButton>
+      )}
+    </Sheet>
+  )
+}
+
+export function InventoryScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  character,
+  others,
+  onOpenSets,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  character: CampaignCharacter
+  others: CampaignCharacter[]
+  onOpenSets: () => void
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [rows, setRows] = useState<PcInventoryRowTg[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<'none' | 'move' | 'buy'>('none')
+  const [togglingName, setTogglingName] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    const inv = await getPcInventoryTg(supabase, campaignId, character.id, loopNumber)
+    setRows(inv)
+  }, [supabase, campaignId, character.id, loopNumber])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const inv = await getPcInventoryTg(
+          supabase,
+          campaignId,
+          character.id,
+          loopNumber,
+        )
+        if (alive) setRows(inv)
+      } catch {
+        if (alive) setError('Не удалось загрузить инвентарь.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, character.id, loopNumber, refreshKey])
+
+  const carried = (rows ?? []).filter((r) => !r.equipped)
+  const equipped = (rows ?? []).filter((r) => r.equipped)
+  const ATTUNE_CAP = 3
+  const attunedCount = (rows ?? []).filter(
+    (r) => r.equipped && r.requiresAttunement,
+  ).length
+
+  const toggleEquip = async (row: PcInventoryRowTg) => {
+    setError(null)
+    setTogglingName(row.name)
+    const res = await setEquipped({
+      campaignId,
+      pcId: character.id,
+      itemName: row.name,
+      loopNumber,
+      equipped: !row.equipped,
+    })
+    setTogglingName(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await reload()
+  }
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-3 text-lg font-semibold">Сумка — {character.title}</h1>
+      {error && <Centered>{error}</Centered>}
+      {!error && !rows && <Centered>Загрузка…</Centered>}
+      {rows && (
+        <>
+          {character.isOwn && (
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              <button
+                onClick={() => setSheet('buy')}
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Купить
+              </button>
+              <button
+                onClick={onOpenSets}
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Наборы
+              </button>
+              <button
+                onClick={() => setSheet('move')}
+                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+              >
+                Переместить
+              </button>
+            </div>
+          )}
+          {attunedCount > ATTUNE_CAP && (
+            <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              Настроено {attunedCount} из {ATTUNE_CAP} — превышен лимит (5e:
+              максимум 3 предмета с настройкой). Это просто предупреждение.
+            </div>
+          )}
+          {rows.length === 0 ? (
+            <Centered>Пусто. Предметы появятся после покупок и переводов.</Centered>
+          ) : (
+            <div className="space-y-4">
+              {equipped.length > 0 && (
+                <InventorySection title="Надето">
+                  {equipped.map((r) => (
+                    <InventoryRow
+                      key={r.name}
+                      row={r}
+                      onToggleEquip={
+                        character.isOwn ? () => void toggleEquip(r) : undefined
+                      }
+                      busy={togglingName === r.name}
+                    />
+                  ))}
+                </InventorySection>
+              )}
+              <InventorySection title="В сумке">
+                {carried.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-neutral-500">
+                    — всё надето —
+                  </div>
+                ) : (
+                  carried.map((r) => (
+                    <InventoryRow
+                      key={r.name}
+                      row={r}
+                      onToggleEquip={
+                        character.isOwn ? () => void toggleEquip(r) : undefined
+                      }
+                      busy={togglingName === r.name}
+                    />
+                  ))
+                )}
+              </InventorySection>
+            </div>
+          )}
+        </>
+      )}
+      {sheet === 'move' && (
+        <TransferSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          actorPcId={character.id}
+          others={others}
+          initialDir="to-stash"
+          initialAsset="item"
+          onClose={() => setSheet('none')}
+          onDone={() => void reload()}
+        />
+      )}
+      {sheet === 'buy' && (
+        <BuySheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          buyerPcId={character.id}
+          onClose={() => setSheet('none')}
+          onDone={() => void reload()}
+        />
+      )}
+    </div>
+  )
+}
+
+function InventorySection({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+        {title}
+      </h2>
+      <div className="overflow-hidden rounded-lg bg-neutral-900">{children}</div>
+    </div>
+  )
+}
+
+function InventoryRow({
+  row,
+  onToggleEquip,
+  busy,
+}: {
+  row: PcInventoryRowTg
+  onToggleEquip?: () => void
+  busy?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2 last:border-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-sm text-neutral-100">{row.name}</span>
+        {row.requiresAttunement && (
+          <span title="Требует настройки" className="shrink-0 text-xs text-amber-400/80">
+            ✦
+          </span>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="font-mono text-sm tabular-nums text-neutral-400">
+          ×{row.qty}
+        </span>
+        {onToggleEquip && (
+          <button
+            onClick={onToggleEquip}
+            disabled={busy}
+            className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+          >
+            {busy ? '…' : row.equipped ? 'Снять' : 'Надеть'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────── spec-052 — «Мои заявки» (US1) ───────────────────────────
+
+export function RequestsScreen({
+  supabase,
+  pcId,
+  pcTitle,
+  userId,
+  categories,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  pcId: string
+  pcTitle: string
+  userId: string
+  categories: Map<string, string>
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [rows, setRows] = useState<TgFeedRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      setRows(await getMyPendingTg(supabase, pcId))
+    } catch {
+      setError('Не удалось загрузить заявки.')
+    }
+  }, [supabase, pcId])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await getMyPendingTg(supabase, pcId)
+        if (alive) setRows(r)
+      } catch {
+        if (alive) setError('Не удалось загрузить заявки.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, pcId, refreshKey])
+
+  // One entry per transfer (dedupe the sender/recipient legs by group).
+  const seen = new Set<string>()
+  const entries = (rows ?? []).filter((r) => {
+    if (r.kind === 'transfer' && r.transferGroupId) {
+      if (seen.has(r.transferGroupId)) return false
+      seen.add(r.transferGroupId)
+    }
+    return true
+  })
+
+  const cancel = async (r: TgFeedRow) => {
+    setError(null)
+    setBusyId(r.id)
+    const res =
+      r.kind === 'transfer' && r.transferGroupId
+        ? await deleteTransfer(r.transferGroupId)
+        : await deleteTransaction(r.id)
+    setBusyId(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await reload()
+  }
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-3 text-lg font-semibold">Мои заявки — {pcTitle}</h1>
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      {!rows && <Centered>Загрузка…</Centered>}
+      {rows && entries.length === 0 && <Centered>Нет заявок на рассмотрении.</Centered>}
+      {entries.length > 0 && (
+        <div className="overflow-hidden rounded-lg bg-neutral-900">
+          {entries.map((r) => (
+            <RequestRow
+              key={r.id}
+              row={r}
+              categories={categories}
+              canCancel={r.authorUserId === userId}
+              busy={busyId === r.id}
+              onCancel={() => void cancel(r)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RequestRow({
+  row,
+  categories,
+  canCancel,
+  busy,
+  onCancel,
+}: {
+  row: TgFeedRow
+  categories: Map<string, string>
+  canCancel: boolean
+  busy: boolean
+  onCancel: () => void
+}) {
+  const label =
+    row.kind === 'item'
+      ? `${row.itemName ?? '—'} ×${row.itemQty}`
+      : formatSignedGp(row.signedGp)
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2 last:border-0">
+      <div className="min-w-0">
+        <div className="truncate text-sm text-neutral-100">{label}</div>
+        <div className="truncate text-xs text-neutral-500">
+          {categories.get(row.categorySlug) ?? row.categorySlug}
+          {row.comment ? ` · ${row.comment}` : ''}
+        </div>
+      </div>
+      {canCancel ? (
+        <button
+          onClick={onCancel}
+          disabled={busy}
+          className="shrink-0 rounded-md bg-neutral-800 px-2.5 py-1 text-xs text-red-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+        >
+          {busy ? '…' : 'Отменить'}
+        </button>
+      ) : (
+        <span className="shrink-0 text-xs text-amber-400/70">ждёт</span>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────── spec-052 — sets (US4) ───────────────────────────
+
+export function SetsScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  buyerPc,
+  userId,
+  role,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  buyerPc: CampaignCharacter
+  userId: string
+  role: TgRole
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [sets, setSets] = useState<CampaignSetTg[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<
+    | { mode: 'none' }
+    | { mode: 'create' }
+    | { mode: 'edit'; set: CampaignSetTg }
+    | { mode: 'buy'; set: CampaignSetTg }
+  >({ mode: 'none' })
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      setSets(await getCampaignSetsTg(supabase, campaignId))
+    } catch {
+      setError('Не удалось загрузить наборы.')
+    }
+  }, [supabase, campaignId])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const s = await getCampaignSetsTg(supabase, campaignId)
+        if (alive) setSets(s)
+      } catch {
+        if (alive) setError('Не удалось загрузить наборы.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, refreshKey])
+
+  const canManage = (s: CampaignSetTg) =>
+    role === 'owner' || role === 'dm' || s.ownerUserId === userId
+
+  const doDelete = async (id: string) => {
+    setError(null)
+    setBusyId(id)
+    const res = await deleteSet({ campaignId, setId: id })
+    setBusyId(null)
+    setConfirmDelete(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await reload()
+  }
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-1 text-lg font-semibold">Наборы</h1>
+      <p className="mb-3 text-xs text-neutral-500">Покупатель: {buyerPc.title}</p>
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      <button
+        onClick={() => setSheet({ mode: 'create' })}
+        className="mb-4 w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+      >
+        + Новый набор
+      </button>
+      {!sets && <Centered>Загрузка…</Centered>}
+      {sets && sets.length === 0 && <Centered>Пока нет наборов.</Centered>}
+      {sets && sets.length > 0 && (
+        <div className="space-y-2">
+          {sets.map((s) => (
+            <div key={s.id} className="rounded-lg bg-neutral-900 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm text-neutral-100">{s.title}</span>
+                <span className="shrink-0 text-xs text-neutral-500">
+                  {s.items.length} поз.
+                </span>
+              </div>
+              <div className="mt-1 truncate text-xs text-neutral-500">
+                {s.items.map((i) => `${i.name}×${i.qty}`).join(', ') || '—'}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSheet({ mode: 'buy', set: s })}
+                  className="rounded-md bg-neutral-700 px-2 py-0.5 text-xs text-neutral-100 transition-colors hover:bg-neutral-600"
+                >
+                  Купить
+                </button>
+                {canManage(s) && (
+                  <>
+                    <button
+                      onClick={() => setSheet({ mode: 'edit', set: s })}
+                      className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-700"
+                    >
+                      Изменить
+                    </button>
+                    {confirmDelete === s.id ? (
+                      <button
+                        onClick={() => void doDelete(s.id)}
+                        disabled={busyId === s.id}
+                        className="rounded-md bg-red-900/40 px-2 py-0.5 text-xs text-red-300 disabled:opacity-50"
+                      >
+                        {busyId === s.id ? '…' : 'Точно удалить?'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(s.id)}
+                        className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-red-300/80 transition-colors hover:bg-neutral-700"
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {(sheet.mode === 'create' || sheet.mode === 'edit') && (
+        <SetEditSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          existing={sheet.mode === 'edit' ? sheet.set : null}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={() => void reload()}
+        />
+      )}
+      {sheet.mode === 'buy' && (
+        <SetBuySheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          buyerPcId={buyerPc.id}
+          set={sheet.set}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={() => void reload()}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Shared working-copy editor for a set's item list (used by edit + buy). */
+function SetItemsEditor({
+  supabase,
+  campaignId,
+  items,
+  setItems,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  items: SetItem[]
+  setItems: React.Dispatch<React.SetStateAction<SetItem[]>>
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<BuyableItemTg[]>([])
+
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return
+    let alive = true
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchBuyableItemsTg(supabase, campaignId, q)
+        if (alive) setResults(r)
+      } catch {
+        if (alive) setResults([])
+      }
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [query, supabase, campaignId])
+
+  const addItem = (it: BuyableItemTg) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((p) => p.itemNodeId === it.id)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
+        return next
+      }
+      return [...prev, { itemNodeId: it.id, name: it.title, qty: 1 }]
+    })
+    setQuery('')
+    setResults([])
+  }
+  const removeItem = (id: string) =>
+    setItems((prev) => prev.filter((p) => p.itemNodeId !== id))
+  const setQty = (id: string, raw: string) => {
+    const n = parseInt(raw, 10)
+    setItems((prev) =>
+      prev.map((p) =>
+        p.itemNodeId === id
+          ? { ...p, qty: Number.isFinite(n) && n >= 1 ? n : 1 }
+          : p,
+      ),
+    )
+  }
+
+  return (
+    <>
+      {items.length > 0 && (
+        <div className="rounded-lg bg-neutral-900">
+          {items.map((it) => (
+            <div
+              key={it.itemNodeId}
+              className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2 last:border-0"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
+                {it.name}
+              </span>
+              <input
+                className="w-14 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100"
+                inputMode="numeric"
+                value={String(it.qty)}
+                onChange={(e) => setQty(it.itemNodeId, e.target.value)}
+              />
+              <button
+                onClick={() => removeItem(it.itemNodeId)}
+                className="text-xs text-neutral-500 hover:text-red-300"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        className={FIELD}
+        placeholder="Добавить предмет…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {query.trim() !== '' && results.length > 0 && (
+        <div className="max-h-48 overflow-y-auto rounded-lg bg-neutral-900">
+          {results.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => addItem(it)}
+              className="block w-full border-b border-neutral-800 px-3 py-2 text-left text-sm text-neutral-100 last:border-0 hover:bg-neutral-800"
+            >
+              {it.title}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function SetEditSheet({
+  supabase,
+  campaignId,
+  existing,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  existing: CampaignSetTg | null
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [title, setTitle] = useState(existing?.title ?? '')
+  const [items, setItems] = useState<SetItem[]>(
+    existing?.items.map((i) => ({
+      itemNodeId: i.itemNodeId,
+      name: i.name,
+      qty: i.qty,
+    })) ?? [],
+  )
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    setError(null)
+    if (!title.trim()) {
+      setError('Введите название')
+      return
+    }
+    if (items.length === 0) {
+      setError('Добавьте хотя бы один предмет')
+      return
+    }
+    setBusy(true)
+    const res = existing
+      ? await updateSet({ campaignId, setId: existing.id, title: title.trim(), items })
+      : await createSet({ campaignId, title: title.trim(), items })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title={existing ? 'Изменить набор' : 'Новый набор'} onClose={onClose}>
+      <div className="space-y-3">
+        <input
+          className={FIELD}
+          placeholder="Название набора"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <SetItemsEditor
+          supabase={supabase}
+          campaignId={campaignId}
+          items={items}
+          setItems={setItems}
+        />
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        {existing ? 'Сохранить' : 'Создать'}
+      </SubmitButton>
+    </Sheet>
+  )
+}
+
+// Edit-on-buy (C-19): buy a set with an editable working copy. Two exits — a
+// one-off buy of the edited list (buyItems, no persist) or save-as a new set
+// (createSet). The source set is never overwritten.
+function SetBuySheet({
+  supabase,
+  campaignId,
+  loopNumber,
+  buyerPcId,
+  set,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  buyerPcId: string
+  set: CampaignSetTg
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [items, setItems] = useState<SetItem[]>(
+    set.items.map((i) => ({ itemNodeId: i.itemNodeId, name: i.name, qty: i.qty })),
+  )
+  const [funding, setFunding] = useState<'pc' | 'stash'>('pc')
+  const [busy, setBusy] = useState<'none' | 'buy' | 'save'>('none')
+  const [error, setError] = useState<string | null>(null)
+  const [showSaveAs, setShowSaveAs] = useState(false)
+  const [saveTitle, setSaveTitle] = useState(`${set.title} (копия)`)
+
+  const dirty =
+    items.length !== set.items.length ||
+    items.some((it, i) => {
+      const o = set.items[i]
+      return !o || o.itemNodeId !== it.itemNodeId || o.qty !== it.qty
+    })
+
+  const buyNow = async () => {
+    setError(null)
+    if (items.length === 0) {
+      setError('Список пуст')
+      return
+    }
+    setBusy('buy')
+    const res = await buyItems({
+      campaignId,
+      items,
+      buyerPcId,
+      fundingSource: funding,
+      loopNumber,
+      dayInLoop: 1,
+      comment: `Набор: ${set.title}`,
+    })
+    setBusy('none')
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  const saveAs = async () => {
+    setError(null)
+    if (!saveTitle.trim()) {
+      setError('Введите название нового набора')
+      return
+    }
+    if (items.length === 0) {
+      setError('Список пуст')
+      return
+    }
+    setBusy('save')
+    const res = await createSet({ campaignId, title: saveTitle.trim(), items })
+    setBusy('none')
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title={`Купить: ${set.title}`} onClose={onClose}>
+      <div className="space-y-3">
+        <SetItemsEditor
+          supabase={supabase}
+          campaignId={campaignId}
+          items={items}
+          setItems={setItems}
+        />
+        <SegToggle
+          value={funding}
+          onChange={setFunding}
+          options={[
+            { value: 'pc', label: 'За свои' },
+            { value: 'stash', label: 'Из общака' },
+          ]}
+        />
+        {dirty && (
+          <p className="text-xs text-amber-400/80">
+            Список изменён — это разовая правка, исходный набор не меняется.
+          </p>
+        )}
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy === 'buy'} onClick={buyNow}>
+        Купить ({items.length} поз.)
+      </SubmitButton>
+      <div className="mt-2">
+        {showSaveAs ? (
+          <div className="space-y-2">
+            <input
+              className={FIELD}
+              placeholder="Название нового набора"
+              value={saveTitle}
+              onChange={(e) => setSaveTitle(e.target.value)}
+            />
+            <button
+              onClick={() => void saveAs()}
+              disabled={busy === 'save'}
+              className="w-full rounded-lg bg-neutral-800 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+            >
+              {busy === 'save' ? '…' : 'Сохранить как новый набор'}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowSaveAs(true)}
+            className="w-full text-center text-xs text-neutral-400 hover:text-neutral-200"
+          >
+            Сохранить изменения как новый набор…
+          </button>
+        )}
+      </div>
+    </Sheet>
   )
 }
 
@@ -1367,6 +2492,15 @@ export function StarterEquipScreen({
             <p className="mt-3">
               Отправлено: {submitted}. Ждёт одобрения ведущего — появится в листе после подтверждения.
             </p>
+            <button
+              onClick={() => {
+                setSubmitted(null)
+                setRows([])
+              }}
+              className="mt-4 rounded-lg bg-neutral-800 px-4 py-2 text-sm text-neutral-200 transition-colors hover:bg-neutral-700"
+            >
+              Собрать ещё
+            </button>
           </div>
         </Centered>
       </div>
