@@ -1257,22 +1257,27 @@ function BuySheet({
       return
     }
     setBusy(true)
-    const res = await createPurchase({
-      campaignId,
-      buyerPcId,
-      itemNodeId: picked.id,
-      qty: n,
-      fundingSource: funding,
-      loopNumber,
-      dayInLoop: 1,
-    })
-    setBusy(false)
-    if (!res.ok) {
-      setError(res.error)
-      return
+    try {
+      const res = await createPurchase({
+        campaignId,
+        buyerPcId,
+        itemNodeId: picked.id,
+        qty: n,
+        fundingSource: funding,
+        loopNumber,
+        dayInLoop: 1,
+      })
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      onDone()
+      onClose()
+    } catch {
+      setError('Не удалось купить — попробуй ещё раз.')
+    } finally {
+      setBusy(false)
     }
-    onDone()
-    onClose()
   }
 
   return (
@@ -2447,7 +2452,8 @@ export function StarterEquipScreen({
     }
     setBusy(true)
     setError(null)
-    const res = await submitBatch({
+    try {
+      const res = await submitBatch({
       campaignId,
       rows: [
         ...items.map((r) => ({
@@ -2474,12 +2480,16 @@ export function StarterEquipScreen({
         })),
       ],
     })
-    setBusy(false)
-    if (!res.ok) {
-      setError(res.error)
-      return
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      setSubmitted(rows.length)
+    } catch {
+      setError('Не удалось сохранить — попробуй ещё раз.')
+    } finally {
+      setBusy(false)
     }
-    setSubmitted(rows.length)
   }
 
   if (submitted !== null) {
