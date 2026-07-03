@@ -115,12 +115,12 @@ export type ResolvedNames = {
 
 // ── pure helpers ────────────────────────────────────────────────────────────
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** Whole gp shows bare; fractional rounds to ≤2 dp. `30` → "30 зм". */
-function zm(n: number): string {
+export function zm(n: number): string {
   const rounded = Number.isInteger(n) ? n : Math.round(n * 100) / 100
   return `${rounded} зм`
 }
