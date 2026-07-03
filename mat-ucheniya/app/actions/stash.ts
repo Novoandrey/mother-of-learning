@@ -25,9 +25,11 @@ import {
   createTransaction,
   type ActionResult,
 } from './transactions'
+import { getCurrentUser } from '@/lib/auth'
 import { getStashNode } from '@/lib/stash'
 import { getWallet } from '@/lib/transactions'
 import { computeShortfall } from '@/lib/transaction-resolver'
+import { notifyLedgerEvent } from '@/lib/telegram/ledger-feed'
 
 // ============================================================================
 // Input shapes
@@ -72,7 +74,7 @@ export async function putMoneyIntoStash(
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
   }
-  return createTransfer({
+  const res = await createTransfer({
     campaignId: input.campaignId,
     senderPcId: input.actorPcId,
     recipientPcId: stash.nodeId,
@@ -84,6 +86,17 @@ export async function putMoneyIntoStash(
     sessionId: input.sessionId ?? null,
     autoApprove: true,
   })
+  if (res.ok) {
+    const user = await getCurrentUser()
+    await notifyLedgerEvent({
+      type: 'stash-put',
+      campaignId: input.campaignId,
+      actorPcId: input.actorPcId,
+      authorUserId: user?.id ?? null,
+      moneyGp: Math.abs(input.amountGp),
+    })
+  }
+  return res
 }
 
 export async function takeMoneyFromStash(
@@ -93,7 +106,7 @@ export async function takeMoneyFromStash(
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
   }
-  return createTransfer({
+  const res = await createTransfer({
     campaignId: input.campaignId,
     senderPcId: stash.nodeId,
     recipientPcId: input.actorPcId,
@@ -105,6 +118,17 @@ export async function takeMoneyFromStash(
     sessionId: input.sessionId ?? null,
     autoApprove: true,
   })
+  if (res.ok) {
+    const user = await getCurrentUser()
+    await notifyLedgerEvent({
+      type: 'stash-take',
+      campaignId: input.campaignId,
+      actorPcId: input.actorPcId,
+      authorUserId: user?.id ?? null,
+      moneyGp: Math.abs(input.amountGp),
+    })
+  }
+  return res
 }
 
 // ============================================================================
@@ -118,7 +142,7 @@ export async function putItemIntoStash(
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
   }
-  return createItemTransfer({
+  const res = await createItemTransfer({
     campaignId: input.campaignId,
     senderPcId: input.actorPcId,
     recipientPcId: stash.nodeId,
@@ -132,6 +156,17 @@ export async function putItemIntoStash(
     sessionId: input.sessionId ?? null,
     autoApprove: true,
   })
+  if (res.ok) {
+    const user = await getCurrentUser()
+    await notifyLedgerEvent({
+      type: 'stash-put',
+      campaignId: input.campaignId,
+      actorPcId: input.actorPcId,
+      authorUserId: user?.id ?? null,
+      item: { name: input.itemName, qty: input.qty },
+    })
+  }
+  return res
 }
 
 export async function takeItemFromStash(
@@ -141,7 +176,7 @@ export async function takeItemFromStash(
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
   }
-  return createItemTransfer({
+  const res = await createItemTransfer({
     campaignId: input.campaignId,
     senderPcId: stash.nodeId,
     recipientPcId: input.actorPcId,
@@ -155,6 +190,17 @@ export async function takeItemFromStash(
     sessionId: input.sessionId ?? null,
     autoApprove: true,
   })
+  if (res.ok) {
+    const user = await getCurrentUser()
+    await notifyLedgerEvent({
+      type: 'stash-take',
+      campaignId: input.campaignId,
+      actorPcId: input.actorPcId,
+      authorUserId: user?.id ?? null,
+      item: { name: input.itemName, qty: input.qty },
+    })
+  }
+  return res
 }
 
 // ============================================================================

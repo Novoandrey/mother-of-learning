@@ -48,7 +48,6 @@ import {
 } from '@/app/actions/transactions'
 import {
   resolveBuyUnitPriceGp,
-  approvalRequiredFor,
   normalizeRarity,
 } from '@/lib/item-purchase-policy'
 import { setEquipped } from '@/app/actions/equipped'
@@ -293,7 +292,6 @@ export function PcHome({
   onBack,
   onOpenLedger,
   onOpenInventory,
-  onOpenRequests,
   onOpenBalances,
   onOpenEquip,
   onOpenWiki,
@@ -303,7 +301,6 @@ export function PcHome({
   onBack: () => void
   onOpenLedger: () => void
   onOpenInventory: () => void
-  onOpenRequests: () => void
   onOpenBalances?: () => void
   onOpenEquip?: () => void
   onOpenWiki?: () => void
@@ -331,9 +328,8 @@ export function PcHome({
         {onOpenBalances && (
           <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />
         )}
-        {character.isOwn && (
-          <AppButton icon="📋" label="Заявки" onClick={onOpenRequests} />
-        )}
+        {/* «Заявки» скрыт: апрувы выключены (spec-053), pending не создаётся.
+            Вернётся вместе с approval-UI, если approvals_enabled снова true. */}
         {character.isOwn && onOpenEquip && (
           <AppButton icon="🎽" label="Снаряжение" onClick={onOpenEquip} />
         )}
@@ -539,6 +535,53 @@ function SegToggle<T extends string>({
   )
 }
 
+// Integer input that tolerates a transient empty field while typing. A plain
+// controlled number input that snaps empty→min on every keystroke makes it
+// impossible to erase a digit to type a new one (you had to type "12" then
+// delete the "1" to get "2"). This keeps an internal text buffer: empty is
+// allowed mid-edit, the committed value only ever settles to a valid int, and
+// blur clamps an empty/invalid field back to `min`.
+function IntInput({
+  value,
+  onCommit,
+  min = 1,
+  className,
+}: {
+  value: number
+  onCommit: (n: number) => void
+  min?: number
+  className?: string
+}) {
+  const [buf, setBuf] = useState(String(value))
+  const [seen, setSeen] = useState(value)
+  // Reset the text buffer only when the committed value changes from outside
+  // (sanctioned "reset state on prop change" — no effect, no cascading-render
+  // lint). Clearing the field doesn't commit, so an empty buffer is preserved
+  // while typing — the fix for "couldn't erase a digit to type a new number".
+  if (value !== seen) {
+    setSeen(value)
+    setBuf(String(value))
+  }
+  return (
+    <input
+      className={className}
+      inputMode="numeric"
+      value={buf}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^\d]/g, '')
+        setBuf(raw)
+        if (raw !== '') onCommit(Math.max(min, parseInt(raw, 10)))
+      }}
+      onBlur={() => {
+        const n = parseInt(buf, 10)
+        const clamped = Number.isFinite(n) ? Math.max(min, n) : min
+        setBuf(String(clamped))
+        onCommit(clamped)
+      }}
+    />
+  )
+}
+
 function SubmitButton({
   busy,
   onClick,
@@ -602,6 +645,7 @@ function RecordSheet({
       comment: comment.trim(),
       loopNumber,
       dayInLoop: 1,
+      notify: true,
     })
     setBusy(false)
     if (!res.ok) {
@@ -771,6 +815,7 @@ function TransferSheet({
               comment: comment.trim(),
               loopNumber,
               dayInLoop: 1,
+              notify: true,
             })
           : dir === 'from-stash'
             ? await takeItemFromStash(payload)
@@ -815,6 +860,7 @@ function TransferSheet({
             comment: comment.trim(),
             loopNumber,
             dayInLoop: 1,
+            notify: true,
           })
         : dir === 'to-stash'
           ? await putMoneyIntoStash(base)
@@ -1237,10 +1283,6 @@ function BuySheet({
         })
       : null
   const totalGp = unitGp != null ? unitGp * Math.max(1, n) : null
-  const needsApproval =
-    picked && config
-      ? approvalRequiredFor(config.policy, normalizeRarity(picked.rarity))
-      : false
 
   const submit = async () => {
     setError(null)
@@ -1266,6 +1308,7 @@ function BuySheet({
         fundingSource: funding,
         loopNumber,
         dayInLoop: 1,
+        notify: true,
       })
       if (!res.ok) {
         setError(res.error)
@@ -1362,11 +1405,6 @@ function BuySheet({
                       {totalGp != null ? formatGp(totalGp) : '—'}
                     </span>
                   </div>
-                  {needsApproval && (
-                    <div className="mt-1 text-xs text-amber-400/80">
-                      Уйдёт ведущему на одобрение.
-                    </div>
-                  )}
                 </div>
               </>
             )}
@@ -1959,16 +1997,6 @@ function SetItemsEditor({
   }
   const removeItem = (id: string) =>
     setItems((prev) => prev.filter((p) => p.itemNodeId !== id))
-  const setQty = (id: string, raw: string) => {
-    const n = parseInt(raw, 10)
-    setItems((prev) =>
-      prev.map((p) =>
-        p.itemNodeId === id
-          ? { ...p, qty: Number.isFinite(n) && n >= 1 ? n : 1 }
-          : p,
-      ),
-    )
-  }
 
   return (
     <>
@@ -1982,11 +2010,14 @@ function SetItemsEditor({
               <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
                 {it.name}
               </span>
-              <input
+              <IntInput
                 className="w-14 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100"
-                inputMode="numeric"
-                value={String(it.qty)}
-                onChange={(e) => setQty(it.itemNodeId, e.target.value)}
+                value={it.qty}
+                onCommit={(q) =>
+                  setItems((prev) =>
+                    prev.map((p) => (p.itemNodeId === it.itemNodeId ? { ...p, qty: q } : p)),
+                  )
+                }
               />
               <button
                 onClick={() => removeItem(it.itemNodeId)}
@@ -2143,6 +2174,8 @@ function SetBuySheet({
       loopNumber,
       dayInLoop: 1,
       comment: `Набор: ${set.title}`,
+      // Clean set → «взят набор «title»»; edited list → ad-hoc buy, no title.
+      setTitle: dirty ? undefined : set.title,
     })
     setBusy('none')
     if (!res.ok) {
@@ -2500,7 +2533,7 @@ export function StarterEquipScreen({
           <div>
             <div className="text-4xl">✓</div>
             <p className="mt-3">
-              Отправлено: {submitted}. Ждёт одобрения ведущего — появится в листе после подтверждения.
+              Записано: {submitted}. Уже в листе.
             </p>
             <button
               onClick={() => {
@@ -2522,7 +2555,7 @@ export function StarterEquipScreen({
       <BackLink onClick={onBack}>{character.title}</BackLink>
       <h1 className="text-lg font-semibold">Стартовое снаряжение</h1>
       <p className="mb-3 text-xs text-neutral-500">
-        Собери список — он уйдёт ведущему на одобрение.
+        Собери список — он применится сразу.
       </p>
 
       <div className="relative">
@@ -2572,18 +2605,16 @@ export function StarterEquipScreen({
                   {r.itemName || '—'}
                   {r.itemNodeId ? '' : ' · своё'}
                 </span>
-                <input
+                <IntInput
                   className="w-14 rounded bg-neutral-800 px-2 py-1 text-center text-sm tabular-nums"
-                  inputMode="numeric"
                   value={r.qty}
-                  onChange={(e) => {
-                    const q = Math.max(1, parseInt(e.target.value, 10) || 1)
+                  onCommit={(q) =>
                     setRows((rs) =>
                       rs.map((x) =>
                         x.clientId === r.clientId && x.type === 'item' ? { ...x, qty: q } : x,
                       ),
                     )
-                  }}
+                  }
                 />
               </>
             ) : (
@@ -2621,7 +2652,7 @@ export function StarterEquipScreen({
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       {rows.length > 0 && (
         <SubmitButton busy={busy} onClick={submit}>
-          Отправить на одобрение
+          Записать
         </SubmitButton>
       )}
 
@@ -2639,7 +2670,7 @@ export function StarterEquipScreen({
               : `Взять кредит · ${LOOP_CREDIT_GP} ЗМ`}
         </button>
         <p className="mt-1 px-1 text-xs text-neutral-500">
-          Один раз за петлю, без одобрения ведущего.
+          Один раз за петлю.
         </p>
         {creditMsg && <p className="mt-1 px-1 text-xs text-neutral-400">{creditMsg}</p>}
       </div>

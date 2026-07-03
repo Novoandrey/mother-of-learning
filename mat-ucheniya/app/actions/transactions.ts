@@ -22,7 +22,11 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getMembership } from '@/lib/auth'
-import { isAutoApproved } from '@/lib/approval-policy'
+import {
+  isAutoApproved,
+  approvalsEnabledFromSettings,
+} from '@/lib/approval-policy'
+import { notifyLedgerEvent } from '@/lib/telegram/ledger-feed'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
@@ -90,6 +94,13 @@ export type CreateTransactionInput = {
    * leave it undefined → null on the row.
    */
   batchId?: string
+  /**
+   * Spec-053. Post this write to the Telegram ledger feed. Opt-in per call:
+   * direct user actions from the /tg surface set it; internal/compound callers
+   * (submitBatch, stash wrappers, topups, bulk DM apply) leave it off and emit
+   * their own aggregate event instead, so the feed never floods.
+   */
+  notify?: boolean
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
 }
 
@@ -116,6 +127,23 @@ async function resolveAuth(campaignId: string): Promise<AuthContext> {
   if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
 
   return { ok: true, userId: user.id, role: membership.role }
+}
+
+/**
+ * Campaign approval kill-switch (spec-053). Reads `campaigns.settings`
+ * once per write; defaults to OFF when unset (see
+ * `approvalsEnabledFromSettings`). Off → every write auto-approves.
+ */
+async function loadApprovalsEnabled(campaignId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .maybeSingle()
+  return approvalsEnabledFromSettings(
+    (data as { settings?: unknown } | null)?.settings,
+  )
 }
 
 /**
@@ -282,7 +310,12 @@ export async function createTransaction(
   const admin = createAdminClient()
   // Spec-014: player → pending; DM/owner → approved. createTransaction has no
   // free-общак path — only the stash transfer wrappers set autoApprove.
-  const approved = isAutoApproved(auth.role, false)
+  // Spec-053: the campaign kill-switch forces approved when off.
+  const approved = isAutoApproved(
+    auth.role,
+    false,
+    await loadApprovalsEnabled(input.campaignId),
+  )
   const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
   // Pending player submissions get a batch_id (batch of 1) so they appear in
@@ -318,6 +351,31 @@ export async function createTransaction(
 
   if (error) {
     return { ok: false, error: `Не удалось сохранить: ${error.message}` }
+  }
+
+  if (input.notify) {
+    // money → доход / расход by sign; item → добыча. See ledger-feed templates.
+    if (input.kind === 'item') {
+      await notifyLedgerEvent({
+        type: 'loot',
+        campaignId: input.campaignId,
+        actorPcId: input.actorPcId,
+        authorUserId: auth.userId,
+        item: { name: itemName ?? '—', qty: itemQty },
+      })
+    } else {
+      // Prefer the caller's gp; fall back to the stored coins so a
+      // perDenomOverride write is still classified/valued correctly.
+      const gp = input.amountGp ?? aggregateGp(coins)
+      await notifyLedgerEvent({
+        type: gp < 0 ? 'expense' : 'income',
+        campaignId: input.campaignId,
+        actorPcId: input.actorPcId,
+        authorUserId: auth.userId,
+        amountGp: gp,
+        comment: input.comment || undefined,
+      })
+    }
   }
 
   return { ok: true, id: (data as { id: string }).id }
@@ -402,6 +460,14 @@ export async function takeLoopCredit(
     }
     return { ok: false, error: `Не удалось взять кредит: ${error.message}` }
   }
+  await notifyLedgerEvent({
+    type: 'income',
+    campaignId,
+    actorPcId: pcId,
+    authorUserId: auth.userId,
+    amountGp: LOOP_CREDIT_GP,
+    comment: `кредит петли ${loopNumber}`,
+  })
   return { ok: true, id: (data as { id: string }).id }
 }
 
@@ -790,7 +856,12 @@ export async function createTransfer(
   const groupId = crypto.randomUUID()
   // Spec-014: player → pending; DM/owner → approved. Spec-044/C-05: free общак
   // (autoApprove set by the stash wrappers) approves a player op too.
-  const approved = isAutoApproved(auth.role, input.autoApprove)
+  // Spec-053: the campaign kill-switch forces approved when off.
+  const approved = isAutoApproved(
+    auth.role,
+    input.autoApprove,
+    await loadApprovalsEnabled(input.campaignId),
+  )
   const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
   // A queued (pending) player submission needs a batch_id for the queue;
@@ -835,6 +906,17 @@ export async function createTransfer(
 
   if (error) {
     return { ok: false, error: `Не удалось сохранить: ${error.message}` }
+  }
+
+  if (input.notify) {
+    await notifyLedgerEvent({
+      type: 'transfer',
+      campaignId: input.campaignId,
+      senderPcId: input.senderPcId,
+      recipientPcId: input.recipientPcId,
+      authorUserId: auth.userId,
+      moneyGp: Math.abs(input.amountGp ?? aggregateGp(senderCoins)),
+    })
   }
 
   return { ok: true, groupId }
@@ -998,6 +1080,8 @@ export type ItemTransferInput = {
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
   /** Spec-044 / C-05: bypass the player approval gate (free общак, items). */
   autoApprove?: boolean
+  /** Spec-053: post to the ledger feed (opt-in; stash wrappers leave off). */
+  notify?: boolean
 }
 
 export async function createItemTransfer(
@@ -1097,7 +1181,12 @@ export async function createItemTransfer(
     }
   }
 
-  const approved = isAutoApproved(auth.role, input.autoApprove)
+  // Spec-053: the campaign kill-switch forces approved when off.
+  const approved = isAutoApproved(
+    auth.role,
+    input.autoApprove,
+    await loadApprovalsEnabled(input.campaignId),
+  )
   const nowIso = new Date().toISOString()
   const baseRow = {
     campaign_id: input.campaignId,
@@ -1138,6 +1227,17 @@ export async function createItemTransfer(
 
   if (error) {
     return { ok: false, error: `Не удалось сохранить: ${error.message}` }
+  }
+
+  if (input.notify) {
+    await notifyLedgerEvent({
+      type: 'transfer',
+      campaignId: input.campaignId,
+      senderPcId: input.senderPcId,
+      recipientPcId: input.recipientPcId,
+      authorUserId: auth.userId,
+      item: { name: itemName, qty: input.qty },
+    })
   }
 
   return { ok: true, groupId }
@@ -1260,6 +1360,11 @@ export type CreatePurchaseInput = {
    * rarity gate. Single buys leave it undefined → rarity decides.
    */
   forceStatus?: 'approved' | 'pending'
+  /**
+   * Spec-053: post to the ledger feed. Set by single buys from /tg; buyItems
+   * (set-buy) leaves it off and emits one aggregate «взят набор» itself.
+   */
+  notify?: boolean
 }
 
 /**
@@ -1333,11 +1438,14 @@ export async function createPurchase(
   }
 
   // --- Approval gate: rarity-driven, funding-agnostic (C-14); set-buy may
-  //     override with the aggregated decision (C-16). ---
+  //     override with the aggregated decision (C-16). Spec-053: the campaign
+  //     kill-switch (off by default) short-circuits the whole gate to approved,
+  //     rarity and forceStatus included. ---
   const needsApproval =
-    input.forceStatus != null
+    approvalsEnabledFromSettings(settings) &&
+    (input.forceStatus != null
       ? input.forceStatus === 'pending'
-      : approvalRequiredFor(policy, rarity)
+      : approvalRequiredFor(policy, rarity))
   const status: 'approved' | 'pending' = needsApproval ? 'pending' : 'approved'
   const nowIso = new Date().toISOString()
   const batchId =
@@ -1457,6 +1565,17 @@ export async function createPurchase(
     return { ok: false, error: `Не удалось сохранить покупку: ${error.message}` }
   }
 
+  if (input.notify) {
+    await notifyLedgerEvent({
+      type: 'purchase',
+      campaignId: input.campaignId,
+      actorPcId: input.buyerPcId,
+      authorUserId: auth.userId,
+      item: { name: item.title, qty },
+      totalGp,
+    })
+  }
+
   return { ok: true, groupId, status }
 }
 
@@ -1551,6 +1670,35 @@ export async function submitBatch(
     }
 
     successes.push({ clientId: row.clientId, id: res.id, groupId: res.groupId })
+  }
+
+  // Spec-053: one aggregate «стартовое снаряжение» post for the whole batch
+  // (the starter list is money + item rows for a single PC). The inner
+  // createTransaction calls stay silent (no notify) so this is the only post.
+  const items = input.rows.flatMap((r) =>
+    r.kind === 'item' ? [{ name: r.itemName, qty: r.itemQty }] : [],
+  )
+  const moneyGp = input.rows.reduce(
+    (s, r) => (r.kind === 'money' ? s + (r.amountGp ?? 0) : s),
+    0,
+  )
+  let starterPcId: string | null = null
+  for (const r of input.rows) {
+    if (r.kind === 'money' || r.kind === 'item') {
+      starterPcId = r.actorPcId
+      break
+    }
+  }
+  if (starterPcId && (items.length > 0 || moneyGp !== 0)) {
+    const user = await getCurrentUser()
+    await notifyLedgerEvent({
+      type: 'starter',
+      campaignId: input.campaignId,
+      actorPcId: starterPcId,
+      authorUserId: user?.id ?? null,
+      items,
+      moneyGp: moneyGp !== 0 ? moneyGp : undefined,
+    })
   }
 
   return { ok: true, batchId, rowResults: successes }

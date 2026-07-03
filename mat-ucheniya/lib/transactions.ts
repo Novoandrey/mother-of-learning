@@ -167,6 +167,12 @@ export type TransferInput = {
    * stash wrappers for player put/take. Ignored for DM/owner (always approved).
    */
   autoApprove?: boolean;
+  /**
+   * Spec-053: post to the ledger feed. Set only by a direct PC↔PC transfer from
+   * /tg; the stash wrappers and internal topups leave it off and emit (or omit)
+   * their own event.
+   */
+  notify?: boolean;
 };
 
 // ============================================================================
