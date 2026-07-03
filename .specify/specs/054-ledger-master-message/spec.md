@@ -78,7 +78,9 @@ refresh trigger + per-loop rotation** — not a build.
   `<blockquote expandable>` in the same message. PC lines with an **exact-zero**
   balance are hidden to cut clutter (balances are per-loop, so most PCs sit at 0
   early in a loop); negative balances are shown; the общак line always shows.
-  When every PC is at zero, a single «все по нулям» note replaces the list.
+  When every PC is at zero, a single «все по нулям» note replaces the list. The
+  общак line also lists the **items** held in the stash this loop (net qty > 0)
+  under the balance; nothing is shown when it holds no items.
 - **FR-002** The message MUST be re-rendered and edited in place on **every**
   ledger event, from inside `notifyLedgerEvent`'s `after()` — off the write
   path. A failure to refresh MUST NOT throw into the event send or the write.

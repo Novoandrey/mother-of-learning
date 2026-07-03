@@ -11,6 +11,7 @@ function state(over: Partial<MasterState> = {}): MasterState {
     loopNumber: 5,
     loopTitle: null,
     stashGp: 120,
+    stashItems: [],
     pcs: [
       { title: 'Гэри', gp: 30 },
       { title: 'Стас', gp: 12 },
@@ -105,11 +106,40 @@ describe('renderMasterMessageHtml — dashboard', () => {
     expect(html).toContain('• &lt;Zak&gt; — 1 зм')
   })
 
-  it('money only — never renders item holdings in the dashboard', () => {
-    // The dashboard block (before the feed) must carry no "×" quantities.
-    const html = renderMasterMessageHtml(state())
-    const dashboard = html.split('📜')[0]
-    expect(dashboard).not.toContain('×')
+  it('PC balances are money-only (no item quantities on PC lines)', () => {
+    const html = renderMasterMessageHtml(
+      state({
+        stashItems: [{ name: 'Серп', qty: 1 }], // stash items DO use ×
+        pcs: [{ title: 'Гэри', gp: 30 }],
+      }),
+    )
+    // No feed here, so the last "\n\n" section is the PC block.
+    const pcBlock = html.split('\n\n').at(-1) ?? ''
+    expect(pcBlock).toContain('• Гэри — 30 зм')
+    expect(pcBlock).not.toContain('×')
+  })
+})
+
+describe('renderMasterMessageHtml — stash items', () => {
+  it('lists items sitting in the общак under the balance', () => {
+    const html = renderMasterMessageHtml(
+      state({
+        stashItems: [
+          { name: 'Серп', qty: 1 },
+          { name: 'Зелье лечения', qty: 3 },
+        ],
+      }),
+    )
+    expect(html).toContain('💰 Общак: <b>120 зм</b>\n📦 Серп ×1, Зелье лечения ×3')
+  })
+
+  it('no items line when the общак is empty', () => {
+    expect(renderMasterMessageHtml(state({ stashItems: [] }))).not.toContain('📦')
+  })
+
+  it('escapes stash item names', () => {
+    const html = renderMasterMessageHtml(state({ stashItems: [{ name: '<яд>', qty: 1 }] }))
+    expect(html).toContain('📦 &lt;яд&gt; ×1')
   })
 })
 
