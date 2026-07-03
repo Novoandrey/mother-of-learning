@@ -219,7 +219,7 @@ export async function createItemAction(
   // Cold fields → nodes.fields JSONB. We strip empty strings to NULL
   // so JSONB stays clean and queries (`fields->>srd_slug`) don't have
   // to coalesce empties.
-  const fields: Record<string, string> = {}
+  const fields: Record<string, unknown> = {}
   if (payload.srdSlug && payload.srdSlug.trim()) fields.srd_slug = payload.srdSlug.trim()
   if (payload.description && payload.description.trim()) fields.description = payload.description
   if (payload.sourceDetail && payload.sourceDetail.trim()) {
@@ -228,6 +228,9 @@ export async function createItemAction(
   if (payload.dndsuUrl && payload.dndsuUrl.trim()) {
     fields.dndsu_url = payload.dndsuUrl.trim()
   }
+  // Spec-052 (C-15): «нельзя купить» — store only when set, so default
+  // items stay key-free (hydrate reads `fields.no_purchase === true`).
+  if (payload.noPurchase) fields.no_purchase = true
 
   // Step 1 — insert nodes row. We need its generated id for the
   // FK on item_attributes, so this is sequential, not parallel.
@@ -302,7 +305,7 @@ export async function updateItemAction(
   const useDefaultPrice = computeUseDefaultPrice(payload, defaults)
 
   // Same fields shape as createItemAction.
-  const fields: Record<string, string> = {}
+  const fields: Record<string, unknown> = {}
   if (payload.srdSlug && payload.srdSlug.trim()) fields.srd_slug = payload.srdSlug.trim()
   if (payload.description && payload.description.trim()) fields.description = payload.description
   if (payload.sourceDetail && payload.sourceDetail.trim()) {
@@ -311,6 +314,7 @@ export async function updateItemAction(
   if (payload.dndsuUrl && payload.dndsuUrl.trim()) {
     fields.dndsu_url = payload.dndsuUrl.trim()
   }
+  if (payload.noPurchase) fields.no_purchase = true
 
   const { error: nodeErr } = await admin
     .from('nodes')
@@ -450,6 +454,7 @@ export async function quickUpdateItemAction(
     title?: string
     priceGp?: number | null
     sourceSlug?: string | null
+    noPurchase?: boolean
   },
 ): Promise<ItemActionResult> {
   if (!campaignId) return { ok: false, error: 'Не указана кампания' }
@@ -476,6 +481,36 @@ export async function quickUpdateItemAction(
       .eq('campaign_id', campaignId)
     if (error) {
       return { ok: false, error: `Не удалось обновить название: ${error.message}` }
+    }
+  }
+
+  // node-side fields update (no_purchase, spec-052 C-15) — read-modify-write
+  // the JSONB so we don't clobber srd_slug/description/etc.
+  if (patch.noPurchase !== undefined) {
+    const { data: row, error: readErr } = await admin
+      .from('nodes')
+      .select('fields')
+      .eq('id', itemId)
+      .eq('campaign_id', campaignId)
+      .single()
+    if (readErr || !row) {
+      return {
+        ok: false,
+        error: `Не удалось прочитать предмет: ${readErr?.message ?? 'unknown'}`,
+      }
+    }
+    const fields = {
+      ...((row as { fields?: Record<string, unknown> }).fields ?? {}),
+    }
+    if (patch.noPurchase) fields.no_purchase = true
+    else delete fields.no_purchase
+    const { error } = await admin
+      .from('nodes')
+      .update({ fields })
+      .eq('id', itemId)
+      .eq('campaign_id', campaignId)
+    if (error) {
+      return { ok: false, error: `Не удалось обновить: ${error.message}` }
     }
   }
 

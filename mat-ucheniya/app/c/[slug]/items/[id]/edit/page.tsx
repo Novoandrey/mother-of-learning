@@ -58,6 +58,7 @@ export default async function EditItemPage({
         sourceDetail: item.sourceDetail,
         dndsuUrl: item.dndsuUrl,
         requiresAttunement: item.requiresAttunement,
+        noPurchase: item.noPurchase,
       }}
       categories={categories}
       slots={slots}

@@ -6,6 +6,11 @@ import {
   parseItemDefaultPrices,
   type ItemDefaultPrices,
 } from '@/lib/item-default-prices'
+import {
+  DEFAULT_ITEM_PURCHASE_POLICY,
+  parseItemPurchasePolicy,
+  type ItemPurchasePolicy,
+} from '@/lib/item-purchase-policy'
 
 // Re-export for backwards-compat: callers were importing these
 // names from '@/lib/campaign' before the pure-module split. Keep
@@ -20,10 +25,16 @@ export type {
   RarityKey,
   RarityPriceMap,
 } from '@/lib/item-default-prices'
+export {
+  DEFAULT_ITEM_PURCHASE_POLICY,
+  parseItemPurchasePolicy,
+} from '@/lib/item-purchase-policy'
+export type { ItemPurchasePolicy } from '@/lib/item-purchase-policy'
 
 export type CampaignSettings = {
   hp_method: HpMethod
   item_default_prices: ItemDefaultPrices
+  item_purchase_policy: ItemPurchasePolicy
   // Future keys go here.
 }
 
@@ -37,18 +48,23 @@ export type Campaign = {
 const DEFAULT_SETTINGS: CampaignSettings = {
   hp_method: 'average',
   item_default_prices: DEFAULT_ITEM_PRICES,
+  item_purchase_policy: DEFAULT_ITEM_PURCHASE_POLICY,
 }
 
 export function parseCampaignSettings(raw: unknown): CampaignSettings {
   const out: CampaignSettings = {
     ...DEFAULT_SETTINGS,
     item_default_prices: { ...DEFAULT_ITEM_PRICES },
+    item_purchase_policy: { ...DEFAULT_ITEM_PURCHASE_POLICY },
   }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const r = raw as Record<string, unknown>
     if (isHpMethod(r.hp_method)) out.hp_method = r.hp_method
     if (r.item_default_prices !== undefined) {
       out.item_default_prices = parseItemDefaultPrices(r.item_default_prices)
+    }
+    if (r.item_purchase_policy !== undefined) {
+      out.item_purchase_policy = parseItemPurchasePolicy(r.item_purchase_policy)
     }
   }
   return out

@@ -28,6 +28,7 @@ function item(partial: Partial<ItemNode>): ItemNode {
     dndsuUrl: null,
     useDefaultPrice: true,
     requiresAttunement: false,
+    noPurchase: false,
     ...partial,
   };
 }
