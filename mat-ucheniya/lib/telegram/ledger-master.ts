@@ -20,7 +20,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { aggregateGp } from '@/lib/transaction-resolver'
 import type { CoinSet } from '@/lib/transactions'
-import { getAllBalancesTg } from '@/lib/queries/ledger-tg'
+import { getAllBalancesTg, getStashItemHoldingsTg } from '@/lib/queries/ledger-tg'
 import { sendLedgerMessage, editLedgerMessage } from '@/lib/telegram/bot'
 import {
   renderMasterMessageHtml,
@@ -127,10 +127,12 @@ export async function composeMasterState(
     pcs.map((p) => ({ id: p.id, title: p.title, isOwn: false })),
   )
   const recent = await getCampaignRecentTx(admin, campaignId, loop.number, RECENT_LIMIT)
+  const stashItems = await getStashItemHoldingsTg(admin, campaignId, loop.number)
   return {
     loopNumber: loop.number,
     loopTitle: loop.title,
     stashGp,
+    stashItems,
     pcs: rows
       .map((r) => ({ title: r.title, gp: r.aggregateGp }))
       .sort((a, b) => a.title.localeCompare(b.title, 'ru')),

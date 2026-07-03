@@ -33,6 +33,8 @@ export type MasterState = {
   loopNumber: number
   loopTitle: string | null
   stashGp: number
+  /** Items sitting in the общак this loop (net qty > 0); empty ⇒ no items line. */
+  stashItems: { name: string; qty: number }[]
   /** Every campaign PC's money balance (caller-sorted). */
   pcs: MasterPcBalance[]
   /** Recent movements, newest first. */
@@ -71,7 +73,12 @@ export function renderMasterMessageHtml(state: MasterState): string {
     `🧾 <b>Казна отряда — Петля ${state.loopNumber}</b>` +
     (loopTitle ? ` · ${esc(loopTitle)}` : '')
 
-  const stash = `💰 Общак: <b>${zm(state.stashGp)}</b>`
+  // Items sitting in the общак this loop, compact and comma-joined under the
+  // balance. Nothing shown when the stash holds no items (no clutter).
+  const stashItems = state.stashItems.length
+    ? `\n📦 ${state.stashItems.map((it) => `${esc(it.name)} ×${it.qty}`).join(', ')}`
+    : ''
+  const stash = `💰 Общак: <b>${zm(state.stashGp)}</b>${stashItems}`
 
   // Hide exact-zero PC balances so the dashboard doesn't fill with
   // "• Name — 0 зм": balances are per-loop, so most PCs sit at 0 early in a
