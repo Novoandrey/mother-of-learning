@@ -16,6 +16,7 @@ import {
   getPcInventoryTg,
   getMyPendingTg,
   searchBuyableItemsTg,
+  getBuyableItemsByIdsTg,
   getCampaignBuyConfigTg,
   getCampaignSetsTg,
   hasLoopCreditTg,
@@ -36,6 +37,7 @@ import {
   initialOf,
   portraitUrl,
 } from './format'
+import { computeShortfall } from '@/lib/transaction-resolver'
 import {
   createTransaction,
   createTransfer,
@@ -1210,6 +1212,86 @@ export function StashScreen({
 
 // ─────────────────────────── spec-052 — inventory (US1/US3) ───────────────────────────
 
+// Spec-053. Shared under a buy total: the «оставить на руках» field (only for
+// свои+общак) and a live balance preview «баланс → после». The client mirrors
+// the server via the same pure computeShortfall, so what it shows is what the
+// server will do. Balances are loaded by the parent (walletGp / stashGp).
+function FundingPreview({
+  funding,
+  totalGp,
+  walletGp,
+  stashGp,
+  keep,
+  onKeep,
+}: {
+  funding: 'pc' | 'pc_with_stash' | 'stash'
+  totalGp: number | null
+  walletGp: number | null
+  stashGp: number | null
+  keep: string
+  onKeep: (v: string) => void
+}) {
+  const keepGp = funding === 'pc_with_stash' ? Math.max(0, parseGp(keep) ?? 0) : 0
+  const preview = (() => {
+    if (totalGp == null || walletGp == null) return null
+    if (funding === 'pc') {
+      return { own: [walletGp, walletGp - totalGp] as const, stash: null, short: 0 }
+    }
+    if (funding === 'stash') {
+      const s = stashGp ?? 0
+      return { own: null, stash: [s, s - totalGp] as const, short: 0 }
+    }
+    const s = stashGp ?? 0
+    const sf = computeShortfall(walletGp, totalGp, s, keepGp)
+    const ownSpend = totalGp - sf.toBorrow
+    return {
+      own: [walletGp, walletGp - ownSpend] as const,
+      stash: [s, s - sf.toBorrow] as const,
+      short: sf.remainderNegative,
+    }
+  })()
+  const arrow = (from: number, to: number) => (
+    <span className="font-mono tabular-nums text-neutral-300">
+      {formatGp(from)} →{' '}
+      <span className={to < 0 ? 'text-red-400' : 'text-neutral-100'}>{formatGp(to)}</span>
+    </span>
+  )
+  return (
+    <>
+      {funding === 'pc_with_stash' && (
+        <input
+          className={FIELD}
+          inputMode="decimal"
+          placeholder="Оставить на руках, зм (необязательно)"
+          value={keep}
+          onChange={(e) => onKeep(e.target.value)}
+        />
+      )}
+      {preview && (
+        <div className="rounded-lg bg-neutral-900 px-3 py-2 text-xs">
+          {preview.own && (
+            <div className="flex justify-between">
+              <span className="text-neutral-400">Свои</span>
+              {arrow(preview.own[0], preview.own[1])}
+            </div>
+          )}
+          {preview.stash && (
+            <div className="mt-0.5 flex justify-between">
+              <span className="text-neutral-400">Общак</span>
+              {arrow(preview.stash[0], preview.stash[1])}
+            </div>
+          )}
+          {preview.short > 0 && (
+            <p className="mt-1 text-red-400">
+              Не хватает {formatGp(preview.short)} даже с общаком
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
 // T017 — buy a catalog item for gold (US2). Search → preview price → pick qty +
 // funding source → createPurchase. Excludes «нельзя купить» + priceless items.
 function BuySheet({
@@ -1235,6 +1317,9 @@ function BuySheet({
   const [picked, setPicked] = useState<BuyableItemTg | null>(null)
   const [qty, setQty] = useState('1')
   const [funding, setFunding] = useState<'pc' | 'pc_with_stash' | 'stash'>('pc')
+  const [keep, setKeep] = useState('')
+  const [walletGp, setWalletGp] = useState<number | null>(null)
+  const [stashGp, setStashGp] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -1252,6 +1337,28 @@ function BuySheet({
       alive = false
     }
   }, [supabase, campaignId])
+
+  // Balances for the «баланс → после» preview (spec-053). Best-effort.
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const [w, s] = await Promise.all([
+          getWalletTg(supabase, buyerPcId, loopNumber),
+          getStashTg(supabase, campaignId, loopNumber),
+        ])
+        if (alive) {
+          setWalletGp(w.aggregateGp)
+          setStashGp(s.wallet.aggregateGp)
+        }
+      } catch {
+        /* preview is optional */
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, buyerPcId, loopNumber])
 
   useEffect(() => {
     const q = query.trim()
@@ -1306,6 +1413,7 @@ function BuySheet({
         itemNodeId: picked.id,
         qty: n,
         fundingSource: funding,
+        keepGp: funding === 'pc_with_stash' ? Math.max(0, parseGp(keep) ?? 0) : undefined,
         loopNumber,
         dayInLoop: 1,
         notify: true,
@@ -1406,6 +1514,14 @@ function BuySheet({
                     </span>
                   </div>
                 </div>
+                <FundingPreview
+                  funding={funding}
+                  totalGp={totalGp}
+                  walletGp={walletGp}
+                  stashGp={stashGp}
+                  keep={keep}
+                  onKeep={setKeep}
+                />
               </>
             )}
           </>
@@ -2146,11 +2262,79 @@ function SetBuySheet({
   const [items, setItems] = useState<SetItem[]>(
     set.items.map((i) => ({ itemNodeId: i.itemNodeId, name: i.name, qty: i.qty })),
   )
-  const [funding, setFunding] = useState<'pc' | 'stash'>('pc')
+  const [funding, setFunding] = useState<'pc' | 'pc_with_stash' | 'stash'>('pc')
+  const [keep, setKeep] = useState('')
   const [busy, setBusy] = useState<'none' | 'buy' | 'save'>('none')
   const [error, setError] = useState<string | null>(null)
   const [showSaveAs, setShowSaveAs] = useState(false)
   const [saveTitle, setSaveTitle] = useState(`${set.title} (копия)`)
+  const [config, setConfig] = useState<Awaited<
+    ReturnType<typeof getCampaignBuyConfigTg>
+  > | null>(null)
+  const [attrsById, setAttrsById] = useState<Map<string, BuyableItemTg>>(new Map())
+  const [walletGp, setWalletGp] = useState<number | null>(null)
+  const [stashGp, setStashGp] = useState<number | null>(null)
+
+  // Config + balances once (spec-053 preview).
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const [c, w, s] = await Promise.all([
+          getCampaignBuyConfigTg(supabase, campaignId),
+          getWalletTg(supabase, buyerPcId, loopNumber),
+          getStashTg(supabase, campaignId, loopNumber),
+        ])
+        if (alive) {
+          setConfig(c)
+          setWalletGp(w.aggregateGp)
+          setStashGp(s.wallet.aggregateGp)
+        }
+      } catch {
+        /* preview is optional; buyItems prices authoritatively */
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, buyerPcId, loopNumber])
+
+  // Prices for the current item ids → client-side set total (buyItems prices
+  // authoritatively on the server). Reloads as the list is edited.
+  const idsKey = items
+    .map((i) => i.itemNodeId)
+    .sort()
+    .join(',')
+  useEffect(() => {
+    let alive = true
+    const ids = idsKey ? idsKey.split(',') : []
+    ;(async () => {
+      try {
+        const rows = await getBuyableItemsByIdsTg(supabase, campaignId, ids)
+        if (alive) setAttrsById(new Map(rows.map((r) => [r.id, r])))
+      } catch {
+        if (alive) setAttrsById(new Map())
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [idsKey, supabase, campaignId])
+
+  const totalGp =
+    config && items.length > 0 && items.every((it) => attrsById.has(it.itemNodeId))
+      ? items.reduce((sum, it) => {
+          const a = attrsById.get(it.itemNodeId)!
+          const unit = resolveBuyUnitPriceGp({
+            priceGp: a.priceGp,
+            categorySlug: a.categorySlug,
+            rarity: normalizeRarity(a.rarity),
+            defaults: config.defaults,
+            policy: config.policy,
+          })
+          return unit == null ? sum : sum + unit * it.qty
+        }, 0)
+      : null
 
   const dirty =
     items.length !== set.items.length ||
@@ -2171,6 +2355,7 @@ function SetBuySheet({
       items,
       buyerPcId,
       fundingSource: funding,
+      keepGp: funding === 'pc_with_stash' ? Math.max(0, parseGp(keep) ?? 0) : undefined,
       loopNumber,
       dayInLoop: 1,
       comment: `Набор: ${set.title}`,
@@ -2221,8 +2406,17 @@ function SetBuySheet({
           onChange={setFunding}
           options={[
             { value: 'pc', label: 'За свои' },
+            { value: 'pc_with_stash', label: 'Свои+общак' },
             { value: 'stash', label: 'Из общака' },
           ]}
+        />
+        <FundingPreview
+          funding={funding}
+          totalGp={totalGp}
+          walletGp={walletGp}
+          stashGp={stashGp}
+          keep={keep}
+          onKeep={setKeep}
         />
         {dirty && (
           <p className="text-xs text-amber-400/80">

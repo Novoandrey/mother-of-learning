@@ -60,3 +60,54 @@ describe('computeShortfall', () => {
     });
   });
 });
+
+describe('computeShortfall — keepGp «оставить на руках» (spec-053)', () => {
+  it("owner's example A: 200 wallet, 180 cost, keep 50 → 150 own + 30 stash", () => {
+    // spendable = 200 − 50 = 150 → own covers 150, borrow the 30 shortfall.
+    expect(computeShortfall(200, 180, 1000, 50)).toEqual({
+      shortfall: 30,
+      toBorrow: 30,
+      remainderNegative: 0,
+    });
+  });
+
+  it("owner's example B: 300 wallet, 180 cost, keep 50 → all own, stash untouched", () => {
+    // spendable = 300 − 50 = 250 ≥ 180 → no shortfall, borrow nothing.
+    expect(computeShortfall(300, 180, 1000, 50)).toEqual({
+      shortfall: 0,
+      toBorrow: 0,
+      remainderNegative: 0,
+    });
+  });
+
+  it('keep above the wallet → own contributes nothing, borrow the whole cost', () => {
+    // spendable = max(0, 40 − 50) = 0 → shortfall is the full 180.
+    expect(computeShortfall(40, 180, 1000, 50)).toEqual({
+      shortfall: 180,
+      toBorrow: 180,
+      remainderNegative: 0,
+    });
+  });
+
+  it('keep + poor stash → borrow what the stash has, rest is residual negative', () => {
+    // spendable = 100 − 50 = 50 → shortfall 130; stash only 30 → borrow 30.
+    expect(computeShortfall(100, 180, 30, 50)).toEqual({
+      shortfall: 130,
+      toBorrow: 30,
+      remainderNegative: 100,
+    });
+  });
+
+  it('keepGp = 0 is byte-for-byte the original 3-arg behaviour', () => {
+    expect(computeShortfall(3, 5, 100, 0)).toEqual(computeShortfall(3, 5, 100));
+    expect(computeShortfall(200, 180, 1000, 0)).toEqual(
+      computeShortfall(200, 180, 1000),
+    );
+  });
+
+  it('negative keep is clamped to 0', () => {
+    expect(computeShortfall(200, 180, 1000, -50)).toEqual(
+      computeShortfall(200, 180, 1000, 0),
+    );
+  });
+});
