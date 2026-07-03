@@ -477,6 +477,7 @@ export default function TransactionForm({
           loopNumber,
           dayInLoop,
           sessionId,
+          notify: true,
         }
         const res = editingId
           ? await updateTransaction(editingId, {
@@ -534,6 +535,7 @@ export default function TransactionForm({
             loopNumber,
             dayInLoop,
             sessionId,
+            notify: true,
           })
           if (!res.ok) {
             setError(res.error)
@@ -553,6 +555,7 @@ export default function TransactionForm({
             loopNumber,
             dayInLoop,
             sessionId,
+            notify: true,
           }
           const res = editingId
             ? await updateTransaction(editingId, {
@@ -626,6 +629,7 @@ export default function TransactionForm({
             loopNumber,
             dayInLoop,
             sessionId,
+            notify: true,
           })
           if (!res.ok) {
             setError(res.error)

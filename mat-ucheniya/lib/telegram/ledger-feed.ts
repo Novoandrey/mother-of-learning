@@ -29,7 +29,7 @@ async function resolveNames(
   const actorPcId =
     event.type === 'transfer'
       ? event.senderPcId
-      : event.type === 'set-created'
+      : event.type === 'set-created' || event.type === 'loop-started'
         ? null
         : event.actorPcId
   const recipientPcId = event.type === 'transfer' ? event.recipientPcId : null

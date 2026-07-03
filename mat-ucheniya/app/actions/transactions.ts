@@ -356,13 +356,17 @@ export async function createTransaction(
   if (input.notify) {
     // money → доход / расход by sign; item → добыча. See ledger-feed templates.
     if (input.kind === 'item') {
-      await notifyLedgerEvent({
-        type: 'loot',
-        campaignId: input.campaignId,
-        actorPcId: input.actorPcId,
-        authorUserId: auth.userId,
-        item: { name: itemName ?? '—', qty: itemQty },
-      })
+      // Only a gain is «получен предмет». A removal (negative qty from the
+      // desktop item-out row) has no template — skip rather than post «×-1».
+      if (itemQty > 0) {
+        await notifyLedgerEvent({
+          type: 'loot',
+          campaignId: input.campaignId,
+          actorPcId: input.actorPcId,
+          authorUserId: auth.userId,
+          item: { name: itemName ?? '—', qty: itemQty },
+        })
+      }
     } else {
       // Prefer the caller's gp; fall back to the stored coins so a
       // perDenomOverride write is still classified/valued correctly.
