@@ -51,18 +51,11 @@
 
 ## Очередь до 030
 
-- **spec-030 Portraits — Phase 1+2 КОД ГОТОВ** (ветка `claude/030-portraits`,
-  гейт зелёный tsc0/lint0/тесты418). P1: карусель на десктоп-нодах + миграция
-  121 (carousel-колонки) + `seed-portraits.ts` v2 (npc+creature, 126/126
-  артов размещаются). P2: каталог неписей в /tg (список+поиск → арт-карусель +
-  markdown-статья, read). P3 (загрузка из приложения) ждёт: решение C-05
-  (presigned vs proxy) + R2-write ключи в env приложения. 🧑 Andrey: mig 121
-  на staging + `seed-portraits -- --dir ./AI-Art/AI` (dry→--commit, R2-creds).
-  AI-Art.zip локально, gitignored. Спека: `030-portraits/`.
 - **spec-020 PC Holdings Overview** — Plan ready, awaiting Tasks.
-- **spec-021 Wiki editor** — Specify draft (мини-спека: TG Mini App first,
-  БЕЗ visibility — вводная 2026-07-03), awaiting Clarify C-01…C-10. Часть
-  чтения статьи в /tg уже прилетела с spec-030 P2 (каталог); 021 = редактор.
+- **spec-030 Portraits P3** (загрузка портретов из приложения) — не начат;
+  ждёт решение C-05 (presigned vs proxy) + R2-write ключи в env приложения.
+  🧑 Andrey для показа артов на проде: `seed-portraits -- --dir ./AI-Art/AI
+  --commit` с R2-creds (mig 121 накатана, «Адам Ларч» создан на prod+staging).
 
 ## Роадмап 030+ (номера зафиксированы chat 87)
 
@@ -126,6 +119,8 @@
 | 043 | Staging: облачная staging-БД + staging.theloopers.org + PR-only `main` |
 | 044 | Mobile Ledger в Telegram Mini App (`/tg`): кошелёк/бухгалтерия игрока, realtime-обновления, предметы в-из общака, стартовый набор |
 | 046 | Telegram Mini App auth (real GoTrue session) + карточка PC с портретом; DM-привязка `/c/<slug>/settings/telegram`; миграции 115/116; сид 31 портрета |
+| 030 | Portraits P1+2 (PR #9): карусель портретов на десктоп-нодах + каталог неписей в /tg (список/поиск → арт + markdown-статья). Миг 121, `seed-portraits` v2 (npc+creature). Арты появятся после сида с R2 (отложено). P3 (загрузка из app) — в очереди |
+| 021 | Wiki editor (PR #10): правка статьи в /tg (гейтованный content-API) + wikilinks `[[Имя]]` на десктопе и в /tg. Десктоп-редактор статьи был и раньше (MarkdownContent) |
 
 ## Хвосты (не блокеры)
 
