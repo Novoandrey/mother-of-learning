@@ -6,7 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   getCampaignBySlug,
   parseItemDefaultPrices,
+  parseItemPurchasePolicy,
   type ItemDefaultPrices,
+  type ItemPurchasePolicy,
 } from '@/lib/campaign'
 import { getCurrentUserAndProfile, getMembership } from '@/lib/auth'
 import { isHpMethod } from '@/lib/statblock'
@@ -97,6 +99,46 @@ export async function updateItemDefaultPrices(
   // Item form lives inside /c/[slug]/items — refresh both the
   // settings page (so saved values reflect immediately) and the
   // catalog tree (covers /items/new and /items/[id]/edit too).
+  revalidatePath(`/c/${slug}/items`, 'layout')
+
+  return { ok: true }
+}
+
+/**
+ * Spec-052 (C-13/C-14). Persist the DM per-rarity purchase policy (coefficient
+ * + approval-required) into campaigns.settings.item_purchase_policy. Mirrors
+ * updateItemDefaultPrices; both spread campaign.settings so neither clobbers
+ * the other (parseCampaignSettings round-trips both keys).
+ */
+export async function updateItemPurchasePolicy(
+  slug: string,
+  rawPolicy: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await getCurrentUserAndProfile()
+  if (!result || !result.profile || result.profile.must_change_password) {
+    return { ok: false, error: 'Не авторизован' }
+  }
+
+  const campaign = await getCampaignBySlug(slug)
+  if (!campaign) return { ok: false, error: 'Кампания не найдена' }
+
+  const membership = await getMembership(campaign.id)
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'dm')) {
+    return { ok: false, error: 'Нужна роль ДМ' }
+  }
+
+  const parsed: ItemPurchasePolicy = parseItemPurchasePolicy(rawPolicy)
+
+  const admin = createAdminClient()
+  const next = { ...campaign.settings, item_purchase_policy: parsed }
+
+  const { error } = await admin
+    .from('campaigns')
+    .update({ settings: next })
+    .eq('id', campaign.id)
+
+  if (error) return { ok: false, error: error.message }
+
   revalidatePath(`/c/${slug}/items`, 'layout')
 
   return { ok: true }

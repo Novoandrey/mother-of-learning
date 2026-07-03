@@ -62,10 +62,20 @@ export function StartingItemsEditorClient({
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, qty: n } : i)))
     setSavedAt(null)
   }
+  function setEquipped(key: number, value: boolean) {
+    setItems((prev) =>
+      prev.map((i) => (i.key === key ? { ...i, equipped: value } : i)),
+    )
+    setSavedAt(null)
+  }
 
   async function save() {
     setError(null)
-    const plain = items.map(({ name, qty }) => ({ name: name.trim(), qty }))
+    const plain = items.map(({ name, qty, equipped }) => ({
+      name: name.trim(),
+      qty,
+      ...(equipped ? { equipped: true } : {}),
+    }))
     const check = validateStarterItems(plain)
     if (!check.ok) {
       setError(check.error)
@@ -118,6 +128,21 @@ export function StartingItemsEditorClient({
               disabled={pending}
               className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 disabled:opacity-60"
             />
+            {scope.kind === 'pc' && (
+              <label
+                className="flex shrink-0 items-center gap-1 text-xs text-gray-600"
+                title="Spec-052: персонаж начинает петлю с этим предметом надетым."
+              >
+                <input
+                  type="checkbox"
+                  checked={item.equipped ?? false}
+                  onChange={(e) => setEquipped(item.key, e.target.checked)}
+                  disabled={pending}
+                  className="h-3.5 w-3.5 rounded border-gray-300"
+                />
+                надето
+              </label>
+            )}
             <button
               type="button"
               onClick={() => removeRow(item.key)}
@@ -166,7 +191,11 @@ export function StartingItemsEditorClient({
 function itemsEqual(draft: DraftItem[], saved: StarterItem[]): boolean {
   if (draft.length !== saved.length) return false
   for (let i = 0; i < draft.length; i++) {
-    if (draft[i].name.trim() !== saved[i].name || draft[i].qty !== saved[i].qty)
+    if (
+      draft[i].name.trim() !== saved[i].name ||
+      draft[i].qty !== saved[i].qty ||
+      (draft[i].equipped ?? false) !== (saved[i].equipped ?? false)
+    )
       return false
   }
   return true

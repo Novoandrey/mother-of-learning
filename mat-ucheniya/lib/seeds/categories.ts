@@ -38,6 +38,7 @@ export const DEFAULT_TRANSACTION_CATEGORIES: readonly CategorySpec[] = [
   { slug: 'credit',   label: 'Кредит',  sort_order: 30 },
   { slug: 'loot',     label: 'Добыча',  sort_order: 40 },
   { slug: 'transfer', label: 'Перевод', sort_order: 50 },
+  { slug: 'purchase', label: 'Покупка', sort_order: 60 },
   { slug: 'other',    label: 'Прочее',  sort_order: 100 },
 ];
 

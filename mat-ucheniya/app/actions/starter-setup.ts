@@ -616,6 +616,35 @@ export async function applyLoopStartSetup(
     }
   }
 
+  // ─── Step 10b: sync «надето» flags into pc_equipped (spec-052, C-18). ───
+  // Independent of the transaction reconcile — pc_equipped is inventory
+  // metadata, not a ledger row. For every per-PC starter item, set equipped to
+  // match its config so re-applies stay consistent (unchecking «надето» flips
+  // it back to false on the next apply).
+  const equipRows = pcCfgs
+    .flatMap((p) =>
+      p.startingItems.map((it) => ({
+        campaign_id: campaignId,
+        pc_id: p.pcId,
+        item_name: it.name.trim(),
+        loop_number: loopNumber,
+        equipped: it.equipped === true,
+        updated_at: new Date().toISOString(),
+      })),
+    )
+    .filter((r) => r.item_name.length > 0)
+  if (equipRows.length > 0) {
+    const { error: eqErr } = await admin
+      .from('pc_equipped')
+      .upsert(equipRows, { onConflict: 'pc_id,item_name,loop_number' })
+    if (eqErr) {
+      return {
+        ok: false,
+        error: `Сетап применён, но не удалось отметить надетое: ${eqErr.message}`,
+      }
+    }
+  }
+
   // ─── Step 11: revalidate ───
   revalidatePath(`/c/${campaignSlug}/loops`)
   revalidatePath(`/c/${campaignSlug}/accounting`)

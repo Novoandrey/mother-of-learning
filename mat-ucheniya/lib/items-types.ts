@@ -51,6 +51,13 @@ export type ItemNode = {
    */
   requiresAttunement: boolean;
 
+  /**
+   * Spec-052 (C-15). DM «нельзя купить» flag — excludes the item from
+   * buying (single + set) while leaving moves/equip untouched. Stored in
+   * `nodes.fields.no_purchase` (JSONB, no schema change).
+   */
+  noPurchase: boolean;
+
   // Cold fields (`nodes.fields` JSONB).
   srdSlug: string | null;
   description: string | null;
@@ -162,4 +169,9 @@ export type ItemPayload = {
    * of price autoflag (different concept).
    */
   requiresAttunement: boolean;
+  /**
+   * Spec-052 (C-15). DM «нельзя купить» — excludes the item from buying
+   * (single + set). Stored in nodes.fields.no_purchase.
+   */
+  noPurchase: boolean;
 };

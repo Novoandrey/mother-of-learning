@@ -29,6 +29,7 @@ function payload(partial: Partial<ItemPayload> = {}): ItemPayload {
     sourceDetail: null,
     dndsuUrl: null,
     requiresAttunement: false,
+    noPurchase: false,
     ...partial,
   };
 }

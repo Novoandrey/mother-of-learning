@@ -107,6 +107,9 @@ export default function ItemFormPage({
     initial.requiresAttunement ?? false,
   )
 
+  /** Spec-052 (C-15): DM «нельзя купить» flag (excludes from buying). */
+  const [noPurchase, setNoPurchase] = useState(initial.noPurchase ?? false)
+
   /**
    * Apply rarity change and prefill price from defaults if empty.
    * `use_default_price` is now auto-managed (computed server-side
@@ -151,6 +154,7 @@ export default function ItemFormPage({
       sourceDetail: sourceDetail.trim() === '' ? null : sourceDetail.trim(),
       dndsuUrl: dndsuUrl.trim() === '' ? null : dndsuUrl.trim(),
       requiresAttunement,
+      noPurchase,
     }
 
     startTransition(async () => {
@@ -274,6 +278,21 @@ export default function ItemFormPage({
             <span
               className="cursor-help text-gray-400"
               title="5e «Требует настройки» (attunement). Магические предметы, требующие настройки на одного владельца."
+            >
+              ⓘ
+            </span>
+          </label>
+          <label className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={noPurchase}
+              onChange={(e) => setNoPurchase(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-gray-300"
+            />
+            <span>Нельзя купить</span>
+            <span
+              className="cursor-help text-gray-400"
+              title="Spec-052: предмет нельзя купить (в одиночку или в наборе) из Telegram. Перемещения и надевание не затрагиваются."
             >
               ⓘ
             </span>
@@ -467,4 +486,5 @@ export const EMPTY_PAYLOAD: ItemPayload = {
   sourceDetail: null,
   dndsuUrl: null,
   requiresAttunement: false,
+  noPurchase: false,
 }

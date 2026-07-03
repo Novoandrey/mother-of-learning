@@ -1,6 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { aggregateGp } from '@/lib/transaction-resolver'
 import type { CoinSet } from '@/lib/transactions'
+import {
+  parseItemDefaultPrices,
+  type ItemDefaultPrices,
+} from '@/lib/item-default-prices'
+import {
+  parseItemPurchasePolicy,
+  type ItemPurchasePolicy,
+} from '@/lib/item-purchase-policy'
 
 /**
  * Read-side queries for the Telegram Mini App ledger (spec-044, PL-5).
@@ -183,6 +191,49 @@ export async function getFeedTg(
   return { rows, nextCursor }
 }
 
+/**
+ * The PC's own pending submissions (spec-052 US1 — «Мои заявки»): status
+ * 'pending' rows awaiting a DM decision. The player can cancel them (own
+ * pending only, enforced server-side) with no balance effect. Transfers show
+ * as sender/recipient legs sharing transferGroupId — dedupe by group in the UI.
+ */
+export async function getMyPendingTg(
+  supabase: SupabaseClient,
+  pcId: string,
+): Promise<TgFeedRow[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(FEED_SELECT)
+    .eq('actor_pc_id', pcId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as FeedRawRow[]).map((r) => {
+    const coins: CoinSet = {
+      cp: r.amount_cp,
+      sp: r.amount_sp,
+      gp: r.amount_gp,
+      pp: r.amount_pp,
+    }
+    return {
+      id: r.id,
+      kind: r.kind,
+      status: r.status,
+      coins,
+      signedGp: aggregateGp(coins),
+      itemName: r.item_name,
+      itemQty: r.item_qty,
+      categorySlug: r.category_slug,
+      comment: r.comment,
+      loopNumber: r.loop_number,
+      dayInLoop: r.day_in_loop,
+      authorUserId: r.author_user_id,
+      transferGroupId: r.transfer_group_id,
+      createdAt: r.created_at,
+    }
+  })
+}
+
 /** Map of transaction category slug → display label for the campaign. */
 export async function getTxCategoriesTg(
   supabase: SupabaseClient,
@@ -291,6 +342,136 @@ export async function searchCampaignItemsTg(
 }
 
 /**
+ * Buyable catalog items for the /tg buy screen (spec-052, US2). Like
+ * searchCampaignItemsTg but joins item_attributes for the data needed to
+ * preview the price, and excludes «нельзя купить» items (C-15). The charged
+ * price is computed client-side with resolveBuyUnitPriceGp + getCampaignBuyConfigTg.
+ */
+export type BuyableItemTg = {
+  id: string
+  title: string
+  priceGp: number | null
+  rarity: string | null
+  categorySlug: string
+}
+
+export async function searchBuyableItemsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  query: string,
+  limit = 12,
+): Promise<BuyableItemTg[]> {
+  const q = query.trim()
+  if (!q) return []
+  const { data } = await supabase
+    .from('nodes')
+    .select(
+      'id, title, fields, item_attributes!inner(price_gp, rarity, category_slug), node_types!inner(slug)',
+    )
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .ilike('title', `%${q}%`)
+    .order('title', { ascending: true })
+    .limit(limit * 2) // over-fetch; no_purchase is filtered client-side
+  const rows = (data ?? []) as Array<{
+    id: string
+    title: string
+    fields: Record<string, unknown> | null
+    item_attributes:
+      | { price_gp: number | null; rarity: string | null; category_slug: string }
+      | { price_gp: number | null; rarity: string | null; category_slug: string }[]
+      | null
+  }>
+  const out: BuyableItemTg[] = []
+  for (const r of rows) {
+    if ((r.fields ?? {}).no_purchase === true) continue // C-15
+    const attrs = Array.isArray(r.item_attributes)
+      ? r.item_attributes[0]
+      : r.item_attributes
+    if (!attrs) continue
+    out.push({
+      id: r.id,
+      title: r.title,
+      priceGp: attrs.price_gp,
+      rarity: attrs.rarity,
+      categorySlug: attrs.category_slug,
+    })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/**
+ * Campaign-shared item sets (spec-052, US4) for the /tg sets screen. Each set
+ * is a node of type 'set'; contents + author live in nodes.fields jsonb.
+ */
+export type CampaignSetTg = {
+  id: string
+  title: string
+  items: { itemNodeId: string; name: string; qty: number }[]
+  ownerUserId: string | null
+}
+
+export async function getCampaignSetsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+): Promise<CampaignSetTg[]> {
+  const { data } = await supabase
+    .from('nodes')
+    .select('id, title, fields, node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'set')
+    .order('title', { ascending: true })
+  const rows = (data ?? []) as Array<{
+    id: string
+    title: string
+    fields: Record<string, unknown> | null
+  }>
+  return rows.map((r) => {
+    const f = r.fields ?? {}
+    const itemsRaw = Array.isArray(f.items) ? f.items : []
+    const items = itemsRaw
+      .filter(
+        (x): x is Record<string, unknown> => !!x && typeof x === 'object',
+      )
+      .map((x) => ({
+        itemNodeId: typeof x.itemNodeId === 'string' ? x.itemNodeId : '',
+        name: typeof x.name === 'string' ? x.name : '',
+        qty: typeof x.qty === 'number' ? x.qty : 1,
+      }))
+      .filter((x) => x.itemNodeId && x.name)
+    return {
+      id: r.id,
+      title: r.title,
+      items,
+      ownerUserId: typeof f.ownerUserId === 'string' ? f.ownerUserId : null,
+    }
+  })
+}
+
+/**
+ * The campaign's buy config (default prices + purchase policy) from
+ * campaigns.settings — loaded once by the buy/sets screens to preview the
+ * charged price and the approval gate client-side (spec-052, C-13/C-14).
+ */
+export async function getCampaignBuyConfigTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+): Promise<{ defaults: ItemDefaultPrices; policy: ItemPurchasePolicy }> {
+  const { data } = await supabase
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .single()
+  const settings =
+    (data as { settings?: Record<string, unknown> } | null)?.settings ?? {}
+  return {
+    defaults: parseItemDefaultPrices(settings.item_default_prices),
+    policy: parseItemPurchasePolicy(settings.item_purchase_policy),
+  }
+}
+
+/**
  * The PC's current-loop item holdings — net approved item quantities, only
  * those still > 0 (feedback #4: show "what's already there" under the
  * starter-equipment builder). Loop-scoped, mirroring the per-loop wallet.
@@ -319,6 +500,76 @@ export async function getPcItemHoldingsTg(
     .filter(([, qty]) => qty > 0)
     .map(([name, qty]) => ({ name, qty }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+}
+
+/**
+ * Full inventory view for the Mini App (spec-052, US1/US3): the PC's net
+ * current-loop holdings (via getPcItemHoldingsTg) enriched with two flags —
+ *   - equipped: a true row exists in pc_equipped for (pc, name, loop)
+ *   - requiresAttunement: the name resolves to a catalog item whose
+ *     item_attributes.requires_attunement is true (free-text ⇒ false)
+ * Drives the carried/«Надето» split and the attunement soft-cap плашка (C-17).
+ */
+export type PcInventoryRowTg = {
+  name: string
+  qty: number
+  equipped: boolean
+  requiresAttunement: boolean
+}
+
+export async function getPcInventoryTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  pcId: string,
+  loopNumber: number | null,
+): Promise<PcInventoryRowTg[]> {
+  const holdings = await getPcItemHoldingsTg(supabase, pcId, loopNumber)
+  if (holdings.length === 0) return []
+  const names = holdings.map((h) => h.name)
+
+  // Equipped names this loop (pc_equipped, equipped=true).
+  let eq = supabase
+    .from('pc_equipped')
+    .select('item_name')
+    .eq('pc_id', pcId)
+    .eq('equipped', true)
+  if (loopNumber !== null) eq = eq.eq('loop_number', loopNumber)
+  const { data: eqData } = await eq
+  const equippedNames = new Set(
+    ((eqData ?? []) as Array<{ item_name: string }>).map((r) => r.item_name),
+  )
+
+  // Attunement: resolve held names → catalog item_attributes.requires_attunement.
+  // !inner on both embeds so the name + type filters constrain the outer rows
+  // (avoids the PostgREST embed-only-filter trap).
+  const { data: attrData } = await supabase
+    .from('nodes')
+    .select(
+      'title, item_attributes!inner(requires_attunement), node_types!inner(slug)',
+    )
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .in('title', names)
+  const attuneByName = new Map<string, boolean>()
+  for (const r of (attrData ?? []) as Array<{
+    title: string
+    item_attributes:
+      | { requires_attunement: boolean | null }
+      | { requires_attunement: boolean | null }[]
+      | null
+  }>) {
+    const attrs = Array.isArray(r.item_attributes)
+      ? r.item_attributes[0]
+      : r.item_attributes
+    attuneByName.set(r.title, attrs?.requires_attunement === true)
+  }
+
+  return holdings.map((h) => ({
+    name: h.name,
+    qty: h.qty,
+    equipped: equippedNames.has(h.name),
+    requiresAttunement: attuneByName.get(h.name) ?? false,
+  }))
 }
 
 /** Whether the PC has already taken its loop credit (category 'credit') this loop. */
