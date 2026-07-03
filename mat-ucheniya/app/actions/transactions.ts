@@ -323,9 +323,9 @@ export async function createTransaction(
  * no DM approval, but only once per loop. Server-controlled end to end: the
  * client picks nothing but which PC, so the amount and the once-per-loop rule
  * can't be tampered with. The guard SELECT covers normal use (and disables the
- * button); a true concurrent double-tap is the only gap and is harmless for a
- * trusted table — add a partial unique index on (campaign_id, actor_pc_id,
- * loop_number) WHERE category_slug='credit' if hard enforcement is ever needed.
+ * button); a concurrent double-tap that races past it is caught hard by the
+ * partial unique index `uniq_loop_credit` (mig 123) — the second insert fails
+ * with 23505 and we surface it as the same friendly "already taken".
  */
 export async function takeLoopCredit(
   campaignId: string,
@@ -386,6 +386,11 @@ export async function takeLoopCredit(
     .single()
 
   if (error) {
+    // Concurrent double-tap raced past the guard SELECT → the partial unique
+    // index (mig 123) rejects the second insert. Same friendly message.
+    if ((error as { code?: string }).code === '23505') {
+      return { ok: false, error: 'Кредит за эту петлю уже взят' }
+    }
     return { ok: false, error: `Не удалось взять кредит: ${error.message}` }
   }
   return { ok: true, id: (data as { id: string }).id }
