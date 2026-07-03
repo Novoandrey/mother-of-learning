@@ -72,6 +72,34 @@ describe('renderMasterMessageHtml — dashboard', () => {
     expect(html).toContain('<i>Пока нет персонажей.</i>')
   })
 
+  it('hides zero-balance PCs to avoid clutter', () => {
+    const html = renderMasterMessageHtml(
+      state({
+        pcs: [
+          { title: 'Гэри', gp: 30 },
+          { title: 'Стас', gp: 0 },
+          { title: 'Аврора', gp: 1 },
+        ],
+      }),
+    )
+    expect(html).toContain('• Гэри — 30 зм')
+    expect(html).toContain('• Аврора — 1 зм')
+    expect(html).not.toContain('Стас')
+  })
+
+  it('keeps negative balances — only exact zero is hidden', () => {
+    const html = renderMasterMessageHtml(state({ pcs: [{ title: 'Долг', gp: -5 }] }))
+    expect(html).toContain('• Долг — -5 зм')
+  })
+
+  it('all PCs at zero → «по нулям», not «нет персонажей»', () => {
+    const html = renderMasterMessageHtml(
+      state({ pcs: [{ title: 'Гэри', gp: 0 }, { title: 'Стас', gp: 0 }] }),
+    )
+    expect(html).toContain('Все балансы по нулям')
+    expect(html).not.toContain('Гэри')
+  })
+
   it('escapes PC titles', () => {
     const html = renderMasterMessageHtml(state({ pcs: [{ title: '<Zak>', gp: 1 }] }))
     expect(html).toContain('• &lt;Zak&gt; — 1 зм')
