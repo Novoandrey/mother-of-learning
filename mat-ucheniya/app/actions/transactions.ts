@@ -22,7 +22,10 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getMembership } from '@/lib/auth'
-import { isAutoApproved } from '@/lib/approval-policy'
+import {
+  isAutoApproved,
+  approvalsEnabledFromSettings,
+} from '@/lib/approval-policy'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import crypto from 'node:crypto'
 import type { CoinSet } from '@/lib/transactions'
@@ -116,6 +119,23 @@ async function resolveAuth(campaignId: string): Promise<AuthContext> {
   if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
 
   return { ok: true, userId: user.id, role: membership.role }
+}
+
+/**
+ * Campaign approval kill-switch (spec-053). Reads `campaigns.settings`
+ * once per write; defaults to OFF when unset (see
+ * `approvalsEnabledFromSettings`). Off → every write auto-approves.
+ */
+async function loadApprovalsEnabled(campaignId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .maybeSingle()
+  return approvalsEnabledFromSettings(
+    (data as { settings?: unknown } | null)?.settings,
+  )
 }
 
 /**
@@ -282,7 +302,12 @@ export async function createTransaction(
   const admin = createAdminClient()
   // Spec-014: player → pending; DM/owner → approved. createTransaction has no
   // free-общак path — only the stash transfer wrappers set autoApprove.
-  const approved = isAutoApproved(auth.role, false)
+  // Spec-053: the campaign kill-switch forces approved when off.
+  const approved = isAutoApproved(
+    auth.role,
+    false,
+    await loadApprovalsEnabled(input.campaignId),
+  )
   const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
   // Pending player submissions get a batch_id (batch of 1) so they appear in
@@ -790,7 +815,12 @@ export async function createTransfer(
   const groupId = crypto.randomUUID()
   // Spec-014: player → pending; DM/owner → approved. Spec-044/C-05: free общак
   // (autoApprove set by the stash wrappers) approves a player op too.
-  const approved = isAutoApproved(auth.role, input.autoApprove)
+  // Spec-053: the campaign kill-switch forces approved when off.
+  const approved = isAutoApproved(
+    auth.role,
+    input.autoApprove,
+    await loadApprovalsEnabled(input.campaignId),
+  )
   const status = approved ? 'approved' : 'pending'
   const nowIso = new Date().toISOString()
   // A queued (pending) player submission needs a batch_id for the queue;
@@ -1097,7 +1127,12 @@ export async function createItemTransfer(
     }
   }
 
-  const approved = isAutoApproved(auth.role, input.autoApprove)
+  // Spec-053: the campaign kill-switch forces approved when off.
+  const approved = isAutoApproved(
+    auth.role,
+    input.autoApprove,
+    await loadApprovalsEnabled(input.campaignId),
+  )
   const nowIso = new Date().toISOString()
   const baseRow = {
     campaign_id: input.campaignId,
@@ -1333,11 +1368,14 @@ export async function createPurchase(
   }
 
   // --- Approval gate: rarity-driven, funding-agnostic (C-14); set-buy may
-  //     override with the aggregated decision (C-16). ---
+  //     override with the aggregated decision (C-16). Spec-053: the campaign
+  //     kill-switch (off by default) short-circuits the whole gate to approved,
+  //     rarity and forceStatus included. ---
   const needsApproval =
-    input.forceStatus != null
+    approvalsEnabledFromSettings(settings) &&
+    (input.forceStatus != null
       ? input.forceStatus === 'pending'
-      : approvalRequiredFor(policy, rarity)
+      : approvalRequiredFor(policy, rarity))
   const status: 'approved' | 'pending' = needsApproval ? 'pending' : 'approved'
   const nowIso = new Date().toISOString()
   const batchId =
