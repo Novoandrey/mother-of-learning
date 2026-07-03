@@ -312,19 +312,6 @@ export function PcHome({
     <div className="mx-auto flex h-[calc(100dvh-3rem)] max-w-sm flex-col">
       <div className="flex shrink-0 items-center justify-between">
         {showBack ? <BackLink onClick={onBack}>мои персонажи</BackLink> : <span />}
-        {onOpenBalances && (
-          <OverflowMenu
-            items={[
-              { label: 'Балансы всех', onClick: onOpenBalances },
-              ...(character.isOwn
-                ? [{ label: 'Мои заявки', onClick: onOpenRequests }]
-                : []),
-              ...(character.isOwn && onOpenEquip
-                ? [{ label: 'Стартовое снаряжение', onClick: onOpenEquip }]
-                : []),
-            ]}
-          />
-        )}
       </div>
 
       {/* Portrait fills the remaining height, contained — shrinks both ways so
@@ -334,11 +321,22 @@ export function PcHome({
       </div>
       <div className="mt-2 shrink-0 text-center text-base font-semibold">{character.title}</div>
 
-      {/* Per-PC app launcher (C-04), pinned at the bottom. */}
+      {/* Per-PC app launcher (C-04), pinned at the bottom. Every action is a
+          visible button — balances + starter were buried in a ⋮ menu before
+          (nobody found them); an even flex row adapts to 3 or 4 actions. */}
       <div className="mt-3 grid shrink-0 grid-cols-3 gap-2">
         <AppButton icon="🛍" label="Деньги" onClick={onOpenLedger} />
         <AppButton icon="🎒" label="Сумка" onClick={onOpenInventory} />
         <AppButton icon="📖" label="Каталог" onClick={onOpenWiki} disabled={!onOpenWiki} />
+        {onOpenBalances && (
+          <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />
+        )}
+        {character.isOwn && (
+          <AppButton icon="📋" label="Заявки" onClick={onOpenRequests} />
+        )}
+        {character.isOwn && onOpenEquip && (
+          <AppButton icon="🎽" label="Снаряжение" onClick={onOpenEquip} />
+        )}
       </div>
     </div>
   )
@@ -360,7 +358,7 @@ function AppButton({
       onClick={onClick}
       disabled={disabled}
       className={
-        'flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 text-center transition-colors ' +
+        'flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 text-center transition-colors ' +
         (disabled
           ? 'cursor-default bg-neutral-900/50 text-neutral-600'
           : 'bg-neutral-900 text-neutral-100 hover:bg-neutral-800')
