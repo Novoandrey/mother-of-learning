@@ -12,6 +12,7 @@
 import { after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ledgerFeedConfigured, sendLedgerMessage } from '@/lib/telegram/bot'
+import { refreshMasterMessage } from '@/lib/telegram/ledger-master'
 import {
   formatLedgerEvent,
   type LedgerEvent,
@@ -81,6 +82,13 @@ export async function notifyLedgerEvent(event: LedgerEvent): Promise<void> {
         const admin = createAdminClient()
         const names = await resolveNames(admin, event)
         await sendLedgerMessage(formatLedgerEvent(event, names))
+        // Master message (spec-054): keep the pinned dashboard current. On
+        // loop-started we mint a fresh message for the new loop (D3), otherwise
+        // edit it in place. refreshMasterMessage never throws — a refresh
+        // failure must not affect the per-event send above or the write.
+        await refreshMasterMessage(admin, event.campaignId, {
+          mint: event.type === 'loop-started',
+        })
       } catch (e) {
         console.error('[ledger-feed] notify error', e)
       }

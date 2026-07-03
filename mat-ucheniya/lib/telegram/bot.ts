@@ -98,14 +98,21 @@ export async function sendLedgerMessage(html: string): Promise<number | null> {
 }
 
 /**
- * Edit an existing ledger message in place. Not used by the per-event feed yet;
- * it exists now so the future editable-pinned-summary increment (loop + stash
- * state) drops in without reworking this layer. Returns whether it succeeded.
+ * Outcome of an in-place edit. The master-message orchestrator (spec-054) needs
+ * to tell these apart: only `gone` should trigger a repost — `unchanged`
+ * (identical content) is benign, and `error` is transient (retry next event).
+ */
+export type EditOutcome = 'ok' | 'unchanged' | 'gone' | 'error'
+
+/**
+ * Edit an existing ledger message in place — used by the pinned master message
+ * (spec-054) to refresh the money dashboard. Returns a classified outcome so the
+ * caller can repost only when the target message is actually gone.
  */
 export async function editLedgerMessage(
   messageId: number,
   html: string,
-): Promise<boolean> {
+): Promise<EditOutcome> {
   const res = await botCall('editMessageText', {
     chat_id: feedConfig()?.chatId,
     message_id: messageId,
@@ -113,13 +120,14 @@ export async function editLedgerMessage(
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },
   })
-  if (!res) return false
-  if (!res.ok) {
-    console.error(
-      '[ledger-feed] editMessage failed',
-      res.status,
-      await res.text().catch(() => ''),
-    )
+  if (!res) return 'error'
+  if (res.ok) return 'ok'
+  const body = await res.text().catch(() => '')
+  console.error('[ledger-feed] editMessage failed', res.status, body)
+  const low = body.toLowerCase()
+  if (low.includes('not modified')) return 'unchanged'
+  if (low.includes('message to edit not found') || low.includes('message_id_invalid')) {
+    return 'gone'
   }
-  return res.ok
+  return 'error'
 }
