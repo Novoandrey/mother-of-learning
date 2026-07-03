@@ -649,6 +649,7 @@ function RecordSheet({
       comment: comment.trim(),
       loopNumber,
       dayInLoop: 1,
+      notify: true,
     })
     setBusy(false)
     if (!res.ok) {
@@ -818,6 +819,7 @@ function TransferSheet({
               comment: comment.trim(),
               loopNumber,
               dayInLoop: 1,
+              notify: true,
             })
           : dir === 'from-stash'
             ? await takeItemFromStash(payload)
@@ -862,6 +864,7 @@ function TransferSheet({
             comment: comment.trim(),
             loopNumber,
             dayInLoop: 1,
+            notify: true,
           })
         : dir === 'to-stash'
           ? await putMoneyIntoStash(base)
@@ -1313,6 +1316,7 @@ function BuySheet({
         fundingSource: funding,
         loopNumber,
         dayInLoop: 1,
+        notify: true,
       })
       if (!res.ok) {
         setError(res.error)
@@ -2183,6 +2187,8 @@ function SetBuySheet({
       loopNumber,
       dayInLoop: 1,
       comment: `Набор: ${set.title}`,
+      // Clean set → «взят набор «title»»; edited list → ad-hoc buy, no title.
+      setTitle: dirty ? undefined : set.title,
     })
     setBusy('none')
     if (!res.ok) {

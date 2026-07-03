@@ -26,6 +26,8 @@ import {
   setBuyRequiresApproval,
   normalizeRarity,
 } from '@/lib/item-purchase-policy'
+import { notifyLedgerEvent } from '@/lib/telegram/ledger-feed'
+import { ledgerFeedConfigured } from '@/lib/telegram/bot'
 
 export type ActionResult<T = object> =
   | ({ ok: true } & T)
@@ -90,6 +92,72 @@ function canManageSet(
   return ownerUserId !== null && ownerUserId === userId
 }
 
+/**
+ * Spec-053. Best-effort priced total of a set's items, for the «создан набор»
+ * ledger post (buyItems computes its own total for affordability). Prices each
+ * item exactly as createPurchase does; unpriceable items contribute 0. Only
+ * called when the feed is configured, so its two reads never run on staging.
+ */
+async function computeSetTotalGp(
+  admin: SupabaseClient,
+  campaignId: string,
+  items: SetItem[],
+): Promise<number> {
+  if (items.length === 0) return 0
+  const { data: campRow } = await admin
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .maybeSingle()
+  const settings =
+    (campRow as { settings?: Record<string, unknown> } | null)?.settings ?? {}
+  const defaults = parseItemDefaultPrices(settings.item_default_prices)
+  const policy = parseItemPurchasePolicy(settings.item_purchase_policy)
+
+  const { data: attrRows } = await admin
+    .from('nodes')
+    .select('id, item_attributes!inner(price_gp, rarity, category_slug)')
+    .eq('campaign_id', campaignId)
+    .in(
+      'id',
+      items.map((i) => i.itemNodeId),
+    )
+  const attrById = new Map<
+    string,
+    { priceGp: number | null; rarity: string | null; categorySlug: string }
+  >()
+  for (const r of (attrRows ?? []) as Array<{
+    id: string
+    item_attributes:
+      | { price_gp: number | null; rarity: string | null; category_slug: string }
+      | { price_gp: number | null; rarity: string | null; category_slug: string }[]
+      | null
+  }>) {
+    const a = Array.isArray(r.item_attributes) ? r.item_attributes[0] : r.item_attributes
+    if (!a) continue
+    attrById.set(r.id, {
+      priceGp: a.price_gp,
+      rarity: a.rarity,
+      categorySlug: a.category_slug,
+    })
+  }
+
+  let total = 0
+  for (const it of items) {
+    const a = attrById.get(it.itemNodeId)
+    if (!a) continue
+    const unit = resolveBuyUnitPriceGp({
+      priceGp: a.priceGp,
+      categorySlug: a.categorySlug,
+      rarity: normalizeRarity(a.rarity),
+      defaults,
+      policy,
+    })
+    if (unit != null) total += unit * it.qty
+  }
+  return total
+}
+
 export async function createSet(input: {
   campaignId: string
   title: string
@@ -129,6 +197,24 @@ export async function createSet(input: {
     }
   }
   invalidateSidebar(input.campaignId)
+
+  // Best-effort feed post — must never fail the create (the set already exists).
+  if (ledgerFeedConfigured()) {
+    try {
+      const totalGp = await computeSetTotalGp(admin, input.campaignId, items)
+      await notifyLedgerEvent({
+        type: 'set-created',
+        campaignId: input.campaignId,
+        authorUserId: user.id,
+        setTitle: title,
+        items: items.map((i) => ({ name: i.name, qty: i.qty })),
+        totalGp,
+      })
+    } catch (e) {
+      console.error('[ledger-feed] set-created notify failed', e)
+    }
+  }
+
   return { ok: true, id: (data as { id: string }).id }
 }
 
@@ -228,6 +314,8 @@ export async function buyItems(input: {
   loopNumber: number
   dayInLoop: number
   comment?: string
+  /** Spec-053: set title for the «взят набор» feed post. Edit-on-buy omits it. */
+  setTitle?: string
 }): Promise<ActionResult<{ status: 'approved' | 'pending'; count: number }>> {
   if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
   if (!input.buyerPcId) return { ok: false, error: 'Не выбран персонаж' }
@@ -369,6 +457,18 @@ export async function buyItems(input: {
     count++
   }
 
+  // Spec-053: one aggregate «взят набор» post (the inner createPurchase calls
+  // stay silent). totalGp + items are already resolved above.
+  await notifyLedgerEvent({
+    type: 'set-bought',
+    campaignId: input.campaignId,
+    actorPcId: input.buyerPcId,
+    authorUserId: user.id,
+    setTitle: input.setTitle ?? null,
+    items: items.map((i) => ({ name: i.name, qty: i.qty })),
+    totalGp,
+  })
+
   return { ok: true, status, count }
 }
 
@@ -410,5 +510,6 @@ export async function buySet(input: {
     loopNumber: input.loopNumber,
     dayInLoop: input.dayInLoop,
     comment: setTitle ? `Набор: ${setTitle}` : 'Набор',
+    setTitle: setTitle || undefined,
   })
 }
