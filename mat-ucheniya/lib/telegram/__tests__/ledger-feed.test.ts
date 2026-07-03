@@ -150,6 +150,18 @@ describe('formatLedgerEvent (spec-053 templates)', () => {
     )
   })
 
+  it('🔄 началась новая петля — только номер, без actor', () => {
+    const ev: LedgerEvent = {
+      type: 'loop-started',
+      campaignId: 'c',
+      authorUserId: 'u',
+      loopNumber: 8,
+    }
+    expect(
+      formatLedgerEvent(ev, { playerName: null, pcTitle: null, recipientPcTitle: null }),
+    ).toBe('🔄 <b>Началась новая петля</b>\nПетля 8')
+  })
+
   it('actor falls back to PC when the player name is unknown', () => {
     const ev: LedgerEvent = {
       type: 'stash-put',

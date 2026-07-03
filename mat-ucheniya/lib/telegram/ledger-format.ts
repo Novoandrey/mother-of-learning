@@ -97,6 +97,14 @@ export type LedgerEvent =
       authorUserId: string | null
       item: FeedLineItem
     }
+  | {
+      // A new loop started (DM applied the loop-start setup). No PC/actor —
+      // it's a campaign-wide announcement, like set-created.
+      type: 'loop-started'
+      campaignId: string
+      authorUserId: string | null
+      loopNumber: number
+    }
 
 /** Resolved names for the formatter (all raw, un-escaped). */
 export type ResolvedNames = {
@@ -203,5 +211,7 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
       )
     case 'loot':
       return `🎁 <b>Получен предмет</b>\n${who}: ${itemPart(event.item)}`
+    case 'loop-started':
+      return `🔄 <b>Началась новая петля</b>\nПетля ${event.loopNumber}`
   }
 }

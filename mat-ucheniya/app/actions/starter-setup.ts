@@ -44,6 +44,7 @@ import {
 import { resolveDesiredRowSet } from '@/lib/starter-setup-resolver'
 import { applyAutogenDiff, computeAutogenDiff } from '@/lib/autogen-reconcile'
 import { getStashNode } from '@/lib/stash'
+import { notifyLedgerEvent } from '@/lib/telegram/ledger-feed'
 import type {
   ApplyResult,
   CampaignStarterConfig,
@@ -645,11 +646,21 @@ export async function applyLoopStartSetup(
     }
   }
 
-  // ─── Step 11: revalidate ───
+  // ─── Step 11: announce the new loop in the ledger feed (spec-053) ───
+  // The bulk per-PC setup writes through the apply_loop_start_setup RPC, so it
+  // never triggers per-row notifications — instead one «новая петля» post.
+  await notifyLedgerEvent({
+    type: 'loop-started',
+    campaignId,
+    authorUserId: user.id,
+    loopNumber,
+  })
+
+  // ─── Step 12: revalidate ───
   revalidatePath(`/c/${campaignSlug}/loops`)
   revalidatePath(`/c/${campaignSlug}/accounting`)
 
-  // ─── Step 12: done ───
+  // ─── Step 13: done ───
   return { ok: true, summary }
 }
 

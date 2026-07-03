@@ -320,6 +320,9 @@ export async function createExpenseWithStashShortfall(
     loopNumber: input.loopNumber,
     dayInLoop: input.dayInLoop,
     sessionId: input.sessionId ?? null,
+    // Spec-053: post the расход to the feed (the внутренний stash-topup стays
+    // silent — it's coverage plumbing, not a separate event).
+    notify: true,
   })
   if (!expenseRes.ok) {
     // Transfer already landed. Surface the error — DM reconciles manually.
