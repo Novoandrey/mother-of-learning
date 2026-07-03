@@ -941,6 +941,7 @@ export function LedgerScreen({
   const [data, setData] = useState<LedgerData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'none' | 'record' | 'transfer'>('none')
 
   const reload = useCallback(async () => {
@@ -974,6 +975,7 @@ export function LedgerScreen({
   const loadMore = useCallback(async () => {
     if (!data?.nextCursor || loadingMore) return
     setLoadingMore(true)
+    setMoreError(null)
     try {
       const more = await getFeedTg(supabase, character.id, loopNumber, {
         before: data.nextCursor,
@@ -982,6 +984,9 @@ export function LedgerScreen({
       setData((d) =>
         d ? { ...d, rows: [...d.rows, ...more.rows], nextCursor: more.nextCursor } : d,
       )
+    } catch {
+      // Feedback instead of a silently-stuck button (spec-030 UX pass).
+      setMoreError('Не удалось подгрузить — нажми ещё раз.')
     } finally {
       setLoadingMore(false)
     }
@@ -1022,6 +1027,9 @@ export function LedgerScreen({
               >
                 {loadingMore ? 'Загрузка…' : 'Показать ещё'}
               </button>
+            )}
+            {moreError && (
+              <p className="mt-2 text-center text-xs text-red-400">{moreError}</p>
             )}
           </div>
         </>
@@ -2486,6 +2494,15 @@ export function StarterEquipScreen({
             <p className="mt-3">
               Отправлено: {submitted}. Ждёт одобрения ведущего — появится в листе после подтверждения.
             </p>
+            <button
+              onClick={() => {
+                setSubmitted(null)
+                setRows([])
+              }}
+              className="mt-4 rounded-lg bg-neutral-800 px-4 py-2 text-sm text-neutral-200 transition-colors hover:bg-neutral-700"
+            >
+              Собрать ещё
+            </button>
           </div>
         </Centered>
       </div>
