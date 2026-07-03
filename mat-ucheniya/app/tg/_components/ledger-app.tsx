@@ -539,6 +539,53 @@ function SegToggle<T extends string>({
   )
 }
 
+// Integer input that tolerates a transient empty field while typing. A plain
+// controlled number input that snaps empty→min on every keystroke makes it
+// impossible to erase a digit to type a new one (you had to type "12" then
+// delete the "1" to get "2"). This keeps an internal text buffer: empty is
+// allowed mid-edit, the committed value only ever settles to a valid int, and
+// blur clamps an empty/invalid field back to `min`.
+function IntInput({
+  value,
+  onCommit,
+  min = 1,
+  className,
+}: {
+  value: number
+  onCommit: (n: number) => void
+  min?: number
+  className?: string
+}) {
+  const [buf, setBuf] = useState(String(value))
+  const [seen, setSeen] = useState(value)
+  // Reset the text buffer only when the committed value changes from outside
+  // (sanctioned "reset state on prop change" — no effect, no cascading-render
+  // lint). Clearing the field doesn't commit, so an empty buffer is preserved
+  // while typing — the fix for "couldn't erase a digit to type a new number".
+  if (value !== seen) {
+    setSeen(value)
+    setBuf(String(value))
+  }
+  return (
+    <input
+      className={className}
+      inputMode="numeric"
+      value={buf}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^\d]/g, '')
+        setBuf(raw)
+        if (raw !== '') onCommit(Math.max(min, parseInt(raw, 10)))
+      }}
+      onBlur={() => {
+        const n = parseInt(buf, 10)
+        const clamped = Number.isFinite(n) ? Math.max(min, n) : min
+        setBuf(String(clamped))
+        onCommit(clamped)
+      }}
+    />
+  )
+}
+
 function SubmitButton({
   busy,
   onClick,
@@ -1959,16 +2006,6 @@ function SetItemsEditor({
   }
   const removeItem = (id: string) =>
     setItems((prev) => prev.filter((p) => p.itemNodeId !== id))
-  const setQty = (id: string, raw: string) => {
-    const n = parseInt(raw, 10)
-    setItems((prev) =>
-      prev.map((p) =>
-        p.itemNodeId === id
-          ? { ...p, qty: Number.isFinite(n) && n >= 1 ? n : 1 }
-          : p,
-      ),
-    )
-  }
 
   return (
     <>
@@ -1982,11 +2019,14 @@ function SetItemsEditor({
               <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
                 {it.name}
               </span>
-              <input
+              <IntInput
                 className="w-14 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100"
-                inputMode="numeric"
-                value={String(it.qty)}
-                onChange={(e) => setQty(it.itemNodeId, e.target.value)}
+                value={it.qty}
+                onCommit={(q) =>
+                  setItems((prev) =>
+                    prev.map((p) => (p.itemNodeId === it.itemNodeId ? { ...p, qty: q } : p)),
+                  )
+                }
               />
               <button
                 onClick={() => removeItem(it.itemNodeId)}
@@ -2572,18 +2612,16 @@ export function StarterEquipScreen({
                   {r.itemName || '—'}
                   {r.itemNodeId ? '' : ' · своё'}
                 </span>
-                <input
+                <IntInput
                   className="w-14 rounded bg-neutral-800 px-2 py-1 text-center text-sm tabular-nums"
-                  inputMode="numeric"
                   value={r.qty}
-                  onChange={(e) => {
-                    const q = Math.max(1, parseInt(e.target.value, 10) || 1)
+                  onCommit={(q) =>
                     setRows((rs) =>
                       rs.map((x) =>
                         x.clientId === r.clientId && x.type === 'item' ? { ...x, qty: q } : x,
                       ),
                     )
-                  }}
+                  }
                 />
               </>
             ) : (
