@@ -1151,8 +1151,12 @@ export async function createItemTransfer(
   //
   // Balances wipe per loop (FR-015), so the scope is the current loop
   // only. Match precedence (spec-015): item_node_id when present (any
-  // historical name aliases dedupe correctly), else exact item_name
-  // (free-text fallback).
+  // historical name aliases dedupe correctly). Without a node_id — the /tg
+  // transfer picks items by name only — match `item_name` across ALL legs
+  // (spec-053 fix). A catalog buy stores the item leg WITH a node_id, so the
+  // old `item_node_id IS NULL` filter counted 0 and blocked transferring a
+  // bought item, even though the picker (getPcItemHoldingsTg, by name) showed
+  // it. Matching by name here mirrors that by-name holdings view.
   const ownerQuery = admin
     .from('transactions')
     .select('item_qty')
@@ -1164,7 +1168,7 @@ export async function createItemTransfer(
 
   const { data: senderLegs, error: ownErr } = await (itemNodeId
     ? ownerQuery.eq('item_node_id', itemNodeId)
-    : ownerQuery.eq('item_name', itemName).is('item_node_id', null))
+    : ownerQuery.eq('item_name', itemName))
 
   if (ownErr) {
     return { ok: false, error: `Ошибка проверки инвентаря: ${ownErr.message}` }
