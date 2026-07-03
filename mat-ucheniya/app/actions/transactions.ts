@@ -364,7 +364,9 @@ export async function createTransaction(
         item: { name: itemName ?? '—', qty: itemQty },
       })
     } else {
-      const gp = input.amountGp ?? 0
+      // Prefer the caller's gp; fall back to the stored coins so a
+      // perDenomOverride write is still classified/valued correctly.
+      const gp = input.amountGp ?? aggregateGp(coins)
       await notifyLedgerEvent({
         type: gp < 0 ? 'expense' : 'income',
         campaignId: input.campaignId,

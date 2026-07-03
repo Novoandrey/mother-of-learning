@@ -26,6 +26,7 @@ import {
   setBuyRequiresApproval,
   normalizeRarity,
 } from '@/lib/item-purchase-policy'
+import { approvalsEnabledFromSettings } from '@/lib/approval-policy'
 import { notifyLedgerEvent } from '@/lib/telegram/ledger-feed'
 import { ledgerFeedConfigured } from '@/lib/telegram/bot'
 
@@ -414,10 +415,13 @@ export async function buyItems(input: {
     rarities.push(rarity)
   }
 
-  // Aggregated approval by max rarity (C-16).
-  const status: 'approved' | 'pending' = setBuyRequiresApproval(policy, rarities)
-    ? 'pending'
-    : 'approved'
+  // Aggregated approval by max rarity (C-16). Spec-053: the campaign
+  // kill-switch short-circuits it, so the returned status matches what
+  // createPurchase actually writes (approved) when approvals are off.
+  const status: 'approved' | 'pending' =
+    approvalsEnabledFromSettings(settings) && setBuyRequiresApproval(policy, rarities)
+      ? 'pending'
+      : 'approved'
 
   // All-or-nothing affordability pre-check (avoids partial inserts).
   if (input.fundingSource === 'pc') {
