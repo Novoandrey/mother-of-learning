@@ -30,12 +30,17 @@ async function resolveNames(
   const actorPcId =
     event.type === 'transfer'
       ? event.senderPcId
-      : event.type === 'set-created' || event.type === 'loop-started'
+      : event.type === 'set-created' ||
+          event.type === 'loop-started' ||
+          event.type === 'expedition'
         ? null
         : event.actorPcId
   const recipientPcId = event.type === 'transfer' ? event.recipientPcId : null
+  const participantPcIds = event.type === 'expedition' ? event.participantPcIds : []
 
-  const pcIds = [actorPcId, recipientPcId].filter((x): x is string => !!x)
+  const pcIds = [actorPcId, recipientPcId, ...participantPcIds].filter(
+    (x): x is string => !!x,
+  )
   const [pcRes, profileRes] = await Promise.all([
     pcIds.length
       ? admin.from('nodes').select('id, title').in('id', pcIds)
@@ -62,6 +67,7 @@ async function resolveNames(
     playerName,
     pcTitle: actorPcId ? (titleById.get(actorPcId) ?? null) : null,
     recipientPcTitle: recipientPcId ? (titleById.get(recipientPcId) ?? null) : null,
+    participantTitles: participantPcIds.map((id) => titleById.get(id) ?? '—'),
   }
 }
 

@@ -105,12 +105,28 @@ export type LedgerEvent =
       authorUserId: string | null
       loopNumber: number
     }
+  | {
+      // A player logged an expedition (spec-055): a pack went somewhere, spent
+      // consumables paid from the общак, brought reward back to the общак. No
+      // single actor — participants are a list; narrated as one message.
+      type: 'expedition'
+      campaignId: string
+      authorUserId: string | null
+      participantPcIds: string[]
+      target: string
+      rewardMoneyGp?: number
+      rewardItems?: FeedLineItem[]
+      consumablesCostGp?: number
+      consumablesItems?: FeedLineItem[]
+    }
 
 /** Resolved names for the formatter (all raw, un-escaped). */
 export type ResolvedNames = {
   playerName: string | null
   pcTitle: string | null
   recipientPcTitle: string | null
+  /** For 'expedition': the pack's PC titles, in order (spec-055). */
+  participantTitles?: string[]
 }
 
 // ── pure helpers ────────────────────────────────────────────────────────────
@@ -213,5 +229,15 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
       return `🎁 <b>Получен предмет</b>\n${who}: ${itemPart(event.item)}`
     case 'loop-started':
       return `🔄 <b>Началась новая петля</b>\nПетля ${event.loopNumber}`
+    case 'expedition': {
+      const pack = names.participantTitles?.length
+        ? names.participantTitles.map(esc).join(', ')
+        : '—'
+      const reward = moneyItemParts(event.rewardMoneyGp, event.rewardItems ?? [])
+      const spent = moneyItemParts(event.consumablesCostGp, event.consumablesItems ?? [])
+      const rewardLine = reward.length ? `\nПолучили:${detailTail(reward)}` : ''
+      const spentLine = spent.length ? `\nПотратили:${detailTail(spent)}` : ''
+      return `🧭 <b>Вылазка</b>\n${pack} → ${esc(event.target)}${rewardLine}${spentLine}`
+    }
   }
 }
