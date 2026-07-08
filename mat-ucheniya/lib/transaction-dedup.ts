@@ -86,6 +86,13 @@ export function dedupTransferPairs<
     item_qty: number;
     transfer_group_id: string | null;
     /**
+     * Spec-055: expedition rows (see the section at the bottom of this file)
+     * carry a «… вылазки: …» comment. Optional so older call sites and tests
+     * that don't pass a comment still satisfy the bound — an absent comment
+     * simply never matches `isExpeditionComment`.
+     */
+    comment?: string;
+    /**
      * Spec-014 FR-004: both legs of a transfer share status by
      * construction. Defensive: we group by (transfer_group_id, status)
      * so that a hypothetical mixed-status pair (data corruption) is
@@ -100,6 +107,15 @@ export function dedupTransferPairs<
   const out: T[] = [];
   for (const row of rows) {
     if (!row.transfer_group_id) {
+      out.push(row);
+      continue;
+    }
+    // Spec-055: expedition groups share a transfer_group_id but are NOT a
+    // two-leg transfer (1–3 rows: consumables / reward money / loot). Pass
+    // every row through so the render layer can fold the group into one
+    // summary (`groupExpeditionRows`). Collapsing them as a "pair" here would
+    // silently drop the reward/loot legs — the very bug spec-055 R2 #5 fixes.
+    if (isExpeditionComment(row.comment)) {
       out.push(row);
       continue;
     }
@@ -145,4 +161,141 @@ export function countDistinctEvents(rows: {
     else nonTransferCount += 1;
   }
   return groups.size + nonTransferCount;
+}
+
+// ============================================================================
+// Expedition grouping — spec-055 R2 (#5)
+// ============================================================================
+//
+// A вылазка (`runExpedition`, app/actions/expeditions.ts) writes 1–3 ledger
+// rows sharing ONE `transfer_group_id`, all with actor = the общак node:
+//   • consumables spend — kind 'money', category 'expense',
+//     comment «Расходники вылазки: <цель>»
+//   • reward money      — kind 'money', category 'income',
+//     comment «Награда вылазки: <цель>»
+//   • reward loot       — kind 'item',  category 'loot' (one row per item),
+//     comment «Награда вылазки: <цель>»
+//
+// They share a `transfer_group_id` but are NOT a transfer pair, so the two-leg
+// `dedupTransferPairs` collapse is wrong for them. We detect them by their
+// comment prefix and fold the whole group into one summary entry for the feed.
+
+const EXPEDITION_COMMENT_RE = /^(?:Расходники|Награда) вылазки:\s*(.*)$/;
+
+/** True when a comment was written by `runExpedition` (either leg-flavour). */
+export function isExpeditionComment(
+  comment: string | null | undefined,
+): boolean {
+  return typeof comment === 'string' && EXPEDITION_COMMENT_RE.test(comment);
+}
+
+/**
+ * The вылазка's target (free text after «… вылазки: »). Empty string when the
+ * comment isn't an expedition comment — callers guard with `isExpeditionComment`.
+ */
+export function parseExpeditionTarget(
+  comment: string | null | undefined,
+): string {
+  if (typeof comment !== 'string') return '';
+  const m = comment.match(EXPEDITION_COMMENT_RE);
+  return m ? m[1].trim() : '';
+}
+
+/** Net composition of one вылазка, derived from its rows. */
+export type ExpeditionSummary = {
+  target: string;
+  loopNumber: number;
+  dayInLoop: number;
+  sessionNumber: number | null;
+  /** Positive magnitude spent on consumables (0 when none). */
+  spentGp: number;
+  /** Positive magnitude earned as reward money (0 when none). */
+  earnedGp: number;
+  /** Reward loot, one entry per item row, qty as a positive count. */
+  items: { name: string; qty: number }[];
+};
+
+/**
+ * Fold an expedition group's rows into its net summary. Money rows split into
+ * spent (negative aggregate) / earned (positive); item rows become loot lines.
+ * Pure and order-independent — target/loop/day are read from the rows (all
+ * share them by construction).
+ */
+export function summarizeExpedition<
+  T extends {
+    kind: TransactionWithRelations['kind'];
+    coins: CoinSet;
+    item_qty: number;
+    item_name: string | null;
+    comment: string;
+    loop_number: number;
+    day_in_loop: number;
+    session_number: number | null;
+  },
+>(rows: T[]): ExpeditionSummary {
+  let spentGp = 0;
+  let earnedGp = 0;
+  let target = '';
+  const items: { name: string; qty: number }[] = [];
+  for (const r of rows) {
+    if (!target) target = parseExpeditionTarget(r.comment);
+    if (r.kind === 'item') {
+      items.push({ name: r.item_name ?? '—', qty: Math.abs(r.item_qty) });
+      continue;
+    }
+    const agg = aggregateGp(r.coins);
+    if (agg < 0) spentGp += -agg;
+    else earnedGp += agg;
+  }
+  const first = rows[0];
+  return {
+    target,
+    loopNumber: first?.loop_number ?? 1,
+    dayInLoop: first?.day_in_loop ?? 1,
+    sessionNumber: first?.session_number ?? null,
+    spentGp,
+    earnedGp,
+    items,
+  };
+}
+
+/** One rendered ledger entry: a standalone row, or a folded expedition group. */
+export type LedgerGroup<T> =
+  | { kind: 'single'; row: T }
+  | { kind: 'expedition'; groupId: string; rows: T[] };
+
+/**
+ * Fold expedition rows (shared `transfer_group_id` + «… вылазки: …» comment)
+ * into one `expedition` entry each; every other row passes through as a
+ * `single`. Order-preserving: an expedition entry sits where its FIRST row
+ * appeared, later rows of the same group append to it.
+ *
+ * Runs AFTER `dedupTransferPairs` — which leaves expedition rows untouched and
+ * collapses genuine transfer/purchase pairs to one row, so those arrive here
+ * as singles and are never merged.
+ */
+export function groupExpeditionRows<
+  T extends { transfer_group_id: string | null; comment: string },
+>(rows: T[]): LedgerGroup<T>[] {
+  const byGroup = new Map<
+    string,
+    { kind: 'expedition'; groupId: string; rows: T[] }
+  >();
+  const out: LedgerGroup<T>[] = [];
+  for (const row of rows) {
+    if (row.transfer_group_id && isExpeditionComment(row.comment)) {
+      const gid = row.transfer_group_id;
+      const existing = byGroup.get(gid);
+      if (existing) {
+        existing.rows.push(row);
+      } else {
+        const entry = { kind: 'expedition' as const, groupId: gid, rows: [row] };
+        byGroup.set(gid, entry);
+        out.push(entry);
+      }
+      continue;
+    }
+    out.push({ kind: 'single', row });
+  }
+  return out;
 }

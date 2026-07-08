@@ -3,9 +3,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import TransactionRow from './transaction-row'
+import ExpeditionRow from './expedition-row'
 import TransactionFormSheet from './transaction-form-sheet'
-import { dedupTransferPairs } from '@/lib/transaction-dedup'
+import { dedupTransferPairs, groupExpeditionRows } from '@/lib/transaction-dedup'
 import {
+  deleteExpeditionGroup,
   deleteTransaction,
   deleteTransfer,
   loadLedgerPage,
@@ -151,6 +153,36 @@ export default function LedgerListClient({
     [appendedRows, initialRows, router],
   )
 
+  // Spec-055 #5: delete a whole вылазка (all 1–3 rows sharing the group).
+  const handleDeleteExpedition = useCallback(
+    async (groupId: string, groupRows: TransactionWithRelations[]) => {
+      if (
+        !confirm(
+          'Удалить вылазку? Все её строки (расходники, награда, лут) будут удалены.',
+        )
+      ) {
+        return
+      }
+      setBusyId(groupId)
+      try {
+        const res = await deleteExpeditionGroup(groupId)
+        if (!res.ok) {
+          alert(res.error)
+          return
+        }
+        setHiddenIds((prev) => {
+          const next = new Set(prev)
+          for (const r of groupRows) next.add(r.id)
+          return next
+        })
+        router.refresh()
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [router],
+  )
+
   const defaultLoopNumber = editing?.loop_number ?? 1
   const defaultDayInLoop = editing?.day_in_loop ?? 1
   const defaultSessionId = editing?.session_id ?? null
@@ -164,7 +196,24 @@ export default function LedgerListClient({
         </div>
       ) : (
         <ul className="flex flex-col gap-1.5">
-          {rows.map((row) => {
+          {groupExpeditionRows(rows).map((entry) => {
+            // Spec-055 #5: a вылазка folds its 1–3 rows into one summary card;
+            // everything else renders as a standalone row exactly as before.
+            if (entry.kind === 'expedition') {
+              return (
+                <ExpeditionRow
+                  key={entry.groupId}
+                  groupId={entry.groupId}
+                  rows={entry.rows}
+                  canEdit={entry.rows.every(
+                    (r) => canManage || r.author_user_id === currentUserId,
+                  )}
+                  onDelete={handleDeleteExpedition}
+                  busy={busyId === entry.groupId}
+                />
+              )
+            }
+            const row = entry.row
             // Spec-012 T040 — hydrate the badge from the page-level title
             // map. Appended pages don't ship a fresh map, so we fall back
             // to an empty string and let `<AutogenBadgeClient>` render a

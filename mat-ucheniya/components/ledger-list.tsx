@@ -58,6 +58,12 @@ function parseFilters(
     ),
     autogen:
       sp.autogen === 'only' ? 'only' : sp.autogen === 'none' ? 'none' : undefined,
+    expedition:
+      sp.expedition === 'only'
+        ? 'only'
+        : sp.expedition === 'none'
+          ? 'none'
+          : undefined,
   }
 }
 
