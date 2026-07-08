@@ -95,6 +95,16 @@ export type AddExpeditionInput = {
   /** Menu default: [{ itemNodeId?|name, qty }] — stored verbatim as jsonb. */
   defaultConsumables?: ExpeditionConsumable[]
   defaultDurationTicks?: number | null
+  /** Default reward money — whole gp, rounded like a run's rewardMoneyGp. */
+  rewardMoneyGp?: number
+  /** Default reward items — [{ name, itemNodeId?, qty }], cleaned like a run's. */
+  rewardItems?: ExpeditionRewardItem[]
+  /** Default roster — character node ids (empty strings dropped). */
+  defaultParticipantNodeIds?: string[]
+  /** Default minute-of-day the вылазка starts (0..1439), or null for none. */
+  defaultStartMinute?: number | null
+  /** Default вылазка length in minutes (> 0), or null for none. */
+  defaultDurationMinute?: number | null
 }
 
 export type UpdateExpeditionInput = {
@@ -104,6 +114,11 @@ export type UpdateExpeditionInput = {
   description?: string
   defaultConsumables?: ExpeditionConsumable[]
   defaultDurationTicks?: number | null
+  rewardMoneyGp?: number
+  rewardItems?: ExpeditionRewardItem[]
+  defaultParticipantNodeIds?: string[]
+  defaultStartMinute?: number | null
+  defaultDurationMinute?: number | null
 }
 
 export type RunExpeditionInput = {
@@ -184,6 +199,62 @@ function cleanConsumables(list: ExpeditionConsumable[] | undefined) {
     }))
 }
 
+/**
+ * Sanitise a reward-items payload down to the stored [{name, itemNodeId, qty}]
+ * shape — the same cleaning runExpedition applies to a run's reward items (trim
+ * name, drop blanks, qty>0 else 1, keep the optional catalog link).
+ */
+function cleanRewardItems(list: ExpeditionRewardItem[] | undefined) {
+  return (list ?? [])
+    .filter((r) => r && typeof r.name === 'string' && r.name.trim() !== '')
+    .map((r) => ({
+      name: r.name.trim(),
+      itemNodeId: r.itemNodeId ?? null,
+      qty: Number.isFinite(r.qty) && r.qty > 0 ? r.qty : 1,
+    }))
+}
+
+/**
+ * Whole-gp reward money, rounded exactly like runExpedition rounds a run's
+ * rewardMoneyGp (the money columns are int; no fractional gp on the template).
+ */
+function cleanRewardMoneyGp(v: number | undefined): number {
+  return Number.isFinite(v) && (v ?? 0) > 0 ? Math.round(v as number) : 0
+}
+
+/** Keep only non-empty node ids (mirrors runExpedition's participant filter). */
+function cleanParticipantIds(ids: string[] | undefined): string[] {
+  return (ids ?? []).filter((v): v is string => typeof v === 'string' && v.length > 0)
+}
+
+/**
+ * Validate an optional minute-of-day default (whole int, 0..1439) or null.
+ * The DB column stays permissive; the range gate lives here, like the run-time
+ * window check in validateExpeditionWindow.
+ */
+function coerceStartMinute(
+  v: number | null | undefined,
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  if (v == null) return { ok: true, value: null }
+  const n = Math.round(v)
+  if (!Number.isFinite(n) || n < 0 || n > 1439) {
+    return { ok: false, error: 'Минута старта вылазки — от 0 до 1439' }
+  }
+  return { ok: true, value: n }
+}
+
+/** Validate an optional duration-in-minutes default (whole int, > 0) or null. */
+function coerceDurationMinute(
+  v: number | null | undefined,
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  if (v == null) return { ok: true, value: null }
+  const n = Math.round(v)
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, error: 'Длительность вылазки — больше 0 минут' }
+  }
+  return { ok: true, value: n }
+}
+
 // ============================================================================
 // addExpedition — any member curates the menu
 // ============================================================================
@@ -194,6 +265,11 @@ export async function addExpedition(
   if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
   const title = input.title?.trim()
   if (!title) return { ok: false, error: 'Укажите название вылазки' }
+
+  const startCheck = coerceStartMinute(input.defaultStartMinute)
+  if (!startCheck.ok) return startCheck
+  const durationCheck = coerceDurationMinute(input.defaultDurationMinute)
+  if (!durationCheck.ok) return durationCheck
 
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: 'Не авторизован' }
@@ -209,6 +285,11 @@ export async function addExpedition(
       description: input.description?.trim() ?? '',
       default_consumables: cleanConsumables(input.defaultConsumables),
       default_duration_ticks: input.defaultDurationTicks ?? null,
+      reward_money_gp: cleanRewardMoneyGp(input.rewardMoneyGp),
+      reward_items: cleanRewardItems(input.rewardItems),
+      default_participant_node_ids: cleanParticipantIds(input.defaultParticipantNodeIds),
+      default_start_minute: startCheck.value,
+      default_duration_minute: durationCheck.value,
       created_by: user.id,
     })
     .select('id')
@@ -280,6 +361,25 @@ export async function updateExpedition(
   }
   if (input.defaultDurationTicks !== undefined) {
     patch.default_duration_ticks = input.defaultDurationTicks
+  }
+  if (input.rewardMoneyGp !== undefined) {
+    patch.reward_money_gp = cleanRewardMoneyGp(input.rewardMoneyGp)
+  }
+  if (input.rewardItems !== undefined) {
+    patch.reward_items = cleanRewardItems(input.rewardItems)
+  }
+  if (input.defaultParticipantNodeIds !== undefined) {
+    patch.default_participant_node_ids = cleanParticipantIds(input.defaultParticipantNodeIds)
+  }
+  if (input.defaultStartMinute !== undefined) {
+    const c = coerceStartMinute(input.defaultStartMinute)
+    if (!c.ok) return c
+    patch.default_start_minute = c.value
+  }
+  if (input.defaultDurationMinute !== undefined) {
+    const c = coerceDurationMinute(input.defaultDurationMinute)
+    if (!c.ok) return c
+    patch.default_duration_minute = c.value
   }
   if (Object.keys(patch).length === 0) return { ok: true }
 

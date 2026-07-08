@@ -17,6 +17,12 @@ export type ExpeditionTg = {
   description: string
   defaultConsumables: { itemNodeId: string | null; name: string; qty: number }[]
   defaultDurationTicks: number | null
+  /** Template defaults the run form pre-fills (spec-055 R2 — all editable per run). */
+  rewardMoneyGp: number
+  rewardItems: { name: string; qty: number; itemNodeId?: string | null }[]
+  defaultParticipantNodeIds: string[]
+  defaultStartMinute: number | null
+  defaultDurationMinute: number | null
   createdBy: string | null
   createdAt: string
 }
@@ -67,7 +73,7 @@ export async function listExpeditions(
   const { data } = await supabase
     .from('expeditions')
     .select(
-      'id, title, description, default_consumables, default_duration_ticks, created_by, created_at',
+      'id, title, description, default_consumables, default_duration_ticks, reward_money_gp, reward_items, default_participant_node_ids, default_start_minute, default_duration_minute, created_by, created_at',
     )
     .eq('campaign_id', campaignId)
     .order('title', { ascending: true })
@@ -77,6 +83,11 @@ export async function listExpeditions(
     description: string | null
     default_consumables: unknown
     default_duration_ticks: number | null
+    reward_money_gp: number
+    reward_items: unknown
+    default_participant_node_ids: string[] | null
+    default_start_minute: number | null
+    default_duration_minute: number | null
     created_by: string | null
     created_at: string
   }>
@@ -87,6 +98,17 @@ export async function listExpeditions(
       description: r.description ?? '',
       defaultConsumables: parseItems(r.default_consumables, true),
       defaultDurationTicks: r.default_duration_ticks,
+      rewardMoneyGp: Number(r.reward_money_gp ?? 0),
+      rewardItems: parseItems(r.reward_items, true).map((x) => ({
+        name: x.name,
+        qty: x.qty,
+        itemNodeId: x.itemNodeId,
+      })),
+      defaultParticipantNodeIds: Array.isArray(r.default_participant_node_ids)
+        ? r.default_participant_node_ids
+        : [],
+      defaultStartMinute: r.default_start_minute,
+      defaultDurationMinute: r.default_duration_minute,
       createdBy: r.created_by,
       createdAt: r.created_at,
     }))

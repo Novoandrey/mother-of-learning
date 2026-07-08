@@ -12,6 +12,7 @@ function state(over: Partial<MasterState> = {}): MasterState {
     loopTitle: null,
     stashGp: 120,
     stashItems: [],
+    stashResourceValueGp: 0,
     pcs: [
       { title: 'Гэри', gp: 30 },
       { title: 'Стас', gp: 12 },
@@ -140,6 +141,30 @@ describe('renderMasterMessageHtml — stash items', () => {
   it('escapes stash item names', () => {
     const html = renderMasterMessageHtml(state({ stashItems: [{ name: '<яд>', qty: 1 }] }))
     expect(html).toContain('📦 &lt;яд&gt; ×1')
+  })
+
+  it('shows a resource nominal in parens and its total on the общак line', () => {
+    const html = renderMasterMessageHtml(
+      state({
+        stashGp: 120,
+        stashItems: [
+          { name: 'Шкура', qty: 3, priceGp: 10 }, // resource: 10×3 = 30
+          { name: 'Серп', qty: 1 }, // regular loot: no price
+        ],
+        stashResourceValueGp: 30,
+      }),
+    )
+    expect(html).toContain('💰 Общак: <b>120 зм</b>, +30 зм в ресурсах')
+    expect(html).toContain('📦 Шкура ×3 (30 зм), Серп ×1')
+  })
+
+  it('no resource suffix and no per-item price when stashResourceValueGp is 0', () => {
+    const html = renderMasterMessageHtml(
+      state({ stashItems: [{ name: 'Серп', qty: 2 }], stashResourceValueGp: 0 }),
+    )
+    expect(html).toContain('💰 Общак: <b>120 зм</b>\n📦 Серп ×2')
+    expect(html).not.toContain('в ресурсах')
+    expect(html).not.toContain('(')
   })
 })
 

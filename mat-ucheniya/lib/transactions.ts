@@ -211,6 +211,15 @@ export type LedgerFilters = {
    * existing ledger hydration / dedup paths stay shared.
    */
   itemNodeId?: string;
+  /**
+   * Spec-055 R2 #5 — вылазки filter.
+   *   'only' → rows whose comment carries the «… вылазки: …» prefix
+   *   'none' → everything except those
+   *   undefined → no filter (default)
+   * Matched on the comment text: `runExpedition` writes «Расходники вылазки: …»
+   * and «Награда вылазки: …», both containing "вылазки: ".
+   */
+  expedition?: 'only' | 'none';
 };
 
 export type LedgerPage = {
@@ -731,7 +740,7 @@ export async function getLedgerPage(
 ): Promise<LedgerPage> {
   const supabase = await createClient();
 
-  const applyFilters = <T extends { eq: (...a: unknown[]) => T; in: (...a: unknown[]) => T; gte: (...a: unknown[]) => T; lte: (...a: unknown[]) => T; not: (...a: unknown[]) => T; is: (...a: unknown[]) => T }>(q: T): T => {
+  const applyFilters = <T extends { eq: (...a: unknown[]) => T; in: (...a: unknown[]) => T; gte: (...a: unknown[]) => T; lte: (...a: unknown[]) => T; not: (...a: unknown[]) => T; is: (...a: unknown[]) => T; ilike: (...a: unknown[]) => T }>(q: T): T => {
     let out = q.eq('campaign_id', campaignId);
     if (filters.pc?.length) out = out.in('actor_pc_id', filters.pc);
     if (filters.loop?.length) out = out.in('loop_number', filters.loop);
@@ -743,6 +752,12 @@ export async function getLedgerPage(
       out = out.not('autogen_wizard_key', 'is', null);
     } else if (filters.autogen === 'none') {
       out = out.is('autogen_wizard_key', null);
+    }
+    // Spec-055 #5 — вылазки by comment prefix («… вылазки: …»).
+    if (filters.expedition === 'only') {
+      out = out.ilike('comment', '%вылазки: %');
+    } else if (filters.expedition === 'none') {
+      out = out.not('comment', 'ilike', '%вылазки: %');
     }
     if (filters.itemNodeId) {
       out = out.eq('item_node_id', filters.itemNodeId);

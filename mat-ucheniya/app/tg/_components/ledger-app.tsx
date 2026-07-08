@@ -78,6 +78,7 @@ import { createResourceItem, sellStashResource } from '@/app/actions/resources'
 import {
   validateExpeditionWindow,
   hhmmToMinute,
+  minuteToHHMM,
   LOOP_DAYS,
 } from '@/lib/expedition-calendar'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
@@ -472,6 +473,11 @@ function FeedRow({ r, categories }: { r: TgFeedRow; categories: Map<string, stri
 const FIELD =
   'w-full rounded-lg bg-neutral-800 px-3 py-2 text-neutral-100 placeholder:text-neutral-500 outline-none focus:ring-1 focus:ring-neutral-600'
 
+// A bottom sheet. Backdrop click does NOT close (a mis-tap must not throw away a
+// half-typed form — spec-055 R2); the only ways out are the explicit «← Назад»
+// button and each sheet's own submit. The panel caps at 90vh and scrolls its
+// content internally so a long form (напр. шаблон вылазки: награда+ростер+время)
+// always fits a phone with the submit button reachable; the header stays pinned.
 function Sheet({
   title,
   onClose,
@@ -482,21 +488,19 @@ function Sheet({
   children: React.ReactNode
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-t-2xl bg-neutral-900 p-4 pb-8"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <button onClick={onClose} className="text-xl leading-none text-neutral-500">
-            ✕
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60">
+      <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-2xl bg-neutral-900 pb-8">
+        <div className="sticky top-0 z-10 mb-3 flex items-center gap-3 bg-neutral-900 px-4 pb-2 pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 text-sm text-neutral-400 transition-colors hover:text-neutral-200"
+          >
+            ← Назад
           </button>
+          <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{title}</h2>
         </div>
-        {children}
+        <div className="px-4">{children}</div>
       </div>
     </div>
   )
@@ -2794,8 +2798,151 @@ function ResourceRewardEditor({
   )
 }
 
-/** Multi-select of campaign PCs → the вылазка's пачка (кто ходил). Own PCs
- *  first, like every other campaign list. Toggle chips keep it thumb-friendly. */
+/**
+ * Resolve a reward payload the same way for both вылазка sheets (шаблон + прогон):
+ * turn each «ресурс с номиналом» line into a permanent catalog item (category
+ * 'resource', deduped by title via createResourceItem) and merge them into the
+ * plain reward items with the resolved node id. One place → шаблон и прогон не
+ * дублируют логику (spec-055 R2).
+ */
+async function resolveRewardItems(
+  campaignId: string,
+  rewardItems: ExpItemLine[],
+  resourceRewards: ResourceRewardLine[],
+): Promise<
+  | { ok: true; items: { name: string; itemNodeId: string | null; qty: number }[] }
+  | { ok: false; error: string }
+> {
+  const resolved: { name: string; itemNodeId: string; qty: number }[] = []
+  for (const rr of resourceRewards) {
+    const created = await createResourceItem({
+      campaignId,
+      name: rr.name,
+      priceGp: rr.priceGp,
+    })
+    if (!created.ok) return { ok: false, error: created.error }
+    resolved.push({ name: created.name, itemNodeId: created.itemNodeId, qty: rr.qty })
+  }
+  return {
+    ok: true,
+    items: [
+      ...rewardItems.map((r) => ({ name: r.name, itemNodeId: r.itemNodeId, qty: r.qty })),
+      ...resolved,
+    ],
+  }
+}
+
+/** Reward block shared by both вылазка sheets: деньги + предметы + ресурсы (с
+ *  номиналом). Прогон spends/credits it now; шаблон stores it as the default the
+ *  run form pre-fills. Resource lines are resolved to catalog items on submit via
+ *  resolveRewardItems, not here (spec-055 R2). */
+function RewardEditor({
+  supabase,
+  campaignId,
+  money,
+  setMoney,
+  items,
+  setItems,
+  resources,
+  setResources,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  money: string
+  setMoney: (v: string) => void
+  items: ExpItemLine[]
+  setItems: React.Dispatch<React.SetStateAction<ExpItemLine[]>>
+  resources: ResourceRewardLine[]
+  setResources: React.Dispatch<React.SetStateAction<ResourceRewardLine[]>>
+}) {
+  return (
+    <>
+      <input
+        className={FIELD}
+        inputMode="decimal"
+        placeholder="Деньги, зм (необязательно)"
+        value={money}
+        onChange={(e) => setMoney(e.target.value)}
+      />
+      <div className="mt-2">
+        <div className="mb-1 px-1 text-[11px] uppercase tracking-wide text-neutral-600">
+          Предметы
+        </div>
+        <ExpItemsEditor
+          supabase={supabase}
+          campaignId={campaignId}
+          items={items}
+          setItems={setItems}
+          placeholder="Добавить предмет-награду…"
+        />
+      </div>
+      <div className="mt-2">
+        <div className="mb-1 px-1 text-[11px] uppercase tracking-wide text-neutral-600">
+          Ресурсы (с номиналом)
+        </div>
+        <ResourceRewardEditor items={resources} setItems={setResources} />
+      </div>
+    </>
+  )
+}
+
+/** Старт (minute-of-day via <input type="time">) + длительность (ч/м; часы без
+ *  верхней границы — вылазка может быть многодневной). Returns two <label>s to
+ *  drop into a flex row. Shared by прогон + шаблон time sections; day-in-loop
+ *  stays local to the run form (spec-055 R2). */
+function StartDurationFields({
+  startStr,
+  setStartStr,
+  durH,
+  setDurH,
+  durM,
+  setDurM,
+}: {
+  startStr: string
+  setStartStr: (v: string) => void
+  durH: number
+  setDurH: (n: number) => void
+  durM: number
+  setDurM: (n: number) => void
+}) {
+  return (
+    <>
+      <label className="flex flex-col gap-1">
+        <span className="px-0.5 text-[11px] text-neutral-500">Старт</span>
+        <input
+          type="time"
+          className="rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100 outline-none [color-scheme:dark] focus:ring-1 focus:ring-neutral-600"
+          value={startStr}
+          onChange={(e) => setStartStr(e.target.value)}
+        />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="px-0.5 text-[11px] text-neutral-500">Длительность</span>
+        <div className="flex items-center gap-1">
+          <IntInput
+            className="w-12 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+            value={durH}
+            onCommit={setDurH}
+          />
+          <span className="text-xs text-neutral-500">ч</span>
+          <IntInput
+            className="w-12 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+            value={durM}
+            onCommit={setDurM}
+          />
+          <span className="text-xs text-neutral-500">м</span>
+        </div>
+      </label>
+    </>
+  )
+}
+
+/** Compact multi-select of campaign PCs → the вылазка's пачка. A collapsed
+ *  trigger (names/counter) opens a dark bottom-sheet with a name filter and
+ *  checkbox rows; selected float to the top, own PCs first. Same props as before
+ *  (Set<string>) so both run form and template roster share it (spec-055 R2 — по
+ *  паттерну components/participants-picker.tsx, но в /tg-тёмной теме, не белой).
+ *  The full list is a prop (already loaded), so no lazy fetch here. */
 function ParticipantPicker({
   characters,
   selected,
@@ -2805,6 +2952,9 @@ function ParticipantPicker({
   selected: Set<string>
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
 }) {
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState('')
+
   const ordered = [...characters].sort(
     (a, b) => Number(b.isOwn) - Number(a.isOwn) || a.title.localeCompare(b.title, 'ru'),
   )
@@ -2815,26 +2965,133 @@ function ParticipantPicker({
       else next.add(id)
       return next
     })
+
+  const q = filter.trim().toLowerCase()
+  const filtered = q ? ordered.filter((c) => c.title.toLowerCase().includes(q)) : ordered
+  const selectedRows = filtered.filter((c) => selected.has(c.id))
+  const unselectedRows = filtered.filter((c) => !selected.has(c.id))
+
+  const count = selected.size
+  const label = (() => {
+    if (count === 0) return 'Выбрать участников'
+    if (count <= 3) {
+      const names = ordered.filter((c) => selected.has(c.id)).map((c) => c.title)
+      if (names.length === count) return names.join(', ')
+    }
+    return `Участников: ${count}`
+  })()
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {ordered.map((c) => {
-        const on = selected.has(c.id)
-        return (
-          <button
-            key={c.id}
-            onClick={() => toggle(c.id)}
-            className={
-              'rounded-full px-3 py-1 text-sm transition-colors ' +
-              (on
-                ? 'bg-blue-600 text-white'
-                : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700')
-            }
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg bg-neutral-800 px-3 py-2 text-left text-sm transition-colors hover:bg-neutral-700"
+      >
+        <span className={`min-w-0 truncate ${count === 0 ? 'text-neutral-500' : 'text-neutral-100'}`}>
+          {label}
+        </span>
+        <span className="shrink-0 text-neutral-500">▾</span>
+      </button>
+
+      {open && (
+        <>
+          {/* Backdrop above the host Sheet (z-50) — tap to close the picker only. */}
+          <div
+            className="fixed inset-0 z-[70] bg-black/60"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
+          <div
+            className="fixed inset-x-0 bottom-0 z-[71] mx-auto flex max-h-[80vh] w-full max-w-sm flex-col rounded-t-2xl bg-neutral-900"
+            role="dialog"
+            aria-label="Выбор участников"
           >
-            {c.title}
-          </button>
-        )
-      })}
-    </div>
+            <div className="flex items-center justify-between gap-2 px-4 py-3">
+              <div className="text-sm font-medium text-neutral-200">
+                Участники · {count}/{ordered.length}
+              </div>
+              <div className="flex items-center gap-3">
+                {count > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelected(new Set())}
+                    className="text-xs text-neutral-500 transition-colors hover:text-neutral-300"
+                  >
+                    Очистить
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="text-sm text-neutral-300 transition-colors hover:text-neutral-100"
+                >
+                  Готово
+                </button>
+              </div>
+            </div>
+            <div className="px-4 pb-2">
+              <input
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Поиск по имени…"
+                className={FIELD}
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+              {ordered.length === 0 && (
+                <div className="px-3 py-3 text-sm text-neutral-500">В кампании нет персонажей.</div>
+              )}
+              {ordered.length > 0 && filtered.length === 0 && (
+                <div className="px-3 py-3 text-sm text-neutral-500">Ничего не найдено.</div>
+              )}
+              {selectedRows.length > 0 && (
+                <>
+                  <div className="px-2 pt-1 text-[11px] uppercase tracking-wide text-neutral-600">
+                    Выбрано
+                  </div>
+                  {selectedRows.map((c) => (
+                    <ParticipantRow key={c.id} c={c} checked onToggle={() => toggle(c.id)} />
+                  ))}
+                  {unselectedRows.length > 0 && (
+                    <div className="mt-2 px-2 pb-1 text-[11px] uppercase tracking-wide text-neutral-600">
+                      Остальные
+                    </div>
+                  )}
+                </>
+              )}
+              {unselectedRows.map((c) => (
+                <ParticipantRow key={c.id} c={c} checked={false} onToggle={() => toggle(c.id)} />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
+function ParticipantRow({
+  c,
+  checked,
+  onToggle,
+}: {
+  c: CampaignCharacter
+  checked: boolean
+  onToggle: () => void
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-neutral-800">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="h-4 w-4 accent-blue-600"
+      />
+      <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">{c.title}</span>
+      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">мой</span>}
+    </label>
   )
 }
 
@@ -3065,6 +3322,7 @@ export function ExpeditionsScreen({
         <ExpeditionAddSheet
           supabase={supabase}
           campaignId={campaignId}
+          characters={characters}
           existing={sheet.mode === 'edit' ? sheet.exp : null}
           onClose={() => setSheet({ mode: 'none' })}
           onDone={() => void reload()}
@@ -3085,28 +3343,58 @@ export function ExpeditionsScreen({
   )
 }
 
-// Create / edit a menu template (FR-001): title, description, default consumables.
+// Create / edit a menu template (FR-001). Now stores the FULL default set the run
+// form pre-fills (spec-055 R2): название, описание, ростер, расходники, награда
+// (деньги+предметы+ресурсы) и время (старт+длительность). All are defaults, not
+// locks — the run form lets the player edit every one.
 function ExpeditionAddSheet({
   supabase,
   campaignId,
+  characters,
   existing,
   onClose,
   onDone,
 }: {
   supabase: SupabaseClient
   campaignId: string
+  characters: CampaignCharacter[]
   existing: ExpeditionTg | null
   onClose: () => void
   onDone: () => void
 }) {
   const [title, setTitle] = useState(existing?.title ?? '')
   const [description, setDescription] = useState(existing?.description ?? '')
+  const [roster, setRoster] = useState<Set<string>>(
+    () => new Set(existing?.defaultParticipantNodeIds ?? []),
+  )
   const [consumables, setConsumables] = useState<ExpItemLine[]>(
     existing?.defaultConsumables.map((c) => ({
       itemNodeId: c.itemNodeId,
       name: c.name,
       qty: c.qty,
     })) ?? [],
+  )
+  const [rewardItems, setRewardItems] = useState<ExpItemLine[]>(
+    existing?.rewardItems.map((r) => ({
+      itemNodeId: r.itemNodeId ?? null,
+      name: r.name,
+      qty: r.qty,
+    })) ?? [],
+  )
+  const [rewardMoney, setRewardMoney] = useState(
+    existing && existing.rewardMoneyGp > 0 ? String(existing.rewardMoneyGp) : '',
+  )
+  const [resourceRewards, setResourceRewards] = useState<ResourceRewardLine[]>([])
+  // Time defaults: старт всегда валиден (type="time"); длительность 0 → null
+  // («без дефолта»), the run form then falls back to its own 2ч.
+  const [startStr, setStartStr] = useState(
+    existing?.defaultStartMinute != null ? minuteToHHMM(existing.defaultStartMinute) : '08:00',
+  )
+  const [durH, setDurH] = useState(
+    existing?.defaultDurationMinute != null ? Math.floor(existing.defaultDurationMinute / 60) : 2,
+  )
+  const [durM, setDurM] = useState(
+    existing?.defaultDurationMinute != null ? existing.defaultDurationMinute % 60 : 0,
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -3117,21 +3405,35 @@ function ExpeditionAddSheet({
       setError('Введите название')
       return
     }
+    const start = parseHHMM(startStr)
+    if (!start) {
+      setError('Укажите время старта в формате ЧЧ:ММ')
+      return
+    }
     setBusy(true)
+
+    // Resources → catalog items + merge into reward items (shared with the run form).
+    const resolved = await resolveRewardItems(campaignId, rewardItems, resourceRewards)
+    if (!resolved.ok) {
+      setBusy(false)
+      setError(resolved.error)
+      return
+    }
+
+    const durationMinute = Math.max(0, durH) * 60 + Math.max(0, durM)
+    const common = {
+      title: title.trim(),
+      description: description.trim(),
+      defaultParticipantNodeIds: [...roster],
+      defaultConsumables: consumables,
+      rewardMoneyGp: parseGp(rewardMoney) ?? 0,
+      rewardItems: resolved.items,
+      defaultStartMinute: hhmmToMinute(start.h, start.m),
+      defaultDurationMinute: durationMinute > 0 ? durationMinute : null,
+    }
     const res = existing
-      ? await updateExpedition({
-          id: existing.id,
-          campaignId,
-          title: title.trim(),
-          description: description.trim(),
-          defaultConsumables: consumables,
-        })
-      : await addExpedition({
-          campaignId,
-          title: title.trim(),
-          description: description.trim(),
-          defaultConsumables: consumables,
-        })
+      ? await updateExpedition({ id: existing.id, campaignId, ...common })
+      : await addExpedition({ campaignId, ...common })
     setBusy(false)
     if (!res.ok) {
       setError(res.error)
@@ -3157,6 +3459,10 @@ function ExpeditionAddSheet({
           onChange={(e) => setDescription(e.target.value)}
         />
         <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Кто ходит по умолчанию</div>
+          <ParticipantPicker characters={characters} selected={roster} setSelected={setRoster} />
+        </div>
+        <div>
           <div className="mb-1 px-1 text-xs text-neutral-500">Расходники по умолчанию</div>
           <ExpItemsEditor
             supabase={supabase}
@@ -3165,6 +3471,32 @@ function ExpeditionAddSheet({
             setItems={setConsumables}
             placeholder="Добавить расходник…"
           />
+        </div>
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Награда по умолчанию — в общак</div>
+          <RewardEditor
+            supabase={supabase}
+            campaignId={campaignId}
+            money={rewardMoney}
+            setMoney={setRewardMoney}
+            items={rewardItems}
+            setItems={setRewardItems}
+            resources={resourceRewards}
+            setResources={setResourceRewards}
+          />
+        </div>
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Время по умолчанию</div>
+          <div className="flex items-end gap-2">
+            <StartDurationFields
+              startStr={startStr}
+              setStartStr={setStartStr}
+              durH={durH}
+              setDurH={setDurH}
+              durM={durM}
+              setDurM={setDurM}
+            />
+          </div>
         </div>
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
@@ -3195,10 +3527,14 @@ function ExpeditionRunSheet({
   onClose: () => void
   onDone: () => void
 }) {
+  // Every field pre-fills from the chosen template's defaults (spec-055 R2) and
+  // stays fully editable — «дефолты, не локи». `expedition=null` (ad-hoc) falls
+  // back to the sensible bare defaults.
   const [participants, setParticipants] = useState<Set<string>>(() => {
-    // Prefill with the caller's own PCs — the common case (I went).
-    const own = characters.filter((c) => c.isOwn).map((c) => c.id)
-    return new Set(own)
+    // Template roster if it has one, else the caller's own PCs (common: «я сходил»).
+    const roster = expedition?.defaultParticipantNodeIds ?? []
+    if (roster.length > 0) return new Set(roster)
+    return new Set(characters.filter((c) => c.isOwn).map((c) => c.id))
   })
   const [target, setTarget] = useState(expedition?.title ?? '')
   const [consumables, setConsumables] = useState<ExpItemLine[]>(
@@ -3208,16 +3544,33 @@ function ExpeditionRunSheet({
       qty: c.qty,
     })) ?? [],
   )
-  const [rewardItems, setRewardItems] = useState<ExpItemLine[]>([])
-  const [rewardMoney, setRewardMoney] = useState('')
+  const [rewardItems, setRewardItems] = useState<ExpItemLine[]>(
+    expedition?.rewardItems.map((r) => ({
+      itemNodeId: r.itemNodeId ?? null,
+      name: r.name,
+      qty: r.qty,
+    })) ?? [],
+  )
+  const [rewardMoney, setRewardMoney] = useState(
+    expedition && expedition.rewardMoneyGp > 0 ? String(expedition.rewardMoneyGp) : '',
+  )
   const [resourceRewards, setResourceRewards] = useState<ResourceRewardLine[]>([])
+  // День петли — per-run (шаблон время-суток запоминает, а день выбирают каждый раз).
   const [day, setDay] = useState(1)
   // Window (spec-055): старт = минута дня (clock <input type="time">, 0..23:59);
   // длительность = длина в часах+минутах. Часы БЕЗ верхней границы — вылазка
   // может быть многодневной («День X → День Y»), поэтому не type="time".
-  const [startStr, setStartStr] = useState('08:00')
-  const [durH, setDurH] = useState(2)
-  const [durM, setDurM] = useState(0)
+  const [startStr, setStartStr] = useState(
+    expedition?.defaultStartMinute != null ? minuteToHHMM(expedition.defaultStartMinute) : '08:00',
+  )
+  const [durH, setDurH] = useState(
+    expedition?.defaultDurationMinute != null
+      ? Math.floor(expedition.defaultDurationMinute / 60)
+      : 2,
+  )
+  const [durM, setDurM] = useState(
+    expedition?.defaultDurationMinute != null ? expedition.defaultDurationMinute % 60 : 0,
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -3248,26 +3601,12 @@ function ExpeditionRunSheet({
 
     setBusy(true)
 
-    // Resource rewards (имя + номинал) become permanent catalog items of category
-    // 'resource' first — createResourceItem dedups by title — then merge into the
-    // reward items with the resolved node id (spec-055 доработки, T2).
-    const resolvedResources: { name: string; itemNodeId: string; qty: number }[] = []
-    for (const rr of resourceRewards) {
-      const created = await createResourceItem({
-        campaignId,
-        name: rr.name,
-        priceGp: rr.priceGp,
-      })
-      if (!created.ok) {
-        setBusy(false)
-        setError(created.error)
-        return
-      }
-      resolvedResources.push({
-        name: created.name,
-        itemNodeId: created.itemNodeId,
-        qty: rr.qty,
-      })
+    // Resources → catalog items + merge into reward items (shared with the шаблон form).
+    const resolved = await resolveRewardItems(campaignId, rewardItems, resourceRewards)
+    if (!resolved.ok) {
+      setBusy(false)
+      setError(resolved.error)
+      return
     }
 
     const res = await runExpedition({
@@ -3285,14 +3624,7 @@ function ExpeditionRunSheet({
         qty: c.qty,
       })),
       rewardMoneyGp: parseGp(rewardMoney) ?? 0,
-      rewardItems: [
-        ...rewardItems.map((r) => ({
-          name: r.name,
-          itemNodeId: r.itemNodeId,
-          qty: r.qty,
-        })),
-        ...resolvedResources,
-      ],
+      rewardItems: resolved.items,
     })
     setBusy(false)
     if (!res.ok) {
@@ -3340,31 +3672,16 @@ function ExpeditionRunSheet({
         </div>
         <div>
           <div className="mb-1 px-1 text-xs text-neutral-500">Награда — в общак</div>
-          <input
-            className={FIELD}
-            inputMode="decimal"
-            placeholder="Деньги, зм (необязательно)"
-            value={rewardMoney}
-            onChange={(e) => setRewardMoney(e.target.value)}
+          <RewardEditor
+            supabase={supabase}
+            campaignId={campaignId}
+            money={rewardMoney}
+            setMoney={setRewardMoney}
+            items={rewardItems}
+            setItems={setRewardItems}
+            resources={resourceRewards}
+            setResources={setResourceRewards}
           />
-          <div className="mt-2">
-            <div className="mb-1 px-1 text-[11px] uppercase tracking-wide text-neutral-600">
-              Предметы
-            </div>
-            <ExpItemsEditor
-              supabase={supabase}
-              campaignId={campaignId}
-              items={rewardItems}
-              setItems={setRewardItems}
-              placeholder="Добавить предмет-награду…"
-            />
-          </div>
-          <div className="mt-2">
-            <div className="mb-1 px-1 text-[11px] uppercase tracking-wide text-neutral-600">
-              Ресурсы (с номиналом)
-            </div>
-            <ResourceRewardEditor items={resourceRewards} setItems={setResourceRewards} />
-          </div>
         </div>
         <div>
           <div className="mb-1 px-1 text-xs text-neutral-500">Когда</div>
@@ -3377,32 +3694,14 @@ function ExpeditionRunSheet({
                 onCommit={setDay}
               />
             </label>
-            <label className="flex flex-col gap-1">
-              <span className="px-0.5 text-[11px] text-neutral-500">Старт</span>
-              <input
-                type="time"
-                className="rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100 outline-none [color-scheme:dark] focus:ring-1 focus:ring-neutral-600"
-                value={startStr}
-                onChange={(e) => setStartStr(e.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="px-0.5 text-[11px] text-neutral-500">Длительность</span>
-              <div className="flex items-center gap-1">
-                <IntInput
-                  className="w-12 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
-                  value={durH}
-                  onCommit={setDurH}
-                />
-                <span className="text-xs text-neutral-500">ч</span>
-                <IntInput
-                  className="w-12 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
-                  value={durM}
-                  onCommit={setDurM}
-                />
-                <span className="text-xs text-neutral-500">м</span>
-              </div>
-            </label>
+            <StartDurationFields
+              startStr={startStr}
+              setStartStr={setStartStr}
+              durH={durH}
+              setDurH={setDurH}
+              durM={durM}
+              setDurM={setDurM}
+            />
           </div>
         </div>
       </div>

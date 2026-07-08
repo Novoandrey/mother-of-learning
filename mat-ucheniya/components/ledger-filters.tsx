@@ -70,6 +70,11 @@ export default function LedgerFilters({
         (params.get('autogen') === 'only' && 'only') ||
         (params.get('autogen') === 'none' && 'none') ||
         'all',
+      // Spec-055 #5 — вылазки filter. 'all' (absent), 'only', or 'none'.
+      expedition:
+        (params.get('expedition') === 'only' && 'only') ||
+        (params.get('expedition') === 'none' && 'none') ||
+        'all',
     }),
     [params],
   )
@@ -181,6 +186,14 @@ export default function LedgerFilters({
         onRemove: () => setScalar('autogen', ''),
       })
     }
+    if (state.expedition !== 'all') {
+      out.push({
+        key: 'expedition',
+        label:
+          state.expedition === 'only' ? 'только вылазки' : 'без вылазок',
+        onRemove: () => setScalar('expedition', ''),
+      })
+    }
     return out
   }, [
     hideActorFilter,
@@ -191,6 +204,7 @@ export default function LedgerFilters({
     state.category,
     state.kind,
     state.autogen,
+    state.expedition,
     pcs,
     categories,
     currentLoopNumber,
@@ -311,6 +325,33 @@ export default function LedgerFilters({
             }
           >
             Без автогена
+          </Chip>
+        </ChipRow>
+      </FilterGroup>
+
+      <FilterGroup label="Вылазки">
+        <ChipRow>
+          <Chip
+            active={state.expedition === 'only'}
+            onClick={() =>
+              setScalar(
+                'expedition',
+                state.expedition === 'only' ? '' : 'only',
+              )
+            }
+          >
+            Только вылазки
+          </Chip>
+          <Chip
+            active={state.expedition === 'none'}
+            onClick={() =>
+              setScalar(
+                'expedition',
+                state.expedition === 'none' ? '' : 'none',
+              )
+            }
+          >
+            Без вылазок
           </Chip>
         </ChipRow>
       </FilterGroup>

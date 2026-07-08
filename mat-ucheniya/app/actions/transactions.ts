@@ -47,6 +47,7 @@ import {
 import { getItemById } from '@/lib/items'
 import { getWallet } from '@/lib/transactions'
 import { getStashNode } from '@/lib/stash'
+import { isExpeditionComment } from '@/lib/transaction-dedup'
 import { parseItemDefaultPrices } from '@/lib/item-default-prices'
 import {
   parseItemPurchasePolicy,
@@ -1044,6 +1045,69 @@ export async function deleteTransfer(groupId: string): Promise<ActionResult> {
   if (error) {
     return { ok: false, error: `Не удалось удалить: ${error.message}` }
   }
+  return { ok: true }
+}
+
+// ============================================================================
+// deleteExpeditionGroup (spec-055 R2 #5)
+// ============================================================================
+//
+// A вылазка (`runExpedition`, app/actions/expeditions.ts) writes 1–3 rows
+// sharing ONE `transfer_group_id` (consumables expense / reward money / loot),
+// all with actor = the общак and a «… вылазки: <цель>» comment. Unlike a
+// transfer (always exactly two legs), the group has a variable row count, so
+// `deleteTransfer` — which loads a strict 2-row pair via `getTransferPair` —
+// can't remove it. This deletes every row in the group after the same
+// membership/authorship gate, and is fenced to expedition-comment groups so it
+// can't be repurposed to bypass the transfer-specific delete path.
+
+export async function deleteExpeditionGroup(
+  groupId: string,
+): Promise<ActionResult> {
+  if (!groupId) return { ok: false, error: 'Не указана вылазка' }
+
+  const admin = createAdminClient()
+  const { data: rowsData, error: loadErr } = await admin
+    .from('transactions')
+    .select('id, campaign_id, author_user_id, comment')
+    .eq('transfer_group_id', groupId)
+
+  if (loadErr) {
+    return { ok: false, error: `Не удалось загрузить: ${loadErr.message}` }
+  }
+
+  const rows = (rowsData ?? []) as {
+    id: string
+    campaign_id: string
+    author_user_id: string | null
+    comment: string
+  }[]
+  if (rows.length === 0) return { ok: false, error: 'Вылазка не найдена' }
+
+  // Fence: only groups that look like an expedition (every row carries the
+  // «… вылазки: …» comment) go through here — a transfer/purchase group must
+  // use deleteTransfer, which enforces its own two-leg invariant.
+  if (!rows.every((r) => isExpeditionComment(r.comment))) {
+    return { ok: false, error: 'Это не вылазка — удалите её через перевод' }
+  }
+
+  const auth = await resolveAuth(rows[0].campaign_id)
+  if (!auth.ok) return auth
+  if (
+    auth.role === 'player' &&
+    rows.some((r) => r.author_user_id !== auth.userId)
+  ) {
+    return { ok: false, error: 'Можно удалять только собственные вылазки' }
+  }
+
+  const { error: delErr } = await admin
+    .from('transactions')
+    .delete()
+    .eq('transfer_group_id', groupId)
+  if (delErr) {
+    return { ok: false, error: `Не удалось удалить: ${delErr.message}` }
+  }
+
   return { ok: true }
 }
 
