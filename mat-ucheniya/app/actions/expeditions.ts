@@ -66,6 +66,7 @@ import {
 import { validateDayInLoop, validateItemQty } from '@/lib/transaction-validation'
 import { notifyLedgerEvent, type LedgerEvent } from '@/lib/telegram/ledger-feed'
 import { computeConsumablesCostGp } from '@/lib/expeditions'
+import { validateExpeditionWindow } from '@/lib/expedition-calendar'
 import type { ActionResult } from './transactions'
 import crypto from 'node:crypto'
 
@@ -117,6 +118,10 @@ export type RunExpeditionInput = {
   consumables: ExpeditionConsumable[]
   rewardMoneyGp?: number
   rewardItems?: ExpeditionRewardItem[]
+  /** Minute-of-day (0..1439) the вылазка starts. Omit for a legacy/no-window run. */
+  startMinute?: number
+  /** Вылазка length in minutes. Paired with startMinute for the loop-window gate. */
+  durationMinute?: number
 }
 
 // ============================================================================
@@ -316,6 +321,19 @@ export async function runExpedition(
   const dayErr = validateDayInLoop(input.dayInLoop, 365)
   if (dayErr) return { ok: false, error: dayErr }
 
+  // Optional intra-day window (spec-055 time layer). When BOTH start and
+  // duration are supplied, gate them STRICTLY against the loop calendar
+  // (30-day «месяц странствий», 02:00 day 1 → 02:00 day 31) BEFORE any write.
+  const { startMinute, durationMinute } = input
+  if (startMinute != null && durationMinute != null) {
+    const windowCheck = validateExpeditionWindow({
+      day: input.dayInLoop,
+      startMinute,
+      durationMinute,
+    })
+    if (!windowCheck.ok) return { ok: false, error: windowCheck.error }
+  }
+
   const participants = (input.participantNodeIds ?? []).filter(
     (v): v is string => typeof v === 'string' && v.length > 0,
   )
@@ -473,6 +491,8 @@ export async function runExpedition(
       campaign_id: input.campaignId,
       loop_number: input.loopNumber,
       day_in_loop: input.dayInLoop,
+      start_minute: input.startMinute ?? null,
+      duration_minute: input.durationMinute ?? null,
       participant_node_ids: participants,
       reward_money_gp: rewardMoneyGp,
       reward_items: rewardItems.map(({ name, qty }) => ({ name, qty })),
@@ -497,15 +517,32 @@ export async function runExpedition(
 
   // --- One ledger event for the whole run. Never blocks/rolls back the write
   //     (notifyLedgerEvent is off the critical path and never throws). ---
+  // Resolve reward nominals for the feed: a resource (catalog category
+  // 'resource' with a price) shows its номинал × qty in parens; regular loot
+  // shows no price (spec-055 доработки — «у ресурсов цена в скобках»).
+  const rewardEventItems = await Promise.all(
+    rewardItems.map(async (r) => {
+      if (!r.itemNodeId) return { name: r.name, qty: r.qty }
+      const item = await getItemById(input.campaignId, r.itemNodeId)
+      if (item && item.categorySlug === 'resource' && item.priceGp != null) {
+        return { name: r.name, qty: r.qty, priceGp: item.priceGp }
+      }
+      return { name: r.name, qty: r.qty }
+    }),
+  )
+
   const event: LedgerEvent = {
     type: 'expedition',
     campaignId: input.campaignId,
     authorUserId: userId,
     participantPcIds: participants,
     target,
+    loopNumber: input.loopNumber,
+    dayInLoop: input.dayInLoop,
+    startMinute: input.startMinute,
+    durationMinute: input.durationMinute,
     rewardMoneyGp: rewardMoneyGp > 0 ? rewardMoneyGp : undefined,
-    rewardItems: rewardItems.map(({ name, qty }) => ({ name, qty })),
-    consumablesCostGp: consumablesCostGp > 0 ? consumablesCostGp : undefined,
+    rewardItems: rewardEventItems,
     consumablesItems: consumables.map(({ name, qty }) => ({ name, qty })),
   }
   await notifyLedgerEvent(event)
