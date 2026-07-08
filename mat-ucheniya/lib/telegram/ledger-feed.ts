@@ -32,7 +32,8 @@ async function resolveNames(
       ? event.senderPcId
       : event.type === 'set-created' ||
           event.type === 'loop-started' ||
-          event.type === 'expedition'
+          event.type === 'expedition' ||
+          event.type === 'loot-distributed'
         ? null
         : event.actorPcId
   const recipientPcId = event.type === 'transfer' ? event.recipientPcId : null

@@ -119,6 +119,18 @@ export type LedgerEvent =
       consumablesCostGp?: number
       consumablesItems?: FeedLineItem[]
     }
+  | {
+      // Mass encounter-loot distribution (spec-013) made visible in the feed
+      // as ONE aggregate event (spec-053 tail). No PC actor — it summarises a
+      // batch spread across several recipients.
+      type: 'loot-distributed'
+      campaignId: string
+      authorUserId: string | null
+      encounterTitle: string | null
+      rowCount: number
+      moneyGp?: number
+      itemQty?: number
+    }
 
 /** Resolved names for the formatter (all raw, un-escaped). */
 export type ResolvedNames = {
@@ -238,6 +250,13 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
       const rewardLine = reward.length ? `\nПолучили:${detailTail(reward)}` : ''
       const spentLine = spent.length ? `\nПотратили:${detailTail(spent)}` : ''
       return `🧭 <b>Вылазка</b>\n${pack} → ${esc(event.target)}${rewardLine}${spentLine}`
+    }
+    case 'loot-distributed': {
+      const title = event.encounterTitle ? ` · «${esc(event.encounterTitle)}»` : ''
+      const bits = [`${event.rowCount} строк`]
+      if (event.moneyGp) bits.push(zm(event.moneyGp))
+      if (event.itemQty) bits.push(`${event.itemQty} предм.`)
+      return `🎁 <b>Раздан лут</b>${title}\n${bits.join(' · ')}`
     }
   }
 }
