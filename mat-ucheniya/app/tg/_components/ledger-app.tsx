@@ -60,6 +60,18 @@ import {
   buyItems,
   type SetItem,
 } from '@/app/actions/sets'
+import {
+  listExpeditions,
+  listExpeditionRuns,
+  type ExpeditionTg,
+  type ExpeditionRunTg,
+} from '@/lib/queries/expeditions-tg'
+import {
+  addExpedition,
+  updateExpedition,
+  deleteExpedition,
+  runExpedition,
+} from '@/app/actions/expeditions'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import {
   putMoneyIntoStash,
@@ -210,11 +222,13 @@ export function CharacterList({
   onSelect,
   onOpenBalances,
   onOpenWiki,
+  onOpenExpeditions,
 }: {
   characters: CampaignCharacter[]
   onSelect: (c: CampaignCharacter) => void
   onOpenBalances?: () => void
   onOpenWiki?: () => void
+  onOpenExpeditions?: () => void
 }) {
   const own = characters.filter((c) => c.isOwn)
   const others = characters.filter((c) => !c.isOwn)
@@ -223,10 +237,11 @@ export function CharacterList({
     <div className="mx-auto max-w-sm">
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-lg font-semibold">Персонажи</h1>
-        {(onOpenBalances || onOpenWiki) && (
+        {(onOpenBalances || onOpenWiki || onOpenExpeditions) && (
           <OverflowMenu
             items={[
               ...(onOpenBalances ? [{ label: 'Балансы всех', onClick: onOpenBalances }] : []),
+              ...(onOpenExpeditions ? [{ label: '🧭 Вылазки', onClick: onOpenExpeditions }] : []),
               ...(onOpenWiki ? [{ label: '📖 Каталог', onClick: onOpenWiki }] : []),
             ]}
           />
@@ -297,6 +312,7 @@ export function PcHome({
   onOpenBalances,
   onOpenEquip,
   onOpenWiki,
+  onOpenExpeditions,
 }: {
   character: CampaignCharacter
   showBack: boolean
@@ -306,6 +322,7 @@ export function PcHome({
   onOpenBalances?: () => void
   onOpenEquip?: () => void
   onOpenWiki?: () => void
+  onOpenExpeditions?: () => void
 }) {
   return (
     <div className="mx-auto flex h-[calc(100dvh-3rem)] max-w-sm flex-col">
@@ -327,6 +344,9 @@ export function PcHome({
         <AppButton icon="🛍" label="Деньги" onClick={onOpenLedger} />
         <AppButton icon="🎒" label="Сумка" onClick={onOpenInventory} />
         <AppButton icon="📖" label="Каталог" onClick={onOpenWiki} disabled={!onOpenWiki} />
+        {onOpenExpeditions && (
+          <AppButton icon="🧭" label="Вылазки" onClick={onOpenExpeditions} />
+        )}
         {onOpenBalances && (
           <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />
         )}
@@ -2454,6 +2474,682 @@ function SetBuySheet({
           </button>
         )}
       </div>
+    </Sheet>
+  )
+}
+
+// ─────────────────────────── spec-055 — вылазки ───────────────────────────
+
+/** A single editable item line (name + qty), optionally linked to a catalog
+ *  node. Used by the вылазка sheets for default consumables, run consumables,
+ *  and rewards. Free-typed names are allowed (US3 — new-item-as-text): the
+ *  server prices only linked catalog items, free text contributes 0 зм. */
+type ExpItemLine = { itemNodeId: string | null; name: string; qty: number }
+
+/** Typeahead over the campaign catalog (searchCampaignItemsTg — every item, not
+ *  just buyable, since rewards land in the общак regardless) with a free-text
+ *  fallback: whatever you typed can be added as an unlinked line. Mirrors the
+ *  shape of SetItemsEditor; kept separate because вылазка lines allow
+ *  itemNodeId=null (free text) and non-catalog names. */
+function ExpItemsEditor({
+  supabase,
+  campaignId,
+  items,
+  setItems,
+  placeholder,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  items: ExpItemLine[]
+  setItems: React.Dispatch<React.SetStateAction<ExpItemLine[]>>
+  placeholder: string
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<{ id: string; title: string }[]>([])
+
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return
+    let alive = true
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchCampaignItemsTg(supabase, campaignId, q)
+        if (alive) setResults(r)
+      } catch {
+        if (alive) setResults([])
+      }
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [query, supabase, campaignId])
+
+  const addCatalog = (it: { id: string; title: string }) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((p) => p.itemNodeId === it.id)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
+        return next
+      }
+      return [...prev, { itemNodeId: it.id, name: it.title, qty: 1 }]
+    })
+    setQuery('')
+    setResults([])
+  }
+  const addFreeText = () => {
+    const name = query.trim()
+    if (!name) return
+    setItems((prev) => [...prev, { itemNodeId: null, name, qty: 1 }])
+    setQuery('')
+    setResults([])
+  }
+  const removeAt = (i: number) =>
+    setItems((prev) => prev.filter((_, idx) => idx !== i))
+
+  return (
+    <>
+      {items.length > 0 && (
+        <div className="rounded-lg bg-neutral-900">
+          {items.map((it, i) => (
+            <div
+              key={`${it.itemNodeId ?? 'txt'}-${i}`}
+              className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2 last:border-0"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
+                {it.name}
+                {!it.itemNodeId && (
+                  <span className="ml-1 text-xs text-neutral-500">(без цены)</span>
+                )}
+              </span>
+              <IntInput
+                className="w-14 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100"
+                value={it.qty}
+                onCommit={(q) =>
+                  setItems((prev) =>
+                    prev.map((p, idx) => (idx === i ? { ...p, qty: q } : p)),
+                  )
+                }
+              />
+              <button
+                onClick={() => removeAt(i)}
+                className="text-xs text-neutral-500 hover:text-red-300"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        className={FIELD}
+        placeholder={placeholder}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            addFreeText()
+          }
+        }}
+      />
+      {query.trim() !== '' && (
+        <div className="max-h-48 overflow-y-auto rounded-lg bg-neutral-900">
+          {results.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => addCatalog(it)}
+              className="block w-full border-b border-neutral-800 px-3 py-2 text-left text-sm text-neutral-100 last:border-0 hover:bg-neutral-800"
+            >
+              {it.title}
+            </button>
+          ))}
+          <button
+            onClick={addFreeText}
+            className="block w-full px-3 py-2 text-left text-xs text-neutral-400 hover:bg-neutral-800"
+          >
+            + Добавить «{query.trim()}» как есть
+          </button>
+        </div>
+      )}
+    </>
+  )
+}
+
+/** Multi-select of campaign PCs → the вылазка's пачка (кто ходил). Own PCs
+ *  first, like every other campaign list. Toggle chips keep it thumb-friendly. */
+function ParticipantPicker({
+  characters,
+  selected,
+  setSelected,
+}: {
+  characters: CampaignCharacter[]
+  selected: Set<string>
+  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+}) {
+  const ordered = [...characters].sort(
+    (a, b) => Number(b.isOwn) - Number(a.isOwn) || a.title.localeCompare(b.title, 'ru'),
+  )
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  return (
+    <div className="flex flex-wrap gap-2">
+      {ordered.map((c) => {
+        const on = selected.has(c.id)
+        return (
+          <button
+            key={c.id}
+            onClick={() => toggle(c.id)}
+            className={
+              'rounded-full px-3 py-1 text-sm transition-colors ' +
+              (on
+                ? 'bg-blue-600 text-white'
+                : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700')
+            }
+          >
+            {c.title}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Menu of available expeditions (FR-001) — the feature's main screen. Any member
+// curates it (add); author or DM edits/deletes. Tap a row → run it (prefilled).
+export function ExpeditionsScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  characters,
+  userId,
+  role,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  characters: CampaignCharacter[]
+  userId: string
+  role: TgRole
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [expeditions, setExpeditions] = useState<ExpeditionTg[] | null>(null)
+  const [runs, setRuns] = useState<ExpeditionRunTg[] | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<
+    | { mode: 'none' }
+    | { mode: 'create' }
+    | { mode: 'edit'; exp: ExpeditionTg }
+    | { mode: 'run'; exp: ExpeditionTg | null }
+  >({ mode: 'none' })
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      setExpeditions(await listExpeditions(supabase, campaignId))
+    } catch {
+      setError('Не удалось загрузить вылазки.')
+    }
+  }, [supabase, campaignId])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const e = await listExpeditions(supabase, campaignId)
+        if (alive) setExpeditions(e)
+      } catch {
+        if (alive) setError('Не удалось загрузить вылазки.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, refreshKey])
+
+  // History is lazy — only fetched once the player opens it (keeps the menu light).
+  useEffect(() => {
+    if (!showHistory) return
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await listExpeditionRuns(supabase, campaignId)
+        if (alive) setRuns(r)
+      } catch {
+        if (alive) setRuns([])
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [showHistory, supabase, campaignId, refreshKey])
+
+  const canManage = (e: ExpeditionTg) =>
+    role === 'owner' || role === 'dm' || e.createdBy === userId
+
+  const doDelete = async (id: string) => {
+    setError(null)
+    setBusyId(id)
+    const res = await deleteExpedition({ id, campaignId })
+    setBusyId(null)
+    setConfirmDelete(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    await reload()
+  }
+
+  const byId = new Map(characters.map((c) => [c.id, c]))
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-1 text-lg font-semibold">Вылазки</h1>
+      <p className="mb-3 text-xs text-neutral-500">
+        Выбери вылазку, чтобы сходить. Расходники спишутся с общака, награда — в общак.
+      </p>
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => setSheet({ mode: 'run', exp: null })}
+          className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+        >
+          🧭 Сходить
+        </button>
+        <button
+          onClick={() => setSheet({ mode: 'create' })}
+          className="flex-1 rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+        >
+          ＋ Вылазка
+        </button>
+      </div>
+      {!expeditions && <Centered>Загрузка…</Centered>}
+      {expeditions && expeditions.length === 0 && (
+        <Centered>Пока нет вылазок в меню.</Centered>
+      )}
+      {expeditions && expeditions.length > 0 && (
+        <div className="space-y-2">
+          {expeditions.map((e) => (
+            <div key={e.id} className="rounded-lg bg-neutral-900 px-3 py-2">
+              <button
+                onClick={() => setSheet({ mode: 'run', exp: e })}
+                className="block w-full text-left"
+              >
+                <div className="truncate text-sm text-neutral-100">{e.title}</div>
+                {e.description && (
+                  <div className="mt-0.5 truncate text-xs text-neutral-500">
+                    {e.description}
+                  </div>
+                )}
+                {e.defaultConsumables.length > 0 && (
+                  <div className="mt-0.5 truncate text-xs text-neutral-600">
+                    расходники: {e.defaultConsumables.map((c) => `${c.name}×${c.qty}`).join(', ')}
+                  </div>
+                )}
+              </button>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSheet({ mode: 'run', exp: e })}
+                  className="rounded-md bg-neutral-700 px-2 py-0.5 text-xs text-neutral-100 transition-colors hover:bg-neutral-600"
+                >
+                  Сходить
+                </button>
+                {canManage(e) && (
+                  <>
+                    <button
+                      onClick={() => setSheet({ mode: 'edit', exp: e })}
+                      className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-700"
+                    >
+                      Изменить
+                    </button>
+                    {confirmDelete === e.id ? (
+                      <button
+                        onClick={() => void doDelete(e.id)}
+                        disabled={busyId === e.id}
+                        className="rounded-md bg-red-900/40 px-2 py-0.5 text-xs text-red-300 disabled:opacity-50"
+                      >
+                        {busyId === e.id ? '…' : 'Точно удалить?'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(e.id)}
+                        className="rounded-md bg-neutral-800 px-2 py-0.5 text-xs text-red-300/80 transition-colors hover:bg-neutral-700"
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* History (SC-004 audit) — compact, lazy. */}
+      <button
+        onClick={() => setShowHistory((v) => !v)}
+        className="mt-6 w-full text-center text-xs text-neutral-400 hover:text-neutral-200"
+      >
+        {showHistory ? 'Скрыть историю' : 'История вылазок…'}
+      </button>
+      {showHistory && (
+        <div className="mt-2">
+          {!runs && <Centered>Загрузка…</Centered>}
+          {runs && runs.length === 0 && (
+            <p className="px-1 py-4 text-sm text-neutral-500">Пока не ходили.</p>
+          )}
+          {runs && runs.length > 0 && (
+            <ul className="space-y-1">
+              {runs.map((r) => {
+                const who = r.participantNodeIds
+                  .map((id) => byId.get(id)?.title)
+                  .filter(Boolean)
+                  .join(', ')
+                const gains = [
+                  r.rewardMoneyGp > 0 ? `+${r.rewardMoneyGp} зм` : null,
+                  ...r.rewardItems.map((i) => `+${i.name}×${i.qty}`),
+                ].filter(Boolean)
+                return (
+                  <li key={r.id} className="rounded-lg bg-neutral-900 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-neutral-300">
+                        {who || 'без участников'}
+                      </span>
+                      <span className="shrink-0 text-xs text-neutral-600">
+                        {dayLabel(r.loopNumber, r.dayInLoop)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-neutral-500">
+                      {gains.length > 0 ? gains.join(', ') : 'без добычи'}
+                      {r.consumablesCostGp > 0 ? ` · −${r.consumablesCostGp} зм расходники` : ''}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {(sheet.mode === 'create' || sheet.mode === 'edit') && (
+        <ExpeditionAddSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          existing={sheet.mode === 'edit' ? sheet.exp : null}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={() => void reload()}
+        />
+      )}
+      {sheet.mode === 'run' && (
+        <ExpeditionRunSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          characters={characters}
+          expedition={sheet.exp}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={() => void reload()}
+        />
+      )}
+    </div>
+  )
+}
+
+// Create / edit a menu template (FR-001): title, description, default consumables.
+function ExpeditionAddSheet({
+  supabase,
+  campaignId,
+  existing,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  existing: ExpeditionTg | null
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [title, setTitle] = useState(existing?.title ?? '')
+  const [description, setDescription] = useState(existing?.description ?? '')
+  const [consumables, setConsumables] = useState<ExpItemLine[]>(
+    existing?.defaultConsumables.map((c) => ({
+      itemNodeId: c.itemNodeId,
+      name: c.name,
+      qty: c.qty,
+    })) ?? [],
+  )
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    setError(null)
+    if (!title.trim()) {
+      setError('Введите название')
+      return
+    }
+    setBusy(true)
+    const res = existing
+      ? await updateExpedition({
+          id: existing.id,
+          campaignId,
+          title: title.trim(),
+          description: description.trim(),
+          defaultConsumables: consumables,
+        })
+      : await addExpedition({
+          campaignId,
+          title: title.trim(),
+          description: description.trim(),
+          defaultConsumables: consumables,
+        })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet title={existing ? 'Изменить вылазку' : 'Новая вылазка'} onClose={onClose}>
+      <div className="space-y-3">
+        <input
+          className={FIELD}
+          placeholder="Название (напр. «Лес»)"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <input
+          className={FIELD}
+          placeholder="Описание (необязательно)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Расходники по умолчанию</div>
+          <ExpItemsEditor
+            supabase={supabase}
+            campaignId={campaignId}
+            items={consumables}
+            setItems={setConsumables}
+            placeholder="Добавить расходник…"
+          />
+        </div>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        {existing ? 'Сохранить' : 'Создать'}
+      </SubmitButton>
+    </Sheet>
+  )
+}
+
+// The core: a ход вылазки (FR-001a). Multi-select пачка + consumables + reward
+// (money + items) + target + date → runExpedition (auto-approved). Prefills from
+// the chosen menu template's defaults; `expedition=null` is an ad-hoc вылазка.
+function ExpeditionRunSheet({
+  supabase,
+  campaignId,
+  loopNumber,
+  characters,
+  expedition,
+  onClose,
+  onDone,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  characters: CampaignCharacter[]
+  expedition: ExpeditionTg | null
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [participants, setParticipants] = useState<Set<string>>(() => {
+    // Prefill with the caller's own PCs — the common case (I went).
+    const own = characters.filter((c) => c.isOwn).map((c) => c.id)
+    return new Set(own)
+  })
+  const [target, setTarget] = useState(expedition?.title ?? '')
+  const [consumables, setConsumables] = useState<ExpItemLine[]>(
+    expedition?.defaultConsumables.map((c) => ({
+      itemNodeId: c.itemNodeId,
+      name: c.name,
+      qty: c.qty,
+    })) ?? [],
+  )
+  const [rewardItems, setRewardItems] = useState<ExpItemLine[]>([])
+  const [rewardMoney, setRewardMoney] = useState('')
+  const [loop, setLoop] = useState(loopNumber)
+  const [day, setDay] = useState(1)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    setError(null)
+    if (!target.trim()) {
+      setError('Укажите цель вылазки')
+      return
+    }
+    if (participants.size === 0) {
+      setError('Выберите хотя бы одного участника')
+      return
+    }
+    setBusy(true)
+    const res = await runExpedition({
+      campaignId,
+      expeditionId: expedition?.id ?? null,
+      participantNodeIds: [...participants],
+      target: target.trim(),
+      loopNumber: loop,
+      dayInLoop: day,
+      consumables: consumables.map((c) => ({
+        itemNodeId: c.itemNodeId,
+        name: c.name,
+        qty: c.qty,
+      })),
+      rewardMoneyGp: parseGp(rewardMoney) ?? 0,
+      rewardItems: rewardItems.map((r) => ({
+        name: r.name,
+        itemNodeId: r.itemNodeId,
+        qty: r.qty,
+      })),
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone()
+    onClose()
+  }
+
+  return (
+    <Sheet
+      title={expedition ? `Вылазка: ${expedition.title}` : 'Новая вылазка'}
+      onClose={onClose}
+    >
+      <div className="space-y-3">
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Кто ходил</div>
+          <ParticipantPicker
+            characters={characters}
+            selected={participants}
+            setSelected={setParticipants}
+          />
+        </div>
+        <input
+          className={FIELD}
+          placeholder="Цель (напр. «Лес»)"
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+        />
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">
+            Расходники (спишутся с общака)
+          </div>
+          <ExpItemsEditor
+            supabase={supabase}
+            campaignId={campaignId}
+            items={consumables}
+            setItems={setConsumables}
+            placeholder="Добавить расходник…"
+          />
+        </div>
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Награда — в общак</div>
+          <input
+            className={FIELD}
+            inputMode="decimal"
+            placeholder="Деньги, зм (необязательно)"
+            value={rewardMoney}
+            onChange={(e) => setRewardMoney(e.target.value)}
+          />
+          <div className="mt-2">
+            <ExpItemsEditor
+              supabase={supabase}
+              campaignId={campaignId}
+              items={rewardItems}
+              setItems={setRewardItems}
+              placeholder="Добавить предмет-награду…"
+            />
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Когда (петля · день)</div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-neutral-500">п</span>
+            <IntInput
+              className="w-16 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+              value={loop}
+              onCommit={setLoop}
+            />
+            <span className="text-sm text-neutral-500">· д</span>
+            <IntInput
+              className="w-16 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+              value={day}
+              onCommit={setDay}
+            />
+          </div>
+        </div>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        Готово
+      </SubmitButton>
     </Sheet>
   )
 }
