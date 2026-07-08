@@ -33,8 +33,14 @@ export type MasterState = {
   loopNumber: number
   loopTitle: string | null
   stashGp: number
-  /** Items sitting in the общак this loop (net qty > 0); empty ⇒ no items line. */
-  stashItems: { name: string; qty: number }[]
+  /**
+   * Items sitting in the общак this loop (net qty > 0); empty ⇒ no items line.
+   * `priceGp` (unit номинал) is set only on resources — they render their line
+   * value «×qty (сумма)»; regular loot leaves it unset.
+   */
+  stashItems: { name: string; qty: number; priceGp?: number }[]
+  /** Total sell value of unsold resources in the общак (Σ priceGp×qty); 0 ⇒ hidden. */
+  stashResourceValueGp: number
   /** Every campaign PC's money balance (caller-sorted). */
   pcs: MasterPcBalance[]
   /** Recent movements, newest first. */
@@ -74,11 +80,24 @@ export function renderMasterMessageHtml(state: MasterState): string {
     (loopTitle ? ` · ${esc(loopTitle)}` : '')
 
   // Items sitting in the общак this loop, compact and comma-joined under the
-  // balance. Nothing shown when the stash holds no items (no clutter).
+  // balance. Resources also show their line value in parens (номинал × qty);
+  // regular loot shows none. Nothing shown when the stash holds no items.
   const stashItems = state.stashItems.length
-    ? `\n📦 ${state.stashItems.map((it) => `${esc(it.name)} ×${it.qty}`).join(', ')}`
+    ? `\n📦 ${state.stashItems
+        .map((it) =>
+          it.priceGp != null
+            ? `${esc(it.name)} ×${it.qty} (${zm(it.priceGp * it.qty)})`
+            : `${esc(it.name)} ×${it.qty}`,
+        )
+        .join(', ')}`
     : ''
-  const stash = `💰 Общак: <b>${zm(state.stashGp)}</b>${stashItems}`
+  // The общак headline; when unsold resources sit inside, append their total
+  // sell value so the DM sees «cash + potential» at a glance.
+  const resourceValue =
+    state.stashResourceValueGp > 0
+      ? `, +${zm(state.stashResourceValueGp)} в ресурсах`
+      : ''
+  const stash = `💰 Общак: <b>${zm(state.stashGp)}</b>${resourceValue}${stashItems}`
 
   // Hide exact-zero PC balances so the dashboard doesn't fill with
   // "• Name — 0 зм": balances are per-loop, so most PCs sit at 0 early in a

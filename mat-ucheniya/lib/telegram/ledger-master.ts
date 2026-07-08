@@ -20,7 +20,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { aggregateGp } from '@/lib/transaction-resolver'
 import type { CoinSet } from '@/lib/transactions'
-import { getAllBalancesTg, getStashItemHoldingsTg } from '@/lib/queries/ledger-tg'
+import {
+  getAllBalancesTg,
+  getStashItemHoldingsTg,
+  getStashResourceHoldingsTg,
+} from '@/lib/queries/ledger-tg'
 import { sendLedgerMessage, editLedgerMessage } from '@/lib/telegram/bot'
 import {
   renderMasterMessageHtml,
@@ -127,12 +131,25 @@ export async function composeMasterState(
     pcs.map((p) => ({ id: p.id, title: p.title, isOwn: false })),
   )
   const recent = await getCampaignRecentTx(admin, campaignId, loop.number, RECENT_LIMIT)
-  const stashItems = await getStashItemHoldingsTg(admin, campaignId, loop.number)
+  // Stash holdings + resource nominals. getStashResourceHoldingsTg resolves which
+  // of the same name-keyed holdings are priced 'resource' catalog items; tag those
+  // with priceGp so the dashboard shows «×qty (сумма)» and a total «в ресурсах».
+  const stashHoldings = await getStashItemHoldingsTg(admin, campaignId, loop.number)
+  const resourceHoldings = await getStashResourceHoldingsTg(admin, campaignId, loop.number)
+  const priceByName = new Map(resourceHoldings.map((r) => [r.name, r.priceGp]))
+  let stashResourceValueGp = 0
+  const stashItems = stashHoldings.map((it) => {
+    const priceGp = priceByName.get(it.name)
+    if (priceGp == null) return { name: it.name, qty: it.qty }
+    stashResourceValueGp += priceGp * it.qty
+    return { name: it.name, qty: it.qty, priceGp }
+  })
   return {
     loopNumber: loop.number,
     loopTitle: loop.title,
     stashGp,
     stashItems,
+    stashResourceValueGp,
     pcs: rows
       .map((r) => ({ title: r.title, gp: r.aggregateGp }))
       .sort((a, b) => a.title.localeCompare(b.title, 'ru')),
