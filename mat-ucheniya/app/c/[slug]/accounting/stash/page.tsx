@@ -13,6 +13,9 @@ import LedgerList from '@/components/ledger-list'
 import InventoryTab from '@/components/inventory-tab'
 import type { InventoryTabLoop } from '@/components/inventory-tab-controls'
 import type { GroupBy } from '@/lib/items-types'
+import { createClient } from '@/lib/supabase/server'
+import { getStashResourceHoldingsTg } from '@/lib/queries/ledger-tg'
+import StashResourcesSell from '@/components/stash-resources-sell'
 
 const VALID_GROUP_BY: ReadonlyArray<GroupBy> = [
   'category',
@@ -127,6 +130,13 @@ export default async function StashPage({
     ? (await getStashContents(campaign.id, loopNumber)).items
     : []
 
+  // Resources currently in the общак (spec-055 доработки) — sold from here at
+  // their nominal. Server-side read via the RSC's cookie-auth client.
+  const stashResources =
+    loopNumber !== null
+      ? await getStashResourceHoldingsTg(await createClient(), campaign.id, loopNumber)
+      : []
+
   // ── InventoryTab inputs (T029): same URL params as PC page. ──
   const visibleLoops = allLoops.filter((l) => l.status !== 'future')
   const tabLoops: InventoryTabLoop[] = visibleLoops.map((l) => ({
@@ -172,6 +182,15 @@ export default async function StashPage({
         campaignSlug={slug}
         heading="Баланс общака"
       />
+
+      {loopNumber !== null && stashResources.length > 0 && (
+        <StashResourcesSell
+          campaignId={campaign.id}
+          loopNumber={loopNumber}
+          dayInLoop={dayInLoop}
+          resources={stashResources}
+        />
+      )}
 
       <StashPageTabs
         itemCount={items.length}
