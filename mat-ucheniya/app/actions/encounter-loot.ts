@@ -39,6 +39,8 @@ import {
 } from '@/lib/encounter-loot-validation'
 import { canonicalKey } from '@/lib/starter-setup-resolver'
 import { getStashNode } from '@/lib/stash'
+import { aggregateGp } from '@/lib/transaction-resolver'
+import { notifyLedgerEvent } from '@/lib/telegram/ledger-feed'
 import type { DesiredRow } from '@/lib/starter-setup'
 import type {
   EncounterLootDesiredRow,
@@ -65,6 +67,7 @@ type EncounterAccess = {
   campaignSlug: string
   status: 'active' | 'completed'
   mirrorNodeId: string
+  encounterTitle: string | null
 }
 
 /**
@@ -88,7 +91,7 @@ async function resolveEncounterAccess(
   const { data: encRow, error: encErr } = await admin
     .from('encounters')
     .select(
-      'id, campaign_id, status, node_id, campaign:campaigns!campaign_id(slug)',
+      'id, campaign_id, status, node_id, title, campaign:campaigns!campaign_id(slug)',
     )
     .eq('id', encounterId)
     .maybeSingle()
@@ -103,6 +106,7 @@ async function resolveEncounterAccess(
     campaign_id: string
     status: 'active' | 'completed'
     node_id: string
+    title: string | null
     campaign: { slug: string } | { slug: string }[] | null
   }
   const row = encRow as Row
@@ -132,6 +136,7 @@ async function resolveEncounterAccess(
       campaignSlug,
       status: row.status,
       mirrorNodeId: row.node_id,
+      encounterTitle: row.title,
     },
   }
 }
@@ -350,7 +355,7 @@ export async function applyEncounterLoot(
   const access = await resolveEncounterAccess(encounterId, 'dm')
   if (!access.ok) return { ok: false, error: access.error }
 
-  const { campaignId, campaignSlug, mirrorNodeId } = access.access
+  const { campaignId, campaignSlug, mirrorNodeId, encounterTitle } = access.access
 
   // Note: spec originally gated apply on `status === 'completed'`
   // (FR-010), but there's no UI to flip status from the encounter
@@ -534,11 +539,32 @@ export async function applyEncounterLoot(
     revalidatePath(`/c/${campaignSlug}/catalog/${pcId}`)
   }
 
-  return {
-    ok: true,
-    rowsAffected:
-      summary.insertedCount + summary.updatedCount + summary.deletedCount,
+  const rowsAffected =
+    summary.insertedCount + summary.updatedCount + summary.deletedCount
+
+  // Spec-053 tail: mass loot distribution was invisible in the ledger feed.
+  // Fire ONE aggregate event summarising the current distribution — only when
+  // something actually changed (a no-op re-apply stays silent). Off the write
+  // path (after()), never throws.
+  if (rowsAffected > 0) {
+    let moneyGp = 0
+    let itemQty = 0
+    for (const r of desiredRows) {
+      if (r.kind === 'money') moneyGp += aggregateGp(r.coins)
+      else itemQty += r.itemQty
+    }
+    await notifyLedgerEvent({
+      type: 'loot-distributed',
+      campaignId,
+      authorUserId: access.userId,
+      encounterTitle,
+      rowCount: desiredRows.length,
+      moneyGp: moneyGp > 0 ? moneyGp : undefined,
+      itemQty: itemQty > 0 ? itemQty : undefined,
+    })
   }
+
+  return { ok: true, rowsAffected }
 }
 
 /**
