@@ -14,6 +14,9 @@
 
 export type FeedLineItem = { name: string; qty: number }
 
+/** Reward line for an expedition; `priceGp` (unit nominal) is set for resources. */
+export type ExpeditionRewardLine = { name: string; qty: number; priceGp?: number }
+
 /** What the transaction actions emit. Carries IDs; names resolve at post time. */
 export type LedgerEvent =
   | {
@@ -106,17 +109,23 @@ export type LedgerEvent =
       loopNumber: number
     }
   | {
-      // A player logged an expedition (spec-055): a pack went somewhere, spent
-      // consumables paid from the общак, brought reward back to the общак. No
-      // single actor — participants are a list; narrated as one message.
+      // A player logged an expedition (spec-055 + доработки): a pack went
+      // somewhere on a dated, timed window, spent consumables (paid from the
+      // общак), brought reward back to the общак. Narrated as one message.
       type: 'expedition'
       campaignId: string
       authorUserId: string | null
       participantPcIds: string[]
       target: string
+      loopNumber: number
+      dayInLoop: number
+      /** Minute-of-day the вылазка starts (0..1439); omitted for legacy runs. */
+      startMinute?: number
+      durationMinute?: number
       rewardMoneyGp?: number
-      rewardItems?: FeedLineItem[]
-      consumablesCostGp?: number
+      /** Reward items; resources carry `priceGp` (unit nominal) → shown in parens. */
+      rewardItems?: ExpeditionRewardLine[]
+      /** Consumables spent — list only, no sum (Andrey). */
       consumablesItems?: FeedLineItem[]
     }
 
@@ -180,6 +189,20 @@ function oneDetail(moneyGp: number | undefined, item: FeedLineItem | undefined):
   return '—'
 }
 
+/** «A» · «A и B» · «A, B и C» — natural Russian list (already-escaped items). */
+function naturalList(items: string[]): string {
+  if (items.length === 0) return '—'
+  if (items.length === 1) return items[0]
+  return `${items.slice(0, -1).join(', ')} и ${items[items.length - 1]}`
+}
+
+/** Minute-of-day → «HH:MM» (24h wrap). Local to keep this module import-free. */
+function hhmm(min: number): string {
+  const h = Math.floor(min / 60) % 24
+  const m = ((min % 60) + 60) % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
 // ── the formatter ───────────────────────────────────────────────────────────
 
 /**
@@ -231,13 +254,37 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
       return `🔄 <b>Началась новая петля</b>\nПетля ${event.loopNumber}`
     case 'expedition': {
       const pack = names.participantTitles?.length
-        ? names.participantTitles.map(esc).join(', ')
+        ? naturalList(names.participantTitles.map(esc))
         : '—'
-      const reward = moneyItemParts(event.rewardMoneyGp, event.rewardItems ?? [])
-      const spent = moneyItemParts(event.consumablesCostGp, event.consumablesItems ?? [])
-      const rewardLine = reward.length ? `\nПолучили:${detailTail(reward)}` : ''
-      const spentLine = spent.length ? `\nПотратили:${detailTail(spent)}` : ''
-      return `🧭 <b>Вылазка</b>\n${pack} → ${esc(event.target)}${rewardLine}${spentLine}`
+      // «Петля N, День X» + optional window «· с HH:MM по HH:MM» (or a
+      // multi-day «День X HH:MM → День Y HH:MM» when the run spills over).
+      let when = `Петля ${event.loopNumber}, День ${event.dayInLoop}`
+      if (event.startMinute != null && event.durationMinute != null) {
+        const endTotal = event.startMinute + event.durationMinute
+        const endDayOffset = Math.floor(endTotal / 1440)
+        when +=
+          endDayOffset === 0
+            ? ` · с ${hhmm(event.startMinute)} по ${hhmm(endTotal)}`
+            : ` ${hhmm(event.startMinute)} → День ${event.dayInLoop + endDayOffset} ${hhmm(endTotal % 1440)}`
+      } else if (event.startMinute != null) {
+        when += ` · ${hhmm(event.startMinute)}`
+      }
+      // Consumables (потратили) — list only, no sum.
+      const spent = event.consumablesItems ?? []
+      const spentSuffix = spent.length
+        ? `, потратили:\n${spent.map(itemPart).join(', ')}`
+        : '.'
+      // Reward (В общак добавлены) — resources show (nominal × qty) in parens.
+      const rewardParts: string[] = []
+      for (const r of event.rewardItems ?? []) {
+        const price = r.priceGp != null ? ` (${zm(r.priceGp * r.qty)})` : ''
+        rewardParts.push(`${esc(r.name)} ×${r.qty}${price}`)
+      }
+      if (event.rewardMoneyGp) rewardParts.push(zm(event.rewardMoneyGp))
+      const rewardBlock = rewardParts.length
+        ? `\n<b>В общак добавлены:</b>\n${rewardParts.join(', ')}`
+        : ''
+      return `🧭 <b>Вылазка</b>\n${when}\n${pack} отправились на вылазку «${esc(event.target)}»${spentSuffix}${rewardBlock}`
     }
   }
 }

@@ -657,3 +657,64 @@ export async function getStashItemHoldingsTg(
   if (!stashNodeId) return []
   return getPcItemHoldingsTg(supabase, stashNodeId, loopNumber)
 }
+
+/**
+ * Resources currently sitting in the общак that can be sold at their nominal
+ * (spec-055 доработки — «продажа ресурсов из общака»). Built on
+ * getStashItemHoldingsTg (net qty by name) joined to the resource catalog nodes
+ * for the node id + `item_attributes.price_gp`; only names that resolve to a
+ * priced item of category 'resource' come back. The name is the canonical
+ * stash-holdings key — the exact key `sellStashResource` nets its coverage on,
+ * so what this shows is what a sale will find.
+ */
+export type StashResourceHoldingTg = {
+  itemNodeId: string
+  name: string
+  qty: number
+  priceGp: number
+}
+
+export async function getStashResourceHoldingsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  loopNumber: number,
+): Promise<StashResourceHoldingTg[]> {
+  const holdings = await getStashItemHoldingsTg(supabase, campaignId, loopNumber)
+  if (holdings.length === 0) return []
+  const names = holdings.map((h) => h.name)
+
+  // Resolve which of those names are priced 'resource' catalog items. !inner on
+  // both embeds so the category + type filters constrain the OUTER rows (the
+  // PostgREST embed-only-filter trap — same guard as getPcInventoryTg).
+  const { data } = await supabase
+    .from('nodes')
+    .select(
+      'id, title, item_attributes!inner(price_gp, category_slug), node_types!inner(slug)',
+    )
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .eq('item_attributes.category_slug', 'resource')
+    .in('title', names)
+  const byName = new Map<string, { itemNodeId: string; priceGp: number }>()
+  for (const r of (data ?? []) as Array<{
+    id: string
+    title: string
+    item_attributes:
+      | { price_gp: number | null; category_slug: string }
+      | { price_gp: number | null; category_slug: string }[]
+      | null
+  }>) {
+    const attrs = Array.isArray(r.item_attributes) ? r.item_attributes[0] : r.item_attributes
+    if (!attrs || attrs.price_gp == null) continue
+    // First price wins — createResourceItem dedups resource titles per campaign.
+    if (!byName.has(r.title)) byName.set(r.title, { itemNodeId: r.id, priceGp: attrs.price_gp })
+  }
+
+  // Preserve getStashItemHoldingsTg's ru-locale name sort; drop non-resources.
+  return holdings.flatMap((h) => {
+    const meta = byName.get(h.name)
+    return meta
+      ? [{ itemNodeId: meta.itemNodeId, name: h.name, qty: h.qty, priceGp: meta.priceGp }]
+      : []
+  })
+}

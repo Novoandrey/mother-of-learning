@@ -21,6 +21,8 @@ import {
   getCampaignSetsTg,
   hasLoopCreditTg,
   getStashItemHoldingsTg,
+  getStashResourceHoldingsTg,
+  type StashResourceHoldingTg,
   type TgWallet,
   type TgRole,
   type TgFeedRow,
@@ -72,6 +74,12 @@ import {
   deleteExpedition,
   runExpedition,
 } from '@/app/actions/expeditions'
+import { createResourceItem, sellStashResource } from '@/app/actions/resources'
+import {
+  validateExpeditionWindow,
+  hhmmToMinute,
+  LOOP_DAYS,
+} from '@/lib/expedition-calendar'
 import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import {
   putMoneyIntoStash,
@@ -181,40 +189,6 @@ function BackLink({ onClick, children }: { onClick: () => void; children: React.
   )
 }
 
-function OverflowMenu({ items }: { items: { label: string; onClick: () => void }[] }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Меню"
-        className="rounded-lg px-2 py-1 text-xl leading-none text-neutral-400 transition-colors hover:bg-neutral-900"
-      >
-        ⋮
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg bg-neutral-800 py-1 shadow-lg">
-            {items.map((it) => (
-              <button
-                key={it.label}
-                onClick={() => {
-                  setOpen(false)
-                  it.onClick()
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-neutral-200 transition-colors hover:bg-neutral-700"
-              >
-                {it.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 // ─────────────────────────── T008 — character list ───────────────────────────
 
 export function CharacterList({
@@ -235,18 +209,16 @@ export function CharacterList({
 
   return (
     <div className="mx-auto max-w-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Персонажи</h1>
-        {(onOpenBalances || onOpenWiki || onOpenExpeditions) && (
-          <OverflowMenu
-            items={[
-              ...(onOpenBalances ? [{ label: 'Балансы всех', onClick: onOpenBalances }] : []),
-              ...(onOpenExpeditions ? [{ label: '🧭 Вылазки', onClick: onOpenExpeditions }] : []),
-              ...(onOpenWiki ? [{ label: '📖 Каталог', onClick: onOpenWiki }] : []),
-            ]}
-          />
-        )}
-      </div>
+      <h1 className="mb-3 text-lg font-semibold">Персонажи</h1>
+      {/* Балансы / Вылазки / Каталог — видимые кнопки (были спрятаны в ⋮-меню,
+          которое никто не находил), как лончер в PcHome. */}
+      {(onOpenBalances || onOpenExpeditions || onOpenWiki) && (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {onOpenBalances && <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />}
+          {onOpenExpeditions && <AppButton icon="🧭" label="Вылазки" onClick={onOpenExpeditions} />}
+          {onOpenWiki && <AppButton icon="📖" label="Каталог" onClick={onOpenWiki} />}
+        </div>
+      )}
       {own.length > 0 && (
         <Group title="Мои персонажи">
           {own.map((c) => (
@@ -628,6 +600,17 @@ function SubmitButton({
 function parseGp(raw: string): number | null {
   const n = Number(raw.replace(',', '.'))
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+// «HH:MM» (a native <input type="time"> value) → {h, m}, or null if empty/junk.
+// Used for both a вылазка's старт (minute-of-day) and its длительность (length).
+function parseHHMM(raw: string): { h: number; m: number } | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw.trim())
+  if (!m) return null
+  const h = parseInt(m[1], 10)
+  const min = parseInt(m[2], 10)
+  if (h > 23 || min > 59) return null
+  return { h, m: min }
 }
 
 // T014 — record an expense / income for a PC.
@@ -1158,20 +1141,33 @@ export function StashScreen({
   refreshKey: number
 }) {
   const [data, setData] = useState<{ wallet: TgWallet; recent: TgFeedRow[] } | null>(null)
+  const [resources, setResources] = useState<StashResourceHoldingTg[]>([])
   const [error, setError] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'none' | 'to-stash' | 'from-stash'>('none')
+  const [sellBusyId, setSellBusyId] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
-    const stash = await getStashTg(supabase, campaignId, loopNumber)
+    const [stash, res] = await Promise.all([
+      getStashTg(supabase, campaignId, loopNumber),
+      getStashResourceHoldingsTg(supabase, campaignId, loopNumber),
+    ])
     setData({ wallet: stash.wallet, recent: stash.recent })
+    setResources(res)
   }, [supabase, campaignId, loopNumber])
 
   useEffect(() => {
     let alive = true
     ;(async () => {
       try {
-        const stash = await getStashTg(supabase, campaignId, loopNumber)
-        if (alive) setData({ wallet: stash.wallet, recent: stash.recent })
+        const [stash, res] = await Promise.all([
+          getStashTg(supabase, campaignId, loopNumber),
+          getStashResourceHoldingsTg(supabase, campaignId, loopNumber),
+        ])
+        if (alive) {
+          setData({ wallet: stash.wallet, recent: stash.recent })
+          setResources(res)
+        }
       } catch {
         if (alive) setError('Не удалось загрузить общак.')
       }
@@ -1180,6 +1176,29 @@ export function StashScreen({
       alive = false
     }
   }, [supabase, campaignId, loopNumber, refreshKey])
+
+  // Sell a resource from the общак at its nominal → success тост «+N зм» + reload.
+  // The transient toast lives in an event-handler chain (not an effect), so it
+  // doesn't trip react-hooks/set-state-in-effect.
+  const sell = async (r: StashResourceHoldingTg, qty: number) => {
+    setError(null)
+    setSellBusyId(r.itemNodeId)
+    const res = await sellStashResource({
+      campaignId,
+      itemNodeId: r.itemNodeId,
+      qty: Math.min(qty, r.qty),
+      loopNumber,
+      dayInLoop: 1,
+    })
+    setSellBusyId(null)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    setToast(`+${res.soldGp} зм`)
+    window.setTimeout(() => setToast(null), 2500)
+    await reload()
+  }
 
   return (
     <div className="mx-auto max-w-sm pb-6">
@@ -1206,6 +1225,23 @@ export function StashScreen({
               </button>
             </div>
           )}
+          {resources.length > 0 && (
+            <div className="mt-4">
+              <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                Ресурсы
+              </h2>
+              <div className="space-y-1">
+                {resources.map((r) => (
+                  <ResourceSellRow
+                    key={`${r.itemNodeId}-${r.qty}`}
+                    r={r}
+                    busy={sellBusyId === r.itemNodeId}
+                    onSell={(qty) => void sell(r, qty)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           <div className="mt-4">
             <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
               Движения
@@ -1213,6 +1249,13 @@ export function StashScreen({
             <FeedList rows={data.recent} categories={categories} />
           </div>
         </>
+      )}
+      {toast && (
+        <div className="fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+          <div className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
+            {toast}
+          </div>
+        </div>
       )}
       {sheet !== 'none' && (
         <TransferSheet
@@ -1226,6 +1269,46 @@ export function StashScreen({
           onDone={() => void reload()}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * One sellable resource row in the общак: «{name} ×{qty} · {price} зм/шт» + a qty
+ * field (default = the full remaining stock) + a «Продать» button. Keyed by
+ * (id, qty) upstream so a sale that changes the stock remounts the row, resetting
+ * the qty field back to the new full remainder.
+ */
+function ResourceSellRow({
+  r,
+  busy,
+  onSell,
+}: {
+  r: StashResourceHoldingTg
+  busy: boolean
+  onSell: (qty: number) => void
+}) {
+  const [qty, setQty] = useState(r.qty)
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-neutral-900 px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm text-neutral-100">{r.name}</div>
+        <div className="text-xs text-neutral-500">
+          ×{r.qty} · {r.priceGp} зм/шт
+        </div>
+      </div>
+      <IntInput
+        className="w-14 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100"
+        value={qty}
+        onCommit={setQty}
+      />
+      <button
+        onClick={() => onSell(qty)}
+        disabled={busy}
+        className="shrink-0 rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-600 disabled:opacity-50"
+      >
+        {busy ? '…' : 'Продать'}
+      </button>
     </div>
   )
 }
@@ -2617,6 +2700,100 @@ function ExpItemsEditor({
   )
 }
 
+// A reward «ресурс» = имя + номинал (spec-055 доработки, T2). Distinct from a
+// plain reward item (ExpItemsEditor): a price is what turns a line into a
+// resource, so on submit ExpeditionRunSheet find-or-creates a 'resource' catalog
+// item for it. Kept separate from ExpItemsEditor so the shared items/free-text
+// picker is untouched.
+type ResourceRewardLine = { name: string; priceGp: number; qty: number }
+
+function ResourceRewardEditor({
+  items,
+  setItems,
+}: {
+  items: ResourceRewardLine[]
+  setItems: React.Dispatch<React.SetStateAction<ResourceRewardLine[]>>
+}) {
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState('')
+
+  const add = () => {
+    const nm = name.trim()
+    const p = parseGp(price)
+    if (!nm || p === null) return // a resource needs a name AND a positive номинал
+    setItems((prev) => [...prev, { name: nm, priceGp: p, qty: 1 }])
+    setName('')
+    setPrice('')
+  }
+  const removeAt = (i: number) => setItems((prev) => prev.filter((_, idx) => idx !== i))
+
+  return (
+    <>
+      {items.length > 0 && (
+        <div className="mb-2 rounded-lg bg-neutral-900">
+          {items.map((it, i) => (
+            <div
+              key={`${it.name}-${i}`}
+              className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2 last:border-0"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
+                {it.name}
+                <span className="ml-1 text-xs text-neutral-500">{it.priceGp} зм/шт</span>
+              </span>
+              <IntInput
+                className="w-14 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100"
+                value={it.qty}
+                onCommit={(q) =>
+                  setItems((prev) => prev.map((p, idx) => (idx === i ? { ...p, qty: q } : p)))
+                }
+              />
+              <button
+                onClick={() => removeAt(i)}
+                className="text-xs text-neutral-500 hover:text-red-300"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          className={FIELD + ' flex-1'}
+          placeholder="Ресурс (напр. «Сердце ивы»)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              add()
+            }
+          }}
+        />
+        <input
+          className="w-24 rounded-lg bg-neutral-800 px-3 py-2 text-neutral-100 outline-none placeholder:text-neutral-500 focus:ring-1 focus:ring-neutral-600"
+          inputMode="decimal"
+          placeholder="зм/шт"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              add()
+            }
+          }}
+        />
+      </div>
+      <button
+        onClick={add}
+        className="mt-1 w-full rounded-lg bg-neutral-800 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-700"
+      >
+        ＋ Добавить ресурс
+      </button>
+    </>
+  )
+}
+
 /** Multi-select of campaign PCs → the вылазка's пачка (кто ходил). Own PCs
  *  first, like every other campaign list. Toggle chips keep it thumb-friendly. */
 function ParticipantPicker({
@@ -3033,8 +3210,14 @@ function ExpeditionRunSheet({
   )
   const [rewardItems, setRewardItems] = useState<ExpItemLine[]>([])
   const [rewardMoney, setRewardMoney] = useState('')
-  const [loop, setLoop] = useState(loopNumber)
+  const [resourceRewards, setResourceRewards] = useState<ResourceRewardLine[]>([])
   const [day, setDay] = useState(1)
+  // Window (spec-055): старт = минута дня (clock <input type="time">, 0..23:59);
+  // длительность = длина в часах+минутах. Часы БЕЗ верхней границы — вылазка
+  // может быть многодневной («День X → День Y»), поэтому не type="time".
+  const [startStr, setStartStr] = useState('08:00')
+  const [durH, setDurH] = useState(2)
+  const [durM, setDurM] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -3048,25 +3231,68 @@ function ExpeditionRunSheet({
       setError('Выберите хотя бы одного участника')
       return
     }
+    // Window: день + старт HH:MM + длительность HH:MM. Gate client-side with the
+    // same pure validator the action re-checks, so a bad window never submits.
+    const start = parseHHMM(startStr)
+    if (!start) {
+      setError('Укажите время старта в формате ЧЧ:ММ')
+      return
+    }
+    const startMinute = hhmmToMinute(start.h, start.m)
+    const durationMinute = Math.max(0, durH) * 60 + Math.max(0, durM)
+    const win = validateExpeditionWindow({ day, startMinute, durationMinute })
+    if (!win.ok) {
+      setError(win.error)
+      return
+    }
+
     setBusy(true)
+
+    // Resource rewards (имя + номинал) become permanent catalog items of category
+    // 'resource' first — createResourceItem dedups by title — then merge into the
+    // reward items with the resolved node id (spec-055 доработки, T2).
+    const resolvedResources: { name: string; itemNodeId: string; qty: number }[] = []
+    for (const rr of resourceRewards) {
+      const created = await createResourceItem({
+        campaignId,
+        name: rr.name,
+        priceGp: rr.priceGp,
+      })
+      if (!created.ok) {
+        setBusy(false)
+        setError(created.error)
+        return
+      }
+      resolvedResources.push({
+        name: created.name,
+        itemNodeId: created.itemNodeId,
+        qty: rr.qty,
+      })
+    }
+
     const res = await runExpedition({
       campaignId,
       expeditionId: expedition?.id ?? null,
       participantNodeIds: [...participants],
       target: target.trim(),
-      loopNumber: loop,
+      loopNumber,
       dayInLoop: day,
+      startMinute,
+      durationMinute,
       consumables: consumables.map((c) => ({
         itemNodeId: c.itemNodeId,
         name: c.name,
         qty: c.qty,
       })),
       rewardMoneyGp: parseGp(rewardMoney) ?? 0,
-      rewardItems: rewardItems.map((r) => ({
-        name: r.name,
-        itemNodeId: r.itemNodeId,
-        qty: r.qty,
-      })),
+      rewardItems: [
+        ...rewardItems.map((r) => ({
+          name: r.name,
+          itemNodeId: r.itemNodeId,
+          qty: r.qty,
+        })),
+        ...resolvedResources,
+      ],
     })
     setBusy(false)
     if (!res.ok) {
@@ -3091,12 +3317,15 @@ function ExpeditionRunSheet({
             setSelected={setParticipants}
           />
         </div>
-        <input
-          className={FIELD}
-          placeholder="Цель (напр. «Лес»)"
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-        />
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Цель</div>
+          <input
+            className={FIELD}
+            placeholder="Куда ходили (напр. «Лес»)"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+          />
+        </div>
         <div>
           <div className="mb-1 px-1 text-xs text-neutral-500">
             Расходники (спишутся с общака)
@@ -3119,6 +3348,9 @@ function ExpeditionRunSheet({
             onChange={(e) => setRewardMoney(e.target.value)}
           />
           <div className="mt-2">
+            <div className="mb-1 px-1 text-[11px] uppercase tracking-wide text-neutral-600">
+              Предметы
+            </div>
             <ExpItemsEditor
               supabase={supabase}
               campaignId={campaignId}
@@ -3127,22 +3359,50 @@ function ExpeditionRunSheet({
               placeholder="Добавить предмет-награду…"
             />
           </div>
+          <div className="mt-2">
+            <div className="mb-1 px-1 text-[11px] uppercase tracking-wide text-neutral-600">
+              Ресурсы (с номиналом)
+            </div>
+            <ResourceRewardEditor items={resourceRewards} setItems={setResourceRewards} />
+          </div>
         </div>
         <div>
-          <div className="mb-1 px-1 text-xs text-neutral-500">Когда (петля · день)</div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-500">п</span>
-            <IntInput
-              className="w-16 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
-              value={loop}
-              onCommit={setLoop}
-            />
-            <span className="text-sm text-neutral-500">· д</span>
-            <IntInput
-              className="w-16 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
-              value={day}
-              onCommit={setDay}
-            />
+          <div className="mb-1 px-1 text-xs text-neutral-500">Когда</div>
+          <div className="flex items-end gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="px-0.5 text-[11px] text-neutral-500">День (1–{LOOP_DAYS})</span>
+              <IntInput
+                className="w-16 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+                value={day}
+                onCommit={setDay}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="px-0.5 text-[11px] text-neutral-500">Старт</span>
+              <input
+                type="time"
+                className="rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100 outline-none [color-scheme:dark] focus:ring-1 focus:ring-neutral-600"
+                value={startStr}
+                onChange={(e) => setStartStr(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="px-0.5 text-[11px] text-neutral-500">Длительность</span>
+              <div className="flex items-center gap-1">
+                <IntInput
+                  className="w-12 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+                  value={durH}
+                  onCommit={setDurH}
+                />
+                <span className="text-xs text-neutral-500">ч</span>
+                <IntInput
+                  className="w-12 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+                  value={durM}
+                  onCommit={setDurM}
+                />
+                <span className="text-xs text-neutral-500">м</span>
+              </div>
+            </label>
           </div>
         </div>
       </div>
