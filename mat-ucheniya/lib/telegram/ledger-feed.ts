@@ -33,11 +33,24 @@ async function resolveNames(
       : event.type === 'set-created' ||
           event.type === 'loop-started' ||
           event.type === 'expedition' ||
+          event.type === 'craft' ||
           event.type === 'loot-distributed'
         ? null
         : event.actorPcId
-  const recipientPcId = event.type === 'transfer' ? event.recipientPcId : null
-  const participantPcIds = event.type === 'expedition' ? event.participantPcIds : []
+  // 'craft' resolves its recipient (изделие → PC) through the same slot the
+  // transfer recipient uses; null = общак, никакого резолва не надо.
+  const recipientPcId =
+    event.type === 'transfer'
+      ? event.recipientPcId
+      : event.type === 'craft'
+        ? (event.recipientPcId ?? null)
+        : null
+  const participantPcIds =
+    event.type === 'expedition'
+      ? event.participantPcIds
+      : event.type === 'craft'
+        ? event.participants.map((p) => p.pcId)
+        : []
 
   const pcIds = [actorPcId, recipientPcId, ...participantPcIds].filter(
     (x): x is string => !!x,

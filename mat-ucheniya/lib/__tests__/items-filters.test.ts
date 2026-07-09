@@ -29,6 +29,7 @@ function item(partial: Partial<ItemNode>): ItemNode {
     useDefaultPrice: true,
     requiresAttunement: false,
     noPurchase: false,
+    schemaForNodeId: null,
     ...partial,
   };
 }

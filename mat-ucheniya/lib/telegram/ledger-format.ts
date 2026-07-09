@@ -129,6 +129,31 @@ export type LedgerEvent =
       consumablesItems?: FeedLineItem[]
     }
   | {
+      // A craft act (spec-056): crafters invested hours, the общак paid the
+      // working cost, the изделие went to the общак or straight to a PC. One
+      // message per act (like 'expedition' — the feed must not flood).
+      // mode 'disassemble' is the reverse ritual folded into the same type:
+      // an item is destroyed (−1 с общака) to make its schema craftable —
+      // no crafters/money, so a separate union member would duplicate the
+      // whole shape for two optional fields.
+      type: 'craft'
+      campaignId: string
+      authorUserId: string | null
+      /** Крафтеры с часами; имена резолвятся в participantTitles (по порядку). */
+      participants: { pcId: string; hours: number }[]
+      /** Имя изделия (mode 'craft') или разобранного предмета ('disassemble'). */
+      target: string
+      loopNumber: number
+      dayInLoop: number
+      /** Minute-of-day (0..1439) начала работы; omitted = без времени. */
+      startMinute?: number
+      /** Рабочая цена, списанная с общака; omitted/0 = ничего не списано. */
+      investedGp?: number
+      /** Получатель изделия (PC node id); null/omitted = общак. */
+      recipientPcId?: string | null
+      mode?: 'craft' | 'disassemble'
+    }
+  | {
       // Mass encounter-loot distribution (spec-013) made visible in the feed
       // as ONE aggregate event (spec-053 tail). No PC actor — it summarises a
       // batch spread across several recipients.
@@ -215,6 +240,12 @@ function hhmm(min: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+/** Invested hours label: whole stays bare, fractional rounds to ≤2 dp. */
+function hoursLabel(h: number): string {
+  const rounded = Number.isInteger(h) ? h : Math.round(h * 100) / 100
+  return `${rounded} ч`
+}
+
 // ── the formatter ───────────────────────────────────────────────────────────
 
 /**
@@ -297,6 +328,38 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
         ? `\n<b>В общак добавлены:</b>\n${rewardParts.join(', ')}`
         : ''
       return `🧭 <b>Вылазка</b>\n${when}\n${pack} отправились на вылазку «${esc(event.target)}»${spentSuffix}${rewardBlock}`
+    }
+    case 'craft': {
+      const isDisassemble = event.mode === 'disassemble'
+      // «Петля N, День X» + optional «· с HH:MM» (окно не гейтится — крафт
+      // может быть многодневным, конец не показываем).
+      let when = `Петля ${event.loopNumber}, День ${event.dayInLoop}`
+      if (event.startMinute != null) when += ` · с ${hhmm(event.startMinute)}`
+      const lines = [`🛠 <b>${isDisassemble ? 'Разбор' : 'Крафт'}</b>`, when]
+      // Крафтеры с часами: «Имя (2 ч), Имя (1.5 ч) и Имя (3 ч)». Titles come
+      // resolved in participantTitles, parallel to event.participants.
+      if (event.participants.length > 0) {
+        lines.push(
+          naturalList(
+            event.participants.map((p, i) => {
+              const title = names.participantTitles?.[i] ?? '—'
+              return `${esc(title)} (${hoursLabel(p.hours)})`
+            }),
+          ),
+        )
+      }
+      if (isDisassemble) {
+        lines.push(`Разобрано: ${esc(event.target)}`)
+      } else {
+        const to = event.recipientPcId
+          ? names.recipientPcTitle
+            ? esc(names.recipientPcTitle)
+            : '—'
+          : 'в общак'
+        lines.push(`Скрафчено: ${esc(event.target)} → ${to}`)
+      }
+      if (event.investedGp) lines.push(`Вложено: ${zm(event.investedGp)}`)
+      return lines.join('\n')
     }
     case 'loot-distributed': {
       const title = event.encounterTitle ? ` · «${esc(event.encounterTitle)}»` : ''
