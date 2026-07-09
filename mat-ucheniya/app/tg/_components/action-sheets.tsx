@@ -493,9 +493,11 @@ export function GiveSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   const [what, setWhat] = useState<'money' | 'item'>(
     prefill?.what === 'item' ? 'item' : 'money',
   )
-  const [dest, setDest] = useState<'player' | 'stash'>(() =>
-    others.length === 0 ? 'stash' : 'player',
-  )
+  const [dest, setDest] = useState<'player' | 'stash'>(() => {
+    // Префилл из глаголов предмета (character-tab: «В общак» / «Передать»).
+    if (prefill?.dest === 'stash') return 'stash'
+    return others.length === 0 ? 'stash' : 'player'
+  })
   const [recipient, setRecipient] = useState(others[0]?.id ?? '')
   const [amount, setAmount] = useState(() => {
     const n = num(prefill?.amount)

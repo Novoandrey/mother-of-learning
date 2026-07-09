@@ -47,11 +47,10 @@ import {
   IntInput,
   SubmitButton,
 } from './primitives'
-import { useTgNav, useTgRefresh, type TgTabProps } from './shell'
-
-// День петли в быстрых действиях — конвенция «1» v1 (осознанно; день —
-// материя спеки 057). Здесь — единственное место файла.
-const QUICK_ACTION_DAY = 1
+import { useTgRefresh, type TgTabProps } from './shell'
+// Единый пайплайн действий (spec-058): GiveSheet — стык W5 для глаголов
+// предмета; QUICK_ACTION_DAY — общая конвенция дня (см. action-sheets).
+import { GiveSheet, QUICK_ACTION_DAY } from './action-sheets'
 
 // 5e: максимум 3 предмета с настройкой — мягкий кап, как в InventoryScreen.
 const ATTUNE_CAP = 3
@@ -66,9 +65,9 @@ type CharData = {
 type CharSheet =
   | { mode: 'verbs'; row: PcInventoryRowTg }
   | { mode: 'sell'; row: PcInventoryRowTg }
+  | { mode: 'give'; row: PcInventoryRowTg; dest: 'player' | 'stash' }
 
 export function CharacterTab({ app }: TgTabProps) {
-  const nav = useTgNav()
   const { refreshKey, bump } = useTgRefresh()
   const { supabase, campaignId, loopNumber } = app
   const pc = app.activePc
@@ -154,11 +153,10 @@ export function CharacterTab({ app }: TgTabProps) {
     return null
   }
 
-  // «Передать» и «В общак» — временный legacy-мост (см. докблок): экран
-  // Сумки, где «Переместить» открывает старый TransferSheet.
-  const openLegacyTransfer = () => {
-    setSheet(null)
-    nav.push({ screen: 'legacy-inventory' })
+  // «Передать» и «В общак» — единый пайплайн действий (spec-058 W5):
+  // GiveSheet из action-sheets с префиллом предмета и направления.
+  const openGive = (row: PcInventoryRowTg, dest: 'player' | 'stash') => {
+    setSheet({ mode: 'give', row, dest })
   }
 
   const submitSell = async (args: {
@@ -291,10 +289,22 @@ export function CharacterTab({ app }: TgTabProps) {
         <ItemActionSheet
           row={sheet.row}
           onToggleEquip={() => toggleEquip(sheet.row)}
-          onTransfer={openLegacyTransfer}
-          onToStash={openLegacyTransfer}
+          onTransfer={() => openGive(sheet.row, 'player')}
+          onToStash={() => openGive(sheet.row, 'stash')}
           onSell={() => setSheet({ mode: 'sell', row: sheet.row })}
           onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet?.mode === 'give' && (
+        <GiveSheet
+          app={app}
+          prefill={{ what: 'item', itemName: sheet.row.name, dest: sheet.dest }}
+          onClose={() => setSheet(null)}
+          onDone={(t) => {
+            setSheet(null)
+            showToast(t)
+            void reload()
+          }}
         />
       )}
       {sheet?.mode === 'sell' && (
