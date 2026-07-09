@@ -10,8 +10,10 @@
  * 055 R2/056) → «Балансы» (Общак + все PC; тап по PC = переключить активного
  * и уйти в таб Персонаж).
  *
- * TransferSheet — временный мост из ledger-app (W5 заменит на action-sheets).
- * Пуш-экраны таба рендерит сам этот компонент по useTgNav().top (контракт W1).
+ * Положить/Забрать общака — шиты глаголов из action-sheets: GiveSheet с
+ * префиллом {dest:'stash'} и TakeSheet (общак → активный PC); успех = тост
+ * (паттерн sell ниже) + reload(). Пуш-экраны таба рендерит сам этот
+ * компонент по useTgNav().top (контракт W1).
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -30,7 +32,8 @@ import { listSchemas } from '@/lib/queries/craft-tg'
 import { sellStashResource } from '@/app/actions/resources'
 import { formatGp } from './format'
 import { Centered, WalletCard, FeedList, IntInput } from './primitives'
-import { CraftScreen, ExpeditionsScreen, TransferSheet } from './ledger-app'
+import { CraftScreen, ExpeditionsScreen } from './ledger-app'
+import { GiveSheet, TakeSheet } from './action-sheets'
 import { useTgNav, useTgRefresh, type TgTabProps } from './shell'
 
 export function PartyTab({ app }: TgTabProps) {
@@ -85,7 +88,6 @@ function PartyRoot({ app }: TgTabProps) {
   const nav = useTgNav()
   const { refreshKey } = useTgRefresh()
   const { supabase, campaignId, loopNumber, characters, categories, activePc } = app
-  const others = characters.filter((c) => c.id !== activePc.id)
 
   const [data, setData] = useState<PartyData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -164,6 +166,14 @@ function PartyRoot({ app }: TgTabProps) {
     setToast(`+${res.soldGp} зм`)
     window.setTimeout(() => setToast(null), 2500)
     await reload()
+  }
+
+  // Успех шита Положить/Забрать: тост с текстом шита (тот же транзиентный
+  // паттерн, что sell выше) + перезагрузка данных общака.
+  const sheetDone = (msg: string) => {
+    setToast(msg)
+    window.setTimeout(() => setToast(null), 2500)
+    void reload()
   }
 
   // Ресурсы показываются своей секцией с продажей — из «Предметов» их убираем,
@@ -308,17 +318,16 @@ function PartyRoot({ app }: TgTabProps) {
           </div>
         </div>
       )}
-      {sheet !== 'none' && (
-        <TransferSheet
-          supabase={supabase}
-          campaignId={campaignId}
-          loopNumber={loopNumber}
-          actorPcId={activePc.id}
-          others={others}
-          initialDir={sheet}
+      {sheet === 'to-stash' && (
+        <GiveSheet
+          app={app}
+          prefill={{ dest: 'stash' }}
           onClose={() => setSheet('none')}
-          onDone={() => void reload()}
+          onDone={sheetDone}
         />
+      )}
+      {sheet === 'from-stash' && (
+        <TakeSheet app={app} onClose={() => setSheet('none')} onDone={sheetDone} />
       )}
     </div>
   )

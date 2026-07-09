@@ -8,7 +8,8 @@
  * рендерит по useTgNav().top; закрытие = pop, успех = onDone(текст тоста).
  *
  * Серверный слой не трогаем: createTransaction / createPurchase /
- * createTransfer / createItemTransfer / put*IntoStash / sellPcItem как есть.
+ * createTransfer / createItemTransfer / put*IntoStash / take*FromStash /
+ * takeLoopCredit / sellPcItem как есть.
  */
 
 import { useEffect, useState } from 'react'
@@ -17,6 +18,8 @@ import {
   getStashTg,
   getCampaignBuyConfigTg,
   getPcItemHoldingsTg,
+  getStashItemHoldingsTg,
+  hasLoopCreditTg,
   searchBuyableItemsTg,
   type BuyableItemTg,
 } from '@/lib/queries/ledger-tg'
@@ -25,8 +28,15 @@ import {
   createTransfer,
   createItemTransfer,
   createPurchase,
+  takeLoopCredit,
 } from '@/app/actions/transactions'
-import { putMoneyIntoStash, putItemIntoStash } from '@/app/actions/stash'
+import {
+  putMoneyIntoStash,
+  putItemIntoStash,
+  takeMoneyFromStash,
+  takeItemFromStash,
+} from '@/app/actions/stash'
+import { LOOP_CREDIT_GP } from '@/lib/ledger-constants'
 import { sellPcItem } from '@/app/actions/sell'
 import {
   resolveBuyUnitPriceGp,
@@ -726,6 +736,188 @@ export function GiveSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   )
 }
 
+// ─────────────────────────── 🏰 Взял из общака ───────────────────────────
+// Близнец GiveSheet с обратным направлением: общак → активный PC (последняя
+// SC-001-фраза аудита 058 — «взял из общака» как глагол, без похода в Партию).
+// Источник предметов — холдинги общака (getStashItemHoldingsTg); сабмит —
+// takeMoneyFromStash / takeItemFromStash (те же врапперы, что старый
+// TransferSheet dir='from-stash').
+
+export function TakeSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
+  const { supabase, campaignId, loopNumber, activePc } = app
+
+  const [what, setWhat] = useState<'money' | 'item'>(
+    prefill?.what === 'item' ? 'item' : 'money',
+  )
+  const [amount, setAmount] = useState(() => {
+    const n = num(prefill?.amount)
+    return n != null ? String(n) : ''
+  })
+  const [qty, setQty] = useState(() => String(num(prefill?.qty) ?? 1))
+  const [items, setItems] = useState<{ name: string; qty: number }[] | null>(null)
+  const [picked, setPicked] = useState(() => str(prefill?.itemName))
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Источник предметов один — общак кампании (направление всегда «ко мне»).
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const list = await getStashItemHoldingsTg(supabase, campaignId, loopNumber)
+        if (alive) {
+          setItems(list)
+          setPicked((p) => (p && list.some((i) => i.name === p) ? p : (list[0]?.name ?? '')))
+        }
+      } catch {
+        if (alive) setItems([])
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, loopNumber])
+
+  const gp = parseGp(amount)
+  const n = Math.max(0, parseInt(qty, 10) || 0)
+  const line =
+    what === 'money'
+      ? gp != null
+        ? `+${formatGp(gp)} ← общак`
+        : null
+      : picked && n >= 1
+        ? `${picked} ×${n} ← общак`
+        : null
+
+  const submit = async () => {
+    setError(null)
+
+    if (what === 'item') {
+      if (!picked) {
+        setError('Выберите предмет')
+        return
+      }
+      if (n < 1) {
+        setError('Количество ≥ 1')
+        return
+      }
+      const avail = items?.find((i) => i.name === picked)?.qty ?? 0
+      if (n > avail) {
+        setError(`В общаке только ${avail}`)
+        return
+      }
+      setBusy(true)
+      const res = await takeItemFromStash({
+        campaignId,
+        actorPcId: activePc.id,
+        itemName: picked,
+        qty: n,
+        comment: comment.trim(),
+        loopNumber,
+        dayInLoop: QUICK_ACTION_DAY,
+      })
+      setBusy(false)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      onDone(`🏰 ${line}`)
+      onClose()
+      return
+    }
+
+    // money
+    if (gp == null) {
+      setError('Введите сумму в зм')
+      return
+    }
+    setBusy(true)
+    const res = await takeMoneyFromStash({
+      campaignId,
+      actorPcId: activePc.id,
+      amountGp: gp,
+      comment: comment.trim(),
+      loopNumber,
+      dayInLoop: QUICK_ACTION_DAY,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone(`🏰 ${line}`)
+    onClose()
+  }
+
+  return (
+    <Sheet title="🏰 Взял из общака" onClose={onClose}>
+      <div className="space-y-3">
+        <SegToggle
+          value={what}
+          onChange={(w) => {
+            setWhat(w)
+            setError(null)
+          }}
+          options={[
+            { value: 'money', label: 'Деньги' },
+            { value: 'item', label: 'Предмет' },
+          ]}
+        />
+
+        {what === 'money' ? (
+          <input
+            className={FIELD}
+            inputMode="decimal"
+            placeholder="Сумма, зм"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        ) : (
+          <>
+            {items === null ? (
+              <p className="text-sm text-neutral-500">Загрузка…</p>
+            ) : items.length === 0 ? (
+              <p className="text-sm text-neutral-500">В общаке нет предметов.</p>
+            ) : (
+              <select
+                className={FIELD}
+                value={picked}
+                onChange={(e) => setPicked(e.target.value)}
+              >
+                {items.map((i) => (
+                  <option key={i.name} value={i.name}>
+                    {i.name} (×{i.qty})
+                  </option>
+                ))}
+              </select>
+            )}
+            <input
+              className={FIELD}
+              inputMode="numeric"
+              placeholder="Количество"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+            />
+          </>
+        )}
+
+        <input
+          className={FIELD}
+          placeholder="Комментарий (необязательно)"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      </div>
+      {line && <PreviewLine text={line} />}
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        Взять
+      </SubmitButton>
+    </Sheet>
+  )
+}
+
 // ─────────────────────────── 💱 Продал ───────────────────────────
 // Новый глагол (развилка №4): предмет из сумки активного PC → сумма зм.
 // Дефолт суммы — каталожная price_gp × qty (пустое поле = дефолт, число в
@@ -894,31 +1086,87 @@ export function SellSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
 }
 
 // ─────────────────────────── ⋯ Ещё ───────────────────────────
-// Редкие действия — мосты на существующие экраны (legacy-* до W5): кредит и
-// стартовый набор живут на StarterEquipScreen, наборы — SetsScreen. onGo —
-// nav.replace: шит-прослойка не остаётся в стеке, «назад» ведёт в корень таба.
+// Редкие действия: «Взял из общака» — экран 'act-take' (TakeSheet выше);
+// кредит петли — в один тап прямо отсюда (takeLoopCredit, статус раз-в-петлю
+// через hasLoopCreditTg — паттерн StarterEquipScreen); мосты на существующие
+// экраны (legacy-* до W5): стартовый набор — StarterEquipScreen, наборы —
+// SetsScreen. onGo — nav.replace: шит-прослойка не остаётся в стеке, «назад»
+// ведёт в корень таба.
 
 export function MoreSheet({
   app,
   onGo,
   onClose,
+  onDone,
 }: {
   app: TgAppContext
   onGo: (screen: string) => void
   onClose: () => void
+  /** Успех действия «в один тап» (кредит): текст тоста, рефреш — ActionHub. */
+  onDone: (toast: string) => void
 }) {
-  const own = app.activePc.isOwn
+  const { supabase, campaignId, loopNumber, activePc } = app
+  const own = activePc.isOwn
+
+  // Раз-в-петлю статус кредита: null = грузится (кнопка выключена).
+  const [creditTaken, setCreditTaken] = useState<boolean | null>(null)
+  const [creditBusy, setCreditBusy] = useState(false)
+  const [creditError, setCreditError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!own) return
+    let alive = true
+    ;(async () => {
+      try {
+        const taken = await hasLoopCreditTg(supabase, campaignId, activePc.id, loopNumber)
+        if (alive) setCreditTaken(taken)
+      } catch {
+        if (alive) setCreditTaken(false) // сервер всё равно гардит повтор
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [own, supabase, campaignId, activePc.id, loopNumber])
+
+  const takeCredit = async () => {
+    if (creditBusy || creditTaken !== false) return
+    setCreditBusy(true)
+    setCreditError(null)
+    const res = await takeLoopCredit(campaignId, activePc.id, loopNumber)
+    setCreditBusy(false)
+    if (!res.ok) {
+      setCreditError(res.error)
+      if (res.error.includes('уже взят')) setCreditTaken(true)
+      return
+    }
+    onDone(`💳 Кредит взят: +${LOOP_CREDIT_GP} ЗМ`)
+    onClose()
+  }
+
   return (
     <Sheet title="⋯ Ещё" onClose={onClose}>
       <div className="space-y-2">
+        <MoreButton
+          icon="🏰"
+          label="Взял из общака"
+          hint="деньги или предмет из общака — себе"
+          onClick={() => onGo('act-take')}
+        />
         {own && (
           <MoreButton
             icon="💳"
-            label="Взять кредит"
-            hint="кредит петли — на экране Снаряжение"
-            onClick={() => onGo('legacy-equip')}
+            label={
+              creditTaken
+                ? 'Кредит за петлю взят'
+                : `Взять кредит · ${LOOP_CREDIT_GP} ЗМ`
+            }
+            hint={creditTaken ? 'раз в петлю — уже взят' : 'раз в петлю, зачислится сразу'}
+            disabled={creditBusy || creditTaken !== false}
+            onClick={() => void takeCredit()}
           />
         )}
+        {creditError && <p className="px-1 text-sm text-red-400">{creditError}</p>}
         {own && (
           <MoreButton
             icon="🎽"
@@ -948,16 +1196,19 @@ function MoreButton({
   label,
   hint,
   onClick,
+  disabled,
 }: {
   icon: string
   label: string
   hint: string
   onClick: () => void
+  disabled?: boolean
 }) {
   return (
     <button
       onClick={onClick}
-      className="flex min-h-[56px] w-full items-center gap-3 rounded-xl bg-neutral-800 px-4 py-3 text-left transition-colors hover:bg-neutral-700"
+      disabled={disabled}
+      className="flex min-h-[56px] w-full items-center gap-3 rounded-xl bg-neutral-800 px-4 py-3 text-left transition-colors hover:bg-neutral-700 disabled:opacity-50 disabled:hover:bg-neutral-800"
     >
       <span className="text-xl leading-none">{icon}</span>
       <span className="min-w-0">

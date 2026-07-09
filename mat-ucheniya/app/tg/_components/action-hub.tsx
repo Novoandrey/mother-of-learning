@@ -28,6 +28,7 @@ import {
   MoreSheet,
   SellSheet,
   SpendSheet,
+  TakeSheet,
 } from './action-sheets'
 
 // ─────────────────────────── чипы последних операций ───────────────────────────
@@ -252,8 +253,16 @@ export function ActionHub({ app }: TgTabProps) {
       {top.screen === 'act-sell' && (
         <SellSheet app={app} prefill={top.params} onClose={pop} onDone={done} />
       )}
+      {top.screen === 'act-take' && (
+        <TakeSheet app={app} prefill={top.params} onClose={pop} onDone={done} />
+      )}
       {top.screen === 'act-more' && (
-        <MoreSheet app={app} onGo={(s) => replace({ screen: s })} onClose={pop} />
+        <MoreSheet
+          app={app}
+          onGo={(s) => replace({ screen: s })}
+          onClose={pop}
+          onDone={done}
+        />
       )}
     </div>
   )
