@@ -639,6 +639,32 @@ export async function hasLoopCreditTg(
 }
 
 /**
+ * Whether the PC has already assembled its starter equipment this loop. There
+ * is no dedicated category (items go as 'loot', money as 'income'), so the
+ * signal is the batch's fixed comments — StarterEquipScreen writes exactly
+ * 'Стартовое снаряжение' (items) / 'Стартовое золото' (money), and nothing else
+ * does. No status filter, mirroring hasLoopCreditTg: the moment the batch is
+ * submitted (player → pending, DM → approved) the flag flips to «взят».
+ */
+export async function hasStarterTakenTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  pcId: string,
+  loopNumber: number,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('actor_pc_id', pcId)
+    .eq('loop_number', loopNumber)
+    .in('comment', ['Стартовое снаряжение', 'Стартовое золото'])
+    .limit(1)
+    .maybeSingle()
+  return data !== null
+}
+
+/**
  * Item holdings currently sitting in the campaign's общак (the stash node),
  * net approved qty > 0 (feedback #3 — populates the "take from stash" picker).
  */
