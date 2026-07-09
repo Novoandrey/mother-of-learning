@@ -80,7 +80,11 @@ const DEFAULT_RARITY: Record<RarityKey, CraftRarityRow> = {
   legendary: { fullCostGp: 50000, workCostGp: 25000, minPartyLevel: 17 },
 }
 
-const DEFAULT_CUSTOM = { fullCostGp: 500, workCostGp: 250, minPartyLevel: null }
+const DEFAULT_CUSTOM: CraftSettings['custom'] = {
+  fullCostGp: 500,
+  workCostGp: 250,
+  minPartyLevel: null,
+}
 
 export const DEFAULT_CRAFT_SETTINGS: CraftSettings = {
   ratePerPbGpHour: { ...DEFAULT_RATE },

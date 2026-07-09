@@ -11,6 +11,11 @@ import {
   parseItemPurchasePolicy,
   type ItemPurchasePolicy,
 } from '@/lib/item-purchase-policy'
+import {
+  DEFAULT_CRAFT_SETTINGS,
+  parseCraftSettings,
+  type CraftSettings,
+} from '@/lib/craft-settings'
 
 // Re-export for backwards-compat: callers were importing these
 // names from '@/lib/campaign' before the pure-module split. Keep
@@ -35,6 +40,7 @@ export type CampaignSettings = {
   hp_method: HpMethod
   item_default_prices: ItemDefaultPrices
   item_purchase_policy: ItemPurchasePolicy
+  craft_settings: CraftSettings
   // Future keys go here.
 }
 
@@ -49,6 +55,7 @@ const DEFAULT_SETTINGS: CampaignSettings = {
   hp_method: 'average',
   item_default_prices: DEFAULT_ITEM_PRICES,
   item_purchase_policy: DEFAULT_ITEM_PURCHASE_POLICY,
+  craft_settings: DEFAULT_CRAFT_SETTINGS,
 }
 
 export function parseCampaignSettings(raw: unknown): CampaignSettings {
@@ -56,6 +63,9 @@ export function parseCampaignSettings(raw: unknown): CampaignSettings {
     ...DEFAULT_SETTINGS,
     item_default_prices: { ...DEFAULT_ITEM_PRICES },
     item_purchase_policy: { ...DEFAULT_ITEM_PURCHASE_POLICY },
+    // parseCraftSettings(undefined) → deep copy of DEFAULT_CRAFT_SETTINGS
+    // (nested rate/rarity/weave objects; a shallow spread would alias them).
+    craft_settings: parseCraftSettings(undefined),
   }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const r = raw as Record<string, unknown>
@@ -65,6 +75,9 @@ export function parseCampaignSettings(raw: unknown): CampaignSettings {
     }
     if (r.item_purchase_policy !== undefined) {
       out.item_purchase_policy = parseItemPurchasePolicy(r.item_purchase_policy)
+    }
+    if (r.craft_settings !== undefined) {
+      out.craft_settings = parseCraftSettings(r.craft_settings)
     }
   }
   return out

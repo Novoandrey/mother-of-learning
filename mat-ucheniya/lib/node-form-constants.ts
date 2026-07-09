@@ -14,6 +14,7 @@ export const FIELD_LABELS: Record<string, string> = {
   day_from: 'День от',
   day_to: 'День до',
   length_days: 'Длина петли (дней)',
+  party_level: 'Уровень партии',
   notes: 'Заметки',
   title: 'Подзаголовок',
   max_hp: 'Макс. HP',
@@ -60,7 +61,7 @@ export const TEXTAREA_FIELDS = [
 ]
 export const NUMBER_FIELDS = [
   'number', 'session_number', 'max_hp', 'armor_class',
-  'day_from', 'day_to', 'length_days',
+  'day_from', 'day_to', 'length_days', 'party_level',
   // Imported (mig 112/113)
   'height_cm',
 ]
@@ -79,6 +80,15 @@ export const HIDDEN_FIELDS = [
   // form editor in the meantime.
   'hidden',
 ]
+
+// Keys the form injects for specific type slugs even when the campaign's
+// node_types.default_fields template doesn't declare them. Unlike
+// length_days (seeded into the template by mig 032), party_level
+// (spec-056) is added here client-side — no migration needed, and the
+// save path is identical (nodes.fields via the same submit).
+export const EXTRA_TYPE_FIELDS: Record<string, string[]> = {
+  loop: ['party_level'],
+}
 
 export const LOOP_STATUSES = [
   { value: 'past', label: 'Прошедшая' },
