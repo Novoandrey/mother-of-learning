@@ -151,7 +151,9 @@ export type LedgerEvent =
       investedGp?: number
       /** Получатель изделия (PC node id); null/omitted = общак. */
       recipientPcId?: string | null
-      mode?: 'craft' | 'disassemble'
+      /** 'scribe' (spec-059): написание свитка — та же форма (писцы+часы+общак+
+       *  получатель), другое слово в шапке. */
+      mode?: 'craft' | 'disassemble' | 'scribe'
     }
   | {
       // Mass encounter-loot distribution (spec-013) made visible in the feed
@@ -164,6 +166,42 @@ export type LedgerEvent =
       rowCount: number
       moneyGp?: number
       itemQty?: number
+    }
+  | {
+      // Переподготовка заклинания (spec-059, house-механика): PC меняет одно
+      // известное заклинание на другое за фикс-цену (50×уровень нового),
+      // мгновенно. Одиночный актор (actorPcId) + деньги — не лезет в 'craft'
+      // (participants). actorPcId → resolveNames резолвит через финальный else.
+      type: 'reprep'
+      campaignId: string
+      actorPcId: string
+      authorUserId: string | null
+      /** Новое заклинание (на которое переподготовились). */
+      newSpell: string
+      /** Старое заклинание (нарратив); null/omitted = не указано. */
+      oldSpell?: string | null
+      level: number
+      /** Списано с кошелька PC (или общака); 0 = бесплатно (заговор). */
+      costGp: number
+    }
+  | {
+      // Копирование заклинания в книгу (spec-059, RAW волшебника): свиток→книга
+      // (свиток уничтожается) или книга→книга (у другого волшебника, ничего не
+      // расходуется). Нарратив; реальный эффект — расход свитка + деньги в
+      // transactions. Одиночный актор.
+      type: 'copy'
+      campaignId: string
+      actorPcId: string
+      authorUserId: string | null
+      /** Заклинание, которое переписали. */
+      spell: string
+      /** Источник (у кого переписывали, книга→книга); null = со свитка. */
+      source?: string | null
+      copyMode: 'scroll-to-book' | 'book-to-book'
+      level: number
+      costGp: number
+      /** Был ли расходован свиток (scroll-to-book). */
+      scrollConsumed?: boolean
     }
 
 /** Resolved names for the formatter (all raw, un-escaped). */
@@ -330,14 +368,18 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
       return `🧭 <b>Вылазка</b>\n${when}\n${pack} отправились на вылазку «${esc(event.target)}»${spentSuffix}${rewardBlock}`
     }
     case 'craft': {
-      const isDisassemble = event.mode === 'disassemble'
-      // «Петля N, День X» + optional «· с HH:MM» (окно не гейтится — крафт
-      // может быть многодневным, конец не показываем).
+      const mode = event.mode ?? 'craft'
+      const isDisassemble = mode === 'disassemble'
+      const isScribe = mode === 'scribe'
+      // «Петля N, День X» + optional «· с HH:MM» (окно не гейтится — крафт/запись
+      // могут быть многодневными, конец не показываем).
       let when = `Петля ${event.loopNumber}, День ${event.dayInLoop}`
       if (event.startMinute != null) when += ` · с ${hhmm(event.startMinute)}`
-      const lines = [`🛠 <b>${isDisassemble ? 'Разбор' : 'Крафт'}</b>`, when]
-      // Крафтеры с часами: «Имя (2 ч), Имя (1.5 ч) и Имя (3 ч)». Titles come
-      // resolved in participantTitles, parallel to event.participants.
+      const heading = isDisassemble ? 'Разбор' : isScribe ? 'Свиток' : 'Крафт'
+      const icon = isScribe ? '🪄' : '🛠'
+      const lines = [`${icon} <b>${heading}</b>`, when]
+      // Крафтеры/писцы с часами: «Имя (2 ч), Имя (1.5 ч) и Имя (3 ч)». Titles
+      // come resolved in participantTitles, parallel to event.participants.
       if (event.participants.length > 0) {
         lines.push(
           naturalList(
@@ -356,7 +398,7 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
             ? esc(names.recipientPcTitle)
             : '—'
           : 'в общак'
-        lines.push(`Скрафчено: ${esc(event.target)} → ${to}`)
+        lines.push(`${isScribe ? 'Написан' : 'Скрафчено'}: ${esc(event.target)} → ${to}`)
       }
       if (event.investedGp) lines.push(`Вложено: ${zm(event.investedGp)}`)
       return lines.join('\n')
@@ -367,6 +409,17 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
       if (event.moneyGp) bits.push(zm(event.moneyGp))
       if (event.itemQty) bits.push(`${event.itemQty} предм.`)
       return `🎁 <b>Раздан лут</b>${title}\n${bits.join(' · ')}`
+    }
+    case 'reprep': {
+      const old = event.oldSpell ? `${esc(event.oldSpell)} → ` : ''
+      const cost = event.costGp > 0 ? ` · −${zm(event.costGp)}` : ''
+      return `🔄 <b>Переподготовка</b>\n${who}: ${old}${esc(event.newSpell)} (${event.level} ур.)${cost}`
+    }
+    case 'copy': {
+      const src = event.source ? ` у ${esc(event.source)}` : ''
+      const from = event.copyMode === 'scroll-to-book' ? ' (со свитка)' : ''
+      const cost = event.costGp > 0 ? ` · −${zm(event.costGp)}` : ''
+      return `📖 <b>Переписал заклинание</b>\n${who}: ${esc(event.spell)} (${event.level} ур.)${src}${from}${cost}`
     }
   }
 }
