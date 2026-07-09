@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+import { parseCraftSettings, type CraftSettings } from '../craft-settings'
+import { parsePartyLevel } from '../party-level'
+import { getStashItemHoldingsTg } from './ledger-tg'
+
 /**
  * Read-side queries for the Telegram Mini App craft screen (spec-056 — Крафт).
  *
@@ -204,4 +208,103 @@ export async function listCraftRuns(
     createdBy: r.created_by,
     createdAt: r.created_at,
   }))
+}
+
+/**
+ * The campaign's craft settings, parsed with defaults — the same channel the
+ * buy screens use for prices (`getCampaignBuyConfigTg` → campaigns.settings):
+ * a member-scoped client read, no server prop involved. The UI mirrors the
+ * server's own `loadCraftSettings` (app/actions/craft.ts) so what it previews
+ * is what `runCraft` will charge.
+ */
+export async function getCraftSettingsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+): Promise<CraftSettings> {
+  const { data } = await supabase
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .single()
+  const settings =
+    (data as { settings?: Record<string, unknown> } | null)?.settings ?? {}
+  return parseCraftSettings(settings.craft_settings)
+}
+
+/**
+ * `party_level` of the CURRENT loop (`fields.status = 'current'`, образец
+ * getCurrentLoopNumber) — null when no loop is current or the level is not
+ * set. Null gates the whole craft screen: `runCraft` re-checks the same
+ * value server-side (`loadCurrentPartyLevel`), so the UI refusing early is
+ * a courtesy, not the safety net.
+ */
+export async function getCurrentPartyLevelTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+): Promise<number | null> {
+  const { data } = await supabase
+    .from('nodes')
+    .select('fields, node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'loop')
+  const loops = (data ?? []) as Array<{ fields: Record<string, unknown> | null }>
+  const current = loops.find((l) => (l.fields ?? {})['status'] === 'current')
+  return current ? parsePartyLevel((current.fields ?? {})['party_level']) : null
+}
+
+/**
+ * Items in the общак available for разбор (spec-056 §3): net qty > 0 this
+ * loop AND resolvable to a catalog item node — `disassembleItem` needs the
+ * node id, while stash holdings are keyed by NAME (getStashItemHoldingsTg),
+ * so free-text-only items can't be disassembled and are dropped here.
+ * Schemas themselves are excluded (разбор схемы бессмысленен — рекурсию
+ * «схема схемы» закрывает createSchemaItem с редкостью +1). Same join shape
+ * as getStashResourceHoldingsTg, first title match wins.
+ */
+export type StashCraftableItemTg = {
+  itemNodeId: string
+  name: string
+  qty: number
+  rarity: string | null
+}
+
+export async function listDisassemblableStashItemsTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+  loopNumber: number,
+): Promise<StashCraftableItemTg[]> {
+  const holdings = await getStashItemHoldingsTg(supabase, campaignId, loopNumber)
+  if (holdings.length === 0) return []
+  const names = holdings.map((h) => h.name)
+
+  // !inner on both embeds so the category + type filters constrain the OUTER
+  // rows (the PostgREST embed-only-filter trap — same guard as listSchemas).
+  const { data } = await supabase
+    .from('nodes')
+    .select('id, title, item_attributes!inner(rarity, category_slug), node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .neq('item_attributes.category_slug', 'schema')
+    .in('title', names)
+  const byName = new Map<string, { itemNodeId: string; rarity: string | null }>()
+  for (const r of (data ?? []) as Array<{
+    id: string
+    title: string
+    item_attributes:
+      | { rarity: string | null; category_slug: string }
+      | { rarity: string | null; category_slug: string }[]
+      | null
+  }>) {
+    const attrs = Array.isArray(r.item_attributes) ? r.item_attributes[0] : r.item_attributes
+    if (!attrs) continue
+    if (!byName.has(r.title)) byName.set(r.title, { itemNodeId: r.id, rarity: attrs.rarity })
+  }
+
+  // Preserve the holdings' ru-locale name sort; drop unresolvable names.
+  return holdings.flatMap((h) => {
+    const meta = byName.get(h.name)
+    return meta
+      ? [{ itemNodeId: meta.itemNodeId, name: h.name, qty: h.qty, rarity: meta.rarity }]
+      : []
+  })
 }

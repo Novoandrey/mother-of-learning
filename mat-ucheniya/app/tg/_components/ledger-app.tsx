@@ -74,6 +74,26 @@ import {
   deleteExpedition,
   runExpedition,
 } from '@/app/actions/expeditions'
+import {
+  listSchemas,
+  listCraftRuns,
+  getCraftSettingsTg,
+  getCurrentPartyLevelTg,
+  listDisassemblableStashItemsTg,
+  type CraftSchemaTg,
+  type CraftRunTg,
+  type StashCraftableItemTg,
+} from '@/lib/queries/craft-tg'
+import { createSchemaItem, disassembleItem, runCraft } from '@/app/actions/craft'
+import {
+  craftRowFor,
+  rateForPb,
+  requiredRateHours,
+  type CraftSettings,
+} from '@/lib/craft-settings'
+import { craftRarityKey, missingCraftHours } from '@/lib/craft'
+import { pbForLevel } from '@/lib/party-level'
+import type { RarityKey } from '@/lib/item-default-prices'
 import { createResourceItem, sellStashResource } from '@/app/actions/resources'
 import {
   validateExpeditionWindow,
@@ -198,12 +218,14 @@ export function CharacterList({
   onOpenBalances,
   onOpenWiki,
   onOpenExpeditions,
+  onOpenCraft,
 }: {
   characters: CampaignCharacter[]
   onSelect: (c: CampaignCharacter) => void
   onOpenBalances?: () => void
   onOpenWiki?: () => void
   onOpenExpeditions?: () => void
+  onOpenCraft?: () => void
 }) {
   const own = characters.filter((c) => c.isOwn)
   const others = characters.filter((c) => !c.isOwn)
@@ -211,12 +233,14 @@ export function CharacterList({
   return (
     <div className="mx-auto max-w-sm">
       <h1 className="mb-3 text-lg font-semibold">Персонажи</h1>
-      {/* Балансы / Вылазки / Каталог — видимые кнопки (были спрятаны в ⋮-меню,
-          которое никто не находил), как лончер в PcHome. */}
-      {(onOpenBalances || onOpenExpeditions || onOpenWiki) && (
-        <div className="mb-4 grid grid-cols-3 gap-2">
+      {/* Балансы / Вылазки / Крафт / Каталог — видимые кнопки (были спрятаны в
+          ⋮-меню, которое никто не находил), как лончер в PcHome. Flex вместо
+          grid — ряд ровно делится на сколько есть кнопок. */}
+      {(onOpenBalances || onOpenExpeditions || onOpenCraft || onOpenWiki) && (
+        <div className="mb-4 flex gap-2">
           {onOpenBalances && <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />}
           {onOpenExpeditions && <AppButton icon="🧭" label="Вылазки" onClick={onOpenExpeditions} />}
+          {onOpenCraft && <AppButton icon="🛠" label="Крафт" onClick={onOpenCraft} />}
           {onOpenWiki && <AppButton icon="📖" label="Каталог" onClick={onOpenWiki} />}
         </div>
       )}
@@ -286,6 +310,7 @@ export function PcHome({
   onOpenEquip,
   onOpenWiki,
   onOpenExpeditions,
+  onOpenCraft,
 }: {
   character: CampaignCharacter
   showBack: boolean
@@ -296,6 +321,7 @@ export function PcHome({
   onOpenEquip?: () => void
   onOpenWiki?: () => void
   onOpenExpeditions?: () => void
+  onOpenCraft?: () => void
 }) {
   return (
     <div className="mx-auto flex h-[calc(100dvh-3rem)] max-w-sm flex-col">
@@ -320,6 +346,7 @@ export function PcHome({
         {onOpenExpeditions && (
           <AppButton icon="🧭" label="Вылазки" onClick={onOpenExpeditions} />
         )}
+        {onOpenCraft && <AppButton icon="🛠" label="Крафт" onClick={onOpenCraft} />}
         {onOpenBalances && (
           <AppButton icon="⚖️" label="Балансы" onClick={onOpenBalances} />
         )}
@@ -3709,6 +3736,768 @@ function ExpeditionRunSheet({
       <SubmitButton busy={busy} onClick={submit}>
         Готово
       </SubmitButton>
+    </Sheet>
+  )
+}
+
+// ─────────────────────────── spec-056 — Крафт ───────────────────────────
+
+// Catalog rarity → display label (те же английские ярлыки, что на десктопе —
+// items-grouping RARITY_LABELS; map не экспортирован, локальная копия).
+const CRAFT_RARITY_LABEL: Record<string, string> = {
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  'very-rare': 'Very Rare',
+  legendary: 'Legendary',
+  artifact: 'Artifact',
+}
+
+// Разбор → схема: редкость схемы = редкость предмета + 1 ступень (spec-056 §3).
+// legendary и вне-табличные (artifact, null) → null = кастомная схема; её цену
+// крафта резолвит строка «Кастомная» craft_settings либо override на схеме.
+const NEXT_RARITY: Record<string, RarityKey> = {
+  common: 'uncommon',
+  uncommon: 'rare',
+  rare: 'very-rare',
+  'very-rare': 'legendary',
+}
+
+function nextRarity(raw: string | null): RarityKey | null {
+  return raw ? (NEXT_RARITY[raw] ?? null) : null
+}
+
+// Крафт-цена схемы — ЗЕРКАЛО серверного резолва (runCraft, plan-056 «Резолв
+// цены крафта»): (1) override на схеме → (2) строка редкости ЦЕЛИ → (3)
+// «Кастомная» строка, когда цели нет или её редкость вне таблицы. Редкость
+// самой СХЕМЫ сюда не подставляется — сервер её не смотрит, а превью обязано
+// совпадать с тем, что реально спишется.
+function craftCostFor(
+  schema: CraftSchemaTg,
+  settings: CraftSettings,
+): { workCostGp: number; minPartyLevel: number | null } {
+  const row = craftRowFor(settings, craftRarityKey(schema.target?.rarity ?? null))
+  return {
+    workCostGp: schema.craftCostOverrideGp ?? row.workCostGp,
+    minPartyLevel: row.minPartyLevel,
+  }
+}
+
+/** Дефолт часов per-крафтер: поровну, округляя ВВЕРХ до 0.5 (T11). */
+function roundUpHalf(h: number): number {
+  return Math.ceil(h * 2) / 2
+}
+
+/** Часы для показа: до 2 знаков, без хвостовых нулей ("1.5", "2"). */
+function fmtHours(h: number): string {
+  return String(Math.round(h * 100) / 100)
+}
+
+// Экран «Крафт» (T10, образец ExpeditionsScreen): список известных схем
+// кампании + разбор предмета + история прогонов (лениво). Настройки крафта
+// приезжают тем же каналом, что цены покупки (client-read campaigns.settings);
+// party_level — с текущей петли. Без уровня партии экран показывает плашку и
+// не даёт открыть форму прогона (сервер это ре-чекает в runCraft).
+export function CraftScreen({
+  supabase,
+  campaignId,
+  loopNumber,
+  characters,
+  onBack,
+  refreshKey,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  characters: CampaignCharacter[]
+  onBack: () => void
+  refreshKey: number
+}) {
+  const [schemas, setSchemas] = useState<CraftSchemaTg[] | null>(null)
+  const [settings, setSettings] = useState<CraftSettings | null>(null)
+  const [partyLevel, setPartyLevel] = useState<number | null>(null)
+  const [runs, setRuns] = useState<CraftRunTg[] | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<
+    | { mode: 'none' }
+    | { mode: 'run'; schema: CraftSchemaTg }
+    | { mode: 'disassemble' }
+  >({ mode: 'none' })
+
+  const reload = useCallback(async () => {
+    try {
+      const [s, cfg, lvl] = await Promise.all([
+        listSchemas(supabase, campaignId),
+        getCraftSettingsTg(supabase, campaignId),
+        getCurrentPartyLevelTg(supabase, campaignId),
+      ])
+      setSchemas(s)
+      setSettings(cfg)
+      setPartyLevel(lvl)
+    } catch {
+      setError('Не удалось загрузить крафт.')
+    }
+  }, [supabase, campaignId])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const [s, cfg, lvl] = await Promise.all([
+          listSchemas(supabase, campaignId),
+          getCraftSettingsTg(supabase, campaignId),
+          getCurrentPartyLevelTg(supabase, campaignId),
+        ])
+        if (alive) {
+          setSchemas(s)
+          setSettings(cfg)
+          setPartyLevel(lvl)
+        }
+      } catch {
+        if (alive) setError('Не удалось загрузить крафт.')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, refreshKey])
+
+  // History is lazy — only fetched once opened (keeps the menu light, как у вылазок).
+  useEffect(() => {
+    if (!showHistory) return
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await listCraftRuns(supabase, campaignId)
+        if (alive) setRuns(r)
+      } catch {
+        if (alive) setRuns([])
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [showHistory, supabase, campaignId, refreshKey])
+
+  // Транзиентный тост успеха — в цепочке обработчика, не в эффекте (паттерн
+  // StashScreen.sell; react-hooks/set-state-in-effect не задет).
+  const showToast = (msg: string) => {
+    setToast(msg)
+    window.setTimeout(() => setToast(null), 2500)
+  }
+
+  const byId = new Map(characters.map((c) => [c.id, c]))
+  const loaded = schemas !== null && settings !== null
+  const rate =
+    settings && partyLevel != null ? rateForPb(settings, pbForLevel(partyLevel)) : null
+
+  return (
+    <div className="mx-auto max-w-sm pb-6">
+      <BackLink onClick={onBack}>назад</BackLink>
+      <h1 className="mb-1 text-lg font-semibold">Крафт</h1>
+      <p className="mb-3 text-xs text-neutral-500">
+        Выбери схему, чтобы скрафтить. Деньги спишутся с общака, изделие — в общак или
+        персонажу.
+      </p>
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+
+      {loaded && partyLevel == null && (
+        <p className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+          ДМ не задал уровень партии — крафт недоступен.
+        </p>
+      )}
+      {loaded && partyLevel != null && rate != null && (
+        <p className="mb-3 rounded-lg bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
+          Уровень партии {partyLevel} · БМ +{pbForLevel(partyLevel)} · ставка {rate} зм/ч
+          на крафтера
+        </p>
+      )}
+
+      <button
+        onClick={() => setSheet({ mode: 'disassemble' })}
+        className="mb-4 w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+      >
+        🔩 Разобрать предмет
+      </button>
+
+      {!loaded && !error && <Centered>Загрузка…</Centered>}
+      {loaded && schemas.length === 0 && (
+        <Centered>Пока нет известных схем. Разбери предмет, чтобы открыть схему.</Centered>
+      )}
+      {loaded && schemas.length > 0 && (
+        <div className="space-y-2">
+          {schemas.map((s) => {
+            const { workCostGp, minPartyLevel } = craftCostFor(s, settings)
+            const needH = rate != null ? requiredRateHours(workCostGp, rate) : null
+            const levelBlocked =
+              minPartyLevel != null && partyLevel != null && partyLevel < minPartyLevel
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSheet({ mode: 'run', schema: s })}
+                disabled={partyLevel == null}
+                className="block w-full rounded-lg bg-neutral-900 px-3 py-2 text-left transition-colors hover:bg-neutral-800 disabled:opacity-60 disabled:hover:bg-neutral-900"
+              >
+                <div className="truncate text-sm text-neutral-100">{s.name}</div>
+                <div className="mt-0.5 truncate text-xs text-neutral-500">
+                  {s.target
+                    ? `→ ${s.target.name}` +
+                      (s.target.rarity
+                        ? ` · ${CRAFT_RARITY_LABEL[s.target.rarity] ?? s.target.rarity}`
+                        : '') +
+                      (s.target.requiresAttunement ? ' 🧩' : '')
+                    : 'цель не указана — имя изделия спросим при крафте'}
+                </div>
+                <div className="mt-0.5 text-xs text-neutral-600">
+                  крафт: {workCostGp} зм
+                  {needH != null && Number.isFinite(needH)
+                    ? ` · ~${fmtHours(needH)} ч работы`
+                    : ''}
+                </div>
+                {levelBlocked && (
+                  <div className="mt-0.5 text-xs text-amber-400/80">
+                    доступно с уровня партии {minPartyLevel}
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* History — compact, lazy (как у вылазок). */}
+      <button
+        onClick={() => setShowHistory((v) => !v)}
+        className="mt-6 w-full text-center text-xs text-neutral-400 hover:text-neutral-200"
+      >
+        {showHistory ? 'Скрыть историю' : 'История крафта…'}
+      </button>
+      {showHistory && (
+        <div className="mt-2">
+          {!runs && <Centered>Загрузка…</Centered>}
+          {runs && runs.length === 0 && (
+            <p className="px-1 py-4 text-sm text-neutral-500">Пока не крафтили.</p>
+          )}
+          {runs && runs.length > 0 && (
+            <ul className="space-y-1">
+              {runs.map((r) => {
+                const who = r.participants
+                  .map((p) => {
+                    const name = byId.get(p.nodeId)?.title
+                    return name ? `${name} (${fmtHours(p.hours)} ч)` : null
+                  })
+                  .filter(Boolean)
+                  .join(', ')
+                const recipient = r.recipientNodeId
+                  ? byId.get(r.recipientNodeId)?.title
+                  : null
+                return (
+                  <li key={r.id} className="rounded-lg bg-neutral-900 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-neutral-300">
+                        {r.outputItemName || 'изделие'}
+                        {recipient ? ` → ${recipient}` : ''}
+                      </span>
+                      <span className="shrink-0 text-xs text-neutral-600">
+                        {dayLabel(r.loopNumber, r.dayInLoop)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-neutral-500">
+                      {who || 'без крафтеров'}
+                      {r.investedGp > 0 ? ` · −${r.investedGp} зм` : ''}
+                      {r.startMinute != null ? ` · с ${minuteToHHMM(r.startMinute)}` : ''}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {sheet.mode === 'run' && settings && partyLevel != null && (
+        <CraftRunSheet
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          characters={characters}
+          schema={sheet.schema}
+          settings={settings}
+          partyLevel={partyLevel}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={(name) => {
+            showToast(`🛠 ${name} — готово`)
+            void reload()
+          }}
+        />
+      )}
+      {sheet.mode === 'disassemble' && (
+        <DisassembleSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          loopNumber={loopNumber}
+          onClose={() => setSheet({ mode: 'none' })}
+          onToast={showToast}
+          onRefresh={() => void reload()}
+        />
+      )}
+      {toast && (
+        <div className="fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+          <div className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
+            {toast}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Форма прогона крафта (T11, Sheet-паттерн R2). Всё редактируемо: крафтеры
+// (компактный ParticipantPicker), часы per-крафтер (дефолт — требуемые часы
+// поровну, вверх до 0.5; нетронутые инпуты живут на живом дефолте и
+// перераспределяются при смене состава), день+старт, получатель. Превью
+// «Σ ч × ставка = зм из зм» зеркалит серверный гейт 4 (missingCraftHours).
+function CraftRunSheet({
+  campaignId,
+  loopNumber,
+  characters,
+  schema,
+  settings,
+  partyLevel,
+  onClose,
+  onDone,
+}: {
+  campaignId: string
+  loopNumber: number
+  characters: CampaignCharacter[]
+  schema: CraftSchemaTg
+  settings: CraftSettings
+  partyLevel: number
+  onClose: () => void
+  onDone: (outputName: string) => void
+}) {
+  const rate = rateForPb(settings, pbForLevel(partyLevel))
+  const { workCostGp, minPartyLevel } = craftCostFor(schema, settings)
+  const requiredH = requiredRateHours(workCostGp, rate) // Infinity при ставке 0
+
+  const [crafters, setCrafters] = useState<Set<string>>(
+    () => new Set(characters.filter((c) => c.isOwn).map((c) => c.id)),
+  )
+  // Только РУЧНЫЕ правки часов; отсутствие ключа = живой дефолт «поровну».
+  const [hoursEdits, setHoursEdits] = useState<Record<string, string>>({})
+  // Fallback-имя изделия для схем без линка на цель (runCraft требует его).
+  const [targetLabel, setTargetLabel] = useState(() =>
+    schema.target ? '' : schema.name.replace(/^Схема:\s*/i, ''),
+  )
+  const [day, setDay] = useState(1)
+  const [startStr, setStartStr] = useState('08:00')
+  const [recipientMode, setRecipientMode] = useState<'stash' | 'pc'>('stash')
+  const [recipientId, setRecipientId] = useState(characters[0]?.id ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const selected = characters.filter((c) => crafters.has(c.id))
+  // Мин. 0.5 ч, чтобы бесплатный крафт (workCost 0) не слал нулевые часы,
+  // которые сервер отбрасывает (cleanCraftParticipants).
+  const defaultShare =
+    selected.length > 0 && Number.isFinite(requiredH)
+      ? Math.max(0.5, roundUpHalf(requiredH / selected.length))
+      : 0
+  const hoursFor = (id: string): number | null => {
+    const raw = hoursEdits[id]
+    if (raw === undefined) return defaultShare > 0 ? defaultShare : null
+    return parseGp(raw) // положительное число с точкой/запятой — тот же парс, что суммы
+  }
+  const totalH =
+    Math.round(selected.reduce((sum, c) => sum + (hoursFor(c.id) ?? 0), 0) * 100) / 100
+  const investedGp = Math.round(totalH * rate * 100) / 100
+  const missingH = missingCraftHours({ workCostGp, ratePerHour: rate, totalHours: totalH })
+
+  const submit = async () => {
+    setError(null)
+    if (selected.length === 0) {
+      setError('Выберите хотя бы одного крафтера')
+      return
+    }
+    const participants: { nodeId: string; hours: number }[] = []
+    for (const c of selected) {
+      const h = hoursFor(c.id)
+      if (h == null || h <= 0) {
+        setError(`Укажите часы: ${c.title}`)
+        return
+      }
+      participants.push({ nodeId: c.id, hours: h })
+    }
+    const outputName = schema.target?.name ?? targetLabel.trim()
+    if (!outputName) {
+      setError('У схемы нет целевого предмета — укажите, что крафтим')
+      return
+    }
+    const start = parseHHMM(startStr)
+    if (!start) {
+      setError('Укажите время старта в формате ЧЧ:ММ')
+      return
+    }
+    if (day < 1 || day > LOOP_DAYS) {
+      setError(`День — от 1 до ${LOOP_DAYS}`)
+      return
+    }
+    if (recipientMode === 'pc' && !recipientId) {
+      setError('Выберите получателя изделия')
+      return
+    }
+    setBusy(true)
+    const res = await runCraft({
+      campaignId,
+      schemaItemNodeId: schema.id,
+      targetLabel: schema.target ? undefined : outputName,
+      loopNumber,
+      dayInLoop: day,
+      startMinute: hhmmToMinute(start.h, start.m),
+      participants,
+      recipientNodeId: recipientMode === 'pc' ? recipientId : null,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone(outputName)
+    onClose()
+  }
+
+  return (
+    <Sheet title={`Крафт: ${schema.target?.name ?? schema.name}`} onClose={onClose}>
+      <div className="space-y-3">
+        <div className="rounded-lg bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
+          {schema.target && (
+            <div className="truncate">
+              {schema.target.name}
+              {schema.target.rarity
+                ? ` · ${CRAFT_RARITY_LABEL[schema.target.rarity] ?? schema.target.rarity}`
+                : ''}
+              {schema.target.requiresAttunement ? ' 🧩 настройка' : ''}
+            </div>
+          )}
+          <div>
+            Рабочая цена: <span className="text-neutral-200">{workCostGp} зм</span> · ставка{' '}
+            {rate} зм/ч
+            {Number.isFinite(requiredH) ? ` · надо ${fmtHours(requiredH)} ч` : ''}
+          </div>
+          {minPartyLevel != null && partyLevel < minPartyLevel && (
+            <div className="mt-0.5 text-amber-400/80">
+              Нужен уровень партии {minPartyLevel} (сейчас {partyLevel})
+            </div>
+          )}
+        </div>
+
+        {!schema.target && (
+          <div>
+            <div className="mb-1 px-1 text-xs text-neutral-500">Что крафтим</div>
+            <input
+              className={FIELD}
+              placeholder="Название изделия"
+              value={targetLabel}
+              onChange={(e) => setTargetLabel(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Крафтеры</div>
+          <ParticipantPicker
+            characters={characters}
+            selected={crafters}
+            setSelected={setCrafters}
+          />
+        </div>
+
+        {selected.length > 0 && (
+          <div>
+            <div className="mb-1 px-1 text-xs text-neutral-500">Часы на каждого</div>
+            <div className="space-y-1">
+              {selected.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex items-center gap-2 rounded-lg bg-neutral-900 px-3 py-1.5"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
+                    {c.title}
+                  </span>
+                  <input
+                    className="w-16 rounded-md bg-neutral-800 px-2 py-1 text-right text-sm text-neutral-100 outline-none focus:ring-1 focus:ring-neutral-600"
+                    inputMode="decimal"
+                    value={hoursEdits[c.id] ?? fmtHours(defaultShare)}
+                    onChange={(e) =>
+                      setHoursEdits((prev) => ({ ...prev, [c.id]: e.target.value }))
+                    }
+                  />
+                  <span className="shrink-0 text-xs text-neutral-500">ч</span>
+                </label>
+              ))}
+            </div>
+            <p
+              className={
+                'mt-1 px-1 text-xs ' + (missingH > 0 ? 'text-red-400' : 'text-neutral-500')
+              }
+            >
+              Σ {fmtHours(totalH)} ч × {rate} зм/ч = {investedGp} зм из {workCostGp} зм
+              {missingH > 0 &&
+                (missingH === Infinity
+                  ? ' — ставка 0 зм/ч, крафт невозможен'
+                  : ` — не хватает ${fmtHours(missingH)} ч`)}
+            </p>
+          </div>
+        )}
+
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Когда</div>
+          <div className="flex items-end gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="px-0.5 text-[11px] text-neutral-500">День (1–{LOOP_DAYS})</span>
+              <IntInput
+                className="w-16 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+                value={day}
+                onCommit={setDay}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="px-0.5 text-[11px] text-neutral-500">Старт</span>
+              <input
+                type="time"
+                className="rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100 outline-none [color-scheme:dark] focus:ring-1 focus:ring-neutral-600"
+                value={startStr}
+                onChange={(e) => setStartStr(e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Изделие — кому</div>
+          <SegToggle
+            value={recipientMode}
+            onChange={setRecipientMode}
+            options={[
+              { value: 'stash', label: 'В общак' },
+              { value: 'pc', label: 'Персонажу' },
+            ]}
+          />
+          {recipientMode === 'pc' && (
+            <select
+              className={FIELD + ' mt-2'}
+              value={recipientId}
+              onChange={(e) => setRecipientId(e.target.value)}
+            >
+              {characters.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <SubmitButton busy={busy} onClick={submit}>
+        Скрафтить
+      </SubmitButton>
+    </Sheet>
+  )
+}
+
+// Разбор предмета (T12): предмет общака (net qty>0, резолвится в каталожную
+// ноду — иначе disassembleItem нечем адресовать) → подтверждение →
+// disassembleItem → предложение создать схему изделия (префилл: «Схема: X»,
+// линк на предмет, редкость +1) с опциональной ценой покупки — или пропустить.
+function DisassembleSheet({
+  supabase,
+  campaignId,
+  loopNumber,
+  onClose,
+  onToast,
+  onRefresh,
+}: {
+  supabase: SupabaseClient
+  campaignId: string
+  loopNumber: number
+  onClose: () => void
+  onToast: (msg: string) => void
+  onRefresh: () => void
+}) {
+  const [items, setItems] = useState<StashCraftableItemTg[] | null>(null)
+  const [confirm, setConfirm] = useState<StashCraftableItemTg | null>(null)
+  // Успешно разобранный предмет → фаза «создать схему» с префиллом.
+  const [made, setMade] = useState<StashCraftableItemTg | null>(null)
+  const [schemaName, setSchemaName] = useState('')
+  const [priceStr, setPriceStr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const list = await listDisassemblableStashItemsTg(supabase, campaignId, loopNumber)
+        if (alive) setItems(list)
+      } catch {
+        if (alive) setItems([])
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, loopNumber])
+
+  const doDisassemble = async (item: StashCraftableItemTg) => {
+    setError(null)
+    setBusy(true)
+    const res = await disassembleItem({
+      campaignId,
+      itemNodeId: item.itemNodeId,
+      loopNumber,
+      dayInLoop: 1,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onRefresh() // предмет уже списан — экран за шитом обновляется сразу
+    setMade(item)
+    setSchemaName(`Схема: ${item.name}`)
+  }
+
+  const doCreateSchema = async () => {
+    if (!made) return
+    setError(null)
+    const name = schemaName.trim()
+    if (!name) {
+      setError('Укажите название схемы')
+      return
+    }
+    let priceGp: number | null = null
+    if (priceStr.trim() !== '') {
+      priceGp = parseGp(priceStr)
+      if (priceGp === null) {
+        setError('Цена — положительное число в зм')
+        return
+      }
+    }
+    setBusy(true)
+    const res = await createSchemaItem({
+      campaignId,
+      name,
+      targetItemNodeId: made.itemNodeId,
+      priceGp,
+      rarity: nextRarity(made.rarity),
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onToast(`Схема готова: ${res.name}`)
+    onRefresh()
+    onClose()
+  }
+
+  const madeRarity = made ? nextRarity(made.rarity) : null
+
+  return (
+    <Sheet
+      title={made ? 'Новая схема' : confirm ? 'Разобрать предмет?' : 'Разбор предмета'}
+      onClose={onClose}
+    >
+      {made ? (
+        <div className="space-y-3">
+          <p className="text-sm text-neutral-300">
+            «{made.name}» разобран (−1 из общака). Создать схему изделия?
+          </p>
+          <div className="rounded-lg bg-neutral-900 px-3 py-2 text-xs text-neutral-500">
+            Редкость схемы:{' '}
+            {madeRarity ? CRAFT_RARITY_LABEL[madeRarity] : 'кастомная'} (редкость предмета
+            +1)
+          </div>
+          <input
+            className={FIELD}
+            placeholder="Название схемы"
+            value={schemaName}
+            onChange={(e) => setSchemaName(e.target.value)}
+          />
+          <input
+            className={FIELD}
+            inputMode="decimal"
+            placeholder="Цена покупки схемы, зм (необязательно)"
+            value={priceStr}
+            onChange={(e) => setPriceStr(e.target.value)}
+          />
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <SubmitButton busy={busy} onClick={() => void doCreateSchema()}>
+            Создать схему
+          </SubmitButton>
+          <button
+            onClick={onClose}
+            className="w-full rounded-lg bg-neutral-800 py-2 text-sm text-neutral-400 transition-colors hover:bg-neutral-700"
+          >
+            Пропустить
+          </button>
+        </div>
+      ) : confirm ? (
+        <div className="space-y-3">
+          <p className="text-sm text-neutral-300">
+            «{confirm.name}» будет уничтожен (−1 из общака), взамен откроется крафт его
+            схемы (редкость +1).
+          </p>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <SubmitButton busy={busy} onClick={() => void doDisassemble(confirm)}>
+            Разобрать
+          </SubmitButton>
+          <button
+            onClick={() => setConfirm(null)}
+            className="w-full rounded-lg bg-neutral-800 py-2 text-sm text-neutral-400 transition-colors hover:bg-neutral-700"
+          >
+            Отмена
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="mb-3 text-xs text-neutral-500">
+            Предметы в общаке этой петли. Разбор уничтожает предмет и открывает крафт его
+            схемы.
+          </p>
+          {items === null && <p className="py-4 text-sm text-neutral-500">Загрузка…</p>}
+          {items && items.length === 0 && (
+            <p className="py-4 text-sm text-neutral-500">
+              В общаке нет предметов из каталога — разобрать нечего.
+            </p>
+          )}
+          {items && items.length > 0 && (
+            <div className="space-y-1">
+              {items.map((i) => (
+                <button
+                  key={i.itemNodeId}
+                  onClick={() => {
+                    setError(null)
+                    setConfirm(i)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-left transition-colors hover:bg-neutral-800"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
+                    {i.name}
+                  </span>
+                  <span className="shrink-0 text-xs text-neutral-500">
+                    ×{i.qty}
+                    {i.rarity ? ` · ${CRAFT_RARITY_LABEL[i.rarity] ?? i.rarity}` : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+        </>
+      )}
     </Sheet>
   )
 }
