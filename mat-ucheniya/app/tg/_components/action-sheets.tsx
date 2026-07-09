@@ -878,6 +878,24 @@ export function TakeSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stashGp, setStashGp] = useState<number | null>(null)
+
+  // Остаток денег в общаке — показываем игроку и подстраховываем клиентски
+  // (сервер всё равно проверяет доступность через resolveAndCheckSpend).
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const s = await getStashTg(supabase, campaignId, loopNumber)
+        if (alive) setStashGp(s.wallet.aggregateGp)
+      } catch {
+        /* остаток опционален */
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, loopNumber])
 
   // Источник предметов один — общак кампании (направление всегда «ко мне»).
   useEffect(() => {
@@ -951,6 +969,10 @@ export function TakeSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
       setError('Введите сумму в зм')
       return
     }
+    if (stashGp != null && gp > stashGp) {
+      setError(`В общаке только ${formatGp(stashGp)}`)
+      return
+    }
     setBusy(true)
     const res = await takeMoneyFromStash({
       campaignId,
@@ -985,13 +1007,20 @@ export function TakeSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
         />
 
         {what === 'money' ? (
-          <input
-            className={FIELD}
-            inputMode="decimal"
-            placeholder="Сумма, зм"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+          <>
+            <input
+              className={FIELD}
+              inputMode="decimal"
+              placeholder="Сумма, зм"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            {stashGp != null && (
+              <p className="text-xs text-neutral-500">
+                В общаке: {formatGp(stashGp)}
+              </p>
+            )}
+          </>
         ) : (
           <>
             {items === null ? (
