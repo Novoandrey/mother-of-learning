@@ -58,7 +58,18 @@ export function SmartImg({
   eager?: boolean
 }) {
   const original = portraitUrl(keyStr) ?? undefined
-  const [src, setSrc] = useState<string | undefined>(portraitUrl(keyStr, { width }) ?? undefined)
+  const sized = portraitUrl(keyStr, { width }) ?? undefined
+  // src выводим из текущего keyStr КАЖДЫЙ рендер — иначе useState-инициализатор
+  // не перечитывал бы портрет при смене активного PC (spec-058 баг). В стейте —
+  // только флаг ошибки загрузки; сбрасываем его при смене ключа (render-time
+  // reset — React-паттерн вместо useEffect, без мигания).
+  const [errored, setErrored] = useState(false)
+  const [prevKey, setPrevKey] = useState(keyStr)
+  if (prevKey !== keyStr) {
+    setPrevKey(keyStr)
+    setErrored(false)
+  }
+  const src = errored ? original : sized
   return (
     <img
       src={src}
@@ -68,7 +79,7 @@ export function SmartImg({
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
       onError={() => {
-        if (src !== original) setSrc(original)
+        if (sized !== original) setErrored(true)
       }}
     />
   )
