@@ -671,11 +671,21 @@ export async function runCraft(
     .select('id')
     .single()
   if (runErr) {
-    // The financial rows already landed. Surface the error but note the money
-    // moved — the DM can see the rows in the ledger and reconcile by hand.
+    // The financial rows already landed but the run log didn't. Unlike the
+    // expedition flow (which surfaces and lets the DM reconcile), a craft
+    // retry would double-charge the общак — so compensate: delete the just
+    // written rows by their transfer_group_id (they are ours alone; the id
+    // was minted above). If even the compensation fails, fall back to the
+    // reconcile-by-hand message.
+    const { error: undoErr } = await admin
+      .from('transactions')
+      .delete()
+      .eq('transfer_group_id', groupId)
     return {
       ok: false,
-      error: `Движения записаны, но лог крафта не сохранён: ${runErr.message}. Транзакции видны в ленте.`,
+      error: undoErr
+        ? `Движения записаны, но лог крафта не сохранён: ${runErr.message}. Откат не удался (${undoErr.message}) — сверьте ленту вручную.`
+        : `Не удалось сохранить крафт: ${runErr.message}. Движения отменены — попробуйте ещё раз.`,
     }
   }
 
