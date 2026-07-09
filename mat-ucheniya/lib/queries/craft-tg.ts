@@ -88,7 +88,7 @@ export async function listSchemas(
   supabase: SupabaseClient,
   campaignId: string,
 ): Promise<CraftSchemaTg[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('nodes')
     .select(
       'id, title, fields, item_attributes!inner(price_gp, rarity, schema_for_node_id, category_slug), node_types!inner(slug)',
@@ -96,6 +96,10 @@ export async function listSchemas(
     .eq('campaign_id', campaignId)
     .eq('node_types.slug', 'item')
     .eq('item_attributes.category_slug', 'schema')
+  // Падаем громко: молчаливый [] на ошибке запроса маскирует сбой под «нет
+  // схем» (ровно этот класс бага искали в spec-058). Вызывающий (CraftScreen)
+  // ловит throw и показывает «Не удалось загрузить крафт.» вместо пустого меню.
+  if (error) throw error
 
   type AttrsSlice = {
     price_gp: number | null

@@ -162,6 +162,32 @@ async function isPcOwner(pcId: string, userId: string): Promise<boolean> {
   return data !== null
 }
 
+/**
+ * Player-initiated transfer ownership gate (shared by money + item transfers).
+ *
+ * Normal PC→PC: the initiator must own the SENDER (you send from your own PC).
+ * Stash-take (общак → PC): the sender is the shared stash node that NOBODY
+ * owns, so gating on the sender always failed — that was the bug. Authorize a
+ * stash-take by owning the RECIPIENT instead (you pull shared party funds into
+ * your own PC). The stash is resolved SERVER-SIDE so a client can't spoof the
+ * relaxation by passing a fake `senderPcId` — we compare against the real stash
+ * node id. Owner/DM skip this gate entirely (checked at the call site).
+ */
+async function gatePlayerTransfer(
+  campaignId: string,
+  senderPcId: string,
+  recipientPcId: string,
+  userId: string,
+  errStashTake: string,
+  errNormal: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const stash = await getStashNode(campaignId)
+  const senderIsStash = stash != null && senderPcId === stash.nodeId
+  const gatePcId = senderIsStash ? recipientPcId : senderPcId
+  if (await isPcOwner(gatePcId, userId)) return { ok: true }
+  return { ok: false, error: senderIsStash ? errStashTake : errNormal }
+}
+
 // ============================================================================
 // Internal: coin resolution
 // ============================================================================
@@ -848,13 +874,15 @@ export async function createTransfer(
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
-    const ownsSender = await isPcOwner(input.senderPcId, auth.userId)
-    if (!ownsSender) {
-      return {
-        ok: false,
-        error: 'Перевод может начать только владелец персонажа-отправителя',
-      }
-    }
+    const gate = await gatePlayerTransfer(
+      input.campaignId,
+      input.senderPcId,
+      input.recipientPcId,
+      auth.userId,
+      'Взять из общака может только владелец персонажа-получателя',
+      'Перевод может начать только владелец персонажа-отправителя',
+    )
+    if (!gate.ok) return gate
   }
 
   const admin = createAdminClient()
@@ -1183,13 +1211,15 @@ export async function createItemTransfer(
   if (!auth.ok) return auth
 
   if (auth.role === 'player') {
-    const ownsSender = await isPcOwner(input.senderPcId, auth.userId)
-    if (!ownsSender) {
-      return {
-        ok: false,
-        error: 'Перевод предмета может начать только владелец персонажа-отправителя',
-      }
-    }
+    const gate = await gatePlayerTransfer(
+      input.campaignId,
+      input.senderPcId,
+      input.recipientPcId,
+      auth.userId,
+      'Взять предмет из общака может только владелец персонажа-получателя',
+      'Перевод предмета может начать только владелец персонажа-отправителя',
+    )
+    if (!gate.ok) return gate
   }
 
   const admin = createAdminClient()
