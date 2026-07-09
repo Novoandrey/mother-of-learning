@@ -185,6 +185,9 @@ export function BuySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   > | null>(null)
   const [query, setQuery] = useState(() => str(prefill?.query))
   const [results, setResults] = useState<BuyableItemTg[]>([])
+  // Какому запросу принадлежат текущие results — чтобы «не найдено» + «купить
+  // как есть» не мигали на дебаунсе, пока поиск для нового запроса не завершился.
+  const [searchedQuery, setSearchedQuery] = useState('')
   const [picked, setPicked] = useState<BuyableItemTg | null>(null)
   // Свободный предмет (не из каталога): null = не в этой ветке. Имя редактируемо.
   const [custom, setCustom] = useState<{ name: string } | null>(null)
@@ -241,9 +244,15 @@ export function BuySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
     const t = setTimeout(async () => {
       try {
         const r = await searchBuyableItemsTg(supabase, campaignId, q)
-        if (alive) setResults(r)
+        if (alive) {
+          setResults(r)
+          setSearchedQuery(q)
+        }
       } catch {
-        if (alive) setResults([])
+        if (alive) {
+          setResults([])
+          setSearchedQuery(q)
+        }
       }
     }, 250)
     return () => {
@@ -350,7 +359,7 @@ export function BuySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
                   setPicked(null)
                   setError(null)
                 }}
-                className="text-xs text-neutral-400 hover:text-neutral-200"
+                className="inline-flex min-h-[44px] items-center px-2 text-xs text-neutral-400 hover:text-neutral-200"
               >
                 сменить
               </button>
@@ -412,7 +421,7 @@ export function BuySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
                   setCustom(null)
                   setError(null)
                 }}
-                className="text-xs text-neutral-400 hover:text-neutral-200"
+                className="inline-flex min-h-[44px] items-center px-2 text-xs text-neutral-400 hover:text-neutral-200"
               >
                 назад к поиску
               </button>
@@ -479,7 +488,7 @@ export function BuySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
               onChange={(e) => setQuery(e.target.value)}
               autoFocus
             />
-            {query.trim() !== '' && results.length > 0 && (
+            {query.trim() !== '' && searchedQuery === query.trim() && results.length > 0 && (
               <div className="max-h-60 overflow-y-auto rounded-lg bg-neutral-800">
                 {results.map((it) => (
                   <button
@@ -495,7 +504,7 @@ export function BuySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
                 ))}
               </div>
             )}
-            {query.trim() !== '' && results.length === 0 && (
+            {query.trim() !== '' && searchedQuery === query.trim() && results.length === 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-neutral-500">В каталоге не найдено.</p>
                 <button
