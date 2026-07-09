@@ -1416,8 +1416,13 @@ export type CreatePurchaseInput = {
   campaignId: string
   /** PC that receives the item and (for 'pc'/'pc_with_stash') pays. */
   buyerPcId: string
-  /** Catalog item being bought (its title is snapshotted on the item leg). */
-  itemNodeId: string
+  /** Catalog item being bought (its title is snapshotted on the item leg).
+   *  Optional: omit and pass `customItem` to buy a free-text item that isn't
+   *  in the catalog (spec-058 — «купить несуществующий предмет»). */
+  itemNodeId?: string
+  /** Free-text purchase: a non-catalog item with a manually-entered price.
+   *  Used only when `itemNodeId` is absent. No rarity gate (no rarity). */
+  customItem?: { name: string; priceGp: number }
   /** Integer ≥ 1; default 1. */
   qty?: number
   fundingSource: PurchaseFundingSource
@@ -1464,7 +1469,6 @@ export async function createPurchase(
 ): Promise<ActionResult<{ groupId: string; status: 'approved' | 'pending' }>> {
   if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
   if (!input.buyerPcId) return { ok: false, error: 'Не выбран персонаж' }
-  if (!input.itemNodeId) return { ok: false, error: 'Не выбран предмет' }
 
   const qty = input.qty ?? 1
   const qtyErr = validateItemQty(qty)
@@ -1473,14 +1477,9 @@ export async function createPurchase(
   const dayErr = validateDayInLoop(input.dayInLoop, 365)
   if (dayErr) return { ok: false, error: dayErr }
 
-  // --- Resolve item + «нельзя купить» guard (C-15) ---
-  const item = await getItemById(input.campaignId, input.itemNodeId)
-  if (!item) return { ok: false, error: 'Предмет не найден в каталоге' }
-  if (item.noPurchase) {
-    return { ok: false, error: `«${item.title}» помечен как «нельзя купить»` }
-  }
-
-  // --- Price: (price_gp ?? rarity-default[bucket]) × coefficient[rarity] ---
+  // --- Resolve the purchase: a catalog Образец OR a free-text custom item
+  //     (spec-058 «купить несуществующий предмет»). Settings are read either
+  //     way — the approval gate below needs the policy. ---
   const admin = createAdminClient()
   const { data: campRow, error: campErr } = await admin
     .from('campaigns')
@@ -1494,16 +1493,46 @@ export async function createPurchase(
     (campRow as { settings?: Record<string, unknown> }).settings ?? {}
   const defaults = parseItemDefaultPrices(settings.item_default_prices)
   const policy = parseItemPurchasePolicy(settings.item_purchase_policy)
-  const rarity = normalizeRarity(item.rarity)
-  const unitGp = resolveBuyUnitPriceGp({
-    priceGp: item.priceGp,
-    categorySlug: item.categorySlug,
-    rarity,
-    defaults,
-    policy,
-  })
-  if (unitGp == null) {
-    return { ok: false, error: `У «${item.title}» нет цены — покупка недоступна` }
+
+  let itemTitle: string
+  let itemNodeIdOut: string | null
+  let rarity: ReturnType<typeof normalizeRarity> | null = null
+  let unitGp: number | null
+
+  if (input.itemNodeId) {
+    // --- Catalog item + «нельзя купить» guard (C-15) ---
+    const item = await getItemById(input.campaignId, input.itemNodeId)
+    if (!item) return { ok: false, error: 'Предмет не найден в каталоге' }
+    if (item.noPurchase) {
+      return { ok: false, error: `«${item.title}» помечен как «нельзя купить»` }
+    }
+    itemTitle = item.title
+    itemNodeIdOut = input.itemNodeId
+    // Price: (price_gp ?? rarity-default[bucket]) × coefficient[rarity] (C-13).
+    rarity = normalizeRarity(item.rarity)
+    unitGp = resolveBuyUnitPriceGp({
+      priceGp: item.priceGp,
+      categorySlug: item.categorySlug,
+      rarity,
+      defaults,
+      policy,
+    })
+    if (unitGp == null) {
+      return { ok: false, error: `У «${item.title}» нет цены — покупка недоступна` }
+    }
+  } else if (input.customItem) {
+    // --- Free-text item: manual title + price, no catalog link, no rarity gate.
+    const name = input.customItem.name?.trim()
+    if (!name) return { ok: false, error: 'Укажите название предмета' }
+    if (!Number.isFinite(input.customItem.priceGp) || input.customItem.priceGp < 0) {
+      return { ok: false, error: 'Цена предмета не может быть отрицательной' }
+    }
+    itemTitle = name
+    itemNodeIdOut = null
+    rarity = null
+    unitGp = Math.round(input.customItem.priceGp) // whole gp, like every «world» flow
+  } else {
+    return { ok: false, error: 'Не выбран предмет' }
   }
   const totalGp = unitGp * qty
 
@@ -1523,7 +1552,7 @@ export async function createPurchase(
     approvalsEnabledFromSettings(settings) &&
     (input.forceStatus != null
       ? input.forceStatus === 'pending'
-      : approvalRequiredFor(policy, rarity))
+      : rarity != null && approvalRequiredFor(policy, rarity))
   const status: 'approved' | 'pending' = needsApproval ? 'pending' : 'approved'
   const nowIso = new Date().toISOString()
   const batchId =
@@ -1572,7 +1601,7 @@ export async function createPurchase(
         recipientPcId: input.buyerPcId,
         amountGp: toBorrow,
         categorySlug: 'transfer',
-        comment: `Покрытие: ${item.title}`,
+        comment: `Покрытие: ${itemTitle}`,
         loopNumber: input.loopNumber,
         dayInLoop: input.dayInLoop,
         sessionId: input.sessionId ?? null,
@@ -1598,7 +1627,7 @@ export async function createPurchase(
 
   const groupId = crypto.randomUUID()
   const comment =
-    input.comment ?? `Покупка: ${item.title}${qty > 1 ? ` ×${qty}` : ''}`
+    input.comment ?? `Покупка: ${itemTitle}${qty > 1 ? ` ×${qty}` : ''}`
   const baseRow = {
     campaign_id: input.campaignId,
     category_slug: 'purchase',
@@ -1635,8 +1664,8 @@ export async function createPurchase(
       amount_sp: 0,
       amount_gp: 0,
       amount_pp: 0,
-      item_name: item.title,
-      item_node_id: input.itemNodeId,
+      item_name: itemTitle,
+      item_node_id: itemNodeIdOut,
       item_qty: qty,
     },
   ])
@@ -1650,7 +1679,7 @@ export async function createPurchase(
       campaignId: input.campaignId,
       actorPcId: input.buyerPcId,
       authorUserId: auth.userId,
-      item: { name: item.title, qty },
+      item: { name: itemTitle, qty },
       totalGp,
     })
   }
