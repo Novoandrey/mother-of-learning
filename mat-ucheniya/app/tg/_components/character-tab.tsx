@@ -7,12 +7,9 @@
  * лента своих движений. Тап по предмету → ItemActionSheet с глаголами:
  * Надеть/Снять · Передать · В общак · Продал.
  *
- * Решения W3 (для сшивки W5):
- * - «Передать» / «В общак»: TransferSheet НЕ экспортирован из ledger-app →
- *   оба глагола пушат legacy-мост 'legacy-inventory' (там кнопка
- *   «Переместить» открывает старый TransferSheet: asset=item,
- *   dir=to-stash, направление переключается). Префилл выбранного предмета
- *   невозможен без правки read-only файла — W5 сошьёт на GiveSheet.
+ * Решения W3 (сшито в W5, коммит a62b0d6):
+ * - «Передать» / «В общак» — единый пайплайн действий: GiveSheet из
+ *   action-sheets с префиллом {what:'item', itemName, dest}.
  * - «Продал» — осознанный дубль sell-формы с W2 (W5 дедупит): qty + сумма
  *   (дефолт = каталожная цена × qty через resolveBuyUnitPriceGp, как в
  *   превью покупки) → sellPcItem.
@@ -278,7 +275,7 @@ export function CharacterTab({ app }: TgTabProps) {
       )}
 
       {toast && (
-        <div className="fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+        <div className="fixed inset-x-0 bottom-20 z-[60] flex justify-center px-4">
           <div className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
             {toast}
           </div>
@@ -416,19 +413,9 @@ function ItemActionSheet({
           busy={busy}
           onClick={() => void equip()}
         />
-        <VerbButton
-          icon="🤝"
-          label="Передать"
-          hint="через старый экран перемещения (временно)"
-          onClick={onTransfer}
-        />
-        <VerbButton
-          icon="🏰"
-          label="В общак"
-          hint="через старый экран перемещения (временно)"
-          onClick={onToStash}
-        />
-        <VerbButton icon="💰" label="Продал" onClick={onSell} />
+        <VerbButton icon="🤝" label="Передать" onClick={onTransfer} />
+        <VerbButton icon="🏰" label="В общак" onClick={onToStash} />
+        <VerbButton icon="💱" label="Продал" onClick={onSell} />
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </Sheet>
