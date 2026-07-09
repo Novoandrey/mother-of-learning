@@ -24,6 +24,21 @@ them are mostly `export const dynamic = 'force-dynamic'`, so they don't
 need explicit invalidation. If you add caching to a new table, document
 its invalidation contract here.
 
+## Game-mechanic numbers are DM settings, never hardcode
+
+**Правило Andrey (2026-07-09):** любое числовое или процентное значение
+игровой механики — цены, коэффициенты, наценки, таблицы ставок, лимиты,
+пороги — НЕ зашивается константой в бизнес-логику. Оно живёт в настройках
+кампании (`campaigns.settings`) и читается через parse-хелпер с дефолтами.
+
+Канонический паттерн уже в коде: `parseItemDefaultPrices` /
+`parseItemPurchasePolicy` (`lib/item-default-prices.ts`,
+`lib/item-purchase-policy.ts`) — jsonb из `campaigns.settings`, парсер
+подставляет дефолты при отсутствии. Новые механики (крафт и далее) делают
+так же: значения из спек/таблиц Andrey = **дефолты парсера**, не константы.
+UI правки настроек — по мере надобности; минимум — значение читается из
+settings и имеет дефолт.
+
 ## Server actions: auth gating is mandatory
 
 All server actions in `app/actions/*.ts` use `createAdminClient()`
