@@ -8,6 +8,7 @@ import {
   DATE_FIELDS,
   LOOP_STATUSES,
 } from '@/lib/node-form-constants'
+import { parsePartyLevel, pbForLevel } from '@/lib/party-level'
 
 type LoopOption = { id: string; number: number; title: string; status: string }
 
@@ -56,6 +57,29 @@ export function NodeFormField({ fieldKey, value, onChange, typeSlug, loops = [] 
             </option>
           ))}
         </select>
+      </div>
+    )
+  }
+
+  // Party level for loops (spec-056): number 1–20 + live proficiency
+  // bonus hint. Empty = not set — craft flows refuse until the DM sets it.
+  if (fieldKey === 'party_level' && typeSlug === 'loop') {
+    const level = parsePartyLevel(value)
+    return (
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+        <input
+          type="number"
+          min={1}
+          max={20}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+          className={inputCls}
+        />
+        <p className="mt-1 text-xs text-gray-400">
+          {level !== null ? `БМ +${pbForLevel(level)}` : 'Не задан — крафт недоступен'}
+        </p>
       </div>
     )
   }

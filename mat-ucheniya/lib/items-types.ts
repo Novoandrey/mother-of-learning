@@ -58,6 +58,14 @@ export type ItemNode = {
    */
   noPurchase: boolean;
 
+  /**
+   * Spec-056 (Крафт). Для предметов категории 'schema' — целевой предмет
+   * каталога, который схема учит крафтить
+   * (`item_attributes.schema_for_node_id`, мигр. 127). NULL у не-схем и у
+   * схем без линка на цель (кастомные/вплетённые).
+   */
+  schemaForNodeId: string | null;
+
   // Cold fields (`nodes.fields` JSONB).
   srdSlug: string | null;
   description: string | null;

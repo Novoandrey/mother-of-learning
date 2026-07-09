@@ -36,6 +36,7 @@ import {
   BalancesScreen,
   StarterEquipScreen,
   ExpeditionsScreen,
+  CraftScreen,
 } from './_components/ledger-app'
 import { WikiListScreen, WikiNodeScreen } from './_components/wiki-app'
 
@@ -218,6 +219,7 @@ type View =
   | { screen: 'equip'; pc: CampaignCharacter }
   | { screen: 'balances' }
   | { screen: 'expeditions' }
+  | { screen: 'craft' }
   | { screen: 'wiki' }
   | { screen: 'wiki-node'; nodeId: string; title: string }
 
@@ -269,6 +271,7 @@ function AppShell({ ready }: { ready: Ready }) {
           onOpenBalances={() => setView({ screen: 'balances' })}
           onOpenWiki={() => setView({ screen: 'wiki' })}
           onOpenExpeditions={() => setView({ screen: 'expeditions' })}
+          onOpenCraft={() => setView({ screen: 'craft' })}
         />
       )
     case 'home':
@@ -283,6 +286,7 @@ function AppShell({ ready }: { ready: Ready }) {
           onOpenEquip={() => setView({ screen: 'equip', pc: view.pc })}
           onOpenWiki={() => setView({ screen: 'wiki' })}
           onOpenExpeditions={() => setView({ screen: 'expeditions' })}
+          onOpenCraft={() => setView({ screen: 'craft' })}
         />
       )
     case 'inventory':
@@ -355,6 +359,17 @@ function AppShell({ ready }: { ready: Ready }) {
           characters={characters}
           userId={ready.userId}
           role={ready.role}
+          onBack={() => setView(rootView)}
+          refreshKey={refreshKey}
+        />
+      )
+    case 'craft':
+      return (
+        <CraftScreen
+          supabase={ready.supabase}
+          campaignId={ready.campaignId}
+          loopNumber={ready.loopNumber}
+          characters={characters}
           onBack={() => setView(rootView)}
           refreshKey={refreshKey}
         />

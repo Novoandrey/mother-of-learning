@@ -8,6 +8,7 @@ import { ensurePcStarterConfig } from '@/lib/seeds/pc-starter-config'
 import {
   NUMBER_FIELDS,
   HIDDEN_FIELDS,
+  EXTRA_TYPE_FIELDS,
   slugify,
 } from '@/lib/node-form-constants'
 import { parseLengthDays } from '@/lib/loop-length'
@@ -85,12 +86,16 @@ export function useNodeForm({
   function initType(t: NodeType, existingFields?: Record<string, unknown>) {
     setSelectedType(t)
     const defaults: Record<string, string> = {}
-    if (t.default_fields) {
-      Object.keys(t.default_fields).forEach((k) => {
-        if (HIDDEN_FIELDS.includes(k)) return
-        defaults[k] = existingFields?.[k] != null ? String(existingFields[k]) : ''
-      })
+    const keys = Object.keys(t.default_fields ?? {})
+    // Form-injected keys (e.g. loop → party_level, spec-056): editable
+    // even when the campaign's default_fields template doesn't list them.
+    for (const k of EXTRA_TYPE_FIELDS[t.slug] ?? []) {
+      if (!keys.includes(k)) keys.push(k)
     }
+    keys.forEach((k) => {
+      if (HIDDEN_FIELDS.includes(k)) return
+      defaults[k] = existingFields?.[k] != null ? String(existingFields[k]) : ''
+    })
     setFields(defaults)
   }
 
@@ -237,6 +242,9 @@ export function useNodeForm({
     // with type-aware controls; until then this is the guard.
     if (editNode?.fields && selectedType?.default_fields) {
       const editable = new Set(Object.keys(selectedType.default_fields))
+      // Form-injected keys are edited by this form too — without this,
+      // clearing e.g. party_level would be undone by the preserve-guard.
+      for (const k of EXTRA_TYPE_FIELDS[selectedType.slug] ?? []) editable.add(k)
       for (const [k, v] of Object.entries(editNode.fields)) {
         if (!editable.has(k)) cleanFields[k] = v
       }

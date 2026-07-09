@@ -35,6 +35,13 @@ export const DEFAULT_ITEM_CATEGORIES: readonly ValueListSpec[] = [
   { slug: 'tool',       label: 'Инструменты', sort_order: 60 },
   { slug: 'treasure',   label: 'Сокровища',   sort_order: 70 },
   { slug: 'misc',       label: 'Прочее',      sort_order: 80 },
+  // Существующие кампании получили эти две миграциями; здесь они нужны,
+  // чтобы НОВЫЕ кампании засеивались теми же слагами через TS-сидер:
+  //   'resource' — spec-055, мигр. 125 (закрывает рассинхрон: миграция была,
+  //   сидер о категории не знал);
+  //   'schema'   — spec-056, мигр. 127 (схемы крафта).
+  { slug: 'resource',   label: 'Ресурс',      sort_order: 90 },
+  { slug: 'schema',     label: 'Схема',       sort_order: 95 },
 ];
 
 /**

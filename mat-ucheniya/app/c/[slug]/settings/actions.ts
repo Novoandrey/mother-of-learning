@@ -11,6 +11,7 @@ import {
   type ItemPurchasePolicy,
 } from '@/lib/campaign'
 import { getCurrentUserAndProfile, getMembership } from '@/lib/auth'
+import { parseCraftSettings, type CraftSettings } from '@/lib/craft-settings'
 import { isHpMethod } from '@/lib/statblock'
 import {
   computeApplyPlan,
@@ -131,6 +132,46 @@ export async function updateItemPurchasePolicy(
 
   const admin = createAdminClient()
   const next = { ...campaign.settings, item_purchase_policy: parsed }
+
+  const { error } = await admin
+    .from('campaigns')
+    .update({ settings: next })
+    .eq('id', campaign.id)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/c/${slug}/items`, 'layout')
+
+  return { ok: true }
+}
+
+/**
+ * Spec-056 (T9). Persist the DM craft settings (gp/hour rate table,
+ * per-rarity costs + level gates, custom row, shop markup, weave) into
+ * campaigns.settings.craft_settings. Mirrors updateItemPurchasePolicy;
+ * spreads campaign.settings so sibling keys are never clobbered.
+ */
+export async function updateCraftSettings(
+  slug: string,
+  rawSettings: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await getCurrentUserAndProfile()
+  if (!result || !result.profile || result.profile.must_change_password) {
+    return { ok: false, error: 'Не авторизован' }
+  }
+
+  const campaign = await getCampaignBySlug(slug)
+  if (!campaign) return { ok: false, error: 'Кампания не найдена' }
+
+  const membership = await getMembership(campaign.id)
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'dm')) {
+    return { ok: false, error: 'Нужна роль ДМ' }
+  }
+
+  const parsed: CraftSettings = parseCraftSettings(rawSettings)
+
+  const admin = createAdminClient()
+  const next = { ...campaign.settings, craft_settings: parsed }
 
   const { error } = await admin
     .from('campaigns')

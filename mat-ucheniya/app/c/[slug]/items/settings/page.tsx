@@ -9,6 +9,7 @@ import { listCategories } from '@/lib/categories'
 import CategorySettings from '@/components/category-settings'
 import DefaultPricesEditor from '@/components/default-prices-editor'
 import ItemPurchasePolicyEditor from '@/components/item-purchase-policy-editor'
+import CraftSettingsEditor from '@/components/craft-settings-editor'
 import ApplyDefaultPricesButton from '@/components/apply-default-prices-button'
 
 export async function generateMetadata({
@@ -174,6 +175,17 @@ export default async function ItemsSettingsPage({
           <ItemPurchasePolicyEditor
             campaignSlug={slug}
             initial={campaign.settings.item_purchase_policy}
+            canEdit={isManager}
+          />
+        </Section>
+
+        <Section
+          title="Крафт"
+          subtitle="Ставка зм/час по бонусу мастерства, цены и гейты по редкости, наценка магазина и вплетение (spec-056)."
+        >
+          <CraftSettingsEditor
+            campaignSlug={slug}
+            initial={campaign.settings.craft_settings}
             canEdit={isManager}
           />
         </Section>
