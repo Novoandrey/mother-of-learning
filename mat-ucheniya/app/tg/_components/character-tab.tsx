@@ -49,7 +49,7 @@ import { useTgRefresh, type TgTabProps } from './shell'
 // предмета; QUICK_ACTION_DAY — общая конвенция дня (см. action-sheets).
 import { GiveSheet, QUICK_ACTION_DAY } from './action-sheets'
 
-// 5e: максимум 3 предмета с настройкой — мягкий кап, как в InventoryScreen.
+// 5e: максимум 3 предмета с настройкой — мягкий кап (предупреждение, не блок).
 const ATTUNE_CAP = 3
 
 type CharData = {

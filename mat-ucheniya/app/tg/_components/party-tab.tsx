@@ -146,8 +146,8 @@ function PartyRoot({ app }: TgTabProps) {
   }, [fetchAll, refreshKey])
 
   // Продажа ресурса из общака по номиналу → тост «+N зм» + reload. Транзиентный
-  // тост живёт в цепочке обработчика, не в эффекте (паттерн StashScreen.sell,
-  // react-hooks/set-state-in-effect не задет).
+  // тост живёт в цепочке обработчика, не в эффекте
+  // (react-hooks/set-state-in-effect не задет).
   const sell = async (r: StashResourceHoldingTg, qty: number) => {
     setError(null)
     setSellBusyId(r.itemNodeId)

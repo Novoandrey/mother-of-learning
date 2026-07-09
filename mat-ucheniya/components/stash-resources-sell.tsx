@@ -2,9 +2,10 @@
 
 /**
  * Desktop общак resource-sale section (spec-055 доработки). Mirrors the /tg
- * StashScreen «Ресурсы» affordance on the accounting/stash page: each resource
- * currently in the общак with a quantity picker and a «Продать» button that
- * sells it back at its nominal (money → общак, stock out) via `sellStashResource`.
+ * «Ресурсы» affordance of the Партия tab on the accounting/stash page: each
+ * resource currently in the общак with a quantity picker and a «Продать» button
+ * that sells it back at its nominal (money → общак, stock out) via
+ * `sellStashResource`.
  *
  * Server-fetched `resources` (getStashResourceHoldingsTg) are handed in; the
  * sale is a server action; `router.refresh()` re-reads the RSC afterwards so the
