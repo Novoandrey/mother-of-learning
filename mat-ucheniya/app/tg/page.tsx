@@ -1,21 +1,21 @@
 'use client'
 
 /**
- * Telegram Mini App — entry + navigation controller (spec-046 shell + spec-044
- * ledger). Loads the Telegram WebApp SDK → reads initData → POST /api/tg/auth →
+ * Telegram Mini App — entry (spec-046 shell + spec-044 ledger + spec-058 UX).
+ * Loads the Telegram WebApp SDK → reads initData → POST /api/tg/auth →
  * on a linked account this establishes a REAL GoTrue cookie session, then a
- * normal browser client reads the campaign's PCs under that session. The user
- * then navigates: character list (own on top, others below — C-02) → PC home
- * with a per-PC app launcher (C-04) → the Ledger app (wallet + feed + общак).
+ * normal browser client reads the campaign's PCs under that session. All
+ * navigation lives in <TgShell> (_components/shell.tsx): нижний таб-бар
+ * (⚡ Действие · 🎒 Персонаж · 🏰 Партия) + навигационный стек на таб.
  *
  * Because the session is real, reads AND writes (record / transfer / общак /
  * starter) go through the exact same path as the desktop app — the server
  * actions authorise via the cookie session with no per-call token handling.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import Script from 'next/script'
-import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { getCampaignCharacters, type CampaignCharacter } from '@/lib/queries/campaign-characters'
 import {
@@ -24,21 +24,8 @@ import {
   getTxCategoriesTg,
   type TgRole,
 } from '@/lib/queries/ledger-tg'
-import {
-  Centered,
-  CharacterList,
-  PcHome,
-  LedgerScreen,
-  InventoryScreen,
-  SetsScreen,
-  RequestsScreen,
-  StashScreen,
-  BalancesScreen,
-  StarterEquipScreen,
-  ExpeditionsScreen,
-  CraftScreen,
-} from './_components/ledger-app'
-import { WikiListScreen, WikiNodeScreen } from './_components/wiki-app'
+import { Centered } from './_components/primitives'
+import { TgShell } from './_components/shell'
 
 declare global {
   interface Window {
@@ -184,7 +171,17 @@ export default function TgPage() {
         {state.phase === 'unlinked' && (
           <Unlinked telegramId={state.telegramId} username={state.username} />
         )}
-        {state.phase === 'ready' && <AppShell ready={state} />}
+        {state.phase === 'ready' && (
+          <TgShell
+            supabase={state.supabase}
+            userId={state.userId}
+            role={state.role}
+            campaignId={state.campaignId}
+            loopNumber={state.loopNumber}
+            characters={state.characters}
+            categories={state.categories}
+          />
+        )}
       </main>
     </>
   )
@@ -204,224 +201,4 @@ function Unlinked({ telegramId, username }: { telegramId: number; username: stri
       </div>
     </div>
   )
-}
-
-// ─────────────────────────── navigation ───────────────────────────
-
-type View =
-  | { screen: 'list' }
-  | { screen: 'home'; pc: CampaignCharacter }
-  | { screen: 'ledger'; pc: CampaignCharacter }
-  | { screen: 'inventory'; pc: CampaignCharacter }
-  | { screen: 'sets'; pc: CampaignCharacter }
-  | { screen: 'requests'; pc: CampaignCharacter }
-  | { screen: 'stash'; pc: CampaignCharacter }
-  | { screen: 'equip'; pc: CampaignCharacter }
-  | { screen: 'balances' }
-  | { screen: 'expeditions' }
-  | { screen: 'craft' }
-  | { screen: 'wiki' }
-  | { screen: 'wiki-node'; nodeId: string; title: string }
-
-function AppShell({ ready }: { ready: Ready }) {
-  const { characters, supabase, campaignId } = ready
-  const ownPcs = characters.filter((c) => c.isOwn)
-  const multi = characters.length > 1
-  const rootView: View =
-    ownPcs.length === 1 ? { screen: 'home', pc: ownPcs[0] } : { screen: 'list' }
-
-  // One own PC → straight to its home; otherwise the list.
-  const [view, setView] = useState<View>(rootView)
-
-  // Realtime (FR-010 / T023): migration 117 broadcasts `tx_insert` on the
-  // campaign's private channel for every transaction. Each event bumps
-  // refreshKey, which the visible screen carries in its load-effect deps, so a
-  // second device re-fetches within ~2 s while open sheets/scroll are kept. If
-  // Realtime is unreachable the app stays usable on manual refresh.
-  const [refreshKey, setRefreshKey] = useState(0)
-  useEffect(() => {
-    let channel: RealtimeChannel | null = null
-    let alive = true
-    ;(async () => {
-      const { data } = await supabase.auth.getSession()
-      const token = data.session?.access_token
-      if (token) await supabase.realtime.setAuth(token)
-      if (!alive) return
-      channel = supabase
-        .channel(`campaign:${campaignId}`, { config: { private: true } })
-        .on('broadcast', { event: 'tx_insert' }, () => setRefreshKey((k) => k + 1))
-        .subscribe()
-    })()
-    return () => {
-      alive = false
-      if (channel) void supabase.removeChannel(channel)
-    }
-  }, [supabase, campaignId])
-
-  if (characters.length === 0) {
-    return <Centered>В этой кампании пока нет персонажей.</Centered>
-  }
-
-  switch (view.screen) {
-    case 'list':
-      return (
-        <CharacterList
-          characters={characters}
-          onSelect={(pc) => setView({ screen: 'home', pc })}
-          onOpenBalances={() => setView({ screen: 'balances' })}
-          onOpenWiki={() => setView({ screen: 'wiki' })}
-          onOpenExpeditions={() => setView({ screen: 'expeditions' })}
-          onOpenCraft={() => setView({ screen: 'craft' })}
-        />
-      )
-    case 'home':
-      return (
-        <PcHome
-          character={view.pc}
-          showBack={multi}
-          onBack={() => setView({ screen: 'list' })}
-          onOpenLedger={() => setView({ screen: 'ledger', pc: view.pc })}
-          onOpenInventory={() => setView({ screen: 'inventory', pc: view.pc })}
-          onOpenBalances={() => setView({ screen: 'balances' })}
-          onOpenEquip={() => setView({ screen: 'equip', pc: view.pc })}
-          onOpenWiki={() => setView({ screen: 'wiki' })}
-          onOpenExpeditions={() => setView({ screen: 'expeditions' })}
-          onOpenCraft={() => setView({ screen: 'craft' })}
-        />
-      )
-    case 'inventory':
-      return (
-        <InventoryScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          character={view.pc}
-          others={characters.filter((c) => c.id !== view.pc.id)}
-          onOpenSets={() => setView({ screen: 'sets', pc: view.pc })}
-          onBack={() => setView({ screen: 'home', pc: view.pc })}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'sets':
-      return (
-        <SetsScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          buyerPc={view.pc}
-          userId={ready.userId}
-          role={ready.role}
-          onBack={() => setView({ screen: 'inventory', pc: view.pc })}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'requests':
-      return (
-        <RequestsScreen
-          supabase={ready.supabase}
-          pcId={view.pc.id}
-          pcTitle={view.pc.title}
-          userId={ready.userId}
-          categories={ready.categories}
-          onBack={() => setView({ screen: 'home', pc: view.pc })}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'equip':
-      return (
-        <StarterEquipScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          character={view.pc}
-          onBack={() => setView({ screen: 'home', pc: view.pc })}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'balances':
-      return (
-        <BalancesScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          characters={characters}
-          onBack={() => setView(rootView)}
-          onSelect={(pc) => setView({ screen: 'home', pc })}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'expeditions':
-      return (
-        <ExpeditionsScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          characters={characters}
-          userId={ready.userId}
-          role={ready.role}
-          onBack={() => setView(rootView)}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'craft':
-      return (
-        <CraftScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          characters={characters}
-          onBack={() => setView(rootView)}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'wiki':
-      return (
-        <WikiListScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          onSelect={(item) =>
-            setView({ screen: 'wiki-node', nodeId: item.id, title: item.title })
-          }
-          onBack={() => setView(rootView)}
-        />
-      )
-    case 'wiki-node':
-      return (
-        <WikiNodeScreen
-          key={view.nodeId}
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          nodeId={view.nodeId}
-          title={view.title}
-          onBack={() => setView({ screen: 'wiki' })}
-          onOpenNode={(nodeId, title) => setView({ screen: 'wiki-node', nodeId, title })}
-        />
-      )
-    case 'ledger':
-      return (
-        <LedgerScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          character={view.pc}
-          others={characters.filter((c) => c.id !== view.pc.id)}
-          onBack={() => setView({ screen: 'home', pc: view.pc })}
-          onOpenStash={() => setView({ screen: 'stash', pc: view.pc })}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'stash':
-      return (
-        <StashScreen
-          supabase={ready.supabase}
-          campaignId={ready.campaignId}
-          loopNumber={ready.loopNumber}
-          categories={ready.categories}
-          character={view.pc}
-          others={characters.filter((c) => c.id !== view.pc.id)}
-          onBack={() => setView({ screen: 'ledger', pc: view.pc })}
-          refreshKey={refreshKey}
-        />
-      )
-  }
 }
