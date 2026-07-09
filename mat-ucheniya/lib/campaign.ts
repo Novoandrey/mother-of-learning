@@ -16,6 +16,16 @@ import {
   parseCraftSettings,
   type CraftSettings,
 } from '@/lib/craft-settings'
+import {
+  DEFAULT_SCRIBE_SETTINGS,
+  parseScribeSettings,
+  type ScribeSettings,
+} from '@/lib/scribe-settings'
+import {
+  DEFAULT_SPELL_SETTINGS,
+  parseSpellSettings,
+  type SpellSettings,
+} from '@/lib/spell-settings'
 
 // Re-export for backwards-compat: callers were importing these
 // names from '@/lib/campaign' before the pure-module split. Keep
@@ -41,6 +51,8 @@ export type CampaignSettings = {
   item_default_prices: ItemDefaultPrices
   item_purchase_policy: ItemPurchasePolicy
   craft_settings: CraftSettings
+  scribe_settings: ScribeSettings
+  spell_settings: SpellSettings
   // Future keys go here.
 }
 
@@ -56,6 +68,8 @@ const DEFAULT_SETTINGS: CampaignSettings = {
   item_default_prices: DEFAULT_ITEM_PRICES,
   item_purchase_policy: DEFAULT_ITEM_PURCHASE_POLICY,
   craft_settings: DEFAULT_CRAFT_SETTINGS,
+  scribe_settings: DEFAULT_SCRIBE_SETTINGS,
+  spell_settings: DEFAULT_SPELL_SETTINGS,
 }
 
 export function parseCampaignSettings(raw: unknown): CampaignSettings {
@@ -66,6 +80,9 @@ export function parseCampaignSettings(raw: unknown): CampaignSettings {
     // parseCraftSettings(undefined) → deep copy of DEFAULT_CRAFT_SETTINGS
     // (nested rate/rarity/weave objects; a shallow spread would alias them).
     craft_settings: parseCraftSettings(undefined),
+    // scribe_settings has a nested `table` — deep-copy via the parser too.
+    scribe_settings: parseScribeSettings(undefined),
+    spell_settings: parseSpellSettings(undefined),
   }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const r = raw as Record<string, unknown>
@@ -78,6 +95,12 @@ export function parseCampaignSettings(raw: unknown): CampaignSettings {
     }
     if (r.craft_settings !== undefined) {
       out.craft_settings = parseCraftSettings(r.craft_settings)
+    }
+    if (r.scribe_settings !== undefined) {
+      out.scribe_settings = parseScribeSettings(r.scribe_settings)
+    }
+    if (r.spell_settings !== undefined) {
+      out.spell_settings = parseSpellSettings(r.spell_settings)
     }
   }
   return out

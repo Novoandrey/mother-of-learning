@@ -91,6 +91,30 @@ const NODE_TYPES: SrdNodeTypeSpec[] = [
     default_fields: {},
     sort_order: 60,
   },
+  // spec-059: заклинания (скрап dnd.su, две редакции). Миграция 130 засеяла
+  // это для существующих кампаний; эта запись ловит будущие через
+  // initializeCampaignFromTemplate. Тело 2014 живёт в nodes.content, тело 2024
+  // — в fields.content_2024 (nullable); default_fields = скелет статблока.
+  {
+    slug: 'spell',
+    label: 'Заклинания',
+    icon: '📜',
+    default_fields: {
+      level: '',
+      school: '',
+      casting_time: '',
+      range: '',
+      components: '',
+      duration: '',
+      concentration: false,
+      ritual: false,
+      classes: '',
+      source: '',
+      slug: '',
+      content_2024: '',
+    },
+    sort_order: 70,
+  },
   // Electives. Migration 029 seeded this only for mat-ucheniya;
   // migration 110 backfills existing campaigns and this entry catches
   // future ones via initializeCampaignFromTemplate (TECH-015, chat 80).

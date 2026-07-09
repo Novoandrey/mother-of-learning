@@ -42,6 +42,9 @@ export const DEFAULT_ITEM_CATEGORIES: readonly ValueListSpec[] = [
   //   'schema'   — spec-056, мигр. 127 (схемы крафта).
   { slug: 'resource',   label: 'Ресурс',      sort_order: 90 },
   { slug: 'schema',     label: 'Схема',       sort_order: 95 },
+  // spec-059: свитки заклинаний (find-or-create «Свиток: X (N ур.)» при записи).
+  // Мигр. 131 засеяла существующие кампании; здесь — для новых.
+  { slug: 'scroll',     label: 'Свиток',      sort_order: 96 },
 ];
 
 /**
