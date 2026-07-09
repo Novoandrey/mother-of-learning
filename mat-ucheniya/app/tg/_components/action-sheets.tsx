@@ -413,8 +413,8 @@ export function BuySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   )
 }
 
-// «Свои/Общак → после» для покупки (перенос из ledger-app как есть; старая
-// копия уходит вместе с BuySheet в W5). keepGp — «оставить на руках».
+// «Свои/Общак → после» для покупки (перенос из ledger-app как есть; копия
+// там осталась у SetBuySheet — наборы). keepGp — «оставить на руках».
 function FundingPreview({
   funding,
   totalGp,
@@ -941,8 +941,8 @@ export function SellSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Сумка активного PC — тот же источник, что InventoryScreen/TransferSheet
-  // (getPcItemHoldingsTg: net-количества за петлю, только > 0).
+  // Сумка активного PC — getPcItemHoldingsTg: net-количества за петлю,
+  // только > 0 (тот же источник, что GiveSheet).
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -1088,10 +1088,10 @@ export function SellSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
 // ─────────────────────────── ⋯ Ещё ───────────────────────────
 // Редкие действия: «Взял из общака» — экран 'act-take' (TakeSheet выше);
 // кредит петли — в один тап прямо отсюда (takeLoopCredit, статус раз-в-петлю
-// через hasLoopCreditTg — паттерн StarterEquipScreen); мосты на существующие
-// экраны (legacy-* до W5): стартовый набор — StarterEquipScreen, наборы —
-// SetsScreen. onGo — nav.replace: шит-прослойка не остаётся в стеке, «назад»
-// ведёт в корень таба.
+// через hasLoopCreditTg — паттерн StarterEquipScreen); мосты на последние
+// legacy-экраны ledger-app: стартовый набор — StarterEquipScreen
+// ('legacy-equip'), наборы — SetsScreen ('legacy-sets'). onGo — nav.replace:
+// шит-прослойка не остаётся в стеке, «назад» ведёт в корень таба.
 
 export function MoreSheet({
   app,

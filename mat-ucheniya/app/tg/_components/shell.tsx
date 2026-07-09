@@ -12,10 +12,10 @@
  *   load-эффектов (как в старых экранах), bump — ручной толчок после мутаций,
  *   которые не порождают transaction-строку (наборы, схемы, настройки).
  * - Экранные имена, которые рендерит САМ shell: 'action' | 'character' |
- *   'party' (корни табов), 'pc-select', 'wiki', 'wiki-node' и временные
- *   'legacy-*' мосты на старые экраны ledger-app (уйдут в W5). Любой другой
- *   screen проваливается в компонент активного таба — таб сам рендерит свои
- *   пуш-экраны по useTgNav().top.
+ *   'party' (корни табов), 'pc-select', 'wiki', 'wiki-node' и два моста из
+ *   MoreSheet — 'legacy-equip' (стартовый набор) и 'legacy-sets' (наборы).
+ *   Любой другой screen проваливается в компонент активного таба — таб сам
+ *   рендерит свои пуш-экраны по useTgNav().top.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
@@ -23,17 +23,7 @@ import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import type { CampaignCharacter } from '@/lib/queries/campaign-characters'
 import type { TgRole } from '@/lib/queries/ledger-tg'
 import { Avatar, Centered } from './primitives'
-import {
-  CharacterList,
-  LedgerScreen,
-  InventoryScreen,
-  SetsScreen,
-  StashScreen,
-  BalancesScreen,
-  StarterEquipScreen,
-  ExpeditionsScreen,
-  CraftScreen,
-} from './ledger-app'
+import { CharacterList, SetsScreen, StarterEquipScreen } from './ledger-app'
 import { WikiListScreen, WikiNodeScreen } from './wiki-app'
 import { ActionHub } from './action-hub'
 import { CharacterTab } from './character-tab'
@@ -298,8 +288,7 @@ function ShellScreen({
   refreshKey: number
 }) {
   const { top, push, pop } = nav
-  const { supabase, userId, role, campaignId, loopNumber, characters, categories, activePc } = app
-  const others = characters.filter((c) => c.id !== activePc.id)
+  const { supabase, userId, role, campaignId, loopNumber, characters, activePc } = app
 
   switch (top.screen) {
     // Корни табов — контент отдают модули W2/W3/W4.
@@ -347,33 +336,8 @@ function ShellScreen({
       )
     }
 
-    // ── ВРЕМЕННЫЕ мосты (до W5): старые экраны ledger-app как экраны стека. ──
-    case 'legacy-ledger':
-      return (
-        <LedgerScreen
-          supabase={supabase}
-          campaignId={campaignId}
-          loopNumber={loopNumber}
-          character={activePc}
-          others={others}
-          onBack={pop}
-          onOpenStash={() => push({ screen: 'legacy-stash' })}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'legacy-inventory':
-      return (
-        <InventoryScreen
-          supabase={supabase}
-          campaignId={campaignId}
-          loopNumber={loopNumber}
-          character={activePc}
-          others={others}
-          onOpenSets={() => push({ screen: 'legacy-sets' })}
-          onBack={pop}
-          refreshKey={refreshKey}
-        />
-      )
+    // ── Мосты из MoreSheet (⋯ Ещё): наборы и стартовый набор — последние
+    //    экраны ledger-app, до которых можно дойти из shell напрямую. ──
     case 'legacy-sets':
       return (
         <SetsScreen
@@ -387,19 +351,6 @@ function ShellScreen({
           refreshKey={refreshKey}
         />
       )
-    case 'legacy-stash':
-      return (
-        <StashScreen
-          supabase={supabase}
-          campaignId={campaignId}
-          loopNumber={loopNumber}
-          categories={categories}
-          character={activePc}
-          others={others}
-          onBack={pop}
-          refreshKey={refreshKey}
-        />
-      )
     case 'legacy-equip':
       return (
         <StarterEquipScreen
@@ -407,45 +358,6 @@ function ShellScreen({
           campaignId={campaignId}
           loopNumber={loopNumber}
           character={activePc}
-          onBack={pop}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'legacy-balances':
-      return (
-        <BalancesScreen
-          supabase={supabase}
-          campaignId={campaignId}
-          loopNumber={loopNumber}
-          characters={characters}
-          onBack={pop}
-          onSelect={(pc) => {
-            app.setActivePc(pc)
-            pop()
-          }}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'legacy-expeditions':
-      return (
-        <ExpeditionsScreen
-          supabase={supabase}
-          campaignId={campaignId}
-          loopNumber={loopNumber}
-          characters={characters}
-          userId={userId}
-          role={role}
-          onBack={pop}
-          refreshKey={refreshKey}
-        />
-      )
-    case 'legacy-craft':
-      return (
-        <CraftScreen
-          supabase={supabase}
-          campaignId={campaignId}
-          loopNumber={loopNumber}
-          characters={characters}
           onBack={pop}
           refreshKey={refreshKey}
         />
