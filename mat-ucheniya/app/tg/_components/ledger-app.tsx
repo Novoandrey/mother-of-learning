@@ -620,6 +620,7 @@ function TransferSheet({
     </Sheet>
   )
 }
+export { TransferSheet } // spec-058 W4: временный мост для party-tab (Положить/Забрать) — уйдёт в W5
 
 // ─────────────────────────── T011 — Ledger screen ───────────────────────────
 
