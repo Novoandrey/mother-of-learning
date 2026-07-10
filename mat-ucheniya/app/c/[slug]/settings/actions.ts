@@ -21,6 +21,41 @@ import {
 import type { Rarity } from '@/lib/items-types'
 
 /**
+ * Merge a settings patch into `campaigns.settings` by RE-READING the RAW jsonb
+ * first — NOT `campaign.settings` (which is `parseCampaignSettings` output and
+ * silently drops keys the model doesn't know, e.g. the spec-054
+ * `ledger_master_message_id` pinned-dashboard id). Spreading the parsed object
+ * `{ ...campaign.settings, X: parsed }` wipes that key on every save, orphaning
+ * the pinned мастер-дашборд (spec-054). RMW the raw jsonb instead.
+ *
+ * NB: identical helper introduced by spec-059 for updateScribeSettings/
+ * updateSpellSettings; this change back-ports it to the four pre-existing
+ * sibling writers that still shared the bug. When spec-059 merges, dedupe the
+ * two definitions (bodies are equivalent).
+ */
+async function mergeCampaignSettings(
+  admin: ReturnType<typeof createAdminClient>,
+  campaignId: string,
+  patch: Record<string, unknown>,
+): Promise<{ error: { message: string } | null }> {
+  const { data } = await admin
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .maybeSingle()
+  const rawSettings = (data as { settings?: unknown } | null)?.settings
+  const raw =
+    rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings)
+      ? (rawSettings as Record<string, unknown>)
+      : {}
+  const { error } = await admin
+    .from('campaigns')
+    .update({ settings: { ...raw, ...patch } })
+    .eq('id', campaignId)
+  return { error }
+}
+
+/**
  * Merge hp_method into campaigns.settings jsonb without overwriting other keys.
  *
  * Defence-in-depth: requires the caller to be owner/dm of this campaign.
@@ -50,9 +85,10 @@ export async function updateCampaignHpMethod(slug: string, rawMethod: string) {
   // первичный security layer.
   const admin = createAdminClient()
 
-  const next = { ...campaign.settings, hp_method: rawMethod }
-
-  await admin.from('campaigns').update({ settings: next }).eq('id', campaign.id)
+  // RMW the raw jsonb so немоделированные ключи (spec-054
+  // ledger_master_message_id) переживают сохранение. Возврат void —
+  // ошибку игнорируем, как и раньше.
+  await mergeCampaignSettings(admin, campaign.id, { hp_method: rawMethod })
 }
 
 /**
@@ -88,12 +124,9 @@ export async function updateItemDefaultPrices(
   // «Сохранено» а в БД ничего не пишется. Role gate выше — primary
   // security layer.
   const admin = createAdminClient()
-  const next = { ...campaign.settings, item_default_prices: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    item_default_prices: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
@@ -131,12 +164,9 @@ export async function updateItemPurchasePolicy(
   const parsed: ItemPurchasePolicy = parseItemPurchasePolicy(rawPolicy)
 
   const admin = createAdminClient()
-  const next = { ...campaign.settings, item_purchase_policy: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    item_purchase_policy: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
@@ -171,12 +201,9 @@ export async function updateCraftSettings(
   const parsed: CraftSettings = parseCraftSettings(rawSettings)
 
   const admin = createAdminClient()
-  const next = { ...campaign.settings, craft_settings: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    craft_settings: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
