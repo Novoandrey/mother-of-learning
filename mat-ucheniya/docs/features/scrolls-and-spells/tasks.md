@@ -45,7 +45,9 @@
 ## Финал
 - ✅ V1 typecheck + Next build чистые
 - ✅ V2 vitest: 608 тестов зелёные (30 новых 059)
-- ✅ V3 миграции 130+132+140–148 на проде (128 заклинаний)
+- ✅ V3 схема-миграции 130+132 в ветке; **544 заклинания** (все офиц. dnd.su, обе
+  редакции) на проде — сид-миграции вынесены из ветки (регенерятся скрапером;
+  `python scrape_dndsu_spells.py && npx tsx spells-dndsu-codegen.ts --emit-migrations`)
 - ✅ V4 ux-auditor (2 MAJOR + 3 MINOR починены)
 - ✅ V5 self adversarial-review (2 находки починены: settings-clobber + стейл-поиск)
 - ⬜ V6 /ultrareview (Andrey, локальная ветка) → PR + merge
