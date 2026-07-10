@@ -43,11 +43,16 @@
 - ⬜ T4.5 🧪 ledger-copy-format.test.ts
 
 ## Финал
-- ✅ V1 typecheck чистый (build — проверить в интеграции) · 🧪 V2 vitest: 23 новых ✅
-- ✅ V3 миграции 130+132 на проде (140+ сид спеллов — после скрапера)
-- ⬜ V4 ux-auditor · ⬜ V5 self adversarial-review · ⬜ V6 PR + пометка /ultrareview
+- ✅ V1 typecheck + Next build чистые
+- ✅ V2 vitest: 608 тестов зелёные (30 новых 059)
+- ✅ V3 миграции 130+132+140–148 на проде (128 заклинаний)
+- ✅ V4 ux-auditor (2 MAJOR + 3 MINOR починены)
+- ✅ V5 self adversarial-review (2 находки починены: settings-clobber + стейл-поиск)
+- ⬜ V6 /ultrareview (Andrey, локальная ветка) → PR + merge
 
-**Состояние:** серверная механика (4 глагола + лента + настройки + read + pure-тесты)
-ГОТОВА и typecheck-чистая. В работе: 3 фоновых агента (скрапер данных + 2 /tg-UI).
-Дальше: интеграция UI (party-tab/action-hub/shell) + редакторы настроек + вики-рендер
-спелла + ledger-format тесты + верификация + self-review.
+**Состояние: ФИЧА ПОСТРОЕНА.** Все этапы (база заклинаний + 4 глагола + настройки +
+UI + вики-рендер) готовы, интегрированы, typecheck/build/608-тестов зелёные,
+ux-аудит + self-review пройдены. Осталось: `/ultrareview` Andrey → PR → merge.
+Все 8 этап-1 вики-таск (T1.8–1.11) закрыты вики-агентом (десктоп-страницы +
+/tg spell-app + редиректы). Хвост: предсуществующий settings-clobber в 4 старых
+actions — задача task_a15c2308.
