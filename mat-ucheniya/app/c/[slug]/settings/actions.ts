@@ -28,11 +28,11 @@ import type { Rarity } from '@/lib/items-types'
  * silently drops keys the model doesn't know, e.g. the spec-054
  * `ledger_master_message_id` pinned-dashboard id). Spreading the parsed object
  * `{ ...campaign.settings, X: parsed }` wipes that key on every save, orphaning
- * the pinned мастер-дашборд (self-review spec-059). RMW the raw jsonb instead.
+ * the pinned мастер-дашборд (spec-054). RMW the raw jsonb instead.
  *
- * NB: the pre-existing sibling writers (updateCampaignHpMethod /
- * updateItemDefaultPrices / updateItemPurchasePolicy / updateCraftSettings)
- * still use the parsed-spread pattern and share this bug — flagged separately.
+ * Единый хелпер для ВСЕХ settings-writers: 4 «старых» (hp_method /
+ * item_default_prices / item_purchase_policy / craft_settings — бэк-портировано
+ * в #38) + 2 «новых» spec-059 (scribe_settings / spell_settings).
  */
 async function mergeCampaignSettings(
   admin: ReturnType<typeof createAdminClient>,
@@ -86,9 +86,10 @@ export async function updateCampaignHpMethod(slug: string, rawMethod: string) {
   // первичный security layer.
   const admin = createAdminClient()
 
-  const next = { ...campaign.settings, hp_method: rawMethod }
-
-  await admin.from('campaigns').update({ settings: next }).eq('id', campaign.id)
+  // RMW the raw jsonb so немоделированные ключи (spec-054
+  // ledger_master_message_id) переживают сохранение. Возврат void —
+  // ошибку игнорируем, как и раньше.
+  await mergeCampaignSettings(admin, campaign.id, { hp_method: rawMethod })
 }
 
 /**
@@ -124,12 +125,9 @@ export async function updateItemDefaultPrices(
   // «Сохранено» а в БД ничего не пишется. Role gate выше — primary
   // security layer.
   const admin = createAdminClient()
-  const next = { ...campaign.settings, item_default_prices: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    item_default_prices: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
@@ -167,12 +165,9 @@ export async function updateItemPurchasePolicy(
   const parsed: ItemPurchasePolicy = parseItemPurchasePolicy(rawPolicy)
 
   const admin = createAdminClient()
-  const next = { ...campaign.settings, item_purchase_policy: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    item_purchase_policy: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
@@ -207,12 +202,9 @@ export async function updateCraftSettings(
   const parsed: CraftSettings = parseCraftSettings(rawSettings)
 
   const admin = createAdminClient()
-  const next = { ...campaign.settings, craft_settings: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    craft_settings: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
