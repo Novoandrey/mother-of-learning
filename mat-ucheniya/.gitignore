@@ -44,6 +44,9 @@ next-env.d.ts
 # spec-018 dnd.su scraper cache (regenerated; fixtures in scripts/dndsu-cache-fixtures/ are committed)
 /scripts/dndsu-cache/
 
+# spec-059 dnd.su spells scraper cache (regenerated; fixtures in scripts/dndsu-spells-cache-fixtures/ are committed)
+/scripts/dndsu-spells-cache/
+
 # Python bytecode (used by scrape_dndsu.py + tests)
 __pycache__/
 *.pyc

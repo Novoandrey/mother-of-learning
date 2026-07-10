@@ -10,6 +10,8 @@ import CategorySettings from '@/components/category-settings'
 import DefaultPricesEditor from '@/components/default-prices-editor'
 import ItemPurchasePolicyEditor from '@/components/item-purchase-policy-editor'
 import CraftSettingsEditor from '@/components/craft-settings-editor'
+import ScribeSettingsEditor from '@/components/scribe-settings-editor'
+import SpellSettingsEditor from '@/components/spell-settings-editor'
 import ApplyDefaultPricesButton from '@/components/apply-default-prices-button'
 
 export async function generateMetadata({
@@ -186,6 +188,28 @@ export default async function ItemsSettingsPage({
           <CraftSettingsEditor
             campaignSlug={slug}
             initial={campaign.settings.craft_settings}
+            canEdit={isManager}
+          />
+        </Section>
+
+        <Section
+          title="Свитки"
+          subtitle="Написание свитков: норма часов и фикс-цена по уровню заклинания, часов в дне/неделе (spec-059)."
+        >
+          <ScribeSettingsEditor
+            campaignSlug={slug}
+            initial={campaign.settings.scribe_settings}
+            canEdit={isManager}
+          />
+        </Section>
+
+        <Section
+          title="Заклинания"
+          subtitle="Переподготовка и копирование в книгу: коэффициенты зм/часов за уровень (spec-059)."
+        >
+          <SpellSettingsEditor
+            campaignSlug={slug}
+            initial={campaign.settings.spell_settings}
             canEdit={isManager}
           />
         </Section>

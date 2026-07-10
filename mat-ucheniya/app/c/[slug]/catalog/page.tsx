@@ -37,6 +37,16 @@ export default async function CatalogPage({
     redirect(target)
   }
 
+  // Spec-059: spell nodes have a dedicated route under /spells (grouped by
+  // level, edition switcher on detail). Redirect any legacy ?type=spell link
+  // there, preserving the search query.
+  if (type === 'spell') {
+    const target = q
+      ? `/c/${slug}/spells?q=${encodeURIComponent(q)}`
+      : `/c/${slug}/spells`
+    redirect(target)
+  }
+
   const campaign = await getCampaignBySlug(slug)
   if (!campaign) notFound()
 

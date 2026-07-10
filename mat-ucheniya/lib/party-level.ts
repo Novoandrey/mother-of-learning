@@ -34,3 +34,14 @@ export function parsePartyLevel(v: unknown): number | null {
 export function pbForLevel(level: number): number {
   return 2 + Math.floor((Math.max(1, level) - 1) / 4)
 }
+
+/**
+ * Максимальный уровень заклинания, доступный партии на данном уровне
+ * персонажей (spec-059): full-caster прогрессия min(9, ceil(level / 2)) —
+ * ур. 9 → 5-й круг, 17 → 9-й. Заговоры (0) доступны всегда. Как pbForLevel —
+ * это правило D&D, НЕ настройка (spec §Производные: настраивается таблица
+ * часов/цены, но не формула гейта). Свитки и переподготовка гейтятся этим.
+ */
+export function maxSpellLevel(partyLevel: number): number {
+  return Math.min(9, Math.ceil(Math.max(1, partyLevel) / 2))
+}
