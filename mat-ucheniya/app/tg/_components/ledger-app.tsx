@@ -72,7 +72,7 @@ import {
   requiredRateHours,
   type CraftSettings,
 } from '@/lib/craft-settings'
-import { craftRarityKey, missingCraftHours } from '@/lib/craft'
+import { craftProductName, craftRarityKey, missingCraftHours } from '@/lib/craft'
 import { pbForLevel } from '@/lib/party-level'
 import type { RarityKey } from '@/lib/item-default-prices'
 import { createResourceItem } from '@/app/actions/resources'
@@ -2302,6 +2302,15 @@ function CraftRunSheet({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Имя изделия = имя схемы без «Схема:» (кастомная «… (вплетено: A+B)» несёт
+  // вариант в лог и общак; target-линк даёт лишь каталожные атрибуты). Для схем
+  // без линка — введённое имя, затем имя схемы как запасной вариант. Один и тот
+  // же craftProductName, что на сервере — превью и результат не разойдутся.
+  const schemaProductName = craftProductName(schema.name)
+  const productName = schema.target
+    ? schemaProductName || schema.target.name
+    : targetLabel.trim() || schemaProductName
+
   const selected = characters.filter((c) => crafters.has(c.id))
   // Мин. 0.5 ч, чтобы бесплатный крафт (workCost 0) не слал нулевые часы,
   // которые сервер отбрасывает (cleanCraftParticipants).
@@ -2334,7 +2343,7 @@ function CraftRunSheet({
       }
       participants.push({ nodeId: c.id, hours: h })
     }
-    const outputName = schema.target?.name ?? targetLabel.trim()
+    const outputName = productName
     if (!outputName) {
       setError('У схемы нет целевого предмета — укажите, что крафтим')
       return
@@ -2373,7 +2382,7 @@ function CraftRunSheet({
   }
 
   return (
-    <Sheet title={`Крафт: ${schema.target?.name ?? schema.name}`} onClose={onClose}>
+    <Sheet title={`Крафт: ${productName || schema.name}`} onClose={onClose}>
       <div className="space-y-3">
         <div className="rounded-lg bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
           {schema.target && (

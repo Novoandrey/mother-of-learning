@@ -76,3 +76,17 @@ export function craftRarityKey(raw: unknown): RarityKey | null {
   }
   return null
 }
+
+/**
+ * The изделие's name = the schema's title minus the «Схема:» prefix convention.
+ * Plain «Схема: X» → «X»; a custom variant «Схема: X (вплетено: A+B)» → «X
+ * (вплетено: A+B)», so the woven detail the DM encodes in the schema title
+ * survives into the ledger event AND the общак item row (the stash groups on
+ * item_name — a lost suffix means an indistinguishable stack). Falls back to
+ * `fallback` (the target title / free-text label) when the stripped title is
+ * empty. Client preview and server MUST share this helper — a divergence would
+ * show one name in the sheet and store another. Andrey 2026-07-10 («вплетено»).
+ */
+export function craftProductName(schemaTitle: string, fallback = ''): string {
+  return (schemaTitle ?? '').replace(/^Схема:\s*/i, '').trim() || fallback
+}

@@ -4,6 +4,7 @@ import {
   totalCraftHours,
   missingCraftHours,
   craftRarityKey,
+  craftProductName,
 } from '../craft'
 
 describe('cleanCraftParticipants (spec-056)', () => {
@@ -97,5 +98,32 @@ describe('craftRarityKey (резолв цены — plan-056)', () => {
     expect(craftRarityKey('artifact')).toBeNull()
     expect(craftRarityKey('epic')).toBeNull()
     expect(craftRarityKey(3)).toBeNull()
+  })
+})
+
+describe('craftProductName (имя изделия из тайтла схемы — «вплетено»)', () => {
+  it('плоская схема «Схема: X» → «X» (без изменений поведения)', () => {
+    expect(craftProductName('Схема: Кольцо защиты разума')).toBe('Кольцо защиты разума')
+  })
+
+  it('кастомный вариант сохраняет суффикс «(вплетено: …)»', () => {
+    expect(
+      craftProductName('Схема: Кольцо защиты разума (вплетено: невидимость + гипнотик паттерн)'),
+    ).toBe('Кольцо защиты разума (вплетено: невидимость + гипнотик паттерн)')
+  })
+
+  it('префикс срезается без учёта регистра и лишних пробелов', () => {
+    expect(craftProductName('схема:   Меч')).toBe('Меч')
+    expect(craftProductName('СХЕМА: Щит')).toBe('Щит')
+  })
+
+  it('без префикса — тайтл как есть', () => {
+    expect(craftProductName('Зелье лечения')).toBe('Зелье лечения')
+  })
+
+  it('пустой/только-префикс → fallback (target/label)', () => {
+    expect(craftProductName('Схема:', 'Кольцо')).toBe('Кольцо')
+    expect(craftProductName('   ', 'Кольцо')).toBe('Кольцо')
+    expect(craftProductName('Схема:')).toBe('')
   })
 })

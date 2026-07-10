@@ -64,6 +64,7 @@ import {
   totalCraftHours,
   missingCraftHours,
   craftRarityKey,
+  craftProductName,
   type CraftParticipantInput,
 } from '@/lib/craft'
 import type { Rarity } from '@/lib/items-types'
@@ -489,7 +490,13 @@ export async function runCraft(
     return { ok: false, error: 'Выбранный предмет не является схемой' }
   }
 
-  // Output: the schema's linked target, else the caller's free-text label.
+  // Output NAME comes from the SCHEMA title (minus «Схема:»), NOT the bare
+  // target: a custom schema «Схема: X (вплетено: A+B)» must carry its variant
+  // into the ledger + общак (item_name is what the stash groups on). The target
+  // link still supplies catalog attributes (rarity below) and the item_node_id.
+  // Plain schemas «Схема: X»→«X» are unchanged. Client mirrors via the same
+  // craftProductName helper. Andrey 2026-07-10.
+  const schemaProductName = craftProductName(schemaNode.title)
   let outputNodeId: string | null = null
   let outputName = ''
   let targetRarityRaw: string | null = null
@@ -501,7 +508,7 @@ export async function runCraft(
     )
     if (target) {
       outputNodeId = target.id
-      outputName = target.title
+      outputName = schemaProductName || target.title
       const { data: targetAttrs } = await admin
         .from('item_attributes')
         .select('rarity')
@@ -511,7 +518,9 @@ export async function runCraft(
     }
   }
   if (!outputName) {
-    outputName = input.targetLabel?.trim() ?? ''
+    // No target link (or it vanished): caller's free-text label, then the
+    // schema-derived name as a last resort.
+    outputName = input.targetLabel?.trim() || schemaProductName
     if (!outputName) {
       return {
         ok: false,
