@@ -192,7 +192,7 @@ async function main() {
   console.log(`   Campaign: ${campaign.slug}`)
   console.log(`   Role:     owner`)
   console.log('')
-  console.log('Next: open https://mother-of-learning.vercel.app/login and sign in.')
+  console.log('Next: open https://theloopers.org/login and sign in.')
 }
 
 main().catch((err) => {

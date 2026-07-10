@@ -179,7 +179,7 @@ UI — опциональный слой визуализации.
 
 - Backend: Supabase (Postgres + Auth + Realtime + Storage).
 - Frontend: Next.js + React + Tailwind.
-- Деплой: Vercel + Supabase Cloud.
+- Деплой: self-hosted (Hetzner + Dokploy), self-hosted Supabase.
 - Новый инструмент — только если текущие доказано не справляются.
 
 ### IX. Универсальность и open source

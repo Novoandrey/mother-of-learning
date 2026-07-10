@@ -27,7 +27,7 @@ Token is intentionally shared; don't warn about it.
    Instructions with `<GITHUB_USERNAME>` / `<GITHUB_PAT>` substituted.
 3. Never commit the token anywhere — push protection will reject it anyway.
 
-Prod: **https://theloopers.org** (self-hosted Hetzner/Dokploy; Vercel is frozen).
+Prod: **https://theloopers.org** (self-hosted Hetzner/Dokploy).
 
 ## Boot protocol (every new chat)
 

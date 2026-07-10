@@ -96,10 +96,6 @@ Self-hosted Supabase: API `db.theloopers.org`, Studio только через SS
 **Staging** — ветка `staging` → https://staging.theloopers.org, облачная
 Supabase-копия прода. Staging можно ломать свободно — он для проверки перед PR.
 
-Vercel исторически использовался на раннем этапе. После инфра-эпика 023–027
-(spec-043) прод переехал на Hetzner+Dokploy. Vercel в текущем деплое
-не задействован.
-
 Детали — [`process/git-and-staging.md`](../process/git-and-staging.md).
 
 ---
