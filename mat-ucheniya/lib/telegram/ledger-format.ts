@@ -284,6 +284,11 @@ function hoursLabel(h: number): string {
   return `${rounded} ч`
 }
 
+/** Уровень заклинания: 0 → «заговор», иначе «N ур.» (spec-059). */
+function spellLevelText(level: number): string {
+  return level === 0 ? 'заговор' : `${level} ур.`
+}
+
 // ── the formatter ───────────────────────────────────────────────────────────
 
 /**
@@ -413,13 +418,13 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
     case 'reprep': {
       const old = event.oldSpell ? `${esc(event.oldSpell)} → ` : ''
       const cost = event.costGp > 0 ? ` · −${zm(event.costGp)}` : ''
-      return `🔄 <b>Переподготовка</b>\n${who}: ${old}${esc(event.newSpell)} (${event.level} ур.)${cost}`
+      return `🔄 <b>Переподготовка</b>\n${who}: ${old}${esc(event.newSpell)} (${spellLevelText(event.level)})${cost}`
     }
     case 'copy': {
       const src = event.source ? ` у ${esc(event.source)}` : ''
       const from = event.copyMode === 'scroll-to-book' ? ' (со свитка)' : ''
       const cost = event.costGp > 0 ? ` · −${zm(event.costGp)}` : ''
-      return `📖 <b>Переписал заклинание</b>\n${who}: ${esc(event.spell)} (${event.level} ур.)${src}${from}${cost}`
+      return `📖 <b>Переписал заклинание</b>\n${who}: ${esc(event.spell)} (${spellLevelText(event.level)})${src}${from}${cost}`
     }
   }
 }
