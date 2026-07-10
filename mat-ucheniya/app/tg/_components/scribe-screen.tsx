@@ -177,6 +177,10 @@ export function ScribeScreen({
 
   const byId = new Map(characters.map((c) => [c.id, c]))
   const maxLevel = partyLevel != null ? maxSpellLevel(partyLevel) : null
+  // Результаты рисуем только когда пришёл ответ на АКТУАЛЬНЫЙ запрос — иначе во
+  // время 250мс дебаунса висели бы строки прошлого запроса и тап открывал бы не
+  // то заклинание (self-review spec-059). Зеркалит `settled` из SpellPickField.
+  const searchSettled = resultsFor === query.trim()
 
   return (
     <div className="mx-auto max-w-sm pb-6">
@@ -209,7 +213,7 @@ export function ScribeScreen({
           />
           {query.trim() !== '' && (
             <div className="mt-2">
-              {results.length > 0 ? (
+              {searchSettled && results.length > 0 ? (
                 <div className="space-y-2">
                   {results.map((s) => {
                     const row = scribeRowFor(settings, s.level)
@@ -230,7 +234,7 @@ export function ScribeScreen({
               ) : (
                 // Пусто показываем только когда пришёл ответ на АКТУАЛЬНЫЙ запрос
                 // (иначе — идёт дебаунс/поиск, ничего не рисуем, чтобы не мигать).
-                resultsFor === query.trim() && (
+                searchSettled && (
                   <p className="px-1 py-3 text-sm text-neutral-500">
                     Ничего не найдено — проверьте название или уровень.
                   </p>

@@ -23,6 +23,40 @@ import {
 import type { Rarity } from '@/lib/items-types'
 
 /**
+ * Merge a settings patch into `campaigns.settings` by RE-READING the RAW jsonb
+ * first — NOT `campaign.settings` (which is `parseCampaignSettings` output and
+ * silently drops keys the model doesn't know, e.g. the spec-054
+ * `ledger_master_message_id` pinned-dashboard id). Spreading the parsed object
+ * `{ ...campaign.settings, X: parsed }` wipes that key on every save, orphaning
+ * the pinned мастер-дашборд (self-review spec-059). RMW the raw jsonb instead.
+ *
+ * NB: the pre-existing sibling writers (updateCampaignHpMethod /
+ * updateItemDefaultPrices / updateItemPurchasePolicy / updateCraftSettings)
+ * still use the parsed-spread pattern and share this bug — flagged separately.
+ */
+async function mergeCampaignSettings(
+  admin: ReturnType<typeof createAdminClient>,
+  campaignId: string,
+  patch: Record<string, unknown>,
+): Promise<{ error: { message: string } | null }> {
+  const { data } = await admin
+    .from('campaigns')
+    .select('settings')
+    .eq('id', campaignId)
+    .maybeSingle()
+  const rawSettings = (data as { settings?: unknown } | null)?.settings
+  const raw =
+    rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings)
+      ? (rawSettings as Record<string, unknown>)
+      : {}
+  const { error } = await admin
+    .from('campaigns')
+    .update({ settings: { ...raw, ...patch } })
+    .eq('id', campaignId)
+  return { error }
+}
+
+/**
  * Merge hp_method into campaigns.settings jsonb without overwriting other keys.
  *
  * Defence-in-depth: requires the caller to be owner/dm of this campaign.
@@ -213,12 +247,9 @@ export async function updateScribeSettings(
   const parsed: ScribeSettings = parseScribeSettings(rawSettings)
 
   const admin = createAdminClient()
-  const next = { ...campaign.settings, scribe_settings: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    scribe_settings: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
@@ -253,12 +284,9 @@ export async function updateSpellSettings(
   const parsed: SpellSettings = parseSpellSettings(rawSettings)
 
   const admin = createAdminClient()
-  const next = { ...campaign.settings, spell_settings: parsed }
-
-  const { error } = await admin
-    .from('campaigns')
-    .update({ settings: next })
-    .eq('id', campaign.id)
+  const { error } = await mergeCampaignSettings(admin, campaign.id, {
+    spell_settings: parsed,
+  })
 
   if (error) return { ok: false, error: error.message }
 
