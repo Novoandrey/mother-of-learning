@@ -58,28 +58,60 @@ function costTail(costGp: number | null): string {
  */
 function useSpellConfig(supabase: SupabaseClient, campaignId: string) {
   const [settings, setSettings] = useState<SpellSettings | null>(null)
-  const [maxLevel, setMaxLevel] = useState(9)
+  const [partyLevel, setPartyLevel] = useState<number | null>(null)
+  const [ready, setReady] = useState(false)
   useEffect(() => {
     let alive = true
     ;(async () => {
       try {
-        const [s, partyLevel] = await Promise.all([
+        const [s, pl] = await Promise.all([
           getSpellSettingsTg(supabase, campaignId),
           getCurrentPartyLevelTg(supabase, campaignId),
         ])
         if (alive) {
           setSettings(s)
-          if (partyLevel != null) setMaxLevel(maxSpellLevel(partyLevel))
+          setPartyLevel(pl)
+          setReady(true)
         }
       } catch {
-        /* превью опционально; сервер пересчитает и проверит уровень */
+        // превью/потолок опциональны; сервер пересчитает и проверит уровень
+        if (alive) setReady(true)
       }
     })()
     return () => {
       alive = false
     }
   }, [supabase, campaignId])
-  return { settings, maxLevel }
+  const maxLevel = partyLevel != null ? maxSpellLevel(partyLevel) : 9
+  return { settings, maxLevel, partyLevel, ready }
+}
+
+/** Плашка потолка уровня партии (тот же ориентир, что в ScribeScreen). */
+function PartyCeiling({ partyLevel, maxLevel }: { partyLevel: number; maxLevel: number }) {
+  return (
+    <p className="text-xs text-neutral-500">
+      Уровень партии {partyLevel} · доступны заклинания до {spellLevelLabel(maxLevel)}
+    </p>
+  )
+}
+
+/** Амбер-блок «ДМ не задал уровень партии» — глагол недоступен (фраза для игрока). */
+function NoPartyLevel({
+  title,
+  verb,
+  onClose,
+}: {
+  title: string
+  verb: string
+  onClose: () => void
+}) {
+  return (
+    <Sheet title={title} onClose={onClose}>
+      <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-300">
+        ДМ ещё не задал уровень партии — {verb} пока недоступно.
+      </div>
+    </Sheet>
+  )
 }
 
 /**
@@ -218,13 +250,18 @@ function FundingToggle({
 
 export function ReprepSheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   const { supabase, campaignId, loopNumber, activePc } = app
-  const { settings, maxLevel } = useSpellConfig(supabase, campaignId)
+  const { settings, maxLevel, partyLevel, ready } = useSpellConfig(supabase, campaignId)
   const search = useSpellSearch(supabase, campaignId, maxLevel, true, str(prefill?.query))
   const [picked, setPicked] = useState<SpellPickTg | null>(null)
   const [oldName, setOldName] = useState(() => str(prefill?.oldSpellName))
   const [funding, setFunding] = useState<'pc' | 'stash'>('pc')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Уровень партии не задан ДМ → глагол недоступен (как ScribeScreen блокирует вход).
+  if (ready && partyLevel == null) {
+    return <NoPartyLevel title="🔄 Переподготовка" verb="переподготовка" onClose={onClose} />
+  }
 
   const oldPart = oldName.trim() ? `${oldName.trim()} → ` : ''
   const costGp = settings && picked ? reprepCostGp(settings, picked.level) : null
@@ -262,6 +299,7 @@ export function ReprepSheet({ app, prefill, onClose, onDone }: ActionSheetProps)
   return (
     <Sheet title="🔄 Переподготовка" onClose={onClose}>
       <div className="space-y-3">
+        {partyLevel != null && <PartyCeiling partyLevel={partyLevel} maxLevel={maxLevel} />}
         {picked ? (
           <PickedChip
             title={`${picked.title} · ${spellLevelLabel(picked.level)}`}
@@ -315,7 +353,7 @@ export function ReprepSheet({ app, prefill, onClose, onDone }: ActionSheetProps)
 
 export function CopySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
   const { supabase, campaignId, loopNumber, activePc } = app
-  const { settings, maxLevel } = useSpellConfig(supabase, campaignId)
+  const { settings, maxLevel, partyLevel, ready } = useSpellConfig(supabase, campaignId)
   const [mode, setMode] = useState<'scroll-to-book' | 'book-to-book'>('scroll-to-book')
 
   // Со свитка: свитки из инвентаря PC (null = грузятся).
@@ -357,6 +395,11 @@ export function CopySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
       alive = false
     }
   }, [supabase, campaignId, activePc.id, loopNumber])
+
+  // Уровень партии не задан ДМ → глагол недоступен.
+  if (ready && partyLevel == null) {
+    return <NoPartyLevel title="📖 Копирование" verb="копирование" onClose={onClose} />
+  }
 
   const scroll = scrolls?.find((s) => s.itemNodeId === scrollId) ?? null
   const level = mode === 'scroll-to-book' ? (scroll?.level ?? null) : (pickedSpell?.level ?? null)
@@ -412,13 +455,17 @@ export function CopySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
       setError(res.error)
       return
     }
-    onDone(`📖 ${spellName} (${spellLevelLabel(level ?? 0)})${costTail(res.costGp)}`)
+    const consumed = mode === 'scroll-to-book' ? ' · свиток израсходован' : ''
+    onDone(
+      `📖 ${spellName} (${spellLevelLabel(level ?? 0)})${costTail(res.costGp)}${consumed}`,
+    )
     onClose()
   }
 
   return (
     <Sheet title="📖 Копирование" onClose={onClose}>
       <div className="space-y-3">
+        {partyLevel != null && <PartyCeiling partyLevel={partyLevel} maxLevel={maxLevel} />}
         <SegToggle
           value={mode}
           onChange={(m) => {
@@ -473,6 +520,10 @@ export function CopySheet({ app, prefill, onClose, onDone }: ActionSheetProps) {
             placeholder="Поиск заклинания…"
             autoFocus
           />
+        )}
+
+        {mode === 'scroll-to-book' && scroll && (
+          <p className="text-xs text-amber-400">Свиток будет израсходован (−1 из сумки).</p>
         )}
 
         {mode === 'book-to-book' && pickedSpell && (

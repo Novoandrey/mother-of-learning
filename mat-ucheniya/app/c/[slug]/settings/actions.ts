@@ -12,6 +12,8 @@ import {
 } from '@/lib/campaign'
 import { getCurrentUserAndProfile, getMembership } from '@/lib/auth'
 import { parseCraftSettings, type CraftSettings } from '@/lib/craft-settings'
+import { parseScribeSettings, type ScribeSettings } from '@/lib/scribe-settings'
+import { parseSpellSettings, type SpellSettings } from '@/lib/spell-settings'
 import { isHpMethod } from '@/lib/statblock'
 import {
   computeApplyPlan,
@@ -172,6 +174,86 @@ export async function updateCraftSettings(
 
   const admin = createAdminClient()
   const next = { ...campaign.settings, craft_settings: parsed }
+
+  const { error } = await admin
+    .from('campaigns')
+    .update({ settings: next })
+    .eq('id', campaign.id)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/c/${slug}/items`, 'layout')
+
+  return { ok: true }
+}
+
+/**
+ * Spec-059. Persist the DM scribe settings (уровень заклинания → норма
+ * часов + фикс-цена, hoursPerDay/Week) into campaigns.settings.scribe_settings.
+ * Clone of updateCraftSettings; spreads campaign.settings so sibling keys are
+ * never clobbered.
+ */
+export async function updateScribeSettings(
+  slug: string,
+  rawSettings: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await getCurrentUserAndProfile()
+  if (!result || !result.profile || result.profile.must_change_password) {
+    return { ok: false, error: 'Не авторизован' }
+  }
+
+  const campaign = await getCampaignBySlug(slug)
+  if (!campaign) return { ok: false, error: 'Кампания не найдена' }
+
+  const membership = await getMembership(campaign.id)
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'dm')) {
+    return { ok: false, error: 'Нужна роль ДМ' }
+  }
+
+  const parsed: ScribeSettings = parseScribeSettings(rawSettings)
+
+  const admin = createAdminClient()
+  const next = { ...campaign.settings, scribe_settings: parsed }
+
+  const { error } = await admin
+    .from('campaigns')
+    .update({ settings: next })
+    .eq('id', campaign.id)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/c/${slug}/items`, 'layout')
+
+  return { ok: true }
+}
+
+/**
+ * Spec-059. Persist the DM spell settings (переподготовка + копирование
+ * коэффициенты) into campaigns.settings.spell_settings. Clone of
+ * updateCraftSettings; spreads campaign.settings so sibling keys are never
+ * clobbered.
+ */
+export async function updateSpellSettings(
+  slug: string,
+  rawSettings: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await getCurrentUserAndProfile()
+  if (!result || !result.profile || result.profile.must_change_password) {
+    return { ok: false, error: 'Не авторизован' }
+  }
+
+  const campaign = await getCampaignBySlug(slug)
+  if (!campaign) return { ok: false, error: 'Кампания не найдена' }
+
+  const membership = await getMembership(campaign.id)
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'dm')) {
+    return { ok: false, error: 'Нужна роль ДМ' }
+  }
+
+  const parsed: SpellSettings = parseSpellSettings(rawSettings)
+
+  const admin = createAdminClient()
+  const next = { ...campaign.settings, spell_settings: parsed }
 
   const { error } = await admin
     .from('campaigns')

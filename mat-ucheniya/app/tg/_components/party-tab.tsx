@@ -34,6 +34,7 @@ import { formatGp } from './format'
 import { Centered, WalletCard, FeedList, IntInput } from './primitives'
 import { CraftScreen, ExpeditionsScreen } from './ledger-app'
 import { ScribeScreen } from './scribe-screen'
+import { SpellListScreen, SpellNodeScreen } from './spell-app'
 import { GiveSheet, TakeSheet } from './action-sheets'
 import { useTgNav, useTgRefresh, type TgTabProps } from './shell'
 
@@ -76,6 +77,26 @@ export function PartyTab({ app }: TgTabProps) {
           characters={app.characters}
           onBack={() => nav.pop()}
           refreshKey={refreshKey}
+        />
+      )
+    case 'spell-list':
+      return (
+        <SpellListScreen
+          supabase={app.supabase}
+          campaignId={app.campaignId}
+          onSelect={(it) =>
+            nav.push({ screen: 'spell-node', params: { nodeId: it.id, title: it.title } })
+          }
+          onBack={() => nav.pop()}
+        />
+      )
+    case 'spell-node':
+      return (
+        <SpellNodeScreen
+          supabase={app.supabase}
+          nodeId={typeof nav.top.params?.nodeId === 'string' ? nav.top.params.nodeId : ''}
+          title={typeof nav.top.params?.title === 'string' ? nav.top.params.title : ''}
+          onBack={() => nav.pop()}
         />
       )
     default:
@@ -287,6 +308,12 @@ function PartyRoot({ app }: TgTabProps) {
               title="Свитки"
               subtitle="написание свитков"
               onClick={() => nav.push({ screen: 'party-scribe' })}
+            />
+            <EntryCard
+              icon="📖"
+              title="Заклинания"
+              subtitle="база заклинаний (2 редакции)"
+              onClick={() => nav.push({ screen: 'spell-list' })}
             />
           </div>
 

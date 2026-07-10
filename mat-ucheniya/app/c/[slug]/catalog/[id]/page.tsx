@@ -157,6 +157,12 @@ export default async function NodePage({
     if (earlyTypeSlug === 'item') {
       redirect(`/c/${slug}/items/${id}`)
     }
+    // Spec-059: spell nodes have a dedicated route under /spells with a
+    // statblock panel + edition (2014/2024) switcher. Redirect legacy
+    // bookmarks / edge-relations that land on the generic catalog view.
+    if (earlyTypeSlug === 'spell') {
+      redirect(`/c/${slug}/spells/${id}`)
+    }
   }
 
   // Split merged edges into (outgoing vs incoming) by comparing source_id.

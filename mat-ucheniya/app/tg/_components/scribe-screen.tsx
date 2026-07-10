@@ -28,13 +28,14 @@ import {
   type ScribeRunTg,
 } from '@/lib/queries/scribe-tg'
 import { getCurrentPartyLevelTg } from '@/lib/queries/craft-tg'
+import { getStashTg } from '@/lib/queries/ledger-tg'
 import { maxSpellLevel } from '@/lib/party-level'
 import { scribeRowFor, type ScribeSettings } from '@/lib/scribe-settings'
 import { missingScribeHours } from '@/lib/scribe'
 import { spellLevelLabel } from '@/lib/spell'
 import { runScribe } from '@/app/actions/scribe'
 import { LOOP_DAYS } from '@/lib/expedition-calendar'
-import { dayLabel } from './format'
+import { dayLabel, formatGp } from './format'
 import {
   Centered,
   BackLink,
@@ -292,6 +293,7 @@ export function ScribeScreen({
 
       {sheet.mode === 'run' && settings && (
         <ScribeRunSheet
+          supabase={supabase}
           campaignId={campaignId}
           loopNumber={loopNumber}
           characters={characters}
@@ -305,7 +307,7 @@ export function ScribeScreen({
         />
       )}
       {toast && (
-        <div className="fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+        <div className="fixed inset-x-0 bottom-20 z-[60] flex justify-center px-4">
           <div className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
             {toast}
           </div>
@@ -322,6 +324,7 @@ export function ScribeScreen({
 // «Σ ч из нормы» зеркалит серверный гейт 3 (missingScribeHours). Деньги —
 // ФИКС-цена уровня (row.costGp), не редактируется и не зависит от часов.
 function ScribeRunSheet({
+  supabase,
   campaignId,
   loopNumber,
   characters,
@@ -330,6 +333,7 @@ function ScribeRunSheet({
   onClose,
   onDone,
 }: {
+  supabase: SupabaseClient
   campaignId: string
   loopNumber: number
   characters: CampaignCharacter[]
@@ -354,6 +358,24 @@ function ScribeRunSheet({
   const [recipientId, setRecipientId] = useState(characters[0]?.id ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stashGp, setStashGp] = useState<number | null>(null)
+
+  // Остаток общака — показываем, чтобы не отлупать после заполнения формы на
+  // дорогих свитках (ux-аудит spec-059). Best-effort; сервер проверяет покрытие.
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const s = await getStashTg(supabase, campaignId, loopNumber)
+        if (alive) setStashGp(s.wallet.aggregateGp)
+      } catch {
+        /* остаток опционален */
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [supabase, campaignId, loopNumber])
 
   const selected = characters.filter((c) => scribes.has(c.id))
   // Мин. 0.5 ч, чтобы норма 0 (если ДМ так настроил) всё равно давала писцу
@@ -427,6 +449,17 @@ function ScribeRunSheet({
           Свиток: <span className="text-neutral-200">{spell.title}</span> ({label}) ·{' '}
           {fmtHours(requiredH)} ч · −{costGp} зм
         </div>
+        {stashGp != null && (
+          <p
+            className={
+              'px-1 text-xs ' +
+              (stashGp + 1e-9 < costGp ? 'text-amber-400' : 'text-neutral-500')
+            }
+          >
+            В общаке: {formatGp(stashGp)}
+            {stashGp + 1e-9 < costGp ? ' — не хватит на свиток' : ''}
+          </p>
+        )}
 
         <div>
           <div className="mb-1 px-1 text-xs text-neutral-500">Писцы</div>

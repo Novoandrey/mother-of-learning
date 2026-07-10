@@ -194,6 +194,10 @@ function MoreInline({
 }) {
   const { supabase, campaignId, loopNumber, activePc } = app
   const own = activePc.isOwn
+  // Заклинательские глаголы действуют на активного PC: игрок — только на своего
+  // (сервер гейтит isPcOwner), ДМ — на любого. Скрываем у чужого PC, чтобы не
+  // отлупать после заполнения формы (симметрия с Кредитом/Стартовым набором).
+  const canCast = own || app.role !== 'player'
 
   // Раз-в-петлю статусы: null = грузится (кнопка выключена).
   const [creditTaken, setCreditTaken] = useState<boolean | null>(null)
@@ -280,18 +284,22 @@ function MoreInline({
         hint="общие наборы предметов — купить или собрать"
         onClick={() => onGo('legacy-sets')}
       />
-      <MoreRow
-        icon="🔄"
-        label="Переподготовка"
-        hint="сменить подготовленное заклинание"
-        onClick={() => onGo('act-reprep')}
-      />
-      <MoreRow
-        icon="📖"
-        label="Копирование в книгу"
-        hint="переписать заклинание со свитка или из книги"
-        onClick={() => onGo('act-copy')}
-      />
+      {canCast && (
+        <>
+          <MoreRow
+            icon="🔄"
+            label="Переподготовка"
+            hint="сменить подготовленное заклинание"
+            onClick={() => onGo('act-reprep')}
+          />
+          <MoreRow
+            icon="📖"
+            label="Копирование в книгу"
+            hint="переписать заклинание со свитка или из книги"
+            onClick={() => onGo('act-copy')}
+          />
+        </>
+      )}
       {!own && (
         <p className="px-1 text-sm text-neutral-500">
           Кредит и стартовый набор доступны только владельцу персонажа.
