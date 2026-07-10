@@ -78,8 +78,11 @@ function parseCraftCostOverride(fields: Record<string, unknown> | null): number 
 }
 
 /**
- * «Известные схемы» кампании — catalog items of category 'schema', with the
- * target item resolved (name/rarity/attunement) in a second batched query.
+ * «Известные схемы» кампании — catalog items of category 'schema'. Три шага:
+ * (1) каталожные ноды схем, (2) мягкий линк schema_for_node_id прямым читом
+ * item_attributes, (3) резолв целевого предмета (name/rarity/attunement).
+ * Шаги 2-3 отделены намеренно — эмбед шага 1 держится формы рабочего запроса
+ * покупки, не таща в связь дропнутый FK schema_for_node_id (см. коммент ниже).
  * Sorted by name (ru-locale), like the expedition menu. `!inner` on both
  * embeds so the category + type filters constrain the OUTER rows (the
  * PostgREST embed-only-filter trap — same guard as getStashResourceHoldingsTg).
@@ -88,10 +91,17 @@ export async function listSchemas(
   supabase: SupabaseClient,
   campaignId: string,
 ): Promise<CraftSchemaTg[]> {
+  // Шаг 1 — каталожные ноды схем. Эмбед НАМЕРЕННО той же формы, что у никогда
+  // не ломавшегося запроса покупки (searchBuyableItemsTg): price_gp + rarity +
+  // category_slug и БЕЗ schema_for_node_id. Именно выбор этой колонки в эмбеде
+  // выделил listSchemas в инциденте 2026-07-10: мигр.127 добавила FK на
+  // schema_for_node_id, мигр.128 его дропнула, но кэш схемы PostgREST на время
+  // задержал фантомную связь → эмбед стал неоднозначным (300) → запрос кидал →
+  // Крафт падал. Мягкий линк на цель читаем отдельным запросом в шаге 2.
   const { data, error } = await supabase
     .from('nodes')
     .select(
-      'id, title, fields, item_attributes!inner(price_gp, rarity, schema_for_node_id, category_slug), node_types!inner(slug)',
+      'id, title, fields, item_attributes!inner(price_gp, rarity, category_slug), node_types!inner(slug)',
     )
     .eq('campaign_id', campaignId)
     .eq('node_types.slug', 'item')
@@ -104,7 +114,6 @@ export async function listSchemas(
   type AttrsSlice = {
     price_gp: number | null
     rarity: string | null
-    schema_for_node_id: string | null
     category_slug: string
   }
   const rows = (data ?? []) as Array<{
@@ -125,14 +134,37 @@ export async function listSchemas(
         name: r.title,
         priceGp: attrs.price_gp,
         rarity: attrs.rarity,
-        schemaForNodeId: attrs.schema_for_node_id,
+        schemaForNodeId: null as string | null, // заполняется в шаге 2
         craftCostOverrideGp: parseCraftCostOverride(r.fields),
         target: null as CraftSchemaTg['target'],
       },
     ]
   })
 
-  // Resolve targets in one batch: title + rarity + attunement.
+  // Шаг 2 — мягкий линк schema → target (item_attributes.schema_for_node_id),
+  // читаем прямым запросом к таблице БЕЗ эмбеда, поэтому PostgREST не резолвит
+  // никакую связь (иммунитет к повтору инцидента из шага 1). RLS на
+  // item_attributes зеркалит видимость ноды (is_member по родителю), а эти
+  // node_id уже прошли member-scoped запрос шага 1 — вернутся ровно их линки.
+  if (schemas.length > 0) {
+    const { data: linkRows } = await supabase
+      .from('item_attributes')
+      .select('node_id, schema_for_node_id')
+      .in(
+        'node_id',
+        schemas.map((s) => s.id),
+      )
+    const linkByNode = new Map<string, string | null>()
+    for (const l of (linkRows ?? []) as Array<{
+      node_id: string
+      schema_for_node_id: string | null
+    }>) {
+      linkByNode.set(l.node_id, l.schema_for_node_id)
+    }
+    for (const s of schemas) s.schemaForNodeId = linkByNode.get(s.id) ?? null
+  }
+
+  // Шаг 3 — резолв целей одним батчем: title + rarity + attunement.
   const targetIds = [
     ...new Set(schemas.map((s) => s.schemaForNodeId).filter((v): v is string => !!v)),
   ]
