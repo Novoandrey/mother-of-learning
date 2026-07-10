@@ -19,7 +19,7 @@
 
 - **Frontend**: Next.js + React + Tailwind CSS
 - **Backend**: Supabase (Postgres + Auth + Realtime)
-- **Деплой**: Vercel + Supabase Cloud
+- **Деплой**: self-hosted (Hetzner + Dokploy), self-hosted Supabase
 
 ## Запуск локально
 

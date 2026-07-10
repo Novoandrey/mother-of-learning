@@ -15,7 +15,7 @@
  *
  * Все actions возвращают `{ ok: true, ... } | { ok: false, error: string }`
  * с user-readable Russian text. RLS / FK errors мапятся в generic
- * «Не удалось сохранить» + console.error (доступно в Vercel logs).
+ * «Не удалось сохранить» + console.error (доступно в серверных логах).
  */
 
 import { revalidatePath } from 'next/cache'
