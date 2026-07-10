@@ -20,6 +20,16 @@
 
 const API = 'https://api.telegram.org'
 
+/**
+ * Minimal inline keyboard shape we use — url buttons only. A `url` button opens
+ * a link from ANY chat (incl. the group); a `web_app` button would be rejected
+ * here because it is private-chat-only per the Bot API. The master message uses
+ * this to carry a Mini-App launcher (a t.me/<bot> deep link).
+ */
+export type InlineKeyboardMarkup = {
+  inline_keyboard: { text: string; url: string }[][]
+}
+
 type FeedConfig = { token: string; chatId: string; threadId: number | undefined }
 
 function feedConfig(): FeedConfig | null {
@@ -71,7 +81,10 @@ async function botCall(method: string, payload: unknown): Promise<Response | nul
 }
 
 /** Post a new message to the ledger topic. Returns the message id, or null. */
-export async function sendLedgerMessage(html: string): Promise<number | null> {
+export async function sendLedgerMessage(
+  html: string,
+  replyMarkup?: InlineKeyboardMarkup,
+): Promise<number | null> {
   const c = feedConfig()
   if (!c) return null
   const res = await botCall('sendMessage', {
@@ -80,6 +93,7 @@ export async function sendLedgerMessage(html: string): Promise<number | null> {
     text: html,
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   })
   if (!res) return null
   if (!res.ok) {
@@ -112,6 +126,7 @@ export type EditOutcome = 'ok' | 'unchanged' | 'gone' | 'error'
 export async function editLedgerMessage(
   messageId: number,
   html: string,
+  replyMarkup?: InlineKeyboardMarkup,
 ): Promise<EditOutcome> {
   const res = await botCall('editMessageText', {
     chat_id: feedConfig()?.chatId,
@@ -119,6 +134,9 @@ export async function editLedgerMessage(
     text: html,
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },
+    // editMessageText drops the keyboard when reply_markup is omitted — so the
+    // caller must re-send it on every edit to keep the button pinned.
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   })
   if (!res) return 'error'
   if (res.ok) return 'ok'

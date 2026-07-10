@@ -25,7 +25,11 @@ import {
   getStashItemHoldingsTg,
   getStashResourceHoldingsTg,
 } from '@/lib/queries/ledger-tg'
-import { sendLedgerMessage, editLedgerMessage } from '@/lib/telegram/bot'
+import {
+  sendLedgerMessage,
+  editLedgerMessage,
+  type InlineKeyboardMarkup,
+} from '@/lib/telegram/bot'
 import {
   renderMasterMessageHtml,
   type MasterRecentRow,
@@ -34,6 +38,21 @@ import {
 
 const RECENT_LIMIT = 40
 const SETTINGS_KEY = 'ledger_master_message_id'
+
+/**
+ * Mini-App launcher button on the pinned master message. The url MUST be a
+ * `t.me/<bot>` deep link (NOT the web URL `theloopers.org/tg`): a plain https
+ * url button opens a browser with no Telegram `initData` (no sign-in), whereas
+ * the deep link launches the Mini App over the current chat — and a `web_app`
+ * button is private-chat-only, so it can't live on a group message. The bot's
+ * Main App is enabled, so the bare bot link opens the app; override via
+ * `TG_MINIAPP_LINK` to point at a Direct Link (`t.me/<bot>/<app>?startapp=…`).
+ */
+const MINIAPP_LINK =
+  process.env.TG_MINIAPP_LINK?.trim() || 'https://t.me/motheroflearning_bot'
+const MASTER_KEYBOARD: InlineKeyboardMarkup = {
+  inline_keyboard: [[{ text: '🎒 Открыть кабинет', url: MINIAPP_LINK }]],
+}
 
 // ── compose (reads) ─────────────────────────────────────────────────────────
 
@@ -211,22 +230,22 @@ export async function refreshMasterMessage(
     const html = renderMasterMessageHtml(await composeMasterState(admin, campaignId))
 
     if (opts.mint) {
-      const id = await sendLedgerMessage(html)
+      const id = await sendLedgerMessage(html, MASTER_KEYBOARD)
       if (id != null) await setMasterMessageId(admin, campaignId, id)
       return
     }
 
     const existing = await getMasterMessageId(admin, campaignId)
     if (existing == null) {
-      const id = await sendLedgerMessage(html)
+      const id = await sendLedgerMessage(html, MASTER_KEYBOARD)
       if (id != null) await setMasterMessageId(admin, campaignId, id)
       return
     }
 
-    const outcome = await editLedgerMessage(existing, html)
+    const outcome = await editLedgerMessage(existing, html, MASTER_KEYBOARD)
     if (outcome === 'gone') {
       // The admin deleted the pinned message — post a fresh one and re-store.
-      const id = await sendLedgerMessage(html)
+      const id = await sendLedgerMessage(html, MASTER_KEYBOARD)
       if (id != null) await setMasterMessageId(admin, campaignId, id)
     }
     // 'ok' | 'unchanged' | 'error' → keep the stored id as-is.
