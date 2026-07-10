@@ -1,51 +1,53 @@
 # tasks — spec-059 (свитки/заклинания)
 
-Легенда: ⬜ todo · 🔨 в работе · ✅ done · 🧪 нужен тест/верификация
+Легенда: ⬜ todo · 🔨 в работе (агент) · ✅ done · 🧪 нужен тест
 
 ## Этап 1 — база заклинаний
-- ⬜ T1.1 Мигр. 130: node_type `spell` per-campaign + default_fields + notify pgrst + verify
-- ⬜ T1.2 TS-сидеры: NODE_TYPES += spell (dnd5e-srd.ts), DEFAULT_ITEM_CATEGORIES += scroll (item-value-lists.ts)
-- ⬜ T1.3 `lib/party-level.ts`: + `maxSpellLevel(partyLevel)`
-- ⬜ T1.4 Скрапер `scripts/scrape_dndsu_spells.py` (форк) + fixtures + `test_scrape_dndsu_spells.py`
-- ⬜ T1.5 Smoke-run скрапера `--limit 5` против живого dnd.su + next.dnd.su
-- ⬜ T1.6 Codegen `scripts/spells-dndsu-codegen.ts` (форк) → seed-миграции
-- ⬜ T1.7 Прогон скрапера (полный или ур.0–5) → `dndsu_spells.json` → сид-миграции 131+
-- ⬜ T1.8 Десктоп: `spells/[id]/page.tsx` + edition-toggle + `spells/page.tsx` список
-- ⬜ T1.9 Десктоп-редиректы: `catalog/[id]` → /spells/[id], `catalog/page` type=spell → /spells
-- ⬜ T1.10 /tg: `lib/queries/spells-tg.ts` (getSpellNodes/getSpellNode/searchSpellsTg, throw-on-error)
-- ⬜ T1.11 /tg: `app/tg/_components/spell-app.tsx` (статблок + сегмент-тоггл 2014/2024) + shell.tsx роутер
+- ✅ T1.1 Мигр. 130: node_type `spell` (апгрейд легаси) + категория `scroll` — на проде
+- ✅ T1.2 TS-сидеры: NODE_TYPES += spell, DEFAULT_ITEM_CATEGORIES += scroll
+- ✅ T1.3 `maxSpellLevel(partyLevel)` в party-level.ts
+- 🔨 T1.4 Скрапер `scripts/scrape_dndsu_spells.py` (агент a19dc38)
+- 🔨 T1.5 Smoke-run скрапера (агент)
+- 🔨 T1.6 Codegen `scripts/spells-dndsu-codegen.ts` (агент)
+- 🔨 T1.7 Прогон → `dndsu_spells.json` → сид-миграции 140+ (агент)
+- ⬜ T1.8 Десктоп: `spells/[id]/page.tsx` + edition-toggle + список (отложено — display)
+- ⬜ T1.9 Десктоп-редиректы catalog → /spells (отложено)
+- ⬜ T1.10 /tg: `lib/queries/spells-tg.ts` вики-рендер (отложено — display; поиск уже есть в scribe-tg)
+- ⬜ T1.11 /tg: `spell-app.tsx` статблок + тоггл 2014/2024 (отложено — display)
 
 ## Этап 2 — свитки (Party-акт)
-- ⬜ T2.1 `lib/scribe-settings.ts` (тип+DEFAULT из таблицы spec+parse+scribeRowFor) + `SpellLevelKey`
-- ⬜ T2.2 `lib/scribe.ts` (pure: clean/total/missing hours)
-- ⬜ T2.3 Мигр. 132: `scribe_runs` + RLS is_member + категория `scroll` per-campaign
-- ⬜ T2.4 `lib/campaign.ts`: регистрация scribe_settings (+ spell_settings)
-- ⬜ T2.5 `app/actions/scribe.ts::runScribe` + `createScrollItem`
-- ⬜ T2.6 `lib/queries/scribe-tg.ts` (getScribeSettingsTg, listScribeRuns)
-- ⬜ T2.7 /tg: ScribeScreen + ScribeRunSheet + EntryCard 🪶 + case party-scribe (party-tab)
-- ⬜ T2.8 Настройки: `updateScribeSettings` + `scribe-settings-editor.tsx` + Section
-- ⬜ T2.9 Лента: mode 'scribe' в 'craft' (ledger-format.ts) + формат-ветка
-- ⬜ T2.10 🧪 тесты: scribe-settings.test.ts + ledger-scribe-format.test.ts
+- ✅ T2.1 `lib/scribe-settings.ts` (таблица+parse+scribeRowFor+SpellLevelKey)
+- ✅ T2.2 `lib/scribe.ts` (pure часы: порог Σ≥норма)
+- ✅ T2.3 Мигр. 132: `scribe_runs` + RLS — на проде
+- ✅ T2.4 `lib/campaign.ts`: регистрация scribe_settings + spell_settings
+- ✅ T2.5 `app/actions/scribe.ts::runScribe` + `createScrollItem`
+- ✅ T2.6 `lib/queries/scribe-tg.ts` (settings/searchSpellsTg/scrollHoldings/runs)
+- 🔨 T2.7 /tg: `scribe-screen.tsx` (агент a2bd685) → интеграция в party-tab (я)
+- ⬜ T2.8 Настройки: `updateScribeSettings` + editor + Section
+- ✅ T2.9 Лента: mode 'scribe' в 'craft'
+- ✅🧪 T2.10 scribe-settings.test.ts ✅ · ledger-scribe-format.test ⬜
 
 ## Этап 3 — переподготовка (PC-глагол)
-- ⬜ T3.1 `lib/spell-settings.ts` (reprepGpPerLevel/copyGpPerLevel/copyHoursPerLevel) + parse + регистрация в campaign.ts
-- ⬜ T3.2 `app/actions/spell-verbs.ts::runReprep` (getMembership+isPcOwner, level-гейт, money-out PC/общак)
-- ⬜ T3.3 /tg: ReprepSheet (клон SpendSheet) в action-hub + spell-пикер
-- ⬜ T3.4 Лента: новый тип 'reprep' (union+formatter) + resolveNames авто (actorPcId)
+- ✅ T3.1 `lib/spell-settings.ts` + parse + регистрация
+- ✅ T3.2 `runReprep` (getMembership+isPcOwner, level-гейт, PC/общак)
+- 🔨 T3.3 /tg: `ReprepSheet` в spell-sheets.tsx (агент a2359ee) → регистрация в action-hub (я)
+- ✅ T3.4 Лента: тип 'reprep' (авто-резолв actorPcId)
 - ⬜ T3.5 Настройки: spell-settings-editor + Section
-- ⬜ T3.6 🧪 ledger-reprep-format.test.ts + spell-settings.test.ts
+- ✅🧪 T3.6 spell-settings.test.ts ✅ · ledger-reprep-format.test ⬜
 
 ## Этап 4 — копирование (PC-глаголы)
-- ⬜ T4.1 `runCopyScroll` (свиток→книга: списать свиток −1, cost из свитка) в spell-verbs.ts
-- ⬜ T4.2 `runCopyBook` (книга→книга: source-PC + spell, ничего не расходуется)
-- ⬜ T4.3 /tg: CopySheet(s) в action-hub (выбор свитка из инвентаря / source-PC + spell)
-- ⬜ T4.4 Лента: тип 'copy' (mode scroll-to-book|book-to-book, scrollConsumed)
+- ✅ T4.1 `runCopySpell` scroll-to-book (расход свитка) в spell-verbs.ts
+- ✅ T4.2 `runCopySpell` book-to-book (нарратив)
+- 🔨 T4.3 /tg: `CopySheet` в spell-sheets.tsx (агент a2359ee) → регистрация (я)
+- ✅ T4.4 Лента: тип 'copy' (copyMode, scrollConsumed)
 - ⬜ T4.5 🧪 ledger-copy-format.test.ts
 
 ## Финал
-- ⬜ V1 typecheck + build чистые
-- ⬜ V2 vitest зелёный
-- ⬜ V3 миграции на прод (ssh, verify, reload PostgREST)
-- ⬜ V4 ux-auditor по /tg-поверхностям
-- ⬜ V5 self adversarial-review (workflow) → фиксы
-- ⬜ V6 PR + пометка Andrey запустить /ultrareview
+- ✅ V1 typecheck чистый (build — проверить в интеграции) · 🧪 V2 vitest: 23 новых ✅
+- ✅ V3 миграции 130+132 на проде (140+ сид спеллов — после скрапера)
+- ⬜ V4 ux-auditor · ⬜ V5 self adversarial-review · ⬜ V6 PR + пометка /ultrareview
+
+**Состояние:** серверная механика (4 глагола + лента + настройки + read + pure-тесты)
+ГОТОВА и typecheck-чистая. В работе: 3 фоновых агента (скрапер данных + 2 /tg-UI).
+Дальше: интеграция UI (party-tab/action-hub/shell) + редакторы настроек + вики-рендер
+спелла + ledger-format тесты + верификация + self-review.
