@@ -33,6 +33,7 @@ import { sellStashResource } from '@/app/actions/resources'
 import { formatGp } from './format'
 import { Centered, WalletCard, FeedList, IntInput } from './primitives'
 import { CraftScreen, ExpeditionsScreen } from './ledger-app'
+import { ScribeScreen } from './scribe-screen'
 import { GiveSheet, TakeSheet } from './action-sheets'
 import { useTgNav, useTgRefresh, type TgTabProps } from './shell'
 
@@ -58,6 +59,17 @@ export function PartyTab({ app }: TgTabProps) {
     case 'party-craft':
       return (
         <CraftScreen
+          supabase={app.supabase}
+          campaignId={app.campaignId}
+          loopNumber={app.loopNumber}
+          characters={app.characters}
+          onBack={() => nav.pop()}
+          refreshKey={refreshKey}
+        />
+      )
+    case 'party-scribe':
+      return (
+        <ScribeScreen
           supabase={app.supabase}
           campaignId={app.campaignId}
           loopNumber={app.loopNumber}
@@ -269,6 +281,12 @@ function PartyRoot({ app }: TgTabProps) {
               title="Крафт"
               subtitle={ruCount(data.schemaCount, 'схема', 'схемы', 'схем')}
               onClick={() => nav.push({ screen: 'party-craft' })}
+            />
+            <EntryCard
+              icon="🪶"
+              title="Свитки"
+              subtitle="написание свитков"
+              onClick={() => nav.push({ screen: 'party-scribe' })}
             />
           </div>
 
