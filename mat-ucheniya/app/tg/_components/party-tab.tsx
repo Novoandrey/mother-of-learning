@@ -130,7 +130,11 @@ function PartyRoot({ app }: TgTabProps) {
   const [toast, setToast] = useState<string | null>(null)
 
   const fetchAll = useCallback(async (): Promise<PartyData> => {
-    const [stash, items, resources, balances, expeditions, schemas] = await Promise.all([
+    // Критичные данные общака/балансов — строгие: ошибка тут = показать ошибку,
+    // а не врать пустотой (данные важнее пикселя). Счётчики (вылазки/схемы)
+    // некритичны — их сбой (напр. громкий listSchemas) НЕ должен ронять весь
+    // дашборд Партии: деградируем в 0 и логируем причину в консоль.
+    const [stash, items, resources, balances] = await Promise.all([
       getStashTg(supabase, campaignId, loopNumber),
       getStashItemHoldingsTg(supabase, campaignId, loopNumber),
       getStashResourceHoldingsTg(supabase, campaignId, loopNumber),
@@ -140,8 +144,16 @@ function PartyRoot({ app }: TgTabProps) {
         loopNumber,
         characters.map((c) => ({ id: c.id, title: c.title, isOwn: c.isOwn })),
       ),
-      listExpeditions(supabase, campaignId),
-      listSchemas(supabase, campaignId),
+    ])
+    const [expeditions, schemas] = await Promise.all([
+      listExpeditions(supabase, campaignId).catch((e) => {
+        console.error('[party] listExpeditions failed', e)
+        return []
+      }),
+      listSchemas(supabase, campaignId).catch((e) => {
+        console.error('[party] listSchemas failed', e)
+        return []
+      }),
     ])
     return {
       wallet: stash.wallet,
@@ -158,8 +170,10 @@ function PartyRoot({ app }: TgTabProps) {
   const reload = useCallback(async () => {
     try {
       setData(await fetchAll())
-    } catch {
-      setError('Не удалось загрузить партию.')
+    } catch (e) {
+      setError(
+        'Не удалось загрузить партию: ' + (e instanceof Error ? e.message : String(e)),
+      )
     }
   }, [fetchAll])
 
@@ -169,8 +183,11 @@ function PartyRoot({ app }: TgTabProps) {
       try {
         const d = await fetchAll()
         if (alive) setData(d)
-      } catch {
-        if (alive) setError('Не удалось загрузить партию.')
+      } catch (e) {
+        if (alive)
+          setError(
+            'Не удалось загрузить партию: ' + (e instanceof Error ? e.message : String(e)),
+          )
       }
     })()
     return () => {
