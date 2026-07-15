@@ -58,9 +58,10 @@ Use one of:
 - `canEditNode(nodeId, campaignId, userId, role)` from `@/lib/auth`
   — for per-node gating that mirrors the RLS policy `can_edit_node`.
 
-Player-acting-on-PC actions also need `isPcOwner(pcId, userId)` — see
-`createTransaction` for the canonical pattern (campaign membership +
-role check + ownership check before write).
+For actions that accept node IDs (character, session, item, stash), verify
+that every referenced node belongs to the selected campaign before writing.
+All campaign members may act for every character in that campaign;
+`node_pc_owners` is roster metadata, not an authorisation boundary.
 
 If the action is a thin wrapper that delegates to another already-gated
 action (`stash.ts` → `transactions.ts`), document this in the file

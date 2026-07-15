@@ -246,22 +246,20 @@ function PartyRoot({ app }: TgTabProps) {
         <>
           {/* ── Общак ── */}
           <WalletCard wallet={data.wallet} label="Общак" />
-          {activePc.isOwn && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setSheet('to-stash')}
-                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
-              >
-                Положить
-              </button>
-              <button
-                onClick={() => setSheet('from-stash')}
-                className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
-              >
-                Забрать
-              </button>
-            </div>
-          )}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setSheet('to-stash')}
+              className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+            >
+              Положить
+            </button>
+            <button
+              onClick={() => setSheet('from-stash')}
+              className="rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+            >
+              Забрать
+            </button>
+          </div>
           {gear.length > 0 && (
             <div className="mt-4">
               <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">

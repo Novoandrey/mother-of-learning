@@ -7,16 +7,13 @@ import { setPcTakesStartingLoan } from '@/app/actions/starter-setup'
 /**
  * Spec-012 T030 — loan-flag toggle. Two variants:
  *
- *   * `interactive=false` — static display (used for non-owner
- *     players viewing someone else's PC when we still want to surface
- *     the flag value).
+ *   * `interactive=false` — static display for read-only contexts.
  *   * `interactive=true` — checkbox-style toggle. Optimistic local
  *     state; rolls back on error.
  *
  * The permission check lives in the server action
  * (`setPcTakesStartingLoan`) — this component trusts the parent to
- * pass `interactive=true` only for DM/owner or for the PC's own
- * owner. RLS is still the hard boundary.
+ * pass `interactive=true` for a character in the current campaign.
  */
 export function LoanFlagToggleClient({
   pcId,

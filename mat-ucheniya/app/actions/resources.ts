@@ -16,11 +16,9 @@
  * Both actions gate on `getMembership(campaignId)` — any campaign member (player
  * or DM) may curate resources and sell them from the общак (spec-055 «и ДМ, и
  * игроки»). The sale's financial rows have actor = the общак node, NOT a PC, so
- * they cannot go through `createTransaction`/`createItemTransfer` (those gate
- * players via `isPcOwner`, which the stash node can never satisfy). Mirroring
+ * they are written together with resource-specific inventory checks. Mirroring
  * the sibling `runExpedition`, this module writes the transaction rows DIRECTLY
- * via the admin client, gated by its own membership check; RLS on transactions
- * (member-scoped writes) is the hard safety net underneath.
+ * via the admin client, gated by its own membership and campaign-item checks.
  *
  * ── Item-create decision ───────────────────────────────────────────────────
  * `createResourceItem` mirrors `createItemAction`'s two-step write (nodes row →

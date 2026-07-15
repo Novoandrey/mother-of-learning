@@ -179,8 +179,8 @@ export function ActionHub({ app }: TgTabProps) {
 // (takeLoopCredit, статус раз-в-петлю через hasLoopCreditTg), стартовый набор
 // (legacy-equip, статус «взят» через hasStarterTakenTg) и наборы (legacy-sets).
 // onGo = push: экраны ложатся на стек таба, системный «назад» = pop возвращает
-// в корень. Статусы грузятся только для владельца (own) и только когда аккордеон
-// открыт (компонент монтируется по moreOpen).
+// в корень. Статусы грузятся для активного персонажа, когда аккордеон открыт
+// (компонент монтируется по moreOpen).
 
 function MoreInline({
   app,
@@ -193,11 +193,6 @@ function MoreInline({
   onDone: (toast: string) => void
 }) {
   const { supabase, campaignId, loopNumber, activePc } = app
-  const own = activePc.isOwn
-  // Заклинательские глаголы действуют на активного PC: игрок — только на своего
-  // (сервер гейтит isPcOwner), ДМ — на любого. Скрываем у чужого PC, чтобы не
-  // отлупать после заполнения формы (симметрия с Кредитом/Стартовым набором).
-  const canCast = own || app.role !== 'player'
 
   // Раз-в-петлю статусы: null = грузится (кнопка выключена).
   const [creditTaken, setCreditTaken] = useState<boolean | null>(null)
@@ -206,7 +201,6 @@ function MoreInline({
   const [creditError, setCreditError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!own) return
     let alive = true
     ;(async () => {
       try {
@@ -228,7 +222,7 @@ function MoreInline({
     return () => {
       alive = false
     }
-  }, [own, supabase, campaignId, activePc.id, loopNumber])
+  }, [supabase, campaignId, activePc.id, loopNumber])
 
   const takeCredit = async () => {
     if (creditBusy || creditTaken !== false) return
@@ -253,58 +247,45 @@ function MoreInline({
         hint="деньги или предмет из общака — себе"
         onClick={() => onGo('act-take')}
       />
-      {own && (
-        <MoreRow
-          icon="💳"
-          label={
-            creditTaken ? 'Кредит за петлю взят' : `Взять кредит · ${LOOP_CREDIT_GP} ЗМ`
-          }
-          hint={creditTaken ? 'раз в петлю — уже взят' : 'раз в петлю, зачислится сразу'}
-          disabled={creditBusy || creditTaken !== false}
-          onClick={() => void takeCredit()}
-        />
-      )}
+      <MoreRow
+        icon="💳"
+        label={
+          creditTaken ? 'Кредит за петлю взят' : `Взять кредит · ${LOOP_CREDIT_GP} ЗМ`
+        }
+        hint={creditTaken ? 'раз в петлю — уже взят' : 'раз в петлю, зачислится сразу'}
+        disabled={creditBusy || creditTaken !== false}
+        onClick={() => void takeCredit()}
+      />
       {creditError && <p className="px-1 text-sm text-red-400">{creditError}</p>}
-      {own && (
-        <MoreRow
-          icon="🎽"
-          label={starterTaken ? 'Стартовый набор взят' : 'Стартовый набор'}
-          hint={
-            starterTaken
-              ? 'снаряжение начала петли — уже собрано'
-              : 'снаряжение начала петли'
-          }
-          disabled={starterTaken !== false}
-          onClick={() => onGo('legacy-equip')}
-        />
-      )}
+      <MoreRow
+        icon="🎽"
+        label={starterTaken ? 'Стартовый набор взят' : 'Стартовый набор'}
+        hint={
+          starterTaken
+            ? 'снаряжение начала петли — уже собрано'
+            : 'снаряжение начала петли'
+        }
+        disabled={starterTaken !== false}
+        onClick={() => onGo('legacy-equip')}
+      />
       <MoreRow
         icon="📦"
         label="Наборы"
         hint="общие наборы предметов — купить или собрать"
         onClick={() => onGo('legacy-sets')}
       />
-      {canCast && (
-        <>
-          <MoreRow
-            icon="🔄"
-            label="Переподготовка"
-            hint="сменить подготовленное заклинание"
-            onClick={() => onGo('act-reprep')}
-          />
-          <MoreRow
-            icon="📖"
-            label="Копирование в книгу"
-            hint="переписать заклинание со свитка или из книги"
-            onClick={() => onGo('act-copy')}
-          />
-        </>
-      )}
-      {!own && (
-        <p className="px-1 text-sm text-neutral-500">
-          Кредит и стартовый набор доступны только владельцу персонажа.
-        </p>
-      )}
+      <MoreRow
+        icon="🔄"
+        label="Переподготовка"
+        hint="сменить подготовленное заклинание"
+        onClick={() => onGo('act-reprep')}
+      />
+      <MoreRow
+        icon="📖"
+        label="Копирование в книгу"
+        hint="переписать заклинание со свитка или из книги"
+        onClick={() => onGo('act-copy')}
+      />
     </div>
   )
 }

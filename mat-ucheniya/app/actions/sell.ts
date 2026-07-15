@@ -10,10 +10,8 @@
  * ── Gating decision (documented per AGENTS.md) ─────────────────────────────
  * Unlike the stash flows (actor = общак node, membership-gated), here the
  * actor IS a PC — so the gate mirrors `createTransaction`'s canonical pattern:
- * campaign membership + (players only) `node_pc_owners` ownership of the
- * acting PC. DM/owner may sell on any PC's behalf. `resolveAuth`/`isPcOwner`
- * are local helpers of transactions.ts (not exported), so the same two checks
- * are re-implemented here 1:1.
+ * campaign membership plus validation that the actor belongs to that campaign.
+ * Every member may sell on behalf of every campaign character.
  *
  * ── Price decision (модель доверия) ────────────────────────────────────────
  * The sale price comes FROM THE FORM (default suggested by the UI from the

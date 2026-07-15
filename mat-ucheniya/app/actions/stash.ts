@@ -9,10 +9,9 @@
  * `getStashNode` first; a missing stash (shouldn't happen post-mig 035)
  * surfaces as a Russian error the UI can render.
  *
- * All actions inherit the ownership rules from the underlying writers:
- *   - DM/owner: everything allowed.
- *   - Player: may act only on PCs they own (enforced by the wrapped
- *     action — this module adds no extra gating).
+ * Every campaign member may act with every campaign character. This module
+ * validates that the selected actor belongs to the campaign before resolving
+ * the stash, then delegates the write to the transaction actions.
  *
  * `createExpenseWithStashShortfall` is the headline flow: it fans out
  * into *up to* two sequential writes (transfer pair + expense row) and
@@ -25,7 +24,7 @@ import {
   createTransaction,
   type ActionResult,
 } from './transactions'
-import { getCurrentUser } from '@/lib/auth'
+import { canEditNode, getCurrentUser, getMembership } from '@/lib/auth'
 import { getStashNode } from '@/lib/stash'
 import { getWallet } from '@/lib/transactions'
 import { computeShortfall } from '@/lib/transaction-resolver'
@@ -63,6 +62,27 @@ type ItemStashInput = {
   /** Spec-044: Telegram Mini App minted JWT (auth adapter, PL-1). */
 }
 
+async function ensureCampaignAccess(
+  campaignId: string,
+  actorPcId?: string,
+): Promise<ActionResult> {
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getMembership(campaignId),
+  ])
+  if (!user) return { ok: false, error: 'Не авторизован' }
+  if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
+
+  if (
+    actorPcId &&
+    !(await canEditNode(actorPcId, campaignId, user.id, membership.role))
+  ) {
+    return { ok: false, error: 'Выбранный персонаж не принадлежит кампании' }
+  }
+
+  return { ok: true }
+}
+
 // ============================================================================
 // Money wrappers (T016)
 // ============================================================================
@@ -70,6 +90,8 @@ type ItemStashInput = {
 export async function putMoneyIntoStash(
   input: MoneyStashInput,
 ): Promise<ActionResult<{ groupId: string }>> {
+  const access = await ensureCampaignAccess(input.campaignId, input.actorPcId)
+  if (!access.ok) return access
   const stash = await getStashNode(input.campaignId)
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
@@ -102,6 +124,8 @@ export async function putMoneyIntoStash(
 export async function takeMoneyFromStash(
   input: MoneyStashInput,
 ): Promise<ActionResult<{ groupId: string }>> {
+  const access = await ensureCampaignAccess(input.campaignId, input.actorPcId)
+  if (!access.ok) return access
   const stash = await getStashNode(input.campaignId)
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
@@ -138,6 +162,8 @@ export async function takeMoneyFromStash(
 export async function putItemIntoStash(
   input: ItemStashInput,
 ): Promise<ActionResult<{ groupId: string }>> {
+  const access = await ensureCampaignAccess(input.campaignId, input.actorPcId)
+  if (!access.ok) return access
   const stash = await getStashNode(input.campaignId)
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
@@ -172,6 +198,8 @@ export async function putItemIntoStash(
 export async function takeItemFromStash(
   input: ItemStashInput,
 ): Promise<ActionResult<{ groupId: string }>> {
+  const access = await ensureCampaignAccess(input.campaignId, input.actorPcId)
+  if (!access.ok) return access
   const stash = await getStashNode(input.campaignId)
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
@@ -217,6 +245,8 @@ export async function getStashAggregate(
   campaignId: string,
   loopNumber: number,
 ): Promise<ActionResult<{ aggregateGp: number }>> {
+  const access = await ensureCampaignAccess(campaignId)
+  if (!access.ok) return access
   const stash = await getStashNode(campaignId)
   if (!stash) return { ok: true, aggregateGp: 0 }
   const wallet = await getWallet(stash.nodeId, loopNumber)
@@ -273,6 +303,9 @@ export async function createExpenseWithStashShortfall(
   if (!Number.isFinite(amountMag) || amountMag <= 0) {
     return { ok: false, error: 'Сумма расхода должна быть больше нуля' }
   }
+
+  const access = await ensureCampaignAccess(input.campaignId, input.actorPcId)
+  if (!access.ok) return access
 
   const stash = await getStashNode(input.campaignId)
   if (!stash) {

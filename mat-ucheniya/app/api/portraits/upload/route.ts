@@ -23,12 +23,13 @@ export async function POST(request: Request) {
     logActivityWarning('portrait.upload.invalid_node_type', { campaignId, nodeId })
     return NextResponse.json({ error: 'Портрет можно загрузить только персонажу или существу.' }, { status: 400 })
   }
-  if (!validateImageFile(file, MAX_BYTES)) {
+  const image = await validateImageFile(file, MAX_BYTES)
+  if (!image) {
     logActivityWarning('portrait.upload.invalid_file', { campaignId, nodeId })
     return NextResponse.json({ error: 'Нужен PNG, JPEG или WebP до 8 МБ.' }, { status: 400 })
   }
-  const uploaded = await uploadCampaignImage(`portraits/${campaignId}/${nodeId}`, file)
+  const uploaded = await uploadCampaignImage(`portraits/${campaignId}/${nodeId}`, image)
   if ('error' in uploaded) return NextResponse.json({ error: uploaded.error }, { status: uploaded.status })
-  logActivity('portrait.upload.completed', { campaignId, nodeId, bytes: file.size })
+  logActivity('portrait.upload.completed', { campaignId, nodeId, bytes: image.size })
   return NextResponse.json(uploaded)
 }

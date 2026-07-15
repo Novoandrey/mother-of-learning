@@ -1,16 +1,28 @@
 import 'server-only'
 
 import { AwsClient } from 'aws4fetch'
+import {
+  hasMatchingImageSignature,
+  imageExtensionFor,
+  isSupportedImageType,
+} from '@/lib/image-signatures'
 import { logActivityError, logActivityWarning } from '@/lib/server/activity-log'
 
-const IMAGE_EXTENSIONS = new Map([
-  ['image/png', 'png'],
-  ['image/jpeg', 'jpg'],
-  ['image/webp', 'webp'],
-])
+export async function validateImageFile(
+  file: unknown,
+  maxBytes: number,
+): Promise<File | null> {
+  if (
+    !(file instanceof File) ||
+    !isSupportedImageType(file.type) ||
+    file.size <= 0 ||
+    file.size > maxBytes
+  ) {
+    return null
+  }
 
-export function validateImageFile(file: unknown, maxBytes: number): file is File {
-  return file instanceof File && IMAGE_EXTENSIONS.has(file.type) && file.size > 0 && file.size <= maxBytes
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer())
+  return hasMatchingImageSignature(file.type, header) ? file : null
 }
 
 export async function uploadCampaignImage(
@@ -26,7 +38,7 @@ export async function uploadCampaignImage(
     return { error: 'Загрузка изображений пока не настроена на сервере.', status: 503 }
   }
 
-  const extension = IMAGE_EXTENSIONS.get(file.type)
+  const extension = imageExtensionFor(file.type)
   if (!extension) return { error: 'Неподдерживаемый формат изображения.', status: 400 }
   const key = `${keyPrefix}/${crypto.randomUUID()}.${extension}`
   const r2 = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' })

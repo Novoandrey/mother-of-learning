@@ -4,7 +4,8 @@
  * Spec-052 (US3, C-03/C-04). Equipped state for a PC's items, per loop.
  * Pure inventory metadata stored in pc_equipped — it does NOT touch
  * transactions or balances (FR-022). Name-keyed to match the holdings readers
- * (getPcInventoryTg). Auth via the standard cookie session: own PC or DM.
+ * (getPcInventoryTg). Any campaign member may update equipment for any
+ * character in that campaign.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -38,7 +39,7 @@ export async function setEquipped(input: {
     membership.role,
   )
   if (!allowed) {
-    return { ok: false, error: 'Нельзя менять снаряжение чужого персонажа' }
+    return { ok: false, error: 'Персонаж не принадлежит этой кампании' }
   }
 
   const admin = createAdminClient()

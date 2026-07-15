@@ -11,12 +11,12 @@
  *
  * ── Gating decision (documented per AGENTS.md) ─────────────────────────────
  * The financial rows have actor = the общак node, NOT a PC — the exact same
- * situation as `runExpedition`: `createTransaction`/`createItemTransfer` gate
- * players via `isPcOwner(actorPcId)`, which the stash node can never satisfy.
- * Mirroring the вылазки canon, this module writes the transaction rows
+ * situation as `runExpedition`. These actions write a coordinated set of
+ * transaction rows (and a craft run), so this module writes the rows
  * DIRECTLY via the admin client, gated by its OWN `getMembership(campaignId)`
  * check (any campaign member — player or DM — may craft; модель доверия).
- * RLS on transactions (member-scoped writes) is the hard safety net.
+ * The admin client bypasses RLS, so the explicit membership and campaign-node
+ * checks in this action are the write boundary.
  *
  * ── Numbers decision (AGENTS.md «числа механики = ДМ-настройки») ───────────
  * No mechanic number lives here. Rates/costs/min-levels come from
@@ -465,6 +465,19 @@ export async function runCraft(
   const userId = user.id
 
   const admin = createAdminClient()
+
+  const participantIds = [...new Set(participants.map((participant) => participant.nodeId))]
+  const { data: participantRows, error: participantErr } = await admin
+    .from('nodes')
+    .select('id')
+    .eq('campaign_id', input.campaignId)
+    .in('id', participantIds)
+  if (participantErr) {
+    return { ok: false, error: `Не удалось проверить крафтеров: ${participantErr.message}` }
+  }
+  if ((participantRows ?? []).length !== participantIds.length) {
+    return { ok: false, error: 'Крафтеры должны принадлежать этой кампании' }
+  }
 
   // --- Load the schema + resolve the output item ---
   const schemaNode = await loadCampaignNode(

@@ -14,7 +14,6 @@ import {
 } from '@/lib/approval-queries'
 import { getCampaignPCs } from '@/app/actions/characters'
 import { getStashNode } from '@/lib/stash'
-import { createAdminClient } from '@/lib/supabase/admin'
 import LedgerList from '@/components/ledger-list'
 import LedgerActorBar from '@/components/ledger-actor-bar'
 import AccountingSubNav from '@/components/accounting-sub-nav'
@@ -51,9 +50,7 @@ export default async function AccountingPage({
   const membership = await getMembership(campaign.id)
   if (!membership) redirect('/')
 
-  // Prep for the create-transaction CTA:
-  //   • DM/owner — any PC.
-  //   • Player — only PCs they own (node_pc_owners).
+  // Every campaign member can create transactions for every campaign PC.
   // Also prefetch categories + current loop + stash node so the form
   // sheet doesn't re-query them on open.
   const [allPcs, categories, currentLoop, stashNode, pendingCount] = await Promise.all([
@@ -64,18 +61,7 @@ export default async function AccountingPage({
     getPendingCount(campaign.id),
   ])
 
-  let availablePcs = allPcs
-  if (membership.role === 'player') {
-    const admin = createAdminClient()
-    const { data: owned } = await admin
-      .from('node_pc_owners')
-      .select('node_id')
-      .eq('user_id', user.id)
-    const ownedSet = new Set(
-      (owned ?? []).map((r) => (r as { node_id: string }).node_id),
-    )
-    availablePcs = allPcs.filter((pc) => ownedSet.has(pc.id))
-  }
+  const availablePcs = allPcs
 
   const defaultLoopNumber = currentLoop?.number ?? 1
 
