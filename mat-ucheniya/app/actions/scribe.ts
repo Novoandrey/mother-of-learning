@@ -243,6 +243,19 @@ export async function runScribe(
 
   const admin = createAdminClient()
 
+  const participantIds = [...new Set(participants.map((participant) => participant.nodeId))]
+  const { data: participantRows, error: participantErr } = await admin
+    .from('nodes')
+    .select('id')
+    .eq('campaign_id', input.campaignId)
+    .in('id', participantIds)
+  if (participantErr) {
+    return { ok: false, error: `Не удалось проверить писцов: ${participantErr.message}` }
+  }
+  if ((participantRows ?? []).length !== participantIds.length) {
+    return { ok: false, error: 'Писцы должны принадлежать этой кампании' }
+  }
+
   // --- Load the spell + its level ---
   const spell = await loadSpellNode(admin, input.campaignId, input.spellNodeId)
   if (!spell.ok) return spell

@@ -119,18 +119,17 @@ export function TgShell({
   characters: CampaignCharacter[]
   categories: Map<string, string>
 }) {
-  const ownPcs = characters.filter((c) => c.isOwn)
   const multi = characters.length > 1
 
-  // Логика rootView из старого page.tsx: ровно один свой PC → сразу внутрь;
-  // иначе поверх корня лежит выбор персонажа (аналог экрана 'list').
+  // Every campaign character is actionable, so choose explicitly whenever
+  // there is more than one instead of prioritising the ownership metadata.
   const [activePc, setActivePc] = useState<CampaignCharacter | null>(
-    () => ownPcs[0] ?? characters[0] ?? null,
+    () => characters[0] ?? null,
   )
   const [navState, setNavState] = useState<{ tab: TgTab; stack: NavEntry[] }>(() => ({
     tab: 'action',
     stack:
-      ownPcs.length === 1 || characters.length <= 1
+      characters.length <= 1
         ? [{ screen: 'action' }]
         : [{ screen: 'action' }, { screen: 'pc-select' }],
   }))

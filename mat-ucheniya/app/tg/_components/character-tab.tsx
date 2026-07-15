@@ -188,8 +188,6 @@ export function CharacterTab({ app }: TgTabProps) {
   const equipped = (data?.inventory ?? []).filter((r) => r.equipped)
   const carried = (data?.inventory ?? []).filter((r) => !r.equipped)
   const attunedCount = equipped.filter((r) => r.requiresAttunement).length
-  const canAct = pc.isOwn
-
   return (
     <div className="pb-6">
       {/* Шапка PC: портрет + имя. */}
@@ -197,9 +195,6 @@ export function CharacterTab({ app }: TgTabProps) {
         <Avatar name={pc.title} keyStr={pc.primaryPortraitKey} size={64} />
         <div className="min-w-0">
           <div className="truncate text-lg font-semibold">{pc.title}</div>
-          {!canAct && (
-            <div className="text-xs text-neutral-500">просмотр — персонаж не твой</div>
-          )}
         </div>
       </div>
 
@@ -225,7 +220,7 @@ export function CharacterTab({ app }: TgTabProps) {
                   key={r.name}
                   row={r}
                   icon="🎽"
-                  onTap={canAct ? () => setSheet({ mode: 'verbs', row: r }) : undefined}
+                  onTap={() => setSheet({ mode: 'verbs', row: r })}
                 />
               ))
             )}
@@ -244,15 +239,13 @@ export function CharacterTab({ app }: TgTabProps) {
                   key={r.name}
                   row={r}
                   icon="🎒"
-                  onTap={canAct ? () => setSheet({ mode: 'verbs', row: r }) : undefined}
+                  onTap={() => setSheet({ mode: 'verbs', row: r })}
                 />
               ))
             )}
           </CharSection>
 
-          {/* Лента своих движений — только на своём PC (чужой: read-only без ленты). */}
-          {canAct && (
-            <div>
+          <div>
               <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
                 Движения
               </h2>
@@ -269,8 +262,7 @@ export function CharacterTab({ app }: TgTabProps) {
               {moreError && (
                 <p className="mt-2 text-center text-xs text-red-400">{moreError}</p>
               )}
-            </div>
-          )}
+          </div>
         </div>
       )}
 

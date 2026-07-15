@@ -8,16 +8,15 @@
  * where `kind = 'transfer'` so callers can't corrupt a pair by editing
  * a single leg through this module.
  *
- * Ownership model (mirrors plan → Server actions → "Ownership enforcement"):
- *   - owner/dm of the campaign can write any row.
- *   - player can create rows where they own the actor PC
- *     (`node_pc_owners`).
- *   - exception: a purchase may be made by any campaign player for any PC.
- *   - player can edit/delete only rows they authored.
+ * Access model:
+ *   - every campaign member may create rows for every campaign character;
+ *     character ownership is roster metadata, not a write boundary;
+ *   - every referenced node must still belong to that same campaign;
+ *   - players may edit/delete only rows they authored.
  *
- * All writes go through `createAdminClient()` after an explicit membership
- * check — RLS is the hard boundary but we prefer clean Russian errors to
- * generic 403s.
+ * All writes go through `createAdminClient()`, which bypasses RLS. Every
+ * action must therefore authenticate, check membership and validate campaign
+ * references before writing so callers receive clean Russian errors.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -48,6 +47,7 @@ import { getItemById } from '@/lib/items'
 import { getWallet } from '@/lib/transactions'
 import { getStashNode } from '@/lib/stash'
 import { isExpeditionComment } from '@/lib/transaction-dedup'
+import { logActivityError, logActivityWarning } from '@/lib/server/activity-log'
 import { parseItemDefaultPrices } from '@/lib/item-default-prices'
 import {
   parseItemPurchasePolicy,
@@ -110,7 +110,7 @@ export type UpdateTransactionInput = Partial<
 >
 
 // ============================================================================
-// Internal: role + ownership resolution
+// Internal: role + campaign-bound node resolution
 // ============================================================================
 
 type AuthContext =
@@ -128,6 +128,45 @@ async function resolveAuth(campaignId: string): Promise<AuthContext> {
   if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
 
   return { ok: true, userId: user.id, role: membership.role }
+}
+
+/**
+ * Server actions use the service-role client for writes, so foreign keys alone
+ * are not enough: `nodes(id)` does not encode a campaign. Keep every actor,
+ * session and item reference inside the campaign selected by the caller.
+ */
+async function ensureCampaignNodes(
+  campaignId: string,
+  nodeIds: Array<string | null | undefined>,
+): Promise<ActionResult> {
+  const ids = [...new Set(nodeIds.filter((id): id is string => Boolean(id)))]
+  if (ids.length === 0) return { ok: true }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('nodes')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .in('id', ids)
+
+  if (error) {
+    logActivityError('transaction.campaign_node_lookup_failed', error, {
+      campaignId,
+      nodes: ids.length,
+    })
+    return { ok: false, error: 'Не удалось проверить принадлежность узлов кампании' }
+  }
+
+  if ((data ?? []).length !== ids.length) {
+    logActivityWarning('transaction.cross_campaign_node_rejected', {
+      campaignId,
+      requestedNodes: ids.length,
+      matchedNodes: (data ?? []).length,
+    })
+    return { ok: false, error: 'Выбранный персонаж, сессия или предмет не принадлежат кампании' }
+  }
+
+  return { ok: true }
 }
 
 /**
@@ -223,6 +262,16 @@ export async function createTransaction(
   const dayErr = validateDayInLoop(input.dayInLoop, 365)
   if (dayErr) return { ok: false, error: dayErr }
 
+  // Authenticate before loading a wallet or a catalog record. The action uses
+  // an admin client later, therefore the campaign boundary must be explicit.
+  const auth = await resolveAuth(input.campaignId)
+  if (!auth.ok) return auth
+  const nodeCheck = await ensureCampaignNodes(input.campaignId, [
+    input.actorPcId,
+    input.sessionId,
+  ])
+  if (!nodeCheck.ok) return nodeCheck
+
   // --- Kind-specific validation ---
   let coins: CoinSet = { cp: 0, sp: 0, gp: 0, pp: 0 }
   let itemName: string | null = null
@@ -280,11 +329,6 @@ export async function createTransaction(
     const qtyErr = validateItemQty(itemQty)
     if (qtyErr) return { ok: false, error: qtyErr }
   }
-
-  // --- Authorisation ---
-  const auth = await resolveAuth(input.campaignId)
-  if (!auth.ok) return auth
-
 
   // --- Write ---
   const admin = createAdminClient()
@@ -387,6 +431,8 @@ export async function takeLoopCredit(
 
   const auth = await resolveAuth(campaignId)
   if (!auth.ok) return auth
+  const nodeCheck = await ensureCampaignNodes(campaignId, [pcId])
+  if (!nodeCheck.ok) return nodeCheck
 
   const admin = createAdminClient()
 
@@ -492,6 +538,11 @@ export async function updateTransaction(
 
   const auth = await resolveAuth(row.campaign_id)
   if (!auth.ok) return auth
+
+  if (input.sessionId !== undefined) {
+    const sessionCheck = await ensureCampaignNodes(row.campaign_id, [input.sessionId])
+    if (!sessionCheck.ok) return sessionCheck
+  }
 
   if (auth.role === 'player' && row.author_user_id !== auth.userId) {
     return { ok: false, error: 'Можно редактировать только собственные транзакции' }
@@ -757,11 +808,9 @@ export async function loadLedgerPage(
 //   - `deleteTransfer` uses a single DELETE `where transfer_group_id = $1`.
 //
 // Authorization:
-//   - owner/dm can operate on any transfer.
-//   - player can initiate a transfer if they own the sender PC; they are
-//     recorded as the author on both legs. The recipient-side owner has
-//     no special rights to edit their "copy" via this action — ownership
-//     stays on the authoring identity (symmetric with any other row).
+//   - every campaign member may initiate a transfer between campaign nodes;
+//   - the initiating member is recorded as the author on both legs;
+//   - a player may edit/delete only a transfer they authored.
 
 import type { TransferInput } from '@/lib/transactions'
 import { validateTransfer, validateItemTransfer } from '@/lib/transaction-validation'
@@ -788,6 +837,15 @@ export async function createTransfer(
 
   const dayErr = validateDayInLoop(input.dayInLoop, 365)
   if (dayErr) return { ok: false, error: dayErr }
+
+  const auth = await resolveAuth(input.campaignId)
+  if (!auth.ok) return auth
+  const nodeCheck = await ensureCampaignNodes(input.campaignId, [
+    input.senderPcId,
+    input.recipientPcId,
+    input.sessionId,
+  ])
+  if (!nodeCheck.ok) return nodeCheck
 
   // Amount: UI provides a positive gp value; we apply sign ourselves so
   // it is unambiguous on the stored rows.
@@ -818,10 +876,6 @@ export async function createTransfer(
 
   // Mirror recipient inflow — same magnitude, opposite sign.
   const recipientCoins: CoinSet = signedCoinsToStored(true, senderCoins)
-
-  const auth = await resolveAuth(input.campaignId)
-  if (!auth.ok) return auth
-
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
@@ -923,6 +977,11 @@ export async function updateTransfer(
     sharedPatch.day_in_loop = input.dayInLoop
   }
   if (input.sessionId !== undefined) sharedPatch.session_id = input.sessionId
+
+  if (input.sessionId !== undefined) {
+    const sessionCheck = await ensureCampaignNodes(legA.campaign_id, [input.sessionId])
+    if (!sessionCheck.ok) return sessionCheck
+  }
 
   let senderCoins: CoinSet | null = null
   if (input.perDenomOverride) {
@@ -1147,7 +1206,12 @@ export async function createItemTransfer(
 
   const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
-
+  const nodeCheck = await ensureCampaignNodes(input.campaignId, [
+    input.senderPcId,
+    input.recipientPcId,
+    input.sessionId,
+  ])
+  if (!nodeCheck.ok) return nodeCheck
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
@@ -1434,6 +1498,18 @@ export async function createPurchase(
   const dayErr = validateDayInLoop(input.dayInLoop, 365)
   if (dayErr) return { ok: false, error: dayErr }
 
+  if (!['pc', 'pc_with_stash', 'stash'].includes(input.fundingSource)) {
+    return { ok: false, error: 'Недопустимый источник оплаты' }
+  }
+
+  const auth = await resolveAuth(input.campaignId)
+  if (!auth.ok) return auth
+  const nodeCheck = await ensureCampaignNodes(input.campaignId, [
+    input.buyerPcId,
+    input.sessionId,
+  ])
+  if (!nodeCheck.ok) return nodeCheck
+
   // --- Resolve the purchase: a catalog Образец OR a free-text custom item
   //     (spec-058 «купить несуществующий предмет»). Settings are read either
   //     way — the approval gate below needs the policy. ---
@@ -1490,12 +1566,6 @@ export async function createPurchase(
     return { ok: false, error: 'Не выбран предмет' }
   }
   const totalGp = unitGp * qty
-
-  // --- Auth ---
-  const auth = await resolveAuth(input.campaignId)
-  if (!auth.ok) return auth
-  // Any campaign member may buy for any PC. Other money/item actions retain
-  // their ownership checks; this exception is deliberately purchase-only.
 
   // --- Approval gate: rarity-driven, funding-agnostic (C-14); set-buy may
   //     override with the aggregated decision (C-16). Spec-053: the campaign

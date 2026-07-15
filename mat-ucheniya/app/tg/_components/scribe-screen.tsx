@@ -352,7 +352,10 @@ function ScribeRunSheet({
   const label = spellLevelLabel(spell.level)
 
   const [scribes, setScribes] = useState<Set<string>>(
-    () => new Set(characters.filter((c) => c.isOwn).map((c) => c.id)),
+    () => {
+      const preferred = characters.filter((c) => c.isOwn)
+      return new Set((preferred.length > 0 ? preferred : characters.slice(0, 1)).map((c) => c.id))
+    },
   )
   // Только РУЧНЫЕ правки часов; отсутствие ключа = живой дефолт «поровну».
   const [hoursEdits, setHoursEdits] = useState<Record<string, string>>({})
@@ -719,7 +722,7 @@ function ParticipantRow({
         className="h-4 w-4 accent-blue-600"
       />
       <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">{c.title}</span>
-      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">доступен</span>}
+      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">ваш</span>}
     </label>
   )
 }

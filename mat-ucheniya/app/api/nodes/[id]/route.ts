@@ -40,8 +40,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Write gate (spec-006 increment 4): owner/dm always; player only on
-  // their own PC. Mirrors SQL can_edit_node() for clean 403 responses.
+  // Write gate mirrors the campaign-wide SQL can_edit_node() rule.
   const allowed = await canEditNode(
     id,
     nodeMeta.campaign_id,

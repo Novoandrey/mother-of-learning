@@ -253,11 +253,9 @@ export function WikiNodeScreen({
     }
   }, [supabase, campaignId, nodeId])
 
-  // Edit affordance mirrors what the server will allow without a 403: any
-  // member can edit non-character nodes (shared world); character nodes need
-  // ownership we can't cheaply check here, so we hide the button and leave PC
-  // editing to desktop. See canEditNode (lib/auth.ts).
-  const canEdit = node != null && node.type !== 'character'
+  // Every campaign member may edit every campaign node. See canEditNode
+  // (lib/auth.ts); keeping the affordance visible avoids a mobile-only gap.
+  const canEdit = node != null
 
   return (
     <div className="mx-auto max-w-sm pb-10">

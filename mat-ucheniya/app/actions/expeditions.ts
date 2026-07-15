@@ -15,15 +15,13 @@
  * event narrates it (never per-row — the feed must not flood).
  *
  * ── Gating decision (documented per AGENTS.md) ─────────────────────────────
- * The financial rows have actor = the общак node, NOT a PC. `createTransaction`
- * / `createItemTransfer` gate players via `isPcOwner(actorPcId)`, which the
- * stash node can never satisfy — so a player-initiated вылазка cannot go
- * through those actions. Mirroring what the stash wrappers effectively rely on
- * (free-общак, auto-approved) and what migration 124's header prescribes, this
- * module writes the transaction rows DIRECTLY via the admin client, gated by
+ * The financial rows have actor = the общак node, NOT a PC. An expedition is a
+ * coordinated multi-row domain write, so this module writes the transaction
+ * rows DIRECTLY via the admin client, gated by
  * its OWN `getMembership(campaignId)` check (any campaign member — player or
- * DM — may run a вылазка; spec-055 «и ДМ, и игроки»). RLS on the transactions
- * table (member-scoped writes) is the hard safety net underneath.
+ * DM — may run a вылазка; spec-055 «и ДМ, и игроки»). Because this is an
+ * admin-client write, the explicit membership and campaign-node checks are
+ * the effective boundary.
  *
  * ── Pricing decision ───────────────────────────────────────────────────────
  * Consumable unit price is resolved AUTHORITATIVELY server-side, the exact
@@ -477,6 +475,36 @@ export async function runExpedition(
   }
 
   const admin = createAdminClient()
+
+  const nodeIds = [
+    ...participants,
+    ...rewardItems.flatMap((item) => (item.itemNodeId ? [item.itemNodeId] : [])),
+  ]
+  const uniqueNodeIds = [...new Set(nodeIds)]
+  const { data: campaignNodes, error: nodeErr } = await admin
+    .from('nodes')
+    .select('id')
+    .eq('campaign_id', input.campaignId)
+    .in('id', uniqueNodeIds)
+  if (nodeErr) {
+    return { ok: false, error: `Не удалось проверить участников и награды: ${nodeErr.message}` }
+  }
+  if ((campaignNodes ?? []).length !== uniqueNodeIds.length) {
+    return { ok: false, error: 'Участники и связанные награды должны принадлежать этой кампании' }
+  }
+
+  if (input.expeditionId) {
+    const { data: template, error: templateErr } = await admin
+      .from('expeditions')
+      .select('id')
+      .eq('id', input.expeditionId)
+      .eq('campaign_id', input.campaignId)
+      .maybeSingle()
+    if (templateErr) {
+      return { ok: false, error: `Не удалось проверить шаблон вылазки: ${templateErr.message}` }
+    }
+    if (!template) return { ok: false, error: 'Шаблон вылазки не принадлежит кампании' }
+  }
 
   // --- Consumables cost: authoritative, server-side (like createPurchase) ---
   const cfg = await loadBuyConfig(admin, input.campaignId)

@@ -14,12 +14,13 @@ export async function POST(request: Request) {
     logActivityWarning('map.upload.denied', { campaignId })
     return NextResponse.json({ error: 'Нет прав.' }, { status: 403 })
   }
-  if (!validateImageFile(file, MAX_BYTES)) {
+  const image = await validateImageFile(file, MAX_BYTES)
+  if (!image) {
     logActivityWarning('map.upload.invalid_file', { campaignId })
     return NextResponse.json({ error: 'Нужен PNG, JPEG или WebP до 12 МБ.' }, { status: 400 })
   }
-  const uploaded = await uploadCampaignImage(`maps/${campaignId}`, file)
+  const uploaded = await uploadCampaignImage(`maps/${campaignId}`, image)
   if ('error' in uploaded) return NextResponse.json({ error: uploaded.error }, { status: uploaded.status })
-  logActivity('map.upload.completed', { campaignId, bytes: file.size })
+  logActivity('map.upload.completed', { campaignId, bytes: image.size })
   return NextResponse.json(uploaded)
 }

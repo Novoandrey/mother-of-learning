@@ -8,9 +8,9 @@
  *     campaign-wide loan amount + stash seed (coins + items).
  *   - T019 updatePcStarterConfig — DM/owner edits a PC's starting coins
  *     + items. Player can't call this; for the loan-flag flip see T020.
- *   - T020 setPcTakesStartingLoan — the narrow player-editable surface
- *     (one boolean). DM/owner OR the PC's own owner may call it. The
- *     permission rule reuses `canEditNode` from `lib/auth.ts` so it
+ *   - T020 setPcTakesStartingLoan — the narrow per-PC editable surface
+ *     (one boolean). Any campaign member may call it. The permission
+ *     rule reuses `canEditNode` from `lib/auth.ts` so it
  *     stays in sync with the SQL `can_edit_node()` helper.
  *
  * Apply action (Phase 6) lands in this same file when T021 is wired.
@@ -375,9 +375,8 @@ export async function updatePcStarterConfig(
 // ============================================================================
 
 /**
- * The one player-editable surface in spec-012. Permission model is
- * wider than T019: in addition to DM/owner, the PC's own owner (i.e.
- * a member of `node_pc_owners`) may flip their flag.
+ * The one per-PC editable surface in spec-012. Any campaign member may flip
+ * the flag for a character in their campaign.
  *
  * Implementation reuses `canEditNode` from `lib/auth.ts`, which
  * already encodes the exact rule we want — mirroring the SQL
@@ -402,9 +401,7 @@ export async function setPcTakesStartingLoan(
   const membership = await getMembership(pc.campaignId)
   if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
 
-  // canEditNode mirrors migration 031's can_edit_node() SQL:
-  //   - owner/dm → true for any node
-  //   - player   → true only if present in node_pc_owners
+  // canEditNode mirrors the campaign-wide can_edit_node() SQL rule.
   const allowed = await canEditNode(
     pcId,
     pc.campaignId,
@@ -414,7 +411,7 @@ export async function setPcTakesStartingLoan(
   if (!allowed) {
     return {
       ok: false,
-      error: 'Только ДМ или владелец персонажа может менять этот флаг',
+      error: 'Персонаж не принадлежит этой кампании',
     }
   }
 

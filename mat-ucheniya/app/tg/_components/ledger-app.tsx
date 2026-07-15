@@ -115,11 +115,6 @@ export function CharacterList({
           ))}
         </Group>
       )}
-      {own.length === 0 && (
-        <p className="mb-6 rounded-lg bg-neutral-900 px-4 py-3 text-sm text-neutral-400">
-          За тобой пока нет персонажей в этой кампании. Напиши ведущему — он привяжет твоего PC.
-        </p>
-      )}
       {others.length > 0 && (
         <Group title={own.length > 0 ? 'Остальные' : 'Персонажи кампании'}>
           {others.map((c) => (
@@ -1322,7 +1317,7 @@ function ParticipantRow({
         className="h-4 w-4 accent-blue-600"
       />
       <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">{c.title}</span>
-      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">доступен</span>}
+      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">ваш</span>}
     </label>
   )
 }
@@ -1763,10 +1758,12 @@ function ExpeditionRunSheet({
   // stays fully editable — «дефолты, не локи». `expedition=null` (ad-hoc) falls
   // back to the sensible bare defaults.
   const [participants, setParticipants] = useState<Set<string>>(() => {
-    // Template roster if it has one, else the caller's own PCs (common: «я сходил»).
+    // Template roster wins. Otherwise prefer the caller's PCs, with a campaign
+    // character fallback so members without an assigned PC can still act.
     const roster = expedition?.defaultParticipantNodeIds ?? []
     if (roster.length > 0) return new Set(roster)
-    return new Set(characters.filter((c) => c.isOwn).map((c) => c.id))
+    const preferred = characters.filter((c) => c.isOwn)
+    return new Set((preferred.length > 0 ? preferred : characters.slice(0, 1)).map((c) => c.id))
   })
   const [target, setTarget] = useState(expedition?.title ?? '')
   const [consumables, setConsumables] = useState<ExpItemLine[]>(
@@ -2287,7 +2284,10 @@ function CraftRunSheet({
   const requiredH = requiredRateHours(workCostGp, rate) // Infinity при ставке 0
 
   const [crafters, setCrafters] = useState<Set<string>>(
-    () => new Set(characters.filter((c) => c.isOwn).map((c) => c.id)),
+    () => {
+      const preferred = characters.filter((c) => c.isOwn)
+      return new Set((preferred.length > 0 ? preferred : characters.slice(0, 1)).map((c) => c.id))
+    },
   )
   // Только РУЧНЫЕ правки часов; отсутствие ключа = живой дефолт «поровну».
   const [hoursEdits, setHoursEdits] = useState<Record<string, string>>({})
