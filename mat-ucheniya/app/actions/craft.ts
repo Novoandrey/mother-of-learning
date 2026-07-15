@@ -51,14 +51,18 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentUser, getMembership } from '@/lib/auth'
 import { getStashNode } from '@/lib/stash'
 import { getWallet } from '@/lib/transactions'
-import { getCurrentLoop } from '@/lib/loops'
-import { parsePartyLevel, pbForLevel } from '@/lib/party-level'
+import { pbForLevel } from '@/lib/party-level'
 import { parseCraftSettings, rateForPb, craftRowFor } from '@/lib/craft-settings'
 import { resolveSpend, aggregateGp } from '@/lib/transaction-resolver'
 import { validateDayInLoop } from '@/lib/transaction-validation'
 import { notifyLedgerEvent, type LedgerEvent } from '@/lib/telegram/ledger-feed'
 import { invalidateSidebar } from '@/lib/sidebar-cache'
 import { netStashQty } from '@/lib/resources'
+import {
+  coerceStartMinute,
+  loadCampaignNode,
+  loadCurrentPartyLevel,
+} from '@/lib/action-loaders'
 import {
   cleanCraftParticipants,
   totalCraftHours,
@@ -90,67 +94,6 @@ async function loadCraftSettings(
   const settings =
     (data as { settings?: Record<string, unknown> } | null)?.settings ?? {}
   return parseCraftSettings(settings.craft_settings)
-}
-
-/**
- * The CURRENT loop's party level. `null` level = not set → craft refuses.
- * The Loop read model hides raw fields, so fetch them by node id.
- */
-async function loadCurrentPartyLevel(
-  admin: ReturnType<typeof createAdminClient>,
-  campaignId: string,
-): Promise<
-  | { ok: true; partyLevel: number; loopNumber: number }
-  | { ok: false; error: string }
-> {
-  const loop = await getCurrentLoop(campaignId)
-  if (!loop) {
-    return { ok: false, error: 'Не найдена текущая петля — крафт недоступен' }
-  }
-  const { data } = await admin
-    .from('nodes')
-    .select('fields')
-    .eq('id', loop.id)
-    .maybeSingle()
-  const fields = ((data as { fields?: Record<string, unknown> } | null)?.fields ??
-    {}) as Record<string, unknown>
-  const partyLevel = parsePartyLevel(fields.party_level)
-  if (partyLevel == null) {
-    return {
-      ok: false,
-      error: 'Задайте уровень партии в редактировании петли — без него крафт недоступен',
-    }
-  }
-  return { ok: true, partyLevel, loopNumber: loop.number }
-}
-
-/** A node of this campaign, or null. Guards FK writes against foreign ids. */
-async function loadCampaignNode(
-  admin: ReturnType<typeof createAdminClient>,
-  campaignId: string,
-  nodeId: string,
-): Promise<{ id: string; title: string; fields: Record<string, unknown> } | null> {
-  const { data } = await admin
-    .from('nodes')
-    .select('id, title, fields')
-    .eq('id', nodeId)
-    .eq('campaign_id', campaignId)
-    .maybeSingle()
-  if (!data) return null
-  const row = data as { id: string; title: string; fields: Record<string, unknown> | null }
-  return { id: row.id, title: row.title, fields: row.fields ?? {} }
-}
-
-/** Validate an optional minute-of-day (whole int 0..1439), like expeditions. */
-function coerceStartMinute(
-  v: number | null | undefined,
-): { ok: true; value: number | null } | { ok: false; error: string } {
-  if (v == null) return { ok: true, value: null }
-  const n = Math.round(v)
-  if (!Number.isFinite(n) || n < 0 || n > 1439) {
-    return { ok: false, error: 'Минута старта — от 0 до 1439' }
-  }
-  return { ok: true, value: n }
 }
 
 /** Allowed catalog rarity values (mirrors item_attributes_rarity_check). */
@@ -543,7 +486,11 @@ export async function runCraft(
   }
 
   // --- Gate 2: party level of the CURRENT loop (see header decision) ---
-  const levelCheck = await loadCurrentPartyLevel(admin, input.campaignId)
+  const levelCheck = await loadCurrentPartyLevel(admin, input.campaignId, {
+    noCurrentLoop: 'Не найдена текущая петля — крафт недоступен',
+    missingPartyLevel:
+      'Задайте уровень партии в редактировании петли — без него крафт недоступен',
+  })
   if (!levelCheck.ok) return levelCheck
   const { partyLevel } = levelCheck
 

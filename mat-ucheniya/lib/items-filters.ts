@@ -13,6 +13,7 @@ import type {
   PriceBand,
   Rarity,
 } from './items-types';
+import { priceBandFor } from './item-price-bands';
 
 const RARITY_VALUES: readonly Rarity[] = [
   'common',
@@ -109,11 +110,8 @@ export function buildItemFiltersUrl(
  * group-by re-fold without refetch (the page already loaded a filtered
  * list, but secondary group-by toggling shouldn't trigger a roundtrip).
  *
- * NOTE: `priceBand` filter is delegated to `priceBandFor` from
- * `items-grouping` — but that function is in another module to keep
- * `items-filters` import-free of grouping logic. Instead we inline the
- * thresholds here; if the bands ever drift, both modules need updating.
- * Tests cover the boundary cases.
+ * Price band thresholds live in `item-price-bands.ts`, so filtering and
+ * grouping always classify the same item identically.
  */
 export function applyItemFilters(
   items: ItemNode[],
@@ -134,24 +132,11 @@ export function applyItemFilters(
     )
       return false;
     if (filters.priceBand) {
-      const band = priceBandForLocal(item.priceGp);
+      const band = priceBandFor(item.priceGp);
       if (band !== filters.priceBand) return false;
     }
     return true;
   });
-}
-
-/**
- * Local copy of `priceBandFor` — kept here to keep this module
- * dependency-free. The canonical implementation lives in
- * `items-grouping.ts`; both must agree (covered by tests).
- */
-function priceBandForLocal(priceGp: number | null): PriceBand {
-  if (priceGp === null) return 'priceless';
-  if (priceGp === 0) return 'free';
-  if (priceGp <= 50) return 'cheap';
-  if (priceGp <= 500) return 'mid';
-  return 'expensive';
 }
 
 /**

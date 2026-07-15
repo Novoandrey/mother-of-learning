@@ -92,7 +92,7 @@ export type ItemFilters = {
   slot?: string;
   source?: string;
   availability?: string;
-  /** Price band group key — see `priceBandFor` in `items-grouping.ts`. */
+  /** Price band group key — see `priceBandFor` in `item-price-bands.ts`. */
   priceBand?: PriceBand;
 };
 

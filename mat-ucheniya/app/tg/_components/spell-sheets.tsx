@@ -29,19 +29,10 @@ import { maxSpellLevel } from '@/lib/party-level'
 import { reprepCostGp, copyCostGp, type SpellSettings } from '@/lib/spell-settings'
 import { spellLevelLabel } from '@/lib/spell'
 import { formatGp } from './format'
-import { FIELD, Sheet, SegToggle, SubmitButton } from './primitives'
+import { FIELD, PreviewLine, Sheet, SegToggle, SubmitButton } from './primitives'
 import { QUICK_ACTION_DAY, type ActionSheetProps } from './action-sheets'
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
-
-/** Превью-строка пайплайна (копия из action-sheets — приватна там, boundary). */
-function PreviewLine({ text }: { text: string }) {
-  return (
-    <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 text-center text-sm text-neutral-200">
-      {text}
-    </div>
-  )
-}
 
 /** «−N зм» / «бесплатно» — общий хвост цены превью и тоста (заговор ур.0 → 0). */
 function costTail(costGp: number | null): string {
