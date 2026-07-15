@@ -6,6 +6,7 @@ import { MarkdownContent } from './markdown-content'
 import type { WikiTitleEntry } from '@/lib/wikilinks'
 import { Chronicles } from './chronicles'
 import { PortraitCarousel } from './portrait-carousel'
+import { PortraitManager } from './portrait-manager'
 import { NodeOwnerSection, type OwnerContext } from './node-owner-section'
 import type { Portrait } from '@/lib/portraits'
 import { useState, useCallback } from 'react'
@@ -283,6 +284,14 @@ export function NodeDetail({
       {/* Portraits (spec-030) — carousel for character/npc/creature; renders
           nothing when the node has no portraits. */}
       <PortraitCarousel name={node.title} portraits={portraits} />
+      {(node.type.slug === 'character' || node.type.slug === 'npc' || node.type.slug === 'creature') && canEdit && (
+        <PortraitManager
+          campaignId={campaignId}
+          campaignSlug={campaignSlug}
+          nodeId={node.id}
+          portraits={portraits}
+        />
+      )}
 
       {/* Children (contains) */}
       {childNodes.length > 0 && (

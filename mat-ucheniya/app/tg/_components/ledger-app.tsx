@@ -1322,7 +1322,7 @@ function ParticipantRow({
         className="h-4 w-4 accent-blue-600"
       />
       <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">{c.title}</span>
-      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">мой</span>}
+      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">доступен</span>}
     </label>
   )
 }

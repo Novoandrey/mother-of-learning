@@ -344,7 +344,7 @@ export async function searchCampaignItemsTg(
 /**
  * Buyable catalog items for the /tg buy screen (spec-052, US2). Like
  * searchCampaignItemsTg but joins item_attributes for the data needed to
- * preview the price, and excludes «нельзя купить» items (C-15). The charged
+ * preview the price. The charged
  * price is computed client-side with resolveBuyUnitPriceGp + getCampaignBuyConfigTg.
  */
 export type BuyableItemTg = {
@@ -372,7 +372,7 @@ export async function searchBuyableItemsTg(
     .eq('node_types.slug', 'item')
     .ilike('title', `%${q}%`)
     .order('title', { ascending: true })
-    .limit(limit * 2) // over-fetch; no_purchase is filtered client-side
+    .limit(limit)
   const rows = (data ?? []) as Array<{
     id: string
     title: string
@@ -384,7 +384,6 @@ export async function searchBuyableItemsTg(
   }>
   const out: BuyableItemTg[] = []
   for (const r of rows) {
-    if ((r.fields ?? {}).no_purchase === true) continue // C-15
     const attrs = Array.isArray(r.item_attributes)
       ? r.item_attributes[0]
       : r.item_attributes
@@ -404,8 +403,7 @@ export async function searchBuyableItemsTg(
 /**
  * Spec-053: buyable attrs (price/rarity/category) for a set of item node ids,
  * so the client can price a whole набор for the «баланс → после» preview
- * (buyItems still prices authoritatively server-side). `no_purchase` items are
- * dropped — a set with one blocks the buy anyway, and it just won't be priced.
+ * (buyItems still prices authoritatively server-side).
  */
 export async function getBuyableItemsByIdsTg(
   supabase: SupabaseClient,
@@ -432,7 +430,6 @@ export async function getBuyableItemsByIdsTg(
   }>
   const byId = new Map<string, BuyableItemTg>()
   for (const r of rows) {
-    if ((r.fields ?? {}).no_purchase === true) continue
     const attrs = Array.isArray(r.item_attributes)
       ? r.item_attributes[0]
       : r.item_attributes

@@ -34,7 +34,6 @@
 import crypto from 'node:crypto'
 
 import { getCurrentUser, getMembership } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveEarn, signedCoinsToStored } from '@/lib/transaction-resolver'
 import { validateDayInLoop, validateItemQty } from '@/lib/transaction-validation'
@@ -56,18 +55,6 @@ export type SellPcItemInput = {
   dayInLoop: number
 }
 
-/** True when `userId` is listed in node_pc_owners for the PC (canon gate). */
-async function isPcOwner(pcId: string, userId: string): Promise<boolean> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('node_pc_owners')
-    .select('node_id')
-    .eq('node_id', pcId)
-    .eq('user_id', userId)
-    .maybeSingle()
-  return !!data
-}
-
 export async function sellPcItem(
   input: SellPcItemInput,
 ): Promise<ActionResult<{ soldGp: number }>> {
@@ -85,17 +72,11 @@ export async function sellPcItem(
   }
   const soldGp = Math.round(input.soldGp)
 
-  // --- Auth: membership + (players) ownership of the acting PC ---
+  // --- Auth: any campaign member can act for any PC. ---
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: 'Не авторизован' }
   const membership = await getMembership(input.campaignId)
   if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
-  if (membership.role === 'player') {
-    const owned = await isPcOwner(input.pcId, user.id)
-    if (!owned) {
-      return { ok: false, error: 'Нельзя продавать за чужого персонажа' }
-    }
-  }
 
   const admin = createAdminClient()
 

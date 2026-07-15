@@ -12,6 +12,7 @@
  *   - owner/dm of the campaign can write any row.
  *   - player can create rows where they own the actor PC
  *     (`node_pc_owners`).
+ *   - exception: a purchase may be made by any campaign player for any PC.
  *   - player can edit/delete only rows they authored.
  *
  * All writes go through `createAdminClient()` after an explicit membership
@@ -20,7 +21,6 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getMembership } from '@/lib/auth'
 import {
   isAutoApproved,
@@ -145,47 +145,6 @@ async function loadApprovalsEnabled(campaignId: string): Promise<boolean> {
   return approvalsEnabledFromSettings(
     (data as { settings?: unknown } | null)?.settings,
   )
-}
-
-/**
- * True when `userId` is listed in `node_pc_owners` for the given PC.
- * Used to gate player-initiated creates against PCs they don't own.
- */
-async function isPcOwner(pcId: string, userId: string): Promise<boolean> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('node_pc_owners')
-    .select('user_id')
-    .eq('node_id', pcId)
-    .eq('user_id', userId)
-    .maybeSingle()
-  return data !== null
-}
-
-/**
- * Player-initiated transfer ownership gate (shared by money + item transfers).
- *
- * Normal PC→PC: the initiator must own the SENDER (you send from your own PC).
- * Stash-take (общак → PC): the sender is the shared stash node that NOBODY
- * owns, so gating on the sender always failed — that was the bug. Authorize a
- * stash-take by owning the RECIPIENT instead (you pull shared party funds into
- * your own PC). The stash is resolved SERVER-SIDE so a client can't spoof the
- * relaxation by passing a fake `senderPcId` — we compare against the real stash
- * node id. Owner/DM skip this gate entirely (checked at the call site).
- */
-async function gatePlayerTransfer(
-  campaignId: string,
-  senderPcId: string,
-  recipientPcId: string,
-  userId: string,
-  errStashTake: string,
-  errNormal: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const stash = await getStashNode(campaignId)
-  const senderIsStash = stash != null && senderPcId === stash.nodeId
-  const gatePcId = senderIsStash ? recipientPcId : senderPcId
-  if (await isPcOwner(gatePcId, userId)) return { ok: true }
-  return { ok: false, error: senderIsStash ? errStashTake : errNormal }
 }
 
 // ============================================================================
@@ -326,12 +285,6 @@ export async function createTransaction(
   const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
 
-  if (auth.role === 'player') {
-    const owned = await isPcOwner(input.actorPcId, auth.userId)
-    if (!owned) {
-      return { ok: false, error: 'Вы не можете создавать транзакции за чужого персонажа' }
-    }
-  }
 
   // --- Write ---
   const admin = createAdminClient()
@@ -434,10 +387,6 @@ export async function takeLoopCredit(
 
   const auth = await resolveAuth(campaignId)
   if (!auth.ok) return auth
-  if (auth.role === 'player') {
-    const owned = await isPcOwner(pcId, auth.userId)
-    if (!owned) return { ok: false, error: 'Нельзя взять кредит за чужого персонажа' }
-  }
 
   const admin = createAdminClient()
 
@@ -873,17 +822,6 @@ export async function createTransfer(
   const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
 
-  if (auth.role === 'player') {
-    const gate = await gatePlayerTransfer(
-      input.campaignId,
-      input.senderPcId,
-      input.recipientPcId,
-      auth.userId,
-      'Взять из общака может только владелец персонажа-получателя',
-      'Перевод может начать только владелец персонажа-отправителя',
-    )
-    if (!gate.ok) return gate
-  }
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
@@ -1210,17 +1148,6 @@ export async function createItemTransfer(
   const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
 
-  if (auth.role === 'player') {
-    const gate = await gatePlayerTransfer(
-      input.campaignId,
-      input.senderPcId,
-      input.recipientPcId,
-      auth.userId,
-      'Взять предмет из общака может только владелец персонажа-получателя',
-      'Перевод предмета может начать только владелец персонажа-отправителя',
-    )
-    if (!gate.ok) return gate
-  }
 
   const admin = createAdminClient()
   const groupId = crypto.randomUUID()
@@ -1530,12 +1457,10 @@ export async function createPurchase(
   let unitGp: number | null
 
   if (input.itemNodeId) {
-    // --- Catalog item + «нельзя купить» guard (C-15) ---
+    // Catalog item. The shared-party purchase rule intentionally does not
+    // honour the former `no_purchase` UI flag: any catalog item is buyable.
     const item = await getItemById(input.campaignId, input.itemNodeId)
     if (!item) return { ok: false, error: 'Предмет не найден в каталоге' }
-    if (item.noPurchase) {
-      return { ok: false, error: `«${item.title}» помечен как «нельзя купить»` }
-    }
     itemTitle = item.title
     itemNodeIdOut = input.itemNodeId
     // Price: (price_gp ?? rarity-default[bucket]) × coefficient[rarity] (C-13).
@@ -1566,13 +1491,11 @@ export async function createPurchase(
   }
   const totalGp = unitGp * qty
 
-  // --- Auth + ownership ---
+  // --- Auth ---
   const auth = await resolveAuth(input.campaignId)
   if (!auth.ok) return auth
-  if (auth.role === 'player') {
-    const owned = await isPcOwner(input.buyerPcId, auth.userId)
-    if (!owned) return { ok: false, error: 'Нельзя покупать за чужого персонажа' }
-  }
+  // Any campaign member may buy for any PC. Other money/item actions retain
+  // their ownership checks; this exception is deliberately purchase-only.
 
   // --- Approval gate: rarity-driven, funding-agnostic (C-14); set-buy may
   //     override with the aggregated decision (C-16). Spec-053: the campaign

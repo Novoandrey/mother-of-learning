@@ -4,7 +4,7 @@ export type CampaignCharacter = {
   id: string
   title: string
   primaryPortraitKey: string | null
-  /** True when the caller owns this PC via `node_pc_owners`. */
+  /** Every campaign PC is actionable under the shared-character rule. */
   isOwn: boolean
 }
 
@@ -24,7 +24,6 @@ export type CampaignCharacter = {
 export async function getCampaignCharacters(
   supabase: SupabaseClient,
   campaignId: string,
-  userId: string,
 ): Promise<CampaignCharacter[]> {
   const { data, error } = await supabase
     .from('nodes')
@@ -46,7 +45,7 @@ export async function getCampaignCharacters(
     }
     const portraits = r.character_portraits ?? []
     const primary = portraits.find((p) => p.is_primary) ?? portraits[0] ?? null
-    const isOwn = (r.node_pc_owners ?? []).some((o) => o.user_id === userId)
+    const isOwn = true
     return {
       id: r.id,
       title: r.title,
@@ -55,7 +54,5 @@ export async function getCampaignCharacters(
     }
   })
 
-  // Own PCs first, then alphabetical within each group (the query already
-  // sorted by title, so a stable partition preserves that order).
-  return [...mapped.filter((c) => c.isOwn), ...mapped.filter((c) => !c.isOwn)]
+  return mapped
 }

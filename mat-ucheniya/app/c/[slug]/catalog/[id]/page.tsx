@@ -306,24 +306,9 @@ export default async function NodePage({
     }
   }
 
-  // canEdit decides which write-UI renders in the detail view
-  // (edit/delete buttons, tag editor, add-edge form). Mirror of migration 031:
-  //   - owner/dm → always true
-  //   - member   → true for any non-character node
-  //   - player   → true for a character only if they're in node_pc_owners
-  // RLS on the server-side is the hard boundary; this just mirrors it
-  // so the UI doesn't show buttons that would 403.
-  const isManager = membership.role === 'owner' || membership.role === 'dm'
-  let canEdit: boolean
-  if (isManager) {
-    canEdit = true
-  } else if (typeSlug !== 'character') {
-    canEdit = true
-  } else if (ownerContext) {
-    canEdit = ownerContext.owners.some((o) => o.user_id === user.id)
-  } else {
-    canEdit = false
-  }
+  // Character ownership is roster metadata only; every campaign member can
+  // edit every campaign node (mirrors migration 134 + canEditNode()).
+  const canEdit = true
 
   // Spec-009 US3: for PCs, show a "current loop progress" card when a
   // loop with status='current' exists. Silent no-op otherwise.
@@ -353,15 +338,10 @@ export default async function NodePage({
     //   DM/owner → full editor
     //   PC owner (player) → interactive loan flag + read-only summary
     //   anyone else → hidden
-    const userOwnsPc =
-      !!ownerContext &&
-      ownerContext.owners.some((o) => o.user_id === user.id)
     const starterMode: PcStarterConfigBlockMode =
       membership.role === 'owner' || membership.role === 'dm'
         ? 'dm'
-        : userOwnsPc
-          ? 'player'
-          : 'read-only'
+        : 'player'
 
     const tabsNav = (
       <div className="flex gap-0 border-b border-gray-200">

@@ -7,10 +7,14 @@
  */
 
 export type Portrait = {
+  id: string
   r2_key: string
   is_primary: boolean
   sort_order: number
   caption: string | null
+  crop_x: number
+  crop_y: number
+  crop_zoom: number
 }
 
 /**
@@ -33,7 +37,7 @@ export function portraitUrl(
 }
 
 /** Column list for a portraits SELECT — keep call sites in sync. */
-export const PORTRAIT_COLUMNS = 'r2_key, is_primary, sort_order, caption'
+export const PORTRAIT_COLUMNS = 'id, r2_key, is_primary, sort_order, caption, crop_x, crop_y, crop_zoom'
 
 /** Primary first, then sort_order — carousel display order. Portraits are
  *  decorative, so callers pass `data ?? []` and never fail on a null fetch. */

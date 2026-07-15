@@ -114,10 +114,8 @@ export function loginToEmail(login: string): string {
  * Server-side counterpart to the SQL `can_edit_node()` helper.
  * Returns true if the current viewer may edit this node.
  *
- * Mirror of migration 031:
- *   - owner/dm of the campaign → true for any node.
- *   - player → true for any NON-character node in this campaign.
- *   - player → true for a character node only if they're in node_pc_owners.
+ * Every campaign member may edit every campaign node. Character ownership is
+ * retained as attribution/roster metadata, not an authorisation boundary.
  *
  * Used by pages/routes to decide whether to show edit UI or 403 a request.
  * RLS is the hard boundary; this helper is for UX (hiding buttons, early
@@ -129,30 +127,13 @@ export async function canEditNode(
   userId: string,
   role: Role,
 ): Promise<boolean> {
-  if (role === 'owner' || role === 'dm') return true
-  if (role !== 'player') return false
-
+  if (role !== 'owner' && role !== 'dm' && role !== 'player') return false
   const supabase = await createClient()
-  // Load the node's type plus (if character) the owner set. One query.
   const { data } = await supabase
     .from('nodes')
-    .select('id, type:node_types(slug), node_pc_owners(user_id)')
+    .select('id')
     .eq('id', nodeId)
     .eq('campaign_id', campaignId)
     .maybeSingle()
-
-  if (!data) return false
-
-  const typeRaw = (data as { type: unknown }).type
-  const typeSlug = Array.isArray(typeRaw)
-    ? (typeRaw[0] as { slug?: string } | undefined)?.slug
-    : (typeRaw as { slug?: string } | null)?.slug
-
-  // Non-character: any member can edit (shared world).
-  if (typeSlug !== 'character') return true
-
-  // Character: only if viewer is in node_pc_owners.
-  const owners = (data as { node_pc_owners?: Array<{ user_id: string }> })
-    .node_pc_owners ?? []
-  return owners.some((o) => o.user_id === userId)
+  return !!data
 }

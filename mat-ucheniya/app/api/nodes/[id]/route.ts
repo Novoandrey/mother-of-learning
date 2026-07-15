@@ -98,13 +98,8 @@ export async function DELETE(
     return NextResponse.json({ error: 'Node not found' }, { status: 404 })
   }
 
-  // Delete is owner/dm only — players never delete, even their own PCs.
-  // This matches the SQL RLS policy nodes_delete in migration 028.
   const membership = await getMembership(nodeMeta.campaign_id)
-  if (
-    !membership ||
-    (membership.role !== 'owner' && membership.role !== 'dm')
-  ) {
+  if (!membership || !(await canEditNode(id, nodeMeta.campaign_id, auth.user.id, membership.role))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

@@ -299,8 +299,8 @@ export async function deleteSet(input: {
  * core — C-06/C-16). Used by buySet and by edit-on-buy's one-off purchase
  * (C-19). All-or-nothing: the total is pre-checked against the funding source,
  * then each item is bought through createPurchase sharing one batch + one
- * status. Approval aggregates by max rarity (C-16). Any «нельзя купить» or
- * priceless item blocks the buy.
+ * status. Approval aggregates by max rarity (C-16). Any priceless item blocks
+ * the buy.
  *
  * Funding (spec-053): own gold, общак directly, or `pc_with_stash` (own +
  * общак with an optional `keepGp` floor). For pc_with_stash the shortfall is
@@ -357,7 +357,7 @@ export async function buyItems(input: {
   const defaults = parseItemDefaultPrices(settings.item_default_prices)
   const policy = parseItemPurchasePolicy(settings.item_purchase_policy)
 
-  // Resolve each item's attrs (price / rarity / category + no_purchase).
+  // Resolve each item's attrs (price / rarity / category).
   const ids = items.map((i) => i.itemNodeId)
   const { data: attrRows } = await admin
     .from('nodes')
@@ -370,7 +370,6 @@ export async function buyItems(input: {
       priceGp: number | null
       rarity: string | null
       categorySlug: string
-      noPurchase: boolean
     }
   >()
   for (const r of (attrRows ?? []) as Array<{
@@ -389,7 +388,6 @@ export async function buyItems(input: {
       priceGp: a.price_gp,
       rarity: a.rarity,
       categorySlug: a.category_slug,
-      noPurchase: (r.fields ?? {}).no_purchase === true,
     })
   }
 
@@ -402,12 +400,6 @@ export async function buyItems(input: {
       return {
         ok: false,
         error: `Предмет «${it.name}» больше не в каталоге — обновите набор`,
-      }
-    }
-    if (a.noPurchase) {
-      return {
-        ok: false,
-        error: `«${it.name}» нельзя купить — уберите его из набора`,
       }
     }
     const rarity = normalizeRarity(a.rarity)
