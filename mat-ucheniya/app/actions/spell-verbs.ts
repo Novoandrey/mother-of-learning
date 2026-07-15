@@ -53,21 +53,6 @@ async function loadSpellSettings(
   return parseSpellSettings(settings.spell_settings)
 }
 
-/** True when `userId` owns the PC (node_pc_owners). */
-async function isPcOwner(
-  admin: ReturnType<typeof createAdminClient>,
-  pcId: string,
-  userId: string,
-): Promise<boolean> {
-  const { data } = await admin
-    .from('node_pc_owners')
-    .select('user_id')
-    .eq('node_id', pcId)
-    .eq('user_id', userId)
-    .maybeSingle()
-  return data !== null
-}
-
 /** Load a spell node (title + level 0..9), verifying node_type='spell'. */
 async function loadSpellNode(
   admin: ReturnType<typeof createAdminClient>,
@@ -119,20 +104,15 @@ async function resolveMoneyOut(
   return { ok: true, coins: spendCoins }
 }
 
-/** Common auth: member + (player ⇒ owns the acting PC). Returns userId. */
+/** Common auth: any campaign member can act for any PC. */
 async function gateActor(
   admin: ReturnType<typeof createAdminClient>,
   campaignId: string,
-  actorPcId: string,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, error: 'Не авторизован' }
   const membership = await getMembership(campaignId)
   if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
-  if (membership.role === 'player') {
-    const owns = await isPcOwner(admin, actorPcId, user.id)
-    if (!owns) return { ok: false, error: 'Это действие может начать только владелец персонажа' }
-  }
   return { ok: true, userId: user.id }
 }
 
@@ -167,7 +147,7 @@ export async function runReprep(
   if (dayErr) return { ok: false, error: dayErr }
 
   const admin = createAdminClient()
-  const gate = await gateActor(admin, input.campaignId, input.actorPcId)
+  const gate = await gateActor(admin, input.campaignId)
   if (!gate.ok) return gate
   const userId = gate.userId
 
@@ -287,7 +267,7 @@ export async function runCopySpell(
   if (dayErr) return { ok: false, error: dayErr }
 
   const admin = createAdminClient()
-  const gate = await gateActor(admin, input.campaignId, input.actorPcId)
+  const gate = await gateActor(admin, input.campaignId)
   if (!gate.ok) return gate
   const userId = gate.userId
 

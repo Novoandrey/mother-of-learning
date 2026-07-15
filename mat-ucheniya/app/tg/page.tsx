@@ -129,7 +129,7 @@ export default function TgPage() {
 
       const [loopNumber, characters, categories] = await Promise.all([
         getCurrentLoopNumber(supabase, campaign.campaignId),
-        getCampaignCharacters(supabase, campaign.campaignId, userId),
+        getCampaignCharacters(supabase, campaign.campaignId),
         getTxCategoriesTg(supabase, campaign.campaignId),
       ])
 
