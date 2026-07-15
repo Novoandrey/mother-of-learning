@@ -27,7 +27,7 @@ export function portraitUrl(
   key: string | null,
   opts?: { width?: number },
 ): string | null {
-  const base = process.env.NEXT_PUBLIC_R2_PORTRAIT_BASE
+  const base = process.env.NEXT_PUBLIC_R2_ASSET_BASE ?? process.env.NEXT_PUBLIC_R2_PORTRAIT_BASE
   if (!key || !base) return null
   const root = base.replace(/\/$/, '')
   if (opts?.width) {
