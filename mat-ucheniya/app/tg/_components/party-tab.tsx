@@ -120,7 +120,7 @@ type PartyData = {
 function PartyRoot({ app }: TgTabProps) {
   const nav = useTgNav()
   const { refreshKey } = useTgRefresh()
-  const { supabase, campaignId, loopNumber, characters, categories, activePc } = app
+  const { supabase, campaignId, loopNumber, characters, categories } = app
 
   const [data, setData] = useState<PartyData | null>(null)
   const [error, setError] = useState<string | null>(null)

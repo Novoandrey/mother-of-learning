@@ -17,22 +17,8 @@ import type {
   SortDir,
   SortKey,
 } from './items-types';
-
-/**
- * Map a price (in gold) to its display band. NULL is `priceless`
- * (different from `0`-priced "free" items — a pile of pebbles).
- *
- * Bands: 0 → `free`, 1..50 → `cheap`, 51..500 → `mid`, > 500 →
- * `expensive`, null → `priceless`. Values picked for mat-ucheniya
- * scale; tasks.md may tune.
- */
-export function priceBandFor(priceGp: number | null): PriceBand {
-  if (priceGp === null) return 'priceless';
-  if (priceGp === 0) return 'free';
-  if (priceGp <= 50) return 'cheap';
-  if (priceGp <= 500) return 'mid';
-  return 'expensive';
-}
+export { priceBandFor } from './item-price-bands';
+import { priceBandFor } from './item-price-bands';
 
 /** 5e rarity ladder rank (1..6). NULL → 0 (sorts before `common`). */
 export function rarityOrder(rarity: Rarity | null): number {

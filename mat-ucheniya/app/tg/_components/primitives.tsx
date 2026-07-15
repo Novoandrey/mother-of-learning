@@ -280,6 +280,15 @@ export function FeedRow({ r, categories }: { r: TgFeedRow; categories: Map<strin
 export const FIELD =
   'w-full rounded-lg bg-neutral-800 px-3 py-2 text-neutral-100 placeholder:text-neutral-500 outline-none focus:ring-1 focus:ring-neutral-600'
 
+/** One-line preview of the operation a sheet will submit. */
+export function PreviewLine({ text }: { text: string }) {
+  return (
+    <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/70 px-3 py-2 text-center text-sm text-neutral-200">
+      {text}
+    </div>
+  )
+}
+
 // A bottom sheet. Backdrop click does NOT close (a mis-tap must not throw away a
 // half-typed form — spec-055 R2); the only ways out are the explicit «← Назад»
 // button and each sheet's own submit. The panel caps at 90vh and scrolls its

@@ -17,7 +17,7 @@ import {
   type BuyableItemTg,
   type CampaignSetTg,
 } from '@/lib/queries/ledger-tg'
-import { formatGp, dayLabel } from './format'
+import { dayLabel } from './format'
 import {
   Centered,
   Avatar,
@@ -30,7 +30,8 @@ import {
   parseGp,
   parseHHMM,
 } from './primitives'
-import { computeShortfall } from '@/lib/transaction-resolver'
+import { FundingPreview } from './funding-preview'
+import { ParticipantPicker } from './participant-picker'
 import { submitBatch, takeLoopCredit } from '@/app/actions/transactions'
 import {
   resolveBuyUnitPriceGp,
@@ -154,88 +155,6 @@ function CharacterRow({
         <span className="font-medium">{c.title}</span>
       </button>
     </li>
-  )
-}
-
-// ─────────────────────────── spec-053 — funding preview ───────────────────────────
-
-// Spec-053. Shared under a buy total: the «оставить на руках» field (only for
-// свои+общак) and a live balance preview «баланс → после». The client mirrors
-// the server via the same pure computeShortfall, so what it shows is what the
-// server will do. Balances are loaded by the parent (walletGp / stashGp).
-function FundingPreview({
-  funding,
-  totalGp,
-  walletGp,
-  stashGp,
-  keep,
-  onKeep,
-}: {
-  funding: 'pc' | 'pc_with_stash' | 'stash'
-  totalGp: number | null
-  walletGp: number | null
-  stashGp: number | null
-  keep: string
-  onKeep: (v: string) => void
-}) {
-  const keepGp = funding === 'pc_with_stash' ? Math.max(0, parseGp(keep) ?? 0) : 0
-  const preview = (() => {
-    if (totalGp == null || walletGp == null) return null
-    if (funding === 'pc') {
-      return { own: [walletGp, walletGp - totalGp] as const, stash: null, short: 0 }
-    }
-    if (funding === 'stash') {
-      const s = stashGp ?? 0
-      return { own: null, stash: [s, s - totalGp] as const, short: 0 }
-    }
-    const s = stashGp ?? 0
-    const sf = computeShortfall(walletGp, totalGp, s, keepGp)
-    const ownSpend = totalGp - sf.toBorrow
-    return {
-      own: [walletGp, walletGp - ownSpend] as const,
-      stash: [s, s - sf.toBorrow] as const,
-      short: sf.remainderNegative,
-    }
-  })()
-  const arrow = (from: number, to: number) => (
-    <span className="font-mono tabular-nums text-neutral-300">
-      {formatGp(from)} →{' '}
-      <span className={to < 0 ? 'text-red-400' : 'text-neutral-100'}>{formatGp(to)}</span>
-    </span>
-  )
-  return (
-    <>
-      {funding === 'pc_with_stash' && (
-        <input
-          className={FIELD}
-          inputMode="decimal"
-          placeholder="Оставить на руках, зм (необязательно)"
-          value={keep}
-          onChange={(e) => onKeep(e.target.value)}
-        />
-      )}
-      {preview && (
-        <div className="rounded-lg bg-neutral-900 px-3 py-2 text-xs">
-          {preview.own && (
-            <div className="flex justify-between">
-              <span className="text-neutral-400">Свои</span>
-              {arrow(preview.own[0], preview.own[1])}
-            </div>
-          )}
-          {preview.stash && (
-            <div className="mt-0.5 flex justify-between">
-              <span className="text-neutral-400">Общак</span>
-              {arrow(preview.stash[0], preview.stash[1])}
-            </div>
-          )}
-          {preview.short > 0 && (
-            <p className="mt-1 text-red-400">
-              Не хватает {formatGp(preview.short)} даже с общаком
-            </p>
-          )}
-        </div>
-      )}
-    </>
   )
 }
 
@@ -751,6 +670,7 @@ function SetBuySheet({
           stashGp={stashGp}
           keep={keep}
           onKeep={setKeep}
+          panelClassName="bg-neutral-900"
         />
         {dirty && (
           <p className="text-xs text-amber-400/80">
@@ -1161,164 +1081,6 @@ function StartDurationFields({
         </div>
       </label>
     </>
-  )
-}
-
-/** Compact multi-select of campaign PCs → the вылазка's пачка. A collapsed
- *  trigger (names/counter) opens a dark bottom-sheet with a name filter and
- *  checkbox rows; selected float to the top, own PCs first. Same props as before
- *  (Set<string>) so both run form and template roster share it (spec-055 R2 — по
- *  паттерну components/participants-picker.tsx, но в /tg-тёмной теме, не белой).
- *  The full list is a prop (already loaded), so no lazy fetch here. */
-function ParticipantPicker({
-  characters,
-  selected,
-  setSelected,
-}: {
-  characters: CampaignCharacter[]
-  selected: Set<string>
-  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
-}) {
-  const [open, setOpen] = useState(false)
-  const [filter, setFilter] = useState('')
-
-  const ordered = [...characters].sort(
-    (a, b) => Number(b.isOwn) - Number(a.isOwn) || a.title.localeCompare(b.title, 'ru'),
-  )
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-
-  const q = filter.trim().toLowerCase()
-  const filtered = q ? ordered.filter((c) => c.title.toLowerCase().includes(q)) : ordered
-  const selectedRows = filtered.filter((c) => selected.has(c.id))
-  const unselectedRows = filtered.filter((c) => !selected.has(c.id))
-
-  const count = selected.size
-  const label = (() => {
-    if (count === 0) return 'Выбрать участников'
-    if (count <= 3) {
-      const names = ordered.filter((c) => selected.has(c.id)).map((c) => c.title)
-      if (names.length === count) return names.join(', ')
-    }
-    return `Участников: ${count}`
-  })()
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg bg-neutral-800 px-3 py-2 text-left text-sm transition-colors hover:bg-neutral-700"
-      >
-        <span className={`min-w-0 truncate ${count === 0 ? 'text-neutral-500' : 'text-neutral-100'}`}>
-          {label}
-        </span>
-        <span className="shrink-0 text-neutral-500">▾</span>
-      </button>
-
-      {open && (
-        <>
-          {/* Backdrop above the host Sheet (z-50) — tap to close the picker only. */}
-          <div
-            className="fixed inset-0 z-[70] bg-black/60"
-            onClick={() => setOpen(false)}
-            aria-hidden
-          />
-          <div
-            className="fixed inset-x-0 bottom-0 z-[71] mx-auto flex max-h-[80vh] w-full max-w-sm flex-col rounded-t-2xl bg-neutral-900"
-            role="dialog"
-            aria-label="Выбор участников"
-          >
-            <div className="flex items-center justify-between gap-2 px-4 py-3">
-              <div className="text-sm font-medium text-neutral-200">
-                Участники · {count}/{ordered.length}
-              </div>
-              <div className="flex items-center gap-3">
-                {count > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelected(new Set())}
-                    className="text-xs text-neutral-500 transition-colors hover:text-neutral-300"
-                  >
-                    Очистить
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="text-sm text-neutral-300 transition-colors hover:text-neutral-100"
-                >
-                  Готово
-                </button>
-              </div>
-            </div>
-            <div className="px-4 pb-2">
-              <input
-                type="text"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Поиск по имени…"
-                className={FIELD}
-              />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-              {ordered.length === 0 && (
-                <div className="px-3 py-3 text-sm text-neutral-500">В кампании нет персонажей.</div>
-              )}
-              {ordered.length > 0 && filtered.length === 0 && (
-                <div className="px-3 py-3 text-sm text-neutral-500">Ничего не найдено.</div>
-              )}
-              {selectedRows.length > 0 && (
-                <>
-                  <div className="px-2 pt-1 text-[11px] uppercase tracking-wide text-neutral-600">
-                    Выбрано
-                  </div>
-                  {selectedRows.map((c) => (
-                    <ParticipantRow key={c.id} c={c} checked onToggle={() => toggle(c.id)} />
-                  ))}
-                  {unselectedRows.length > 0 && (
-                    <div className="mt-2 px-2 pb-1 text-[11px] uppercase tracking-wide text-neutral-600">
-                      Остальные
-                    </div>
-                  )}
-                </>
-              )}
-              {unselectedRows.map((c) => (
-                <ParticipantRow key={c.id} c={c} checked={false} onToggle={() => toggle(c.id)} />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </>
-  )
-}
-
-function ParticipantRow({
-  c,
-  checked,
-  onToggle,
-}: {
-  c: CampaignCharacter
-  checked: boolean
-  onToggle: () => void
-}) {
-  return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 hover:bg-neutral-800">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onToggle}
-        className="h-4 w-4 accent-blue-600"
-      />
-      <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">{c.title}</span>
-      {c.isOwn && <span className="shrink-0 text-[11px] text-neutral-500">ваш</span>}
-    </label>
   )
 }
 

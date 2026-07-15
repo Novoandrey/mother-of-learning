@@ -194,6 +194,29 @@ async function getItemTypeId(
   return (data as { id: string }).id
 }
 
+/**
+ * Catalog routes are addressed by campaign slug, while mutations receive the
+ * campaign UUID for authorization and database writes. Resolve the slug on
+ * the trusted server side so every mutation invalidates an actual route.
+ */
+async function revalidateItemPaths(
+  admin: ReturnType<typeof createAdminClient>,
+  campaignId: string,
+  itemId?: string,
+): Promise<void> {
+  const { data } = await admin
+    .from('campaigns')
+    .select('slug')
+    .eq('id', campaignId)
+    .maybeSingle()
+  const slug = (data as { slug?: string } | null)?.slug
+  if (!slug) return
+
+  const catalogPath = `/c/${slug}/items`
+  revalidatePath(catalogPath)
+  if (itemId) revalidatePath(`${catalogPath}/${itemId}`)
+}
+
 // ─────────────────────────── createItemAction ───────────────────────────
 
 export async function createItemAction(
@@ -277,7 +300,7 @@ export async function createItemAction(
   }
 
   invalidateSidebar(campaignId)
-  revalidatePath(`/c/${campaignId}/items`)
+  await revalidateItemPaths(admin, campaignId)
   return { ok: true, itemId: nodeId }
 }
 
@@ -346,8 +369,7 @@ export async function updateItemAction(
   }
 
   invalidateSidebar(campaignId)
-  revalidatePath(`/c/${campaignId}/items`)
-  revalidatePath(`/c/${campaignId}/items/${itemId}`)
+  await revalidateItemPaths(admin, campaignId, itemId)
   return { ok: true }
 }
 
@@ -382,7 +404,7 @@ export async function deleteItemAction(
   }
 
   invalidateSidebar(campaignId)
-  revalidatePath(`/c/${campaignId}/items`)
+  await revalidateItemPaths(admin, campaignId)
   return { ok: true }
 }
 
@@ -542,7 +564,6 @@ export async function quickUpdateItemAction(
   }
 
   invalidateSidebar(campaignId)
-  revalidatePath(`/c/${campaignId}/items`)
-  revalidatePath(`/c/${campaignId}/items/${itemId}`)
+  await revalidateItemPaths(admin, campaignId, itemId)
   return { ok: true }
 }

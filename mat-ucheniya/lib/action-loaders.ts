@@ -15,6 +15,11 @@ import { parsePartyLevel } from '@/lib/party-level'
 
 type Admin = ReturnType<typeof createAdminClient>
 
+type PartyLevelMessages = {
+  noCurrentLoop?: string
+  missingPartyLevel?: string
+}
+
 /** Нода этой кампании, или null. Гейт FK-записей от чужих id. */
 export async function loadCampaignNode(
   admin: Admin,
@@ -43,13 +48,14 @@ export async function loadCampaignNode(
 export async function loadCurrentPartyLevel(
   admin: Admin,
   campaignId: string,
+  messages: PartyLevelMessages = {},
 ): Promise<
   | { ok: true; partyLevel: number; loopNumber: number }
   | { ok: false; error: string }
 > {
   const loop = await getCurrentLoop(campaignId)
   if (!loop) {
-    return { ok: false, error: 'Не найдена текущая петля' }
+    return { ok: false, error: messages.noCurrentLoop ?? 'Не найдена текущая петля' }
   }
   const { data } = await admin
     .from('nodes')
@@ -62,7 +68,9 @@ export async function loadCurrentPartyLevel(
   if (partyLevel == null) {
     return {
       ok: false,
-      error: 'Задайте уровень партии в редактировании петли',
+      error:
+        messages.missingPartyLevel ??
+        'Задайте уровень партии в редактировании петли',
     }
   }
   return { ok: true, partyLevel, loopNumber: loop.number }
