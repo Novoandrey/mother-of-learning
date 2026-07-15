@@ -6,7 +6,7 @@
  * on a linked account this establishes a REAL GoTrue cookie session, then a
  * normal browser client reads the campaign's PCs under that session. All
  * navigation lives in <TgShell> (_components/shell.tsx): нижний таб-бар
- * (⚡ Действие · 🎒 Персонаж · 🏰 Партия) + навигационный стек на таб.
+ * (⚡ Действие · 🎒 Персонаж · 🗺️ Карта · 🏰 Партия) + навигационный стек на таб.
  *
  * Because the session is real, reads AND writes (record / transfer / общак /
  * starter) go through the exact same path as the desktop app — the server

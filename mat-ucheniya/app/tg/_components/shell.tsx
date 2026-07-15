@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * /tg shell (spec-058 W1): нижний таб-бар (⚡ Действие · 🎒 Персонаж · 🏰 Партия)
+ * /tg shell (spec-058 W1): нижний таб-бар (⚡ Действие · 🎒 Персонаж · 🗺️ Карта · 🏰 Партия)
  * + навигационный СТЕК на таб + шапка с активным PC и входом в каталог (📖)
  * + realtime-рефреш (broadcast tx_insert → refreshKey), перенесённый из page.tsx.
  *
@@ -28,10 +28,11 @@ import { WikiListScreen, WikiNodeScreen } from './wiki-app'
 import { ActionHub } from './action-hub'
 import { CharacterTab } from './character-tab'
 import { PartyTab } from './party-tab'
+import { MapTab } from './map-tab'
 
 // ─────────────────────────── navigation stack ───────────────────────────
 
-export type TgTab = 'action' | 'character' | 'party'
+export type TgTab = 'action' | 'character' | 'map' | 'party'
 
 export type NavEntry = { screen: string; params?: Record<string, unknown> }
 
@@ -97,6 +98,7 @@ export type TgTabProps = { app: TgAppContext }
 const TABS: { tab: TgTab; icon: string; label: string }[] = [
   { tab: 'action', icon: '⚡', label: 'Действие' },
   { tab: 'character', icon: '🎒', label: 'Персонаж' },
+  { tab: 'map', icon: '🗺️', label: 'Карта' },
   { tab: 'party', icon: '🏰', label: 'Партия' },
 ]
 
@@ -296,6 +298,8 @@ function ShellScreen({
       return <ActionHub app={app} />
     case 'character':
       return <CharacterTab app={app} />
+    case 'map':
+      return <MapTab app={app} />
     case 'party':
       return <PartyTab app={app} />
 
@@ -370,6 +374,8 @@ function ShellScreen({
           return <ActionHub app={app} />
         case 'character':
           return <CharacterTab app={app} />
+        case 'map':
+          return <MapTab app={app} />
         case 'party':
           return <PartyTab app={app} />
       }
