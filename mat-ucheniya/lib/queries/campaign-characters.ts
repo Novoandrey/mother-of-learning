@@ -4,15 +4,15 @@ export type CampaignCharacter = {
   id: string
   title: string
   primaryPortraitKey: string | null
-  /** Every campaign PC is actionable under the shared-character rule. */
+  /** True when the current user owns this PC via `node_pc_owners`. */
   isOwn: boolean
 }
 
 /**
  * Every PC in the campaign (spec-044, PL-4 / FR-001 + C-02): not just the
  * caller's. Each row carries `isOwn` so the list renders «Мои» on top and
- * «Остальные» below, and so the per-PC surfaces can hide write controls on
- * PCs the caller doesn't own (E4 — view any, edit own).
+ * «Остальные» below. Ownership is presentation metadata only: campaign
+ * members may still perform the allowed economy actions for every PC.
  *
  * Runs client-side through the Telegram-minted session (RLS-scoped). Read is
  * gated by the node SELECT policy (member-wide, mirrors `is_member`); writes
@@ -24,6 +24,7 @@ export type CampaignCharacter = {
 export async function getCampaignCharacters(
   supabase: SupabaseClient,
   campaignId: string,
+  userId: string,
 ): Promise<CampaignCharacter[]> {
   const { data, error } = await supabase
     .from('nodes')
@@ -45,7 +46,7 @@ export async function getCampaignCharacters(
     }
     const portraits = r.character_portraits ?? []
     const primary = portraits.find((p) => p.is_primary) ?? portraits[0] ?? null
-    const isOwn = true
+    const isOwn = (r.node_pc_owners ?? []).some((owner) => owner.user_id === userId)
     return {
       id: r.id,
       title: r.title,
@@ -54,5 +55,10 @@ export async function getCampaignCharacters(
     }
   })
 
-  return mapped
+  // Own PCs first, then alphabetical within each group (the query already
+  // sorted by title, so a stable partition preserves that order).
+  return [
+    ...mapped.filter((character) => character.isOwn),
+    ...mapped.filter((character) => !character.isOwn),
+  ]
 }

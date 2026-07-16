@@ -49,7 +49,7 @@ const PRICE_BAND_LABELS: Record<PriceBand, string> = {
   priceless: 'Без цены',
 };
 
-const RARITY_LABELS: Record<string, string> = {
+export const RARITY_LABELS: Record<string, string> = {
   '': 'Без редкости',
   common: 'Common',
   uncommon: 'Uncommon',

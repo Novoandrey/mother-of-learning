@@ -166,11 +166,25 @@ export async function createSchemaItem(
 
   const admin = createAdminClient()
 
-  // Target link must point inside this campaign (FK alone won't enforce that).
+  // Target link must point to a non-schema catalog item in this campaign.
   const targetItemNodeId = input.targetItemNodeId ?? null
   if (targetItemNodeId) {
     const target = await loadCampaignNode(admin, input.campaignId, targetItemNodeId)
     if (!target) return { ok: false, error: 'Целевой предмет схемы не найден' }
+    const { data: targetAttrs, error: targetAttrsErr } = await admin
+      .from('item_attributes')
+      .select('category_slug')
+      .eq('node_id', targetItemNodeId)
+      .maybeSingle()
+    if (targetAttrsErr) {
+      return { ok: false, error: `Не удалось проверить предмет схемы: ${targetAttrsErr.message}` }
+    }
+    if (
+      !targetAttrs ||
+      (targetAttrs as { category_slug: string }).category_slug === SCHEMA_CATEGORY_SLUG
+    ) {
+      return { ok: false, error: 'Целью схемы может быть только предмет из каталога' }
+    }
   }
 
   // Resolve the campaign's item node_type (mig 043 seeds one per campaign).
