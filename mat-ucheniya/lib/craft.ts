@@ -78,6 +78,26 @@ export function craftRarityKey(raw: unknown): RarityKey | null {
 }
 
 /**
+ * Rarity of the schema learned from a catalog item: one step above its target.
+ * A legendary, artifact, missing, or unrecognised rarity uses the custom
+ * schema row instead (there is no next catalogue rarity).
+ */
+export function schemaRarityForTarget(raw: string | null): RarityKey | null {
+  switch (raw) {
+    case 'common':
+      return 'uncommon'
+    case 'uncommon':
+      return 'rare'
+    case 'rare':
+      return 'very-rare'
+    case 'very-rare':
+      return 'legendary'
+    default:
+      return null
+  }
+}
+
+/**
  * The изделие's name = the schema's title minus the «Схема:» prefix convention.
  * Plain «Схема: X» → «X»; a custom variant «Схема: X (вплетено: A+B)» → «X
  * (вплетено: A+B)», so the woven detail the DM encodes in the schema title

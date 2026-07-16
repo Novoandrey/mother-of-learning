@@ -31,6 +31,7 @@ import {
   parseHHMM,
 } from './primitives'
 import { FundingPreview } from './funding-preview'
+import { KnownSchemaSheet } from './known-schema-sheet'
 import { ParticipantPicker } from './participant-picker'
 import { submitBatch, takeLoopCredit } from '@/app/actions/transactions'
 import {
@@ -73,9 +74,14 @@ import {
   requiredRateHours,
   type CraftSettings,
 } from '@/lib/craft-settings'
-import { craftProductName, craftRarityKey, missingCraftHours } from '@/lib/craft'
+import {
+  craftProductName,
+  craftRarityKey,
+  missingCraftHours,
+  schemaRarityForTarget,
+} from '@/lib/craft'
 import { pbForLevel } from '@/lib/party-level'
-import type { RarityKey } from '@/lib/item-default-prices'
+import { RARITY_LABELS } from '@/lib/items-grouping'
 import { createResourceItem } from '@/app/actions/resources'
 import {
   validateExpeditionWindow,
@@ -1706,31 +1712,6 @@ function ExpeditionRunSheet({
 
 // ─────────────────────────── spec-056 — Крафт ───────────────────────────
 
-// Catalog rarity → display label (те же английские ярлыки, что на десктопе —
-// items-grouping RARITY_LABELS; map не экспортирован, локальная копия).
-const CRAFT_RARITY_LABEL: Record<string, string> = {
-  common: 'Common',
-  uncommon: 'Uncommon',
-  rare: 'Rare',
-  'very-rare': 'Very Rare',
-  legendary: 'Legendary',
-  artifact: 'Artifact',
-}
-
-// Разбор → схема: редкость схемы = редкость предмета + 1 ступень (spec-056 §3).
-// legendary и вне-табличные (artifact, null) → null = кастомная схема; её цену
-// крафта резолвит строка «Кастомная» craft_settings либо override на схеме.
-const NEXT_RARITY: Record<string, RarityKey> = {
-  common: 'uncommon',
-  uncommon: 'rare',
-  rare: 'very-rare',
-  'very-rare': 'legendary',
-}
-
-function nextRarity(raw: string | null): RarityKey | null {
-  return raw ? (NEXT_RARITY[raw] ?? null) : null
-}
-
 // Крафт-цена схемы — ЗЕРКАЛО серверного резолва (runCraft, plan-056 «Резолв
 // цены крафта»): (1) override на схеме → (2) строка редкости ЦЕЛИ → (3)
 // «Кастомная» строка, когда цели нет или её редкость вне таблицы. Редкость
@@ -1787,6 +1768,7 @@ export function CraftScreen({
   const [sheet, setSheet] = useState<
     | { mode: 'none' }
     | { mode: 'run'; schema: CraftSchemaTg }
+    | { mode: 'add-known' }
     | { mode: 'disassemble' }
   >({ mode: 'none' })
 
@@ -1879,16 +1861,24 @@ export function CraftScreen({
         </p>
       )}
 
-      <button
-        onClick={() => setSheet({ mode: 'disassemble' })}
-        className="mb-4 w-full rounded-lg bg-neutral-900 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
-      >
-        🔩 Разобрать предмет
-      </button>
+      <div className="mb-4 space-y-2">
+        <button
+          onClick={() => setSheet({ mode: 'add-known' })}
+          className="w-full rounded-lg bg-neutral-900 px-3 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+        >
+          📜 Добавить известную схему
+        </button>
+        <button
+          onClick={() => setSheet({ mode: 'disassemble' })}
+          className="w-full rounded-lg bg-neutral-900 px-3 py-2 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+        >
+          🔩 Разобрать предмет
+        </button>
+      </div>
 
       {!loaded && !error && <Centered>Загрузка…</Centered>}
       {loaded && schemas.length === 0 && (
-        <Centered>Пока нет известных схем. Разбери предмет, чтобы открыть схему.</Centered>
+        <Centered>Пока нет известных схем. Добавь её из каталога или разбери предмет.</Centered>
       )}
       {loaded && schemas.length > 0 && (
         <div className="space-y-2">
@@ -1909,7 +1899,7 @@ export function CraftScreen({
                   {s.target
                     ? `→ ${s.target.name}` +
                       (s.target.rarity
-                        ? ` · ${CRAFT_RARITY_LABEL[s.target.rarity] ?? s.target.rarity}`
+                        ? ` · ${RARITY_LABELS[s.target.rarity] ?? s.target.rarity}`
                         : '') +
                       (s.target.requiresAttunement ? ' 🧩' : '')
                     : 'цель не указана — имя изделия спросим при крафте'}
@@ -2004,6 +1994,20 @@ export function CraftScreen({
           onClose={() => setSheet({ mode: 'none' })}
           onToast={showToast}
           onRefresh={() => void reload()}
+        />
+      )}
+      {sheet.mode === 'add-known' && (
+        <KnownSchemaSheet
+          supabase={supabase}
+          campaignId={campaignId}
+          knownTargetIds={schemas?.flatMap((schema) =>
+            schema.schemaForNodeId ? [schema.schemaForNodeId] : [],
+          ) ?? []}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={(itemName) => {
+            showToast(`📜 Схема добавлена: ${itemName}`)
+            void reload()
+          }}
         />
       )}
       {toast && (
@@ -2151,7 +2155,7 @@ function CraftRunSheet({
             <div className="truncate">
               {schema.target.name}
               {schema.target.rarity
-                ? ` · ${CRAFT_RARITY_LABEL[schema.target.rarity] ?? schema.target.rarity}`
+                ? ` · ${RARITY_LABELS[schema.target.rarity] ?? schema.target.rarity}`
                 : ''}
               {schema.target.requiresAttunement ? ' 🧩 настройка' : ''}
             </div>
@@ -2367,7 +2371,7 @@ function DisassembleSheet({
       name,
       targetItemNodeId: made.itemNodeId,
       priceGp,
-      rarity: nextRarity(made.rarity),
+      rarity: schemaRarityForTarget(made.rarity),
     })
     setBusy(false)
     if (!res.ok) {
@@ -2379,7 +2383,7 @@ function DisassembleSheet({
     onClose()
   }
 
-  const madeRarity = made ? nextRarity(made.rarity) : null
+  const madeRarity = made ? schemaRarityForTarget(made.rarity) : null
 
   return (
     <Sheet
@@ -2393,7 +2397,7 @@ function DisassembleSheet({
           </p>
           <div className="rounded-lg bg-neutral-900 px-3 py-2 text-xs text-neutral-500">
             Редкость схемы:{' '}
-            {madeRarity ? CRAFT_RARITY_LABEL[madeRarity] : 'кастомная'} (редкость предмета
+            {madeRarity ? RARITY_LABELS[madeRarity] : 'кастомная'} (редкость предмета
             +1)
           </div>
           <input
@@ -2465,7 +2469,7 @@ function DisassembleSheet({
                   </span>
                   <span className="shrink-0 text-xs text-neutral-500">
                     ×{i.qty}
-                    {i.rarity ? ` · ${CRAFT_RARITY_LABEL[i.rarity] ?? i.rarity}` : ''}
+                    {i.rarity ? ` · ${RARITY_LABELS[i.rarity] ?? i.rarity}` : ''}
                   </span>
                 </button>
               ))}

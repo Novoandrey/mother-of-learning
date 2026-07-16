@@ -4,6 +4,7 @@ import {
   totalCraftHours,
   missingCraftHours,
   craftRarityKey,
+  schemaRarityForTarget,
   craftProductName,
 } from '../craft'
 
@@ -98,6 +99,21 @@ describe('craftRarityKey (резолв цены — plan-056)', () => {
     expect(craftRarityKey('artifact')).toBeNull()
     expect(craftRarityKey('epic')).toBeNull()
     expect(craftRarityKey(3)).toBeNull()
+  })
+})
+
+describe('schemaRarityForTarget (схема на ступень выше предмета)', () => {
+  it('advances regular catalogue rarities by one step', () => {
+    expect(schemaRarityForTarget('common')).toBe('uncommon')
+    expect(schemaRarityForTarget('uncommon')).toBe('rare')
+    expect(schemaRarityForTarget('rare')).toBe('very-rare')
+    expect(schemaRarityForTarget('very-rare')).toBe('legendary')
+  })
+
+  it('uses the custom schema row when no next rarity exists', () => {
+    expect(schemaRarityForTarget('legendary')).toBeNull()
+    expect(schemaRarityForTarget('artifact')).toBeNull()
+    expect(schemaRarityForTarget(null)).toBeNull()
   })
 })
 

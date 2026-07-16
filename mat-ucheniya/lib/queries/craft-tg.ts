@@ -41,6 +41,13 @@ export type CraftSchemaTg = {
   } | null
 }
 
+/** A non-schema catalog item that can be added to the known-schemas list. */
+export type SchemaCandidateTg = {
+  id: string
+  name: string
+  rarity: string | null
+}
+
 export type CraftRunTg = {
   id: string
   schemaItemNodeId: string | null
@@ -197,6 +204,39 @@ export async function listSchemas(
   }
 
   return schemas.sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+}
+
+/**
+ * All catalog items which can become a known schema. This is deliberately a
+ * catalog query, not a stash-holdings query: adding a known schema must not
+ * consume or otherwise change the selected item.
+ */
+export async function listSchemaCandidatesTg(
+  supabase: SupabaseClient,
+  campaignId: string,
+): Promise<SchemaCandidateTg[]> {
+  const { data, error } = await supabase
+    .from('nodes')
+    .select('id, title, item_attributes!inner(rarity, category_slug), node_types!inner(slug)')
+    .eq('campaign_id', campaignId)
+    .eq('node_types.slug', 'item')
+    .neq('item_attributes.category_slug', 'schema')
+    .order('title')
+  if (error) throw error
+
+  type CandidateAttrs = { rarity: string | null; category_slug: string }
+  return (data ?? []).flatMap((row) => {
+    const r = row as {
+      id: string
+      title: string
+      item_attributes: CandidateAttrs | CandidateAttrs[] | null
+    }
+    const attrs = Array.isArray(r.item_attributes)
+      ? r.item_attributes[0]
+      : r.item_attributes
+    if (!attrs || attrs.category_slug === 'schema') return []
+    return [{ id: r.id, name: r.title, rarity: attrs.rarity }]
+  })
 }
 
 /**
