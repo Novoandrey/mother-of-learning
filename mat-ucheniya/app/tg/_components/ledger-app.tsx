@@ -1944,15 +1944,18 @@ export function CraftScreen({
                   })
                   .filter(Boolean)
                   .join(', ')
-                const recipient = r.recipientNodeId
-                  ? byId.get(r.recipientNodeId)?.title
-                  : null
+                const recipientNames = (r.recipientNodeIds.length > 0
+                  ? r.recipientNodeIds
+                  : r.recipientNodeId ? [r.recipientNodeId] : [])
+                  .map((id) => byId.get(id)?.title)
+                  .filter(Boolean)
+                  .join(', ')
                 return (
                   <li key={r.id} className="rounded-lg bg-neutral-900 px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-xs text-neutral-300">
-                        {r.outputItemName || 'изделие'}
-                        {recipient ? ` → ${recipient}` : ''}
+                        {r.outputItemName || 'изделие'}{r.outputQty > 1 ? ` ×${r.outputQty}` : ''}
+                        {recipientNames ? ` → ${recipientNames}` : ''}
                       </span>
                       <span className="shrink-0 text-xs text-neutral-600">
                         {dayLabel(r.loopNumber, r.dayInLoop)}
@@ -2063,8 +2066,8 @@ function CraftRunSheet({
   )
   const [day, setDay] = useState(1)
   const [startStr, setStartStr] = useState('08:00')
-  const [recipientMode, setRecipientMode] = useState<'stash' | 'pc'>('stash')
-  const [recipientId, setRecipientId] = useState(characters[0]?.id ?? '')
+  const [quantity, setQuantity] = useState(1)
+  const [recipients, setRecipients] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -2080,9 +2083,11 @@ function CraftRunSheet({
   const selected = characters.filter((c) => crafters.has(c.id))
   // Мин. 0.5 ч, чтобы бесплатный крафт (workCost 0) не слал нулевые часы,
   // которые сервер отбрасывает (cleanCraftParticipants).
+  const batchWorkCostGp = Math.round(workCostGp * quantity * 100) / 100
+  const batchRequiredH = requiredH * quantity
   const defaultShare =
     selected.length > 0 && Number.isFinite(requiredH)
-      ? Math.max(0.5, roundUpHalf(requiredH / selected.length))
+      ? Math.max(0.5, roundUpHalf(batchRequiredH / selected.length))
       : 0
   const hoursFor = (id: string): number | null => {
     const raw = hoursEdits[id]
@@ -2092,7 +2097,7 @@ function CraftRunSheet({
   const totalH =
     Math.round(selected.reduce((sum, c) => sum + (hoursFor(c.id) ?? 0), 0) * 100) / 100
   const investedGp = Math.round(totalH * rate * 100) / 100
-  const missingH = missingCraftHours({ workCostGp, ratePerHour: rate, totalHours: totalH })
+  const missingH = missingCraftHours({ workCostGp: batchWorkCostGp, ratePerHour: rate, totalHours: totalH })
 
   const submit = async () => {
     setError(null)
@@ -2123,8 +2128,8 @@ function CraftRunSheet({
       setError(`День — от 1 до ${LOOP_DAYS}`)
       return
     }
-    if (recipientMode === 'pc' && !recipientId) {
-      setError('Выберите получателя изделия')
+    if (recipients.size > quantity) {
+      setError('Получателей не может быть больше, чем изделий')
       return
     }
     setBusy(true)
@@ -2136,14 +2141,15 @@ function CraftRunSheet({
       dayInLoop: day,
       startMinute: hhmmToMinute(start.h, start.m),
       participants,
-      recipientNodeId: recipientMode === 'pc' ? recipientId : null,
+      quantity,
+      recipientNodeIds: [...recipients],
     })
     setBusy(false)
     if (!res.ok) {
       setError(res.error)
       return
     }
-    onDone(outputName)
+    onDone(quantity > 1 ? `${outputName} ×${quantity}` : outputName)
     onClose()
   }
 
@@ -2161,9 +2167,9 @@ function CraftRunSheet({
             </div>
           )}
           <div>
-            Рабочая цена: <span className="text-neutral-200">{workCostGp} зм</span> · ставка{' '}
+            {quantity > 1 ? `Партия ${quantity} шт. · ` : ''}Рабочая цена: <span className="text-neutral-200">{batchWorkCostGp} зм</span> · ставка{' '}
             {rate} зм/ч
-            {Number.isFinite(requiredH) ? ` · надо ${fmtHours(requiredH)} ч` : ''}
+            {Number.isFinite(batchRequiredH) ? ` · надо ${fmtHours(batchRequiredH)} ч` : ''}
           </div>
           {minPartyLevel != null && partyLevel < minPartyLevel && (
             <div className="mt-0.5 text-amber-400/80">
@@ -2183,6 +2189,15 @@ function CraftRunSheet({
             />
           </div>
         )}
+
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Сколько создать</div>
+          <IntInput
+            className="w-20 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+            value={quantity}
+            onCommit={(value) => setQuantity(Math.max(1, value))}
+          />
+        </div>
 
         <div>
           <div className="mb-1 px-1 text-xs text-neutral-500">Крафтеры</div>
@@ -2222,7 +2237,7 @@ function CraftRunSheet({
                 'mt-1 px-1 text-xs ' + (missingH > 0 ? 'text-red-400' : 'text-neutral-500')
               }
             >
-              Σ {fmtHours(totalH)} ч × {rate} зм/ч = {investedGp} зм из {workCostGp} зм
+              Σ {fmtHours(totalH)} ч × {rate} зм/ч = {investedGp} зм из {batchWorkCostGp} зм
               {missingH > 0 &&
                 (missingH === Infinity
                   ? ' — ставка 0 зм/ч, крафт невозможен'
@@ -2255,28 +2270,11 @@ function CraftRunSheet({
         </div>
 
         <div>
-          <div className="mb-1 px-1 text-xs text-neutral-500">Изделие — кому</div>
-          <SegToggle
-            value={recipientMode}
-            onChange={setRecipientMode}
-            options={[
-              { value: 'stash', label: 'В общак' },
-              { value: 'pc', label: 'Персонажу' },
-            ]}
-          />
-          {recipientMode === 'pc' && (
-            <select
-              className={FIELD + ' mt-2'}
-              value={recipientId}
-              onChange={(e) => setRecipientId(e.target.value)}
-            >
-              {characters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-          )}
+          <div className="mb-1 px-1 text-xs text-neutral-500">Раздать сразу</div>
+          <ParticipantPicker characters={characters} selected={recipients} setSelected={setRecipients} />
+          <p className="mt-1 px-1 text-xs text-neutral-500">
+            Каждый выбранный получит по 1 шт.; {Math.max(0, quantity - recipients.size)} шт. уйдут в общак.
+          </p>
         </div>
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}

@@ -152,7 +152,9 @@ export type ScribeRunTg = {
   investedGp: number
   outputScrollNodeId: string | null
   outputScrollName: string
+  outputQty: number
   recipientNodeId: string | null
+  recipientNodeIds: string[]
   createdBy: string | null
   createdAt: string
 }
@@ -179,7 +181,7 @@ export async function listScribeRuns(
   const { data, error } = await supabase
     .from('scribe_runs')
     .select(
-      'id, spell_node_id, level, loop_number, day_in_loop, start_minute, participants, invested_gp, output_scroll_node_id, output_scroll_name, recipient_node_id, created_by, created_at',
+      'id, spell_node_id, level, loop_number, day_in_loop, start_minute, participants, invested_gp, output_scroll_node_id, output_scroll_name, output_qty, recipient_node_id, recipient_node_ids, created_by, created_at',
     )
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
@@ -196,7 +198,9 @@ export async function listScribeRuns(
     invested_gp: number
     output_scroll_node_id: string | null
     output_scroll_name: string | null
+    output_qty: number | null
     recipient_node_id: string | null
+    recipient_node_ids: unknown
     created_by: string | null
     created_at: string
   }>
@@ -211,7 +215,11 @@ export async function listScribeRuns(
     investedGp: Number(r.invested_gp ?? 0),
     outputScrollNodeId: r.output_scroll_node_id,
     outputScrollName: r.output_scroll_name ?? '',
+    outputQty: r.output_qty ?? 1,
     recipientNodeId: r.recipient_node_id,
+    recipientNodeIds: Array.isArray(r.recipient_node_ids)
+      ? r.recipient_node_ids.filter((id): id is string => typeof id === 'string')
+      : [],
     createdBy: r.created_by,
     createdAt: r.created_at,
   }))

@@ -398,6 +398,10 @@ export type RunCraftInput = {
   participants: CraftParticipant[]
   /** Получатель изделия (PC node id); null/omitted = общак. */
   recipientNodeId?: string | null
+  /** Number of identical items made in this act. Defaults to one. */
+  quantity?: number
+  /** PCs receiving one item each; the unassigned remainder goes to the stash. */
+  recipientNodeIds?: string[]
 }
 
 export async function runCraft(
@@ -408,6 +412,16 @@ export async function runCraft(
   if (!input.schemaItemNodeId) return { ok: false, error: 'Не выбрана схема' }
   if (!Number.isInteger(input.loopNumber) || input.loopNumber < 1) {
     return { ok: false, error: 'Некорректный номер петли' }
+  }
+  const quantity = input.quantity ?? 1
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    return { ok: false, error: 'Количество должно быть целым и не меньше 1' }
+  }
+  const recipientNodeIds = [...new Set(
+    input.recipientNodeIds ?? (input.recipientNodeId ? [input.recipientNodeId] : []),
+  )]
+  if (recipientNodeIds.length > quantity) {
+    return { ok: false, error: 'Получателей не может быть больше, чем изделий' }
   }
   const participants = cleanCraftParticipants(input.participants)
   if (participants.length === 0) {
@@ -516,7 +530,8 @@ export async function runCraft(
       ? overrideRaw
       : null
   const costRow = craftRowFor(settings, craftRarityKey(targetRarityRaw))
-  const workCostGp = Math.round((override ?? costRow.workCostGp) * 100) / 100
+  const unitWorkCostGp = Math.round((override ?? costRow.workCostGp) * 100) / 100
+  const workCostGp = Math.round(unitWorkCostGp * quantity * 100) / 100
 
   // --- Gate 3: min party level of the rarity row (null = гейта нет) ---
   if (costRow.minPartyLevel != null && partyLevel < costRow.minPartyLevel) {
@@ -548,15 +563,17 @@ export async function runCraft(
   const startCheck = coerceStartMinute(input.startMinute)
   if (!startCheck.ok) return startCheck
 
-  // --- Resolve общак + recipient (изделие → общак | конкретный PC) ---
+  // --- Resolve общак + recipients (one copy each; remainder → общак) ---
   const stash = await getStashNode(input.campaignId)
   if (!stash) {
     return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
   }
-  const recipientNodeId = input.recipientNodeId ?? null
-  if (recipientNodeId) {
-    const recipient = await loadCampaignNode(admin, input.campaignId, recipientNodeId)
-    if (!recipient) return { ok: false, error: 'Получатель изделия не найден' }
+  if (recipientNodeIds.length > 0) {
+    const { data: recipientRows, error: recipientErr } = await admin
+      .from('nodes').select('id').eq('campaign_id', input.campaignId).in('id', recipientNodeIds)
+    if (recipientErr || (recipientRows ?? []).length !== recipientNodeIds.length) {
+      return { ok: false, error: 'Получатели должны принадлежать этой кампании' }
+    }
   }
 
   const nowIso = new Date().toISOString()
@@ -612,22 +629,14 @@ export async function runCraft(
     })
   }
 
-  // Изделие: item row credited to the recipient (общак by default).
-  rows.push({
-    ...approvedBase,
-    actor_pc_id: recipientNodeId ?? stash.nodeId,
-    kind: 'item',
-    amount_cp: 0,
-    amount_sp: 0,
-    amount_gp: 0,
-    amount_pp: 0,
-    item_name: outputName,
-    item_node_id: outputNodeId,
-    item_qty: 1,
-    category_slug: 'loot',
-    comment,
-    session_id: null,
+  const itemRow = (actorPcId: string, itemQty: number) => ({
+    ...approvedBase, actor_pc_id: actorPcId, kind: 'item', amount_cp: 0, amount_sp: 0,
+    amount_gp: 0, amount_pp: 0, item_name: outputName, item_node_id: outputNodeId,
+    item_qty: itemQty, category_slug: 'loot', comment, session_id: null,
   })
+  for (const recipientNodeId of recipientNodeIds) rows.push(itemRow(recipientNodeId, 1))
+  const stashQty = quantity - recipientNodeIds.length
+  if (stashQty > 0) rows.push(itemRow(stash.nodeId, stashQty))
 
   // --- Write the financial rows (one multi-row insert = one statement) ---
   const { error: txErr } = await admin.from('transactions').insert(rows)
@@ -648,7 +657,9 @@ export async function runCraft(
       invested_gp: workCostGp,
       output_item_node_id: outputNodeId,
       output_item_name: outputName,
-      recipient_node_id: recipientNodeId,
+      recipient_node_id: recipientNodeIds.length === 1 && quantity === 1 ? recipientNodeIds[0] : null,
+      output_qty: quantity,
+      recipient_node_ids: recipientNodeIds,
       created_by: userId,
     })
     .select('id')
@@ -684,7 +695,7 @@ export async function runCraft(
     dayInLoop: input.dayInLoop,
     startMinute: startCheck.value ?? undefined,
     investedGp: workCostGp > 0 ? workCostGp : undefined,
-    recipientPcId: recipientNodeId,
+    recipientPcId: recipientNodeIds.length === 1 && quantity === 1 ? recipientNodeIds[0] : undefined,
     mode: 'craft',
   }
   await notifyLedgerEvent(event)
