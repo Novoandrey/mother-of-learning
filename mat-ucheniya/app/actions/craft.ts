@@ -267,6 +267,65 @@ export async function createSchemaItem(
 }
 
 // ============================================================================
+// removeSchemaItem — forget a known schema without touching craft history
+// ============================================================================
+
+export type RemoveSchemaItemInput = {
+  campaignId: string
+  schemaItemNodeId: string
+}
+
+/**
+ * Removes a known schema catalog node. Like adding a schema, every campaign
+ * member may do this under the craft trust model. `craft_runs` keeps its
+ * history because its schema FK is `ON DELETE SET NULL`; transactions retain
+ * their item-name snapshots for the same reason.
+ */
+export async function removeSchemaItem(
+  input: RemoveSchemaItemInput,
+): Promise<ActionResult<{ name: string }>> {
+  if (!input.campaignId) return { ok: false, error: 'Не указана кампания' }
+  if (!input.schemaItemNodeId) return { ok: false, error: 'Не выбрана схема' }
+
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'Не авторизован' }
+  const membership = await getMembership(input.campaignId)
+  if (!membership) return { ok: false, error: 'Нет доступа к этой кампании' }
+
+  const admin = createAdminClient()
+  const schemaNode = await loadCampaignNode(
+    admin,
+    input.campaignId,
+    input.schemaItemNodeId,
+  )
+  if (!schemaNode) return { ok: false, error: 'Схема не найдена' }
+
+  const { data: attrs, error: attrsErr } = await admin
+    .from('item_attributes')
+    .select('category_slug')
+    .eq('node_id', schemaNode.id)
+    .maybeSingle()
+  if (attrsErr) {
+    return { ok: false, error: `Не удалось проверить схему: ${attrsErr.message}` }
+  }
+  if (!attrs || (attrs as { category_slug: string }).category_slug !== SCHEMA_CATEGORY_SLUG) {
+    return { ok: false, error: 'Выбранный предмет не является схемой' }
+  }
+
+  const { error: deleteErr } = await admin
+    .from('nodes')
+    .delete()
+    .eq('id', schemaNode.id)
+    .eq('campaign_id', input.campaignId)
+  if (deleteErr) {
+    return { ok: false, error: `Не удалось убрать схему: ${deleteErr.message}` }
+  }
+
+  invalidateSidebar(input.campaignId)
+  return { ok: true, name: schemaNode.title }
+}
+
+// ============================================================================
 // disassembleItem — destroy an item from the общак to learn its schema
 // ============================================================================
 
