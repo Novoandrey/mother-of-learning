@@ -276,15 +276,18 @@ export function ScribeScreen({
                   })
                   .filter(Boolean)
                   .join(', ')
-                const recipient = r.recipientNodeId
-                  ? byId.get(r.recipientNodeId)?.title
-                  : null
+                const recipientNames = (r.recipientNodeIds.length > 0
+                  ? r.recipientNodeIds
+                  : r.recipientNodeId ? [r.recipientNodeId] : [])
+                  .map((id) => byId.get(id)?.title)
+                  .filter(Boolean)
+                  .join(', ')
                 return (
                   <li key={r.id} className="rounded-lg bg-neutral-900 px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-xs text-neutral-300">
-                        {r.outputScrollName || 'свиток'}
-                        {recipient ? ` → ${recipient}` : ''}
+                        {r.outputScrollName || 'свиток'}{r.outputQty > 1 ? ` ×${r.outputQty}` : ''}
+                        {recipientNames ? ` → ${recipientNames}` : ''}
                       </span>
                       <span className="shrink-0 text-xs text-neutral-600">
                         {dayLabel(r.loopNumber, r.dayInLoop)}
@@ -369,8 +372,8 @@ function ScribeRunSheet({
   const [hoursEdits, setHoursEdits] = useState<Record<string, string>>({})
   const [day, setDay] = useState(1)
   const [startStr, setStartStr] = useState('08:00')
-  const [recipientMode, setRecipientMode] = useState<'stash' | 'pc'>('stash')
-  const [recipientId, setRecipientId] = useState(characters[0]?.id ?? '')
+  const [quantity, setQuantity] = useState(1)
+  const [recipients, setRecipients] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stashGp, setStashGp] = useState<number | null>(null)
@@ -395,8 +398,10 @@ function ScribeRunSheet({
   const selected = characters.filter((c) => scribes.has(c.id))
   // Мин. 0.5 ч, чтобы норма 0 (если ДМ так настроил) всё равно давала писцу
   // положительные часы — сервер отбрасывает нулевые (cleanScribeParticipants).
+  const batchCostGp = Math.round(costGp * quantity * 100) / 100
+  const batchRequiredH = requiredH * quantity
   const defaultShare =
-    selected.length > 0 ? Math.max(0.5, roundUpHalf(requiredH / selected.length)) : 0
+    selected.length > 0 ? Math.max(0.5, roundUpHalf(batchRequiredH / selected.length)) : 0
   const hoursFor = (id: string): number | null => {
     const raw = hoursEdits[id]
     if (raw === undefined) return defaultShare > 0 ? defaultShare : null
@@ -404,7 +409,7 @@ function ScribeRunSheet({
   }
   const totalH =
     Math.round(selected.reduce((sum, c) => sum + (hoursFor(c.id) ?? 0), 0) * 100) / 100
-  const missingH = missingScribeHours(requiredH, totalH)
+  const missingH = missingScribeHours(batchRequiredH, totalH)
 
   const submit = async () => {
     setError(null)
@@ -434,8 +439,8 @@ function ScribeRunSheet({
       setError(`День — от 1 до ${LOOP_DAYS}`)
       return
     }
-    if (recipientMode === 'pc' && !recipientId) {
-      setError('Выберите получателя свитка')
+    if (recipients.size > quantity) {
+      setError('Получателей не может быть больше, чем свитков')
       return
     }
     setBusy(true)
@@ -446,14 +451,15 @@ function ScribeRunSheet({
       dayInLoop: day,
       startMinute: hhmmToMinute(start.h, start.m),
       participants,
-      recipientNodeId: recipientMode === 'pc' ? recipientId : null,
+      quantity,
+      recipientNodeIds: [...recipients],
     })
     setBusy(false)
     if (!res.ok) {
       setError(res.error)
       return
     }
-    onDone(spell.title)
+    onDone(quantity > 1 ? `${spell.title} ×${quantity}` : spell.title)
     onClose()
   }
 
@@ -462,19 +468,28 @@ function ScribeRunSheet({
       <div className="space-y-3">
         <div className="rounded-lg bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
           Свиток: <span className="text-neutral-200">{spell.title}</span> ({label}) ·{' '}
-          {fmtHours(requiredH)} ч · −{costGp} зм
+          {quantity > 1 ? `Партия ${quantity} шт. · ` : ''}{fmtHours(batchRequiredH)} ч · −{batchCostGp} зм
         </div>
         {stashGp != null && (
           <p
             className={
               'px-1 text-xs ' +
-              (stashGp + 1e-9 < costGp ? 'text-amber-400' : 'text-neutral-500')
+              (stashGp + 1e-9 < batchCostGp ? 'text-amber-400' : 'text-neutral-500')
             }
           >
             В общаке: {formatGp(stashGp)}
-            {stashGp + 1e-9 < costGp ? ' — не хватит на свиток' : ''}
+            {stashGp + 1e-9 < batchCostGp ? ' — не хватит на свитки' : ''}
           </p>
         )}
+
+        <div>
+          <div className="mb-1 px-1 text-xs text-neutral-500">Сколько записать</div>
+          <IntInput
+            className="w-20 rounded-md bg-neutral-800 px-2 py-1.5 text-center text-sm text-neutral-100"
+            value={quantity}
+            onCommit={(value) => setQuantity(Math.max(1, value))}
+          />
+        </div>
 
         <div>
           <div className="mb-1 px-1 text-xs text-neutral-500">Писцы</div>
@@ -515,7 +530,7 @@ function ScribeRunSheet({
                 'mt-1 px-1 text-xs ' + (missingH > 0 ? 'text-red-400' : 'text-neutral-500')
               }
             >
-              Σ {fmtHours(totalH)} ч из {fmtHours(requiredH)} ч
+              Σ {fmtHours(totalH)} ч из {fmtHours(batchRequiredH)} ч
               {missingH > 0 ? ` — не хватает ${fmtHours(missingH)} ч` : ''}
             </p>
           </div>
@@ -545,28 +560,16 @@ function ScribeRunSheet({
         </div>
 
         <div>
-          <div className="mb-1 px-1 text-xs text-neutral-500">Свиток — кому</div>
-          <SegToggle
-            value={recipientMode}
-            onChange={setRecipientMode}
-            options={[
-              { value: 'stash', label: 'В общак' },
-              { value: 'pc', label: 'Персонажу' },
-            ]}
+          <div className="mb-1 px-1 text-xs text-neutral-500">Раздать сразу</div>
+          <ParticipantPicker
+            characters={characters}
+            selected={recipients}
+            setSelected={setRecipients}
+            labels={SCRIBE_PARTICIPANT_LABELS}
           />
-          {recipientMode === 'pc' && (
-            <select
-              className={FIELD + ' mt-2'}
-              value={recipientId}
-              onChange={(e) => setRecipientId(e.target.value)}
-            >
-              {characters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-          )}
+          <p className="mt-1 px-1 text-xs text-neutral-500">
+            Каждый выбранный получит по 1 шт.; {Math.max(0, quantity - recipients.size)} шт. уйдут в общак.
+          </p>
         </div>
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}

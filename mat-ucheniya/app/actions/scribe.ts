@@ -218,6 +218,10 @@ export type RunScribeInput = {
   participants: ScribeParticipant[]
   /** Получатель свитка (PC node id); null/omitted = общак. */
   recipientNodeId?: string | null
+  /** Number of identical scrolls written in this act. Defaults to one. */
+  quantity?: number
+  /** PCs receiving one scroll each; the unassigned remainder goes to the stash. */
+  recipientNodeIds?: string[]
 }
 
 export async function runScribe(
@@ -228,6 +232,16 @@ export async function runScribe(
   if (!input.spellNodeId) return { ok: false, error: 'Не выбрано заклинание' }
   if (!Number.isInteger(input.loopNumber) || input.loopNumber < 1) {
     return { ok: false, error: 'Некорректный номер петли' }
+  }
+  const quantity = input.quantity ?? 1
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    return { ok: false, error: 'Количество должно быть целым и не меньше 1' }
+  }
+  const recipientNodeIds = [...new Set(
+    input.recipientNodeIds ?? (input.recipientNodeId ? [input.recipientNodeId] : []),
+  )]
+  if (recipientNodeIds.length > quantity) {
+    return { ok: false, error: 'Получателей не может быть больше, чем свитков' }
   }
   const participants = cleanScribeParticipants(input.participants)
   if (participants.length === 0) {
@@ -276,8 +290,8 @@ export async function runScribe(
   // --- Cost + required hours from the scribe table (fixed by spell level) ---
   const settings = await loadScribeSettings(admin, input.campaignId)
   const row = scribeRowFor(settings, level)
-  const costGp = Math.round(row.costGp * 100) / 100
-  const requiredHours = row.hours
+  const costGp = Math.round(row.costGp * quantity * 100) / 100
+  const requiredHours = row.hours * quantity
 
   // --- Gate 3: Σ(hours) ≥ required hours (threshold, not hours×rate) ---
   const hours = totalScribeHours(participants)
@@ -295,13 +309,15 @@ export async function runScribe(
   const startCheck = coerceStartMinute(input.startMinute)
   if (!startCheck.ok) return startCheck
 
-  // --- Resolve общак + recipient (свиток → общак | конкретный PC) ---
+  // --- Resolve общак + recipients (one scroll each; remainder → общак) ---
   const stash = await getStashNode(input.campaignId)
   if (!stash) return { ok: false, error: 'Общак не найден — проверьте миграцию 035' }
-  const recipientNodeId = input.recipientNodeId ?? null
-  if (recipientNodeId) {
-    const recipient = await loadCampaignNode(admin, input.campaignId, recipientNodeId)
-    if (!recipient) return { ok: false, error: 'Получатель свитка не найден' }
+  if (recipientNodeIds.length > 0) {
+    const { data: recipientRows, error: recipientErr } = await admin
+      .from('nodes').select('id').eq('campaign_id', input.campaignId).in('id', recipientNodeIds)
+    if (recipientErr || (recipientRows ?? []).length !== recipientNodeIds.length) {
+      return { ok: false, error: 'Получатели должны принадлежать этой кампании' }
+    }
   }
 
   // --- Find-or-create the scroll catalog item «Свиток: X (N ур.)» ---
@@ -364,22 +380,14 @@ export async function runScribe(
     })
   }
 
-  // Свиток: item row credited to the recipient (общак by default).
-  rows.push({
-    ...approvedBase,
-    actor_pc_id: recipientNodeId ?? stash.nodeId,
-    kind: 'item',
-    amount_cp: 0,
-    amount_sp: 0,
-    amount_gp: 0,
-    amount_pp: 0,
-    item_name: scrollName,
-    item_node_id: scrollNodeId,
-    item_qty: 1,
-    category_slug: 'loot',
-    comment,
-    session_id: null,
+  const itemRow = (actorPcId: string, itemQty: number) => ({
+    ...approvedBase, actor_pc_id: actorPcId, kind: 'item', amount_cp: 0, amount_sp: 0,
+    amount_gp: 0, amount_pp: 0, item_name: scrollName, item_node_id: scrollNodeId,
+    item_qty: itemQty, category_slug: 'loot', comment, session_id: null,
   })
+  for (const recipientNodeId of recipientNodeIds) rows.push(itemRow(recipientNodeId, 1))
+  const stashQty = quantity - recipientNodeIds.length
+  if (stashQty > 0) rows.push(itemRow(stash.nodeId, stashQty))
 
   // --- Write the financial rows (one multi-row insert) ---
   const { error: txErr } = await admin.from('transactions').insert(rows)
@@ -401,7 +409,9 @@ export async function runScribe(
       invested_gp: costGp,
       output_scroll_node_id: scrollNodeId,
       output_scroll_name: scrollName,
-      recipient_node_id: recipientNodeId,
+      recipient_node_id: recipientNodeIds.length === 1 && quantity === 1 ? recipientNodeIds[0] : null,
+      output_qty: quantity,
+      recipient_node_ids: recipientNodeIds,
       created_by: userId,
     })
     .select('id')
@@ -432,7 +442,7 @@ export async function runScribe(
     dayInLoop: input.dayInLoop,
     startMinute: startCheck.value ?? undefined,
     investedGp: costGp > 0 ? costGp : undefined,
-    recipientPcId: recipientNodeId,
+    recipientPcId: recipientNodeIds.length === 1 && quantity === 1 ? recipientNodeIds[0] : undefined,
     mode: 'scribe',
   }
   await notifyLedgerEvent(event)
