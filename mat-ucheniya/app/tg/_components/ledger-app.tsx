@@ -67,7 +67,12 @@ import {
   type CraftRunTg,
   type StashCraftableItemTg,
 } from '@/lib/queries/craft-tg'
-import { createSchemaItem, disassembleItem, runCraft } from '@/app/actions/craft'
+import {
+  createSchemaItem,
+  disassembleItem,
+  removeSchemaItem,
+  runCraft,
+} from '@/app/actions/craft'
 import {
   craftRowFor,
   rateForPb,
@@ -1769,6 +1774,7 @@ export function CraftScreen({
     | { mode: 'none' }
     | { mode: 'run'; schema: CraftSchemaTg }
     | { mode: 'add-known' }
+    | { mode: 'remove-schema'; schema: CraftSchemaTg }
     | { mode: 'disassemble' }
   >({ mode: 'none' })
 
@@ -1888,34 +1894,42 @@ export function CraftScreen({
             const levelBlocked =
               minPartyLevel != null && partyLevel != null && partyLevel < minPartyLevel
             return (
-              <button
-                key={s.id}
-                onClick={() => setSheet({ mode: 'run', schema: s })}
-                disabled={partyLevel == null}
-                className="block w-full rounded-lg bg-neutral-900 px-3 py-2 text-left transition-colors hover:bg-neutral-800 disabled:opacity-60 disabled:hover:bg-neutral-900"
-              >
-                <div className="truncate text-sm text-neutral-100">{s.name}</div>
-                <div className="mt-0.5 truncate text-xs text-neutral-500">
-                  {s.target
-                    ? `→ ${s.target.name}` +
-                      (s.target.rarity
-                        ? ` · ${RARITY_LABELS[s.target.rarity] ?? s.target.rarity}`
-                        : '') +
-                      (s.target.requiresAttunement ? ' 🧩' : '')
-                    : 'цель не указана — имя изделия спросим при крафте'}
-                </div>
-                <div className="mt-0.5 text-xs text-neutral-600">
-                  крафт: {workCostGp} зм
-                  {needH != null && Number.isFinite(needH)
-                    ? ` · ~${fmtHours(needH)} ч работы`
-                    : ''}
-                </div>
-                {levelBlocked && (
-                  <div className="mt-0.5 text-xs text-amber-400/80">
-                    доступно с уровня партии {minPartyLevel}
+              <div key={s.id} className="flex gap-1 rounded-lg bg-neutral-900">
+                <button
+                  onClick={() => setSheet({ mode: 'run', schema: s })}
+                  disabled={partyLevel == null}
+                  className="min-w-0 flex-1 rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-800 disabled:opacity-60 disabled:hover:bg-neutral-900"
+                >
+                  <div className="truncate text-sm text-neutral-100">{s.name}</div>
+                  <div className="mt-0.5 truncate text-xs text-neutral-500">
+                    {s.target
+                      ? `→ ${s.target.name}` +
+                        (s.target.rarity
+                          ? ` · ${RARITY_LABELS[s.target.rarity] ?? s.target.rarity}`
+                          : '') +
+                        (s.target.requiresAttunement ? ' 🧩' : '')
+                      : 'цель не указана — имя изделия спросим при крафте'}
                   </div>
-                )}
-              </button>
+                  <div className="mt-0.5 text-xs text-neutral-600">
+                    крафт: {workCostGp} зм
+                    {needH != null && Number.isFinite(needH)
+                      ? ` · ~${fmtHours(needH)} ч работы`
+                      : ''}
+                  </div>
+                  {levelBlocked && (
+                    <div className="mt-0.5 text-xs text-amber-400/80">
+                      доступно с уровня партии {minPartyLevel}
+                    </div>
+                  )}
+                </button>
+                <button
+                  onClick={() => setSheet({ mode: 'remove-schema', schema: s })}
+                  aria-label={`Убрать схему «${s.name}»`}
+                  className="min-h-[44px] shrink-0 rounded-lg px-3 text-neutral-500 transition-colors hover:bg-red-950 hover:text-red-300"
+                >
+                  🗑
+                </button>
+              </div>
             )
           })}
         </div>
@@ -2010,6 +2024,17 @@ export function CraftScreen({
           }}
         />
       )}
+      {sheet.mode === 'remove-schema' && (
+        <RemoveSchemaSheet
+          campaignId={campaignId}
+          schema={sheet.schema}
+          onClose={() => setSheet({ mode: 'none' })}
+          onDone={(name) => {
+            showToast(`Схема убрана: ${name}`)
+            void reload()
+          }}
+        />
+      )}
       {toast && (
         <div className="fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
           <div className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
@@ -2018,6 +2043,60 @@ export function CraftScreen({
         </div>
       )}
     </div>
+  )
+}
+
+function RemoveSchemaSheet({
+  campaignId,
+  schema,
+  onClose,
+  onDone,
+}: {
+  campaignId: string
+  schema: CraftSchemaTg
+  onClose: () => void
+  onDone: (name: string) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const remove = async () => {
+    setError(null)
+    setBusy(true)
+    const res = await removeSchemaItem({
+      campaignId,
+      schemaItemNodeId: schema.id,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onDone(res.name)
+    onClose()
+  }
+
+  return (
+    <Sheet title="Убрать известную схему?" onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-sm text-neutral-300">
+          Убрать «{schema.name}» из известных схем? Это не удалит уже созданные предметы и
+          историю крафта.
+        </p>
+        <p className="text-xs text-neutral-500">Схему можно будет снова добавить из каталога.</p>
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        <SubmitButton busy={busy} onClick={() => void remove()}>
+          Убрать схему
+        </SubmitButton>
+        <button
+          onClick={onClose}
+          disabled={busy}
+          className="w-full rounded-lg bg-neutral-800 py-2 text-sm text-neutral-400 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+        >
+          Отмена
+        </button>
+      </div>
+    </Sheet>
   )
 }
 
