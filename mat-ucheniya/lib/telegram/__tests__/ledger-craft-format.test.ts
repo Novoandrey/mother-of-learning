@@ -79,6 +79,29 @@ describe('formatLedgerEvent — craft (spec-056)', () => {
     ).toContain('Скрафчено: Амулет здоровья → Миряна')
   })
 
+  it('партия показывает количество, получателей и остаток в общаке', () => {
+    const ev: LedgerEvent = {
+      type: 'craft',
+      campaignId: 'c',
+      authorUserId: null,
+      participants: [{ pcId: 'a', hours: 3 }],
+      target: 'Амулет защиты от обнаружения и поиска',
+      loopNumber: 7,
+      dayInLoop: 10,
+      outputQty: 3,
+      recipientPcIds: ['erik'],
+      mode: 'craft',
+    }
+    expect(
+      formatLedgerEvent(ev, {
+        ...names(['Тулуна']),
+        recipientPcTitles: ['Эрик Листер'],
+      }),
+    ).toContain(
+      'Скрафчено: Амулет защиты от обнаружения и поиска ×3 → Эрик Листер (1 шт.), в общак (2 шт.)',
+    )
+  })
+
   it('разбор: шапка «Разбор», «Разобрано:», без крафтеров и без «Вложено»', () => {
     const ev: LedgerEvent = {
       type: 'craft',

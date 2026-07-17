@@ -37,13 +37,16 @@ async function resolveNames(
           event.type === 'loot-distributed'
         ? null
         : event.actorPcId
-  // 'craft' resolves its recipient (изделие → PC) through the same slot the
-  // transfer recipient uses; null = общак, никакого резолва не надо.
+  // 'craft' can distribute a batch to several PCs. Keep the legacy single
+  // slot for all other event types and old craft events.
+  const recipientPcIds = event.type === 'craft'
+    ? (event.recipientPcIds ?? (event.recipientPcId ? [event.recipientPcId] : []))
+    : []
   const recipientPcId =
     event.type === 'transfer'
       ? event.recipientPcId
       : event.type === 'craft'
-        ? (event.recipientPcId ?? null)
+        ? (recipientPcIds[0] ?? null)
         : null
   const participantPcIds =
     event.type === 'expedition'
@@ -52,7 +55,7 @@ async function resolveNames(
         ? event.participants.map((p) => p.pcId)
         : []
 
-  const pcIds = [actorPcId, recipientPcId, ...participantPcIds].filter(
+  const pcIds = [actorPcId, recipientPcId, ...recipientPcIds, ...participantPcIds].filter(
     (x): x is string => !!x,
   )
   const [pcRes, profileRes] = await Promise.all([
@@ -81,6 +84,7 @@ async function resolveNames(
     playerName,
     pcTitle: actorPcId ? (titleById.get(actorPcId) ?? null) : null,
     recipientPcTitle: recipientPcId ? (titleById.get(recipientPcId) ?? null) : null,
+    recipientPcTitles: recipientPcIds.map((id) => titleById.get(id) ?? '—'),
     participantTitles: participantPcIds.map((id) => titleById.get(id) ?? '—'),
   }
 }

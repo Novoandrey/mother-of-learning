@@ -149,8 +149,12 @@ export type LedgerEvent =
       startMinute?: number
       /** Рабочая цена, списанная с общака; omitted/0 = ничего не списано. */
       investedGp?: number
-      /** Получатель изделия (PC node id); null/omitted = общак. */
+      /** Получатель одного изделия (legacy single-output form). */
       recipientPcId?: string | null
+      /** Batch size; omitted = one item for compatibility with old events. */
+      outputQty?: number
+      /** PCs receiving one output each; the remainder goes to the stash. */
+      recipientPcIds?: string[]
       /** 'scribe' (spec-059): написание свитка — та же форма (писцы+часы+общак+
        *  получатель), другое слово в шапке. */
       mode?: 'craft' | 'disassemble' | 'scribe'
@@ -209,6 +213,8 @@ export type ResolvedNames = {
   playerName: string | null
   pcTitle: string | null
   recipientPcTitle: string | null
+  /** For a batch craft/scribe: recipient titles in the same order as ids. */
+  recipientPcTitles?: string[]
   /** For 'expedition': the pack's PC titles, in order (spec-055). */
   participantTitles?: string[]
 }
@@ -398,12 +404,26 @@ export function formatLedgerEvent(event: LedgerEvent, names: ResolvedNames): str
       if (isDisassemble) {
         lines.push(`Разобрано: ${esc(event.target)}`)
       } else {
-        const to = event.recipientPcId
-          ? names.recipientPcTitle
-            ? esc(names.recipientPcTitle)
-            : '—'
-          : 'в общак'
-        lines.push(`${isScribe ? 'Написан' : 'Скрафчено'}: ${esc(event.target)} → ${to}`)
+        const outputQty = event.outputQty ?? 1
+        const recipientIds = event.recipientPcIds ?? (event.recipientPcId ? [event.recipientPcId] : [])
+        const recipientTitles = names.recipientPcTitles ??
+          (event.recipientPcId ? [names.recipientPcTitle] : [])
+        const recipients = recipientIds.map((_, i) => {
+          const title = recipientTitles[i]
+          return title ? esc(title) : '—'
+        })
+        const stashQty = Math.max(0, outputQty - recipients.length)
+        const destinations: string[] = []
+        if (recipients.length > 0) {
+          destinations.push(
+            recipients.length === 1 && outputQty === 1
+              ? recipients[0]
+              : `${naturalList(recipients)} (${recipients.length} шт.)`,
+          )
+        }
+        if (stashQty > 0) destinations.push(stashQty === 1 ? 'в общак' : `в общак (${stashQty} шт.)`)
+        const product = outputQty > 1 ? `${esc(event.target)} ×${outputQty}` : esc(event.target)
+        lines.push(`${isScribe ? 'Написан' : 'Скрафчено'}: ${product} → ${destinations.join(', ') || 'в общак'}`)
       }
       if (event.investedGp) lines.push(`Вложено: ${zm(event.investedGp)}`)
       return lines.join('\n')

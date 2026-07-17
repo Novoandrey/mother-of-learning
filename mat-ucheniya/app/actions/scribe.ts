@@ -443,6 +443,8 @@ export async function runScribe(
     startMinute: startCheck.value ?? undefined,
     investedGp: costGp > 0 ? costGp : undefined,
     recipientPcId: recipientNodeIds.length === 1 && quantity === 1 ? recipientNodeIds[0] : undefined,
+    outputQty: quantity,
+    recipientPcIds: recipientNodeIds,
     mode: 'scribe',
   }
   await notifyLedgerEvent(event)
