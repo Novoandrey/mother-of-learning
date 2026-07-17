@@ -755,6 +755,8 @@ export async function runCraft(
     startMinute: startCheck.value ?? undefined,
     investedGp: workCostGp > 0 ? workCostGp : undefined,
     recipientPcId: recipientNodeIds.length === 1 && quantity === 1 ? recipientNodeIds[0] : undefined,
+    outputQty: quantity,
+    recipientPcIds: recipientNodeIds,
     mode: 'craft',
   }
   await notifyLedgerEvent(event)
