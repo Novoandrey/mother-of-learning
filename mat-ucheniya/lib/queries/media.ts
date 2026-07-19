@@ -42,7 +42,7 @@ export async function getCampaignMediaPage(
 
   let query = supabase
     .from('media_assets')
-    .select(`${MEDIA_ASSET_COLUMNS}, media_asset_variants(rendition, version, storage_key, mime_type, width, height, size_bytes), media_asset_node_links(node:nodes(id, title, type:node_types(slug)))`)
+    .select(`${MEDIA_ASSET_COLUMNS}, media_asset_variants(rendition, version, storage_key, mime_type, width, height, size_bytes), media_asset_node_links(node:nodes(id, title, type:node_types(slug)))`, { count: 'exact' })
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
@@ -54,7 +54,7 @@ export async function getCampaignMediaPage(
     )
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
   if (error) throw error
   const rows = (data ?? []) as MediaPageRow[]
   const hasMore = rows.length > MEDIA_PAGE_SIZE
@@ -66,6 +66,7 @@ export async function getCampaignMediaPage(
       row.media_asset_variants,
       row.media_asset_node_links,
     )),
+    total: count ?? pageRows.length,
     nextCursor: hasMore && last ? encodeMediaCursor(last.created_at, last.id) : null,
   }
 }
