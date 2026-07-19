@@ -13,6 +13,7 @@ import {
   uploadCampaignImage,
   validateImageFile,
 } from '@/lib/server/image-upload'
+import { ensureMediaWorkerStarted } from '@/lib/server/media-worker-bootstrap'
 import {
   logActivity,
   logActivityError,
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
     assetId: asset.id,
     bytes: image.size,
   })
+  void ensureMediaWorkerStarted()
 
   return NextResponse.json(
     {

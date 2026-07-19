@@ -7,6 +7,7 @@ import {
   type MediaAssetRow,
   type MediaAssetView,
   type MediaPage,
+  type MediaNodeLinkRow,
   type MediaVariantRow,
 } from '@/lib/media'
 import { decodeMediaCursor, encodeMediaCursor } from '@/lib/server/media-pagination'
@@ -28,6 +29,7 @@ export async function getCampaignMediaAssets(
 
 type MediaPageRow = MediaAssetRow & {
   media_asset_variants?: MediaVariantRow[] | null
+  media_asset_node_links?: MediaNodeLinkRow[] | null
 }
 
 export async function getCampaignMediaPage(
@@ -40,7 +42,7 @@ export async function getCampaignMediaPage(
 
   let query = supabase
     .from('media_assets')
-    .select(`${MEDIA_ASSET_COLUMNS}, media_asset_variants(rendition, version, storage_key, mime_type, width, height, size_bytes)`)
+    .select(`${MEDIA_ASSET_COLUMNS}, media_asset_variants(rendition, version, storage_key, mime_type, width, height, size_bytes), media_asset_node_links(node:nodes(id, title, type:node_types(slug)))`)
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
@@ -59,7 +61,11 @@ export async function getCampaignMediaPage(
   const pageRows = hasMore ? rows.slice(0, MEDIA_PAGE_SIZE) : rows
   const last = pageRows.at(-1)
   return {
-    items: pageRows.map((row) => toMediaPageItem(row, row.media_asset_variants)),
+    items: pageRows.map((row) => toMediaPageItem(
+      row,
+      row.media_asset_variants,
+      row.media_asset_node_links,
+    )),
     nextCursor: hasMore && last ? encodeMediaCursor(last.created_at, last.id) : null,
   }
 }

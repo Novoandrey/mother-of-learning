@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import type { MediaPage, MediaPageItem } from '@/lib/media'
 
 type Props = {
   initialPage: MediaPage
   campaignId: string
+  campaignSlug: string
   canManage: boolean
 }
 
@@ -20,8 +22,9 @@ function formatCreatedAt(value: string): string {
   }).format(new Date(value))
 }
 
-function AssetCard({ asset, canManage, onRetry }: {
+function AssetCard({ asset, campaignSlug, canManage, onRetry }: {
   asset: MediaPageItem
+  campaignSlug: string
   canManage: boolean
   onRetry: (assetId: string) => Promise<void>
 }) {
@@ -43,12 +46,25 @@ function AssetCard({ asset, canManage, onRetry }: {
         {status === 'failed' && canManage && (
           <button type="button" onClick={() => void onRetry(asset.id)} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700">Повторить обработку</button>
         )}
+        {asset.linkedNodes.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs">
+            {asset.linkedNodes.map((node) => (
+              <Link
+                key={node.id}
+                href={`/c/${campaignSlug}/catalog/${node.id}`}
+                className="text-blue-600 hover:underline"
+              >
+                {node.title}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </article>
   )
 }
 
-export function MediaLibrary({ initialPage, campaignId, canManage }: Props) {
+export function MediaLibrary({ initialPage, campaignId, campaignSlug, canManage }: Props) {
   const [items, setItems] = useState(initialPage.items)
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
   const [loading, setLoading] = useState(false)
@@ -86,5 +102,5 @@ export function MediaLibrary({ initialPage, campaignId, canManage }: Props) {
     return <section className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center"><div className="text-4xl" aria-hidden>🖼️</div><h2 className="mt-3 text-lg font-semibold text-gray-900">Медиатека пуста</h2><p className="mx-auto mt-2 max-w-lg text-sm text-gray-500">{canManage ? 'Загрузите первое изображение. Превью подготовится автоматически.' : 'Ведущий ещё не добавил изображения в общую библиотеку кампании.'}</p></section>
   }
 
-  return <section aria-label="Изображения кампании"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-gray-800">Изображения <span className="font-normal text-gray-400">{items.length}{nextCursor ? '+' : ''}</span></h2><p className="text-xs text-gray-400">Сначала новые</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{items.map((asset) => <AssetCard key={asset.id} asset={asset} canManage={canManage} onRetry={retry} />)}</div>{nextCursor && <div className="mt-5 text-center"><button type="button" disabled={loading} onClick={() => void loadMore()} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">{loading ? 'Загружаем…' : 'Загрузить ещё'}</button></div>}{error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}</section>
+  return <section aria-label="Изображения кампании"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-gray-800">Изображения <span className="font-normal text-gray-400">{items.length}{nextCursor ? '+' : ''}</span></h2><p className="text-xs text-gray-400">Сначала новые</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{items.map((asset) => <AssetCard key={asset.id} asset={asset} campaignSlug={campaignSlug} canManage={canManage} onRetry={retry} />)}</div>{nextCursor && <div className="mt-5 text-center"><button type="button" disabled={loading} onClick={() => void loadMore()} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">{loading ? 'Загружаем…' : 'Загрузить ещё'}</button></div>}{error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}</section>
 }

@@ -41,4 +41,14 @@ describe('MEDIA-02 helpers', () => {
     expect(item.thumbnail).toBeNull()
     expect(item.variantState).toBe('processing')
   })
+
+  it('projects a linked node without exposing a storage key', () => {
+    const item = toMediaPageItem(asset, null, [{
+      node: { id: '40000000-0000-4000-8000-000000000004', title: 'Агафья', type: { slug: 'npc' } },
+    }])
+    expect(item.linkedNodes).toEqual([
+      { id: '40000000-0000-4000-8000-000000000004', title: 'Агафья', typeSlug: 'npc' },
+    ])
+    expect(JSON.stringify(item)).not.toContain(asset.storage_key)
+  })
 })

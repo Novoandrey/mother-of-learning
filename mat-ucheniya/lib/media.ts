@@ -37,6 +37,24 @@ export type MediaVariantRow = {
   size_bytes: number
 }
 
+export type MediaNodeLinkRow = {
+  node: {
+    id: string
+    title: string
+    type: { slug: string } | null
+  } | {
+    id: string
+    title: string
+    type: { slug: string } | null
+  }[] | null
+}
+
+export type MediaLinkedNode = {
+  id: string
+  title: string
+  typeSlug: string | null
+}
+
 export type MediaAssetView = {
   id: string
   campaignId: string
@@ -52,6 +70,7 @@ export type MediaPageItem = Omit<MediaAssetView, 'url'> & {
   variantState: MediaVariantState
   variantErrorCode: string | null
   thumbnail: { url: string; width: number; height: number } | null
+  linkedNodes: MediaLinkedNode[]
 }
 
 export type MediaPage = {
@@ -94,8 +113,9 @@ export function toMediaAssetView(row: MediaAssetRow): MediaAssetView {
 export function toMediaPageItem(
   row: MediaAssetRow,
   variants: MediaVariantRow[] | null | undefined,
+  nodeLinks: MediaNodeLinkRow[] | null | undefined = [],
 ): MediaPageItem {
-  const asset = toMediaAssetView(row)
+  const { url: _originalUrl, ...asset } = toMediaAssetView(row)
   const version = row.variant_version ?? 1
   const thumb = (variants ?? []).find(
     (variant) => variant.rendition === 'thumb' && variant.version === version,
@@ -108,5 +128,13 @@ export function toMediaPageItem(
     thumbnail: thumb && thumbnailUrl
       ? { url: thumbnailUrl, width: thumb.width, height: thumb.height }
       : null,
+    linkedNodes: (nodeLinks ?? [])
+      .flatMap((link) => Array.isArray(link.node) ? link.node : link.node ? [link.node] : [])
+      .map((node) => ({
+        id: node.id,
+        title: node.title,
+        typeSlug: node.type?.slug ?? null,
+      }))
+      .sort((left, right) => left.title.localeCompare(right.title, 'ru')),
   }
 }
