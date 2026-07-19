@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/epic-media-library`  
 **Created**: 2026-07-20  
-**Status**: Ready for planning  
+**Status**: Production deployed — player/outside-campaign role evidence pending
 **Input**: User description: «MEDIA-01 — ДМ загружает изображение и повторно находит его в общей медиатеке»
 **Epic**: `.specify/epics/media-library/constitution.md` (`MEDIA-01`)
 
