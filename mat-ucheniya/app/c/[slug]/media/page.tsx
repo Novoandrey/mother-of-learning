@@ -9,6 +9,8 @@ import { isMediaManager } from '@/lib/media'
 import { getCampaignMediaAssets } from '@/lib/queries/media'
 import { createClient } from '@/lib/supabase/server'
 
+const mediaCategories = ['Все', 'Портреты', 'Карты', 'Фоны', 'Сцены'] as const
+
 export default async function MediaPage({
   params,
 }: {
@@ -36,6 +38,22 @@ export default async function MediaPage({
           в портретах, фонах и картах без повторной загрузки.
         </p>
       </header>
+
+      <nav aria-label="Категории медиа" className="flex flex-wrap gap-2">
+        {mediaCategories.map((category) => (
+          <span
+            key={category}
+            aria-current={category === 'Все' ? 'page' : undefined}
+            className={
+              category === 'Все'
+                ? 'rounded-full bg-blue-600 px-3 py-1.5 text-sm font-medium text-white'
+                : 'rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-600'
+            }
+          >
+            {category}
+          </span>
+        ))}
+      </nav>
 
       {canManage && <MediaUploadForm campaignId={campaign.id} />}
       <MediaLibrary assets={assets} canManage={canManage} />
