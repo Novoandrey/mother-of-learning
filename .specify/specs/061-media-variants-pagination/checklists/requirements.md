@@ -1,7 +1,7 @@
 # Specification Quality Checklist: Медиатека — варианты, выдача и масштаб
 
-**Purpose**: Validate specification completeness and quality before implementation  
-**Created**: 2026-07-20  
+**Purpose**: Validate specification completeness and quality before implementation
+**Created**: 2026-07-20
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality

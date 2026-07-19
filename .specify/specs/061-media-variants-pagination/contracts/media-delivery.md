@@ -2,8 +2,8 @@
 
 ## `GET /api/media`
 
-**Authentication**: required campaign membership.  
-**Input**: `campaignId` and optional opaque `cursor`.  
+**Authentication**: required campaign membership.
+**Input**: `campaignId` and optional opaque `cursor`.
 **Output**: a newest-first page of at most 48 `MediaPageItem` values and an
 optional `nextCursor`.
 
@@ -20,7 +20,7 @@ metadata.
 
 ## `POST /api/media/:id/retry-variants`
 
-**Authentication**: owner or DM of the asset campaign.  
+**Authentication**: owner or DM of the asset campaign.
 **Effect**: safely enqueue or reactivate the current-version job if it is not
 already processing/ready. It never uploads a new original and never overwrites
 a ready variant.

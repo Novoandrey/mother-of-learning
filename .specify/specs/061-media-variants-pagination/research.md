@@ -1,6 +1,6 @@
 # Research — MEDIA-02: варианты, выдача и масштаб
 
-**Date**: 2026-07-20  
+**Date**: 2026-07-20
 **Decision status**: defaults agreed with Andrey; implementation spike remains
 required before production migration.
 

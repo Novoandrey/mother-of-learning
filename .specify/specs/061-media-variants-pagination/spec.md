@@ -1,10 +1,10 @@
 # Feature Specification: Медиатека — варианты, выдача и масштаб
 
-**Feature Branch**: `codex/media-optimization`  
-**Created**: 2026-07-20  
-**Status**: Plan ready — awaiting implementation  
+**Feature Branch**: `codex/media-optimization`
+**Created**: 2026-07-20
+**Status**: Plan ready — awaiting implementation
 **Input**: Andrey (chat 2026-07-20): «файлов будут сотни, нужны превьюшки,
-страницы, адекватная загрузка только того, что нужно в сцене»  
+страницы, адекватная загрузка только того, что нужно в сцене»
 **Epic**: `.specify/epics/media-library/constitution.md` (`MEDIA-02`)
 
 ## Clarifications

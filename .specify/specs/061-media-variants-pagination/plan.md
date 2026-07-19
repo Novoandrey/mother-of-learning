@@ -1,7 +1,7 @@
 # Implementation Plan: Медиатека — варианты, выдача и масштаб
 
-**Branch**: `codex/media-optimization` | **Date**: 2026-07-20 | **Spec**: [spec.md](spec.md)  
-**Status**: Planned — ready for tasks  
+**Branch**: `codex/media-optimization` | **Date**: 2026-07-20 | **Spec**: [spec.md](spec.md)
+**Status**: Planned — ready for tasks
 **Input**: Feature specification from `.specify/specs/061-media-variants-pagination/spec.md`
 
 ## Summary
@@ -14,21 +14,21 @@
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x, React 19, Next.js 16.2, Node 20  
+**Language/Version**: TypeScript 5.x, React 19, Next.js 16.2, Node 20
 **Primary Dependencies**: existing Next/Supabase/R2 stack; add `sharp` only to
-the worker package/image  
+the worker package/image
 **Storage**: self-hosted PostgreSQL metadata/jobs; Cloudflare R2 originals and
-variants; Cloudflare custom-domain CDN cache  
+variants; Cloudflare custom-domain CDN cache
 **Testing**: Vitest query/helper/route tests; worker integration test against
 R2-compatible test double; TypeScript, ESLint, production build; manual
-production quickstart  
+production quickstart
 **Target Platform**: existing Hetzner/Dokploy web application plus a distinct
-Dokploy worker application built from the same `main` revision  
-**Project Type**: full-stack web app + background worker  
+Dokploy worker application built from the same `main` revision
+**Project Type**: full-stack web app + background worker
 **Performance Goals**: 48 metadata rows per page; grid never requests originals
-after a thumb is ready; a consumer resolves one rendition without list loading  
+after a thumb is ready; a consumer resolves one rendition without list loading
 **Constraints**: keep MEDIA-01 originals immutable; R2 credentials server-only;
-current public-read custom domain; one worker deployment must not block web app  
+current public-read custom domain; one worker deployment must not block web app
 **Scale/Scope**: hundreds to low thousands of assets per campaign; no tiles,
 semantic search, manual crop editor, deletion, category assignment or consumer
 picker in this slice
