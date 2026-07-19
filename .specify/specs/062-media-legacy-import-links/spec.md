@@ -1,8 +1,8 @@
 # Feature Specification: Медиатека — legacy-импорт и связи с нодами
 
-**Feature Branch**: `codex/media-optimization`
+**Feature Branch**: `codex/media-optimization` → merged to `main` (PR #56)
 **Created**: 2026-07-20
-**Status**: In implementation
+**Status**: Complete — production verified 2026-07-20
 **Input**: Andrey (chat 2026-07-20): «возьмем все изображения что хранятся у Никиты, все изображения НПС и портретов что у нас уже есть на диске и отобразим их в медиатеке — со ссылками на соответствующие ноды (если есть)»
 **Epic**: `.specify/epics/media-library/constitution.md` (`MEDIA-03`)
 
@@ -86,3 +86,13 @@ thumb после готовности вариантов и ведёт к нод
 - Ручное назначение/снятие ссылок и использование ассета как портрета, карты
   или фона — это следующий picker/usage путь.
 - Категории, поиск, Google Drive и ChatGPT-экспорты.
+
+## Production completion record
+
+- Migrations 140 and 141 are applied directly to the production database.
+- The dry run resolved 138 local portraits and one unlinked MoL-Master map;
+  commit import created 139 legacy library assets idempotently.
+- The initial R2 variant-write failure (`HTTP 411`) was fixed, all failed jobs
+  were safely requeued, and all **140** library assets reached `ready`.
+- Production UI verification: the first page reports `48 / 140`, renders
+  thumbnail variants rather than originals, and exposes portrait → node links.

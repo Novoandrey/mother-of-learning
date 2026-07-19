@@ -67,25 +67,25 @@ If the action is a thin wrapper that delegates to another already-gated
 action (`stash.ts` → `transactions.ts`), document this in the file
 header — the lack of own gates needs to be visible at code review.
 
-## Current-phase priorities: data → desktop UX → mobile
+## Current-phase priorities: data → Telegram App/mobile → desktop DM
 
-The app is used by one DM (owner) on a desktop browser and a handful
-of players who mostly read. While that stays true, always tackle
-work in this order:
+**Roadmap A–F decision (Andrey, 2026-07-20):** the player-facing Telegram
+App is the primary product surface. This supersedes the former desktop-first
+ordering for new work in that roadmap. The web app remains the DM control
+plane for preparation and complex editing.
+
+For roadmap A–F, always tackle work in this order:
 
 1. **Data correctness.** Schema, server actions, queries. A wrong
    row in the DB poisons every client; a wrong pixel doesn't.
-2. **Desktop UX.** The primary surface. Make the keyboard + wide
-   layout feel native before touching responsive overrides.
-3. **Mobile UX.** Deferred until there's an explicit mobile spec.
-   The only mobile-on-desktop-tour exception is "this control is
-   literally unclickable on a phone" — fix it in place, keep the
-   change minimal.
+2. **Telegram App/mobile UX.** Start every new feature with the player
+   journey in `/tg`; it must work with touch, a narrow viewport and no
+   desktop-hover-only interaction.
+3. **Desktop DM UX.** Add the web preparation/control surface after the
+   mobile player path is clear.
 
-When in doubt about a mobile-specific fix, add it to `backlog.md`
-and tag it with the future mobile spec instead of ad-hoc styling it.
-A full responsive pass will come as its own spec once desktop
-stabilises.
+The `/tg` surface and the web app share one domain model, auth, roles and
+assets. Do not build a separate Telegram-only data path.
 
 ## Shipping (spec-043)
 
