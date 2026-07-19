@@ -33,7 +33,7 @@ function AssetCard({ asset, campaignSlug, canManage, onRetry }: {
     <article className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="aspect-square bg-gray-100">
         {asset.thumbnail?.url ? (
-          <img src={asset.thumbnail.url} alt={asset.originalFilename} loading="lazy" width={asset.thumbnail.width} height={asset.thumbnail.height} className="h-full w-full object-cover" />
+          <img src={asset.thumbnail.url} alt={asset.originalFilename} loading="lazy" width={asset.thumbnail.width} height={asset.thumbnail.height} className="h-full w-full object-contain" />
         ) : status === 'failed' ? (
           <div className="grid h-full place-items-center px-3 text-center text-xs text-red-600">Превью не подготовлено</div>
         ) : (
