@@ -46,7 +46,9 @@ export async function runMediaWorker() {
       for (const [rendition, maxSize, quality] of renditions) {
         const output = await sharp(source).rotate().resize({ width: maxSize, height: maxSize, fit: 'inside', withoutEnlargement: true }).webp({ quality }).toBuffer({ resolveWithObject: true })
         const key = `media/${job.campaign_id}/${job.asset_id}/v${job.version}/${rendition}.webp`
-        const written = await r2Fetch(key, { method: 'PUT', headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=31536000, immutable' }, body: output.data })
+        // R2's S3 endpoint rejects chunked uploads (HTTP 411). aws4fetch's
+        // Node request does not infer this header for its signed Buffer body.
+        const written = await r2Fetch(key, { method: 'PUT', headers: { 'Content-Type': 'image/webp', 'Content-Length': String(output.data.length), 'Cache-Control': 'public, max-age=31536000, immutable' }, body: output.data })
         if (!written.ok) throw new Error(`VARIANT_PUT_${rendition}_${written.status}`)
         variants.push({ asset_id: job.asset_id, rendition, version: job.version, storage_key: key, mime_type: 'image/webp', width: output.info.width, height: output.info.height, size_bytes: output.data.length })
       }

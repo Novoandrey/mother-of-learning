@@ -75,6 +75,8 @@ export type MediaPageItem = Omit<MediaAssetView, 'url'> & {
 
 export type MediaPage = {
   items: MediaPageItem[]
+  /** Total assets visible to the current campaign member, across all pages. */
+  total: number
   nextCursor: string | null
 }
 

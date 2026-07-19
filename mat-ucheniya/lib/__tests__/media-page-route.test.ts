@@ -19,7 +19,7 @@ describe('GET /api/media', () => {
     vi.clearAllMocks()
     mocks.getMembership.mockResolvedValue({ role: 'player' })
     mocks.createClient.mockResolvedValue({})
-    mocks.getCampaignMediaPage.mockResolvedValue({ items: [], nextCursor: null })
+    mocks.getCampaignMediaPage.mockResolvedValue({ items: [], total: 0, nextCursor: null })
   })
 
   it('rejects a user outside the campaign before reading the page', async () => {
@@ -33,6 +33,7 @@ describe('GET /api/media', () => {
     const response = await GET(new Request(`https://example.test/api/media?campaignId=${campaignId}&cursor=cursor-1`) as never)
     expect(response.status).toBe(200)
     expect(mocks.getCampaignMediaPage).toHaveBeenCalledWith({}, campaignId, 'cursor-1')
+    await expect(response.json()).resolves.toEqual({ items: [], total: 0, nextCursor: null })
   })
 
   it('reports a malformed cursor without leaking an internal error', async () => {
