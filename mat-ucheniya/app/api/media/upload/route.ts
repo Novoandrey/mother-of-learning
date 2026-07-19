@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser, getMembership } from '@/lib/auth'
 import {
-  isMediaManager,
   MAX_MEDIA_UPLOAD_BYTES,
   MEDIA_ASSET_COLUMNS,
   normalizeMediaFilename,
@@ -35,7 +34,7 @@ export async function POST(request: Request) {
     getCurrentUser(),
   ])
 
-  if (!membership || !user || !isMediaManager(membership.role)) {
+  if (!membership || !user) {
     logActivityWarning('media.upload.denied', { campaignId })
     return NextResponse.json({ error: 'Нет прав.' }, { status: 403 })
   }

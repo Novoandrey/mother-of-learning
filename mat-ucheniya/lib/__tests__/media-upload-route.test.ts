@@ -57,7 +57,7 @@ describe('POST /api/media/upload', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mocks.getMembership.mockResolvedValue({ role: 'owner' })
+    mocks.getMembership.mockResolvedValue({ role: 'player' })
     mocks.getCurrentUser.mockResolvedValue({ id: userId })
     mocks.validateImageFile.mockResolvedValue(image)
     mocks.uploadCampaignImage.mockResolvedValue({ key: uploadedKey })
@@ -82,8 +82,8 @@ describe('POST /api/media/upload', () => {
     })
   })
 
-  it('rejects a player before validating or uploading the file', async () => {
-    mocks.getMembership.mockResolvedValue({ role: 'player' })
+  it('rejects a non-member before validating or uploading the file', async () => {
+    mocks.getMembership.mockResolvedValue(null)
 
     const response = await POST(uploadRequest())
 
@@ -93,7 +93,7 @@ describe('POST /api/media/upload', () => {
     expect(mocks.uploadCampaignImage).not.toHaveBeenCalled()
   })
 
-  it('persists an owner upload and does not expose its storage key', async () => {
+  it('persists a player upload and does not expose its storage key', async () => {
     const response = await POST(uploadRequest())
     const body = await response.json()
 

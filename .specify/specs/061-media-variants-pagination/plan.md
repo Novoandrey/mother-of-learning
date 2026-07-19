@@ -150,7 +150,7 @@ mat-ucheniya/
 - Unit-test cursor encode/decode, keyset boundaries, rendition selection and
   state mapping.
 - Route-test campaign membership, 48-item limit, invalid/foreign cursor,
-  owner/DM retry and player denial.
+  campaign-member retry and outside-campaign denial.
 - Worker-test success, duplicate claim, restart lease, invalid source and
   idempotent upload/complete behavior.
 - Add one fixture campaign with >100 lightweight source assets for page tests;

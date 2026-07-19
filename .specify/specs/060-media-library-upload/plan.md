@@ -7,7 +7,7 @@
 
 Добавить кампейн-скоупированную таблицу медиа-ассетов, защищённый путь одиночной
 загрузки через уже существующий общий image-upload слой и desktop-страницу
-медиатеки. Owner/DM загружает один проверенный файл в R2 и создаёт запись;
+медиатеки. Участник кампании загружает один проверенный файл в R2 и создаёт запись;
 любой участник кампании видит newest-first сетку и результат после reload.
 
 ## Technical Context
@@ -31,13 +31,13 @@
 - **Simple stack**: PASS — reuses PostgreSQL, current R2 and current Route Handler pattern.
 - **Reusable patterns**: PASS — extends `lib/server/image-upload.ts`, does not clone validation.
 - **Every release playable/useful**: PASS — upload→library→reload is independently usable.
-- **Server auth gating**: PASS — route resolves membership and owner/DM role before storage write.
+- **Server auth gating**: PASS — route resolves authenticated campaign membership before storage write; role does not gate uploads.
 
 ### Media epic constitution
 
 - **M1/M2 asset separate from usage**: PASS — no portrait/map foreign keys in this slice.
 - **M3 immutable original**: PASS — no update operation exists.
-- **M4 campaign boundary**: PASS — RLS membership read, owner/DM upload.
+- **M4 campaign boundary**: PASS — RLS membership read and member upload.
 - **M5 data owns lifecycle**: PASS — every listed object has a metadata row.
 - **M6 one intake mechanism**: PASS — common validation/upload helper.
 - **M7 one tested path**: PASS — one user story and production quickstart.
@@ -89,7 +89,7 @@ mat-ucheniya/
 ### Request flow
 
 1. Server page validates campaign membership and queries visible assets through RLS.
-2. Owner/DM sees the upload form; player sees only the grid.
+2. Every campaign member sees the upload form and the grid.
 3. Form posts `campaignId + file` to the protected route.
 4. Route validates role, size, MIME and signature.
 5. Shared image layer writes `media/<campaignId>/<uuid>.<ext>`.

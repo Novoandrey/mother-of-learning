@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  isMediaManager,
   mediaAssetUrl,
   normalizeMediaFilename,
 } from '@/lib/media'
@@ -15,7 +14,6 @@ afterEach(() => {
   if (previousPortraitBase === undefined) delete process.env.NEXT_PUBLIC_R2_PORTRAIT_BASE
   else process.env.NEXT_PUBLIC_R2_PORTRAIT_BASE = previousPortraitBase
 })
-
 describe('mediaAssetUrl', () => {
   it('uses the shared asset base and removes its trailing slash', () => {
     process.env.NEXT_PUBLIC_R2_ASSET_BASE = 'https://assets.example.test/'
@@ -56,11 +54,4 @@ describe('normalizeMediaFilename', () => {
     expect(normalizeMediaFilename('a'.repeat(300), 'image/jpeg')).toHaveLength(255)
   })
 })
-
-describe('isMediaManager', () => {
-  it('allows campaign owners and DMs but not players', () => {
-    expect(isMediaManager('owner')).toBe(true)
-    expect(isMediaManager('dm')).toBe(true)
-    expect(isMediaManager('player')).toBe(false)
-  })
-})
+// Media helpers intentionally carry no role policy; membership is checked by routes.

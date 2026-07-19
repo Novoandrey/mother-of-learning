@@ -8,7 +8,7 @@ type Props = {
   initialPage: MediaPage
   campaignId: string
   campaignSlug: string
-  canManage: boolean
+  canRetry: boolean
 }
 
 function formatBytes(value: number): string {
@@ -22,10 +22,10 @@ function formatCreatedAt(value: string): string {
   }).format(new Date(value))
 }
 
-function AssetCard({ asset, campaignSlug, canManage, onRetry }: {
+function AssetCard({ asset, campaignSlug, canRetry, onRetry }: {
   asset: MediaPageItem
   campaignSlug: string
-  canManage: boolean
+  canRetry: boolean
   onRetry: (assetId: string) => Promise<void>
 }) {
   const status = asset.variantState
@@ -43,7 +43,7 @@ function AssetCard({ asset, campaignSlug, canManage, onRetry }: {
       <div className="p-3">
         <h3 className="truncate text-sm font-medium text-gray-900" title={asset.originalFilename}>{asset.originalFilename}</h3>
         <p className="mt-1 text-xs text-gray-400">{formatBytes(asset.sizeBytes)} · {formatCreatedAt(asset.createdAt)}</p>
-        {status === 'failed' && canManage && (
+        {status === 'failed' && canRetry && (
           <button type="button" onClick={() => void onRetry(asset.id)} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700">Повторить обработку</button>
         )}
         {asset.linkedNodes.length > 0 && (
@@ -64,7 +64,7 @@ function AssetCard({ asset, campaignSlug, canManage, onRetry }: {
   )
 }
 
-export function MediaLibrary({ initialPage, campaignId, campaignSlug, canManage }: Props) {
+export function MediaLibrary({ initialPage, campaignId, campaignSlug, canRetry }: Props) {
   const [items, setItems] = useState(initialPage.items)
   const [total, setTotal] = useState(initialPage.total)
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
@@ -121,8 +121,8 @@ export function MediaLibrary({ initialPage, campaignId, campaignSlug, canManage 
   }
 
   if (items.length === 0) {
-    return <section className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center"><div className="text-4xl" aria-hidden>🖼️</div><h2 className="mt-3 text-lg font-semibold text-gray-900">Медиатека пуста</h2><p className="mx-auto mt-2 max-w-lg text-sm text-gray-500">{canManage ? 'Загрузите первое изображение. Превью подготовится автоматически.' : 'Ведущий ещё не добавил изображения в общую библиотеку кампании.'}</p></section>
+    return <section className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center"><div className="text-4xl" aria-hidden>🖼️</div><h2 className="mt-3 text-lg font-semibold text-gray-900">Медиатека пуста</h2><p className="mx-auto mt-2 max-w-lg text-sm text-gray-500">Загрузите первое изображение. Превью подготовится автоматически.</p></section>
   }
 
-  return <section aria-label="Изображения кампании"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-gray-800">Изображения <span className="font-normal text-gray-400">{items.length} / {total}</span></h2><p className="text-xs text-gray-400">Сначала новые</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{items.map((asset) => <AssetCard key={asset.id} asset={asset} campaignSlug={campaignSlug} canManage={canManage} onRetry={retry} />)}</div>{nextCursor && <div className="mt-5 text-center"><button type="button" disabled={loading} onClick={() => void loadMore()} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">{loading ? 'Загружаем…' : 'Загрузить ещё'}</button></div>}{error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}</section>
+  return <section aria-label="Изображения кампании"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-gray-800">Изображения <span className="font-normal text-gray-400">{items.length} / {total}</span></h2><p className="text-xs text-gray-400">Сначала новые</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{items.map((asset) => <AssetCard key={asset.id} asset={asset} campaignSlug={campaignSlug} canRetry={canRetry} onRetry={retry} />)}</div>{nextCursor && <div className="mt-5 text-center"><button type="button" disabled={loading} onClick={() => void loadMore()} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">{loading ? 'Загружаем…' : 'Загрузить ещё'}</button></div>}{error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}</section>
 }

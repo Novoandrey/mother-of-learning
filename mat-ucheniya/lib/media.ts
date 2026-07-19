@@ -1,4 +1,3 @@
-import type { Role } from '@/lib/auth'
 import { imageExtensionFor } from '@/lib/image-signatures'
 
 export const MAX_MEDIA_UPLOAD_BYTES = 12 * 1024 * 1024
@@ -78,10 +77,6 @@ export type MediaPage = {
   /** Total assets visible to the current campaign member, across all pages. */
   total: number
   nextCursor: string | null
-}
-
-export function isMediaManager(role: Role | string): boolean {
-  return role === 'owner' || role === 'dm'
 }
 
 export function mediaAssetUrl(key: string | null): string | null {

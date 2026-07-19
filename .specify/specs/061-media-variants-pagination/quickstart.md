@@ -39,7 +39,7 @@ docker build -f Dockerfile.media-worker -t mol-media-worker .
 
 1. Force one worker job to fail using a controlled invalid source fixture.
 2. Confirm the original metadata/card shows `failed`, no broken image is shown,
-   and only owner/DM sees retry.
+   and every campaign member sees retry.
 3. Retry as DM; confirm one job is requeued and ready variants are not
    duplicated.
 4. Restart the worker while a job is leased; after lease expiry confirm the job

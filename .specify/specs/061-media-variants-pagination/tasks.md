@@ -45,7 +45,7 @@
 
 ## Phase 4: User Story 2 — Processing feedback and recovery (P1)
 
-- [ ] T016 [US2] Add owner/DM-only `retry-variants` route tests and implementation.
+- [ ] T016 [US2] Add campaign-member `retry-variants` route tests and implementation.
 - [ ] T017 [US2] Wire upload and page refresh/polling so queued → ready or failed
   is visible after reload and without re-uploading the original.
 - [ ] T018 [US2] Implement idempotent bounded backfill for existing MEDIA-01
