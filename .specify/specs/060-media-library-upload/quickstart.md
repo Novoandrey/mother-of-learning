@@ -43,7 +43,7 @@ npm run build
 3. Submit the upload endpoint as a player; confirm it returns forbidden and
    creates no asset.
 
-## Staging evidence
+## Production evidence
 
 Record the tested campaign, account roles, filenames, result and date in the
 session chatlog before marking the spec complete.
@@ -71,10 +71,21 @@ session chatlog before marking the spec complete.
   only application policy is authenticated-member `SELECT`; initial row count
   is zero.
 
-### Remaining production evidence
+### 2026-07-20 — production deployment and DM journey
 
-1. Confirm production Dokploy provides `NEXT_PUBLIC_R2_ASSET_BASE` (or the existing
-   `NEXT_PUBLIC_R2_PORTRAIT_BASE` fallback) at image build time.
-2. Deploy the feature through the repository's PR-only `main` flow.
-3. Run the primary, failure and role journeys above with production accounts and
-   record campaign, roles and test filenames here.
+- PR #54 was merged into `main`; the Dokploy production deployment completed.
+- Production has the server-side R2 credentials and build-time
+  `NEXT_PUBLIC_R2_ASSET_BASE=https://portraits.theloopers.org` configured.
+- As the `admin` owner/DM of campaign `mat-ucheniya`, opened
+  `/c/mat-ucheniya/media` and confirmed the empty-state upload control.
+- Negative check: a JPEG payload named `logo.png` was rejected with the expected
+  format error. This confirms MIME/signature mismatch is not accepted.
+- Positive check: uploaded `media-01-upload-test.jpg` (43 KiB); the card and
+  preview appeared. After a page reload, the same card remained and its visible
+  preview resolved from `https://portraits.theloopers.org/media/...`.
+
+### Remaining role evidence
+
+1. Sign in as a player who belongs to `mat-ucheniya`; verify the shared image
+   is visible and the upload control is absent.
+2. Sign in as a user outside the campaign; verify the media page is inaccessible.
