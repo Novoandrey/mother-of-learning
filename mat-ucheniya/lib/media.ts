@@ -2,9 +2,13 @@ import type { Role } from '@/lib/auth'
 import { imageExtensionFor } from '@/lib/image-signatures'
 
 export const MAX_MEDIA_UPLOAD_BYTES = 12 * 1024 * 1024
+export const MEDIA_PAGE_SIZE = 48
+
+export type MediaVariantState = 'queued' | 'processing' | 'ready' | 'failed'
+export type MediaRendition = 'thumb' | 'preview' | 'scene'
 
 export const MEDIA_ASSET_COLUMNS =
-  'id, campaign_id, storage_key, original_filename, mime_type, size_bytes, uploaded_by, created_at'
+  'id, campaign_id, storage_key, original_filename, mime_type, size_bytes, uploaded_by, created_at, source_width, source_height, variant_state, variant_version, variant_error_code, variants_updated_at'
 
 export type MediaAssetRow = {
   id: string
@@ -15,6 +19,22 @@ export type MediaAssetRow = {
   size_bytes: number
   uploaded_by: string | null
   created_at: string
+  source_width?: number | null
+  source_height?: number | null
+  variant_state?: MediaVariantState
+  variant_version?: number
+  variant_error_code?: string | null
+  variants_updated_at?: string | null
+}
+
+export type MediaVariantRow = {
+  rendition: MediaRendition
+  version: number
+  storage_key: string
+  mime_type: string
+  width: number
+  height: number
+  size_bytes: number
 }
 
 export type MediaAssetView = {
@@ -26,6 +46,17 @@ export type MediaAssetView = {
   uploadedBy: string | null
   createdAt: string
   url: string | null
+}
+
+export type MediaPageItem = Omit<MediaAssetView, 'url'> & {
+  variantState: MediaVariantState
+  variantErrorCode: string | null
+  thumbnail: { url: string; width: number; height: number } | null
+}
+
+export type MediaPage = {
+  items: MediaPageItem[]
+  nextCursor: string | null
 }
 
 export function isMediaManager(role: Role | string): boolean {
@@ -57,5 +88,25 @@ export function toMediaAssetView(row: MediaAssetRow): MediaAssetView {
     uploadedBy: row.uploaded_by,
     createdAt: row.created_at,
     url: mediaAssetUrl(row.storage_key),
+  }
+}
+
+export function toMediaPageItem(
+  row: MediaAssetRow,
+  variants: MediaVariantRow[] | null | undefined,
+): MediaPageItem {
+  const asset = toMediaAssetView(row)
+  const version = row.variant_version ?? 1
+  const thumb = (variants ?? []).find(
+    (variant) => variant.rendition === 'thumb' && variant.version === version,
+  )
+  const thumbnailUrl = thumb ? mediaAssetUrl(thumb.storage_key) : null
+  return {
+    ...asset,
+    variantState: row.variant_state ?? 'queued',
+    variantErrorCode: row.variant_error_code ?? null,
+    thumbnail: thumb && thumbnailUrl
+      ? { url: thumbnailUrl, width: thumb.width, height: thumb.height }
+      : null,
   }
 }
