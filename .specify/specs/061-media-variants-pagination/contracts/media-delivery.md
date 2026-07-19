@@ -20,7 +20,7 @@ metadata.
 
 ## `POST /api/media/:id/retry-variants`
 
-**Authentication**: owner or DM of the asset campaign.
+**Authentication**: required campaign membership.
 **Effect**: safely enqueue or reactivate the current-version job if it is not
 already processing/ready. It never uploads a new original and never overwrites
 a ready variant.
@@ -29,7 +29,7 @@ a ready variant.
 |---|---|
 | `202` | a job is queued or was already queued |
 | `409` | current job is actively leased; retry is unnecessary |
-| `403` | player / outside campaign |
+| `403` | outside campaign |
 | `404` | missing or inaccessible asset |
 
 ## Server-only `resolveMediaRendition`

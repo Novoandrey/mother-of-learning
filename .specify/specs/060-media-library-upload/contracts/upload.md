@@ -33,7 +33,7 @@ The storage key is not required by the browser workflow and is not returned.
 | Status | Condition | Body |
 |---|---|---|
 | `400` | Missing/empty/unsupported/spoofed/oversized file | `{ "error": "…" }` |
-| `403` | Not a campaign owner/DM | `{ "error": "Нет прав." }` |
+| `403` | Not an authenticated campaign member | `{ "error": "Нет прав." }` |
 | `502` | Object storage or data persistence rejected the upload | `{ "error": "…" }` |
 | `503` | Server storage configuration is missing | `{ "error": "…" }` |
 

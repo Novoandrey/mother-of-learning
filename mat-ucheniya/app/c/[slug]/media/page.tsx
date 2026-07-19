@@ -5,7 +5,6 @@ import { MediaLibrary } from '@/components/media-library'
 import { MediaUploadForm } from '@/components/media-upload-form'
 import { getMembership } from '@/lib/auth'
 import { getCampaignBySlug } from '@/lib/campaign'
-import { isMediaManager } from '@/lib/media'
 import { getCampaignMediaPage } from '@/lib/queries/media'
 import { ensureMediaWorkerStarted } from '@/lib/server/media-worker-bootstrap'
 import { createClient } from '@/lib/supabase/server'
@@ -30,8 +29,6 @@ export default async function MediaPage({
   await ensureMediaWorkerStarted()
 
   const mediaPage = await getCampaignMediaPage(supabase, campaign.id)
-  const canManage = isMediaManager(membership.role)
-
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <header>
@@ -58,12 +55,12 @@ export default async function MediaPage({
         ))}
       </nav>
 
-      {canManage && <MediaUploadForm campaignId={campaign.id} />}
+      <MediaUploadForm campaignId={campaign.id} />
       <MediaLibrary
         initialPage={mediaPage}
         campaignId={campaign.id}
         campaignSlug={campaign.slug}
-        canManage={canManage}
+        canRetry
       />
     </div>
   )

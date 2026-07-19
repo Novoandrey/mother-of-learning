@@ -88,5 +88,5 @@ MEDIA-01 original saved
 
 worker failure or expired lease
   → queued for retry OR failed after configured retry policy
-  → owner/DM can enqueue a new attempt
+  → every campaign member can enqueue a new attempt
 ```

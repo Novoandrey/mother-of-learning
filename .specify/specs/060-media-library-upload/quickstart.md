@@ -5,7 +5,7 @@
 1. Migration for `media_assets` is applied to the target database.
 2. The application has working R2 write credentials and the existing public
    asset base URL.
-3. Test accounts exist for owner/DM, player in the same campaign, and a user
+3. Test accounts exist for owner/DM and player in the same campaign, and a user
    outside the campaign.
 
 ## Automated gate
@@ -21,7 +21,7 @@ npm run build
 
 ## Primary journey
 
-1. Sign in as owner/DM and open `/c/<slug>/media`.
+1. Sign in as any campaign member and open `/c/<slug>/media`.
 2. Confirm the empty state explains the library and shows the upload control.
 3. Upload a PNG/JPEG/WebP smaller than 12 MiB.
 4. Confirm a success message and a card with preview and original filename.
@@ -37,11 +37,11 @@ npm run build
 ## Role journey
 
 1. Sign in as a player in the same campaign; confirm the asset is visible and
-   no upload control is rendered.
+   the upload control is rendered.
 2. Sign in as a user outside the campaign; confirm `/c/<slug>/media` is not
    accessible.
-3. Submit the upload endpoint as a player; confirm it returns forbidden and
-   creates no asset.
+3. Upload an allowed image as that player; confirm it succeeds and creates an
+   asset in the shared library.
 
 ## Production evidence
 
@@ -50,8 +50,8 @@ session chatlog before marking the spec complete.
 
 ### 2026-07-20 — local and automated evidence
 
-- `npm test`: PASS — 45 test files, 633 tests. This includes route-level owner
-  success, player denial, Postgres failure cleanup and thrown-client cleanup.
+- `npm test`: PASS — 45 test files, 633 tests. This includes route-level member
+  success, outside-campaign denial, Postgres failure cleanup and thrown-client cleanup.
 - `npm run typecheck`: PASS.
 - `npm run lint`: PASS with 0 errors and 5 pre-existing warnings outside
   MEDIA-01.
@@ -84,8 +84,8 @@ session chatlog before marking the spec complete.
   preview appeared. After a page reload, the same card remained and its visible
   preview resolved from `https://portraits.theloopers.org/media/...`.
 
-### Remaining role evidence
+### Remaining membership evidence
 
 1. Sign in as a player who belongs to `mat-ucheniya`; verify the shared image
-   is visible and the upload control is absent.
+   is visible and the upload control accepts an allowed image.
 2. Sign in as a user outside the campaign; verify the media page is inaccessible.

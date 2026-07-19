@@ -16,11 +16,11 @@
 ## Phase 3: Protected upload
 
 - [x] T005 [US1] Extend `mat-ucheniya/lib/server/image-upload.ts` with best-effort object deletion for failed metadata persistence
-- [x] T006 [US1] Implement and contract-test owner/DM upload, validation, persistence, compensation and activity logging in `mat-ucheniya/app/api/media/upload/route.ts` and `mat-ucheniya/lib/__tests__/media-upload-route.test.ts`
+- [x] T006 [US1] Implement and contract-test member upload, validation, persistence, compensation and activity logging in `mat-ucheniya/app/api/media/upload/route.ts` and `mat-ucheniya/lib/__tests__/media-upload-route.test.ts`
 
 ## Phase 4: User Story 1 — upload and find after reload
 
-**Goal**: owner/DM uploads one image and every campaign member sees it after reload.  
+**Goal**: a campaign member uploads one image and every campaign member sees it after reload.
 **Independent Test**: follow the primary, failure and role journeys in `quickstart.md`.
 
 - [x] T007 [P] [US1] Build the upload interaction and error/success states in `mat-ucheniya/components/media-upload-form.tsx`
