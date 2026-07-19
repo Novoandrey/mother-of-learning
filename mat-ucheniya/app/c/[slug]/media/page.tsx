@@ -6,7 +6,8 @@ import { MediaUploadForm } from '@/components/media-upload-form'
 import { getMembership } from '@/lib/auth'
 import { getCampaignBySlug } from '@/lib/campaign'
 import { isMediaManager } from '@/lib/media'
-import { getCampaignMediaAssets } from '@/lib/queries/media'
+import { getCampaignMediaPage } from '@/lib/queries/media'
+import { ensureMediaWorkerStarted } from '@/lib/server/media-worker-bootstrap'
 import { createClient } from '@/lib/supabase/server'
 
 const mediaCategories = ['Все', 'Портреты', 'Карты', 'Фоны', 'Сцены'] as const
@@ -26,7 +27,9 @@ export default async function MediaPage({
   ])
   if (!membership) notFound()
 
-  const assets = await getCampaignMediaAssets(supabase, campaign.id)
+  await ensureMediaWorkerStarted()
+
+  const mediaPage = await getCampaignMediaPage(supabase, campaign.id)
   const canManage = isMediaManager(membership.role)
 
   return (
@@ -56,7 +59,12 @@ export default async function MediaPage({
       </nav>
 
       {canManage && <MediaUploadForm campaignId={campaign.id} />}
-      <MediaLibrary assets={assets} canManage={canManage} />
+      <MediaLibrary
+        initialPage={mediaPage}
+        campaignId={campaign.id}
+        campaignSlug={campaign.slug}
+        canManage={canManage}
+      />
     </div>
   )
 }
