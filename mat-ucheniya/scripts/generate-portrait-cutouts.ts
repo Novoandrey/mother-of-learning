@@ -30,6 +30,9 @@ else {
 }
 
 const commit = process.argv.includes('--commit')
+const limitFlag = process.argv.find((arg) => arg.startsWith('--limit='))?.slice('--limit='.length)
+const limit = limitFlag === undefined ? null : Number(limitFlag)
+if (limit !== null && (!Number.isSafeInteger(limit) || limit < 1)) throw new Error('Use --limit=<positive integer>.')
 const tagIndex = process.argv.indexOf('--tag')
 const tagFlag = process.argv.find((arg) => arg.startsWith('--tag='))?.slice('--tag='.length)
   ?? (tagIndex >= 0 ? process.argv[tagIndex + 1] : undefined)
@@ -88,14 +91,17 @@ async function main() {
     const row = asset as AssetRow
     return [row.id, { version: row.variant_version, ready: row.variant_state === 'ready', hasCutout: existing.has(`${row.id}\0${row.variant_version}`) }]
   }))
-  const plan = planPortraitCutouts((portraitData ?? []).map((portrait) => {
+  const fullPlan = planPortraitCutouts((portraitData ?? []).map((portrait) => {
     const row = portrait as PortraitRow
     return { mediaAssetId: row.media_asset_id, portraitTag: row.portrait_tag }
   }), assets, tag)
+  const plan = { ...fullPlan, candidates: limit === null ? fullPlan.candidates : fullPlan.candidates.slice(0, limit) }
   console.info(JSON.stringify({
     target: production ? 'production' : 'default',
     mode: commit ? 'commit' : 'dry-run',
     tag,
+    limit,
+    totalCandidateCount: fullPlan.candidates.length,
     candidateCount: plan.candidates.length,
     skipped: plan.skipped,
     candidates: plan.candidates.map((candidate) => ({ ...candidate, storageKey: cutoutStorageKey(candidate.assetId, candidate.version) })),
@@ -113,7 +119,9 @@ async function main() {
     for (const candidate of plan.candidates) {
       const asset = assetById.get(candidate.assetId)
       if (!asset) throw new Error(`ASSET_NOT_FOUND_${candidate.assetId}`)
-      const response = await r2.client.fetch(`${r2.endpoint}/${r2.bucket}/${asset.storage_key}`)
+      const response = await r2.client.fetch(`${r2.endpoint}/${r2.bucket}/${asset.storage_key}`, {
+        signal: AbortSignal.timeout(60_000),
+      })
       if (!response.ok) throw new Error(`R2_DOWNLOAD_${response.status}_${candidate.assetId}`)
       writeFileSync(join(input, `${candidate.assetId}${sourceExtension(asset.mime_type)}`), Buffer.from(await response.arrayBuffer()))
     }
@@ -128,7 +136,7 @@ async function main() {
       const png = readFileSync(item.output)
       const key = cutoutStorageKey(candidate.assetId, candidate.version)
       const upload = await r2.client.fetch(`${r2.endpoint}/${r2.bucket}/${key}`, {
-        method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: png,
+        method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: png, signal: AbortSignal.timeout(60_000),
       })
       if (!upload.ok) throw new Error(`R2_UPLOAD_${upload.status}_${candidate.assetId}`)
       const { error } = await admin.from('media_asset_variants').upsert({
