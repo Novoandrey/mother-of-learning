@@ -108,3 +108,14 @@ export async function deleteCampaignImageObject(key: string): Promise<boolean> {
     return false
   }
 }
+
+/** Deletes server-selected original/variant keys. Callers receive only a count
+ * of failed objects, never a key that could be exposed to a browser. */
+export async function deleteCampaignImageObjects(keys: string[]): Promise<{ failedCount: number }> {
+  const uniqueKeys = [...new Set(keys.filter(Boolean))]
+  let failedCount = 0
+  for (const key of uniqueKeys) {
+    if (!await deleteCampaignImageObject(key)) failedCount++
+  }
+  return { failedCount }
+}

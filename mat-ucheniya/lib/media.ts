@@ -79,6 +79,15 @@ export type MediaPage = {
   nextCursor: string | null
 }
 
+/** A real domain reference that prevents deletion of its asset. This is a
+ * read-only explanation for the library UI; it is not a second usage table. */
+export type MediaAssetUsage = {
+  kind: 'portrait'
+  nodeId: string
+  nodeTitle: string
+  count: number
+}
+
 export function mediaAssetUrl(key: string | null): string | null {
   const base =
     process.env.NEXT_PUBLIC_R2_ASSET_BASE ??
