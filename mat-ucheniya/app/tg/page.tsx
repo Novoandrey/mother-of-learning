@@ -34,6 +34,8 @@ declare global {
         initData: string
         ready: () => void
         expand?: () => void
+        requestFullscreen?: () => void
+        isFullscreen?: boolean
         platform?: string
         themeParams?: Record<string, string>
       }
@@ -70,10 +72,13 @@ export default function TgPage() {
       return
     }
     wa.ready()
-    // Telegram Desktop owns the window position. Its expand() grows the host
-    // panel vertically while keeping the lower-right anchor, unlike mobile
-    // clients where it correctly fills the available Mini App viewport.
-    if (!['tdesktop', 'macos'].includes(wa.platform ?? '')) wa.expand?.()
+    // `expand()` is the documented fallback on every client. Telegram Desktop
+    // may additionally honour the fullscreen request; older clients simply
+    // keep the expanded Mini App without failing the sign-in flow.
+    wa.expand?.()
+    if (['tdesktop', 'macos'].includes(wa.platform ?? '') && !wa.isFullscreen) {
+      wa.requestFullscreen?.()
+    }
 
     const tp = wa.themeParams
     if (tp?.bg_color) document.body.style.backgroundColor = tp.bg_color
