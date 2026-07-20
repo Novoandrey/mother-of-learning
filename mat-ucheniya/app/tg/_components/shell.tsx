@@ -199,7 +199,7 @@ export function TgShell({
   return (
     <NavContext.Provider value={nav}>
       <RefreshContext.Provider value={refresh}>
-        <div className="mx-auto max-w-sm pb-24">
+        <div className="mx-auto w-full max-w-sm pb-24">
           <ShellHeader
             pc={activePc}
             canSwitch={multi}
@@ -257,7 +257,7 @@ function ShellHeader({
 function TabBar({ active, onSelect }: { active: TgTab; onSelect: (tab: TgTab) => void }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <div className="mx-auto flex max-w-sm">
+      <div className="mx-auto flex w-full max-w-sm">
         {TABS.map((t) => (
           <button
             key={t.tab}

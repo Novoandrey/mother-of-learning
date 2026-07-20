@@ -34,6 +34,7 @@ declare global {
         initData: string
         ready: () => void
         expand?: () => void
+        platform?: string
         themeParams?: Record<string, string>
       }
     }
@@ -69,7 +70,10 @@ export default function TgPage() {
       return
     }
     wa.ready()
-    wa.expand?.()
+    // Telegram Desktop owns the window position. Its expand() grows the host
+    // panel vertically while keeping the lower-right anchor, unlike mobile
+    // clients where it correctly fills the available Mini App viewport.
+    if (!['tdesktop', 'macos'].includes(wa.platform ?? '')) wa.expand?.()
 
     const tp = wa.themeParams
     if (tp?.bg_color) document.body.style.backgroundColor = tp.bg_color
@@ -162,7 +166,7 @@ export default function TgPage() {
         onLoad={start}
         onReady={start}
       />
-      <main className="min-h-screen bg-neutral-950 px-4 py-6 text-neutral-100">
+      <main className="min-h-[var(--tg-viewport-stable-height,100dvh)] w-full max-w-none bg-neutral-950 px-4 py-6 text-neutral-100">
         {state.phase === 'loading' && <Centered>Загрузка…</Centered>}
         {state.phase === 'error' && <Centered>{state.message}</Centered>}
         {state.phase === 'no-campaign' && (
