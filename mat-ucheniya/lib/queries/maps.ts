@@ -4,7 +4,8 @@ import { portraitUrl } from '@/lib/portraits'
 
 type PortraitRow = {
   id: string
-  r2_key: string
+  r2_key: string | null
+  media_asset_id: string | null
   is_primary: boolean
   crop_x: number
   crop_y: number
@@ -34,7 +35,7 @@ export async function getCampaignMapData(
       .order('updated_at', { ascending: false }),
     supabase
       .from('nodes')
-      .select('id, title, node_types!inner(slug), node_pc_owners!inner(user_id), character_portraits(id, r2_key, is_primary, crop_x, crop_y, crop_zoom)')
+      .select('id, title, node_types!inner(slug), node_pc_owners!inner(user_id), character_portraits(id, r2_key, media_asset_id, is_primary, crop_x, crop_y, crop_zoom)')
       .eq('campaign_id', campaignId)
       .eq('node_types.slug', 'character'),
   ])
@@ -49,7 +50,7 @@ export async function getCampaignMapData(
       portrait: portrait
         ? {
             id: portrait.id,
-            url: portraitUrl(portrait.r2_key),
+            url: portrait.media_asset_id ? portraitUrl(portrait.r2_key) : null,
             cropX: Number(portrait.crop_x),
             cropY: Number(portrait.crop_y),
             cropZoom: Number(portrait.crop_zoom),

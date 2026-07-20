@@ -41,7 +41,7 @@ export async function getWikiNodes(
 ): Promise<WikiListItem[]> {
   const { data, error } = await supabase
     .from('nodes')
-    .select('id, title, node_types!inner(slug), character_portraits(r2_key, is_primary)')
+    .select('id, title, node_types!inner(slug), character_portraits(r2_key, media_asset_id, is_primary)')
     .eq('campaign_id', campaignId)
     .in('node_types.slug', WIKI_TYPES as unknown as string[])
     .order('title')
@@ -53,7 +53,7 @@ export async function getWikiNodes(
       id: string
       title: string
       node_types: { slug: string } | { slug: string }[] | null
-      character_portraits?: Array<{ r2_key: string; is_primary: boolean }>
+      character_portraits?: Array<{ r2_key: string | null; media_asset_id: string | null; is_primary: boolean }>
     }
     const nt = Array.isArray(r.node_types) ? r.node_types[0] : r.node_types
     const portraits = r.character_portraits ?? []
@@ -62,7 +62,7 @@ export async function getWikiNodes(
       id: r.id,
       title: r.title,
       type: (nt?.slug ?? 'npc') as WikiType,
-      primaryPortraitKey: primary ? primary.r2_key : null,
+      primaryPortraitKey: primary?.media_asset_id ? primary.r2_key : null,
     }
   })
 

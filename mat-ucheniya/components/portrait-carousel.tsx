@@ -33,7 +33,7 @@ export function PortraitCarousel({
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="relative mx-auto max-w-sm">
-        <PortraitImg key={cur.r2_key} keyStr={cur.r2_key} alt={name} />
+        <PortraitImg key={cur.id} keyStr={cur.r2_key ?? ''} alt={name} />
 
         {multi && (
           <>
@@ -68,7 +68,7 @@ export function PortraitCarousel({
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
           {portraits.map((p, i) => (
             <button
-              key={p.r2_key}
+              key={p.id}
               type="button"
               onClick={() => setIdx(i)}
               aria-label={`Портрет ${i + 1}${p.caption ? `: ${p.caption}` : ''}`}

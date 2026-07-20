@@ -403,6 +403,7 @@ function ArticleEditor({
  * dots jump. Swipe isn't wired — arrows + dots are enough on a phone.
  */
 function DarkCarousel({ name, portraits }: { name: string; portraits: Portrait[] }) {
+  portraits = portraits.filter((portrait) => !!portrait.media_asset_id)
   const [idx, setIdx] = useState(0)
   if (portraits.length === 0) return null
 
@@ -420,8 +421,8 @@ function DarkCarousel({ name, portraits }: { name: string; portraits: Portrait[]
     <div className="mb-4 rounded-2xl bg-neutral-900 p-3">
       <div className="relative mx-auto">
         <SmartImg
-          key={cur.r2_key}
-          keyStr={cur.r2_key}
+          key={cur.id}
+          keyStr={cur.r2_key ?? ''}
           width={768}
           alt={name}
           className="mx-auto max-h-[60vh] w-full rounded-lg object-contain"
@@ -461,7 +462,7 @@ function DarkCarousel({ name, portraits }: { name: string; portraits: Portrait[]
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
           {portraits.map((p, i) => (
             <button
-              key={p.r2_key}
+              key={p.id}
               type="button"
               onClick={() => setIdx(i)}
               aria-label={`Портрет ${i + 1}${p.caption ? `: ${p.caption}` : ''}`}
