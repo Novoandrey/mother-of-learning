@@ -410,6 +410,7 @@ function ScribeRunSheet({
   const totalH =
     Math.round(selected.reduce((sum, c) => sum + (hoursFor(c.id) ?? 0), 0) * 100) / 100
   const missingH = missingScribeHours(batchRequiredH, totalH)
+  const excessH = Math.max(0, Math.round((totalH - batchRequiredH) * 100) / 100)
 
   const submit = async () => {
     setError(null)
@@ -527,11 +528,15 @@ function ScribeRunSheet({
             </div>
             <p
               className={
-                'mt-1 px-1 text-xs ' + (missingH > 0 ? 'text-red-400' : 'text-neutral-500')
+                'mt-1 px-1 text-xs ' +
+                (missingH > 0 ? 'text-red-400' : excessH > 0 ? 'text-amber-400' : 'text-neutral-500')
               }
             >
               Σ {fmtHours(totalH)} ч из {fmtHours(batchRequiredH)} ч
               {missingH > 0 ? ` — не хватает ${fmtHours(missingH)} ч` : ''}
+              {missingH === 0 && excessH > 0
+                ? ` — на ${fmtHours(excessH)} ч больше нормы; цена остаётся ${batchCostGp} зм`
+                : ''}
             </p>
           </div>
         )}
