@@ -29,7 +29,7 @@ export async function getCampaignCharacters(
   const { data, error } = await supabase
     .from('nodes')
     .select(
-      'id, title, node_types!inner(slug), node_pc_owners(user_id), character_portraits(r2_key, is_primary)',
+      'id, title, node_types!inner(slug), node_pc_owners(user_id), character_portraits(r2_key, media_asset_id, is_primary)',
     )
     .eq('node_types.slug', 'character')
     .eq('campaign_id', campaignId)
@@ -42,7 +42,7 @@ export async function getCampaignCharacters(
       id: string
       title: string
       node_pc_owners?: Array<{ user_id: string }>
-      character_portraits?: Array<{ r2_key: string; is_primary: boolean }>
+      character_portraits?: Array<{ r2_key: string | null; media_asset_id: string | null; is_primary: boolean }>
     }
     const portraits = r.character_portraits ?? []
     const primary = portraits.find((p) => p.is_primary) ?? portraits[0] ?? null
@@ -50,7 +50,7 @@ export async function getCampaignCharacters(
     return {
       id: r.id,
       title: r.title,
-      primaryPortraitKey: primary ? primary.r2_key : null,
+      primaryPortraitKey: primary?.media_asset_id ? primary.r2_key : null,
       isOwn,
     }
   })

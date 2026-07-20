@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { addPortrait, deletePortrait, savePortraitCrop, setPrimaryPortrait } from '@/app/actions/portraits'
 import { portraitUrl, type Portrait } from '@/lib/portraits'
+import { MediaAssetPicker } from './media-asset-picker'
 
 type Props = {
   campaignId: string
@@ -27,11 +28,11 @@ export function PortraitManager({ campaignId, campaignSlug, nodeId, portraits }:
     if (!(file instanceof File) || !file.size) return
     setUploading(true); setError(null)
     try {
-      const body = new FormData(); body.set('campaignId', campaignId); body.set('nodeId', nodeId); body.set('file', file)
-      const response = await fetch('/api/portraits/upload', { method: 'POST', body })
-      const payload = await response.json() as { key?: string; error?: string }
-      if (!response.ok || !payload.key) { setError(payload.error ?? 'Не удалось загрузить портрет.'); return }
-      const result = await addPortrait(campaignId, campaignSlug, nodeId, payload.key)
+      const body = new FormData(); body.set('campaignId', campaignId); body.set('file', file)
+      const response = await fetch('/api/media/upload', { method: 'POST', body })
+      const payload = await response.json() as { asset?: { id?: string }; error?: string }
+      if (!response.ok || !payload.asset?.id) { setError(payload.error ?? 'Не удалось загрузить портрет.'); return }
+      const result = await addPortrait(campaignId, campaignSlug, nodeId, payload.asset.id)
       if (result.error) setError(result.error); else window.location.reload()
     } catch { setError('Ошибка сети при загрузке портрета.') } finally { setUploading(false) }
   }
@@ -40,11 +41,12 @@ export function PortraitManager({ campaignId, campaignSlug, nodeId, portraits }:
     setError(null)
     const result = await action()
     if (result.error) setError(result.error); else window.location.reload()
+    return result
   }
 
   return <section className="rounded-lg border border-gray-200 bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Портреты</h2><p className="mt-1 text-xs text-gray-500">Первый загруженный портрет становится основным. Круглый кадр используется для токена карты.</p></div>
-      <form action={upload}><label className="cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><input name="file" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => { if (e.target.files?.[0]) e.currentTarget.form?.requestSubmit() }} />{uploading ? 'Загрузка…' : '+ Загрузить'}</label></form>
+      <div className="flex flex-wrap gap-2"><MediaAssetPicker campaignId={campaignId} assignedAssetIds={portraits.flatMap((portrait) => portrait.media_asset_id ? [portrait.media_asset_id] : [])} onSelect={(assetId) => run(() => addPortrait(campaignId, campaignSlug, nodeId, assetId))} /><form action={upload}><label className="cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><input name="file" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => { if (e.target.files?.[0]) e.currentTarget.form?.requestSubmit() }} />{uploading ? 'Загрузка…' : '+ Загрузить'}</label></form></div>
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
     {portraits.length > 0 && <div className="mt-4 grid gap-4 sm:grid-cols-[10rem_1fr]">

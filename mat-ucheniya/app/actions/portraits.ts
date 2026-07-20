@@ -28,25 +28,38 @@ function refresh(campaignSlug: string, nodeId: string) {
   revalidatePath(`/c/${campaignSlug}/maps`)
 }
 
-export async function addPortrait(campaignId: string, campaignSlug: string, nodeId: string, r2Key: string) {
+export async function addPortrait(campaignId: string, campaignSlug: string, nodeId: string, mediaAssetId: string) {
   const resolved = await resolveEditableNode(campaignId, nodeId)
-  if (!resolved || !r2Key.startsWith(`portraits/${campaignId}/${nodeId}/`)) {
+  if (!resolved || !mediaAssetId) {
     logActivityWarning('portrait.create.denied', { campaignId, nodeId })
     return { error: 'Нет прав на изменение портрета.' }
+  }
+  const { data: asset } = await resolved.admin
+    .from('media_assets')
+    .select('id, variant_state, variant_version, media_asset_variants(rendition, version, storage_key)')
+    .eq('id', mediaAssetId)
+    .eq('campaign_id', campaignId)
+    .maybeSingle()
+  const preview = (asset?.media_asset_variants ?? []).find((variant: { rendition: string; version: number }) => variant.rendition === 'preview' && variant.version === asset?.variant_version) as { storage_key: string } | undefined
+  if (!asset || asset.variant_state !== 'ready' || !preview) {
+    logActivityWarning('portrait.create.invalid_asset', { campaignId, nodeId, mediaAssetId })
+    return { error: 'Выберите готовое изображение из медиатеки.' }
   }
   const { data: existing } = await resolved.admin
     .from('character_portraits').select('id, sort_order').eq('character_node_id', nodeId).order('sort_order', { ascending: false }).limit(1)
   const { error } = await resolved.admin.from('character_portraits').insert({
     character_node_id: nodeId,
-    r2_key: r2Key,
+    media_asset_id: mediaAssetId,
+    r2_key: preview.storage_key,
     is_primary: !existing?.length,
     sort_order: (existing?.[0]?.sort_order ?? -1) + 1,
   })
   if (error) {
+    if (error.code === '23505') return { ok: true, alreadyAssigned: true }
     logActivityError('portrait.create.failed', error, { campaignId, nodeId })
     return { error: 'Не удалось сохранить портрет.' }
   }
-  logActivity('portrait.created', { campaignId, nodeId })
+  logActivity('portrait.created', { campaignId, nodeId, mediaAssetId })
   refresh(campaignSlug, nodeId)
   return { ok: true }
 }
