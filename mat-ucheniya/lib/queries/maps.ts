@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { mapImageUrl, type CharacterOption, type MapTokenView, type MapView } from '@/lib/maps'
 import { portraitUrl } from '@/lib/portraits'
+import { selectCurrentCutoutKey } from '@/lib/portrait-cutouts'
 
 type PortraitRow = {
   id: string
@@ -51,6 +52,7 @@ export async function getCampaignMapData(
         ? {
             id: portrait.id,
             url: portrait.media_asset_id ? portraitUrl(portrait.r2_key) : null,
+            mediaAssetId: portrait.media_asset_id,
             cropX: Number(portrait.crop_x),
             cropY: Number(portrait.crop_y),
             cropZoom: Number(portrait.crop_zoom),
@@ -58,6 +60,29 @@ export async function getCampaignMapData(
         : null,
     }
   })
+
+  const portraitAssetIds = characters
+    .flatMap((character) => character.portrait?.mediaAssetId ? [character.portrait.mediaAssetId] : [])
+  const { data: assetRows, error: assetsError } = portraitAssetIds.length
+    ? await supabase
+      .from('media_assets')
+      .select('id, variant_version, media_asset_variants(rendition, version, storage_key)')
+      .eq('campaign_id', campaignId)
+      .in('id', portraitAssetIds)
+    : { data: [], error: null }
+  if (assetsError) throw assetsError
+  const cutoutByAsset = new Map((assetRows ?? []).flatMap((asset) => {
+    const key = selectCurrentCutoutKey(
+      asset.media_asset_variants as Array<{ rendition: string; version: number; storage_key: string }> | null,
+      asset.variant_version as number | null,
+    )
+    return key ? [[asset.id as string, key] as const] : []
+  }))
+  for (const character of characters) {
+    if (!character.portrait?.mediaAssetId) continue
+    const cutoutKey = cutoutByAsset.get(character.portrait.mediaAssetId)
+    if (cutoutKey) character.portrait.url = portraitUrl(cutoutKey)
+  }
 
   const mapIds = (mapRows ?? []).map((map) => map.id)
   const { data: tokenRows, error: tokensError } = mapIds.length

@@ -4,7 +4,7 @@ export const MAX_MEDIA_UPLOAD_BYTES = 12 * 1024 * 1024
 export const MEDIA_PAGE_SIZE = 48
 
 export type MediaVariantState = 'queued' | 'processing' | 'ready' | 'failed'
-export type MediaRendition = 'thumb' | 'preview' | 'scene'
+export type MediaRendition = 'thumb' | 'preview' | 'scene' | 'cutout'
 
 export const MEDIA_ASSET_COLUMNS =
   'id, campaign_id, storage_key, original_filename, mime_type, size_bytes, uploaded_by, created_at, source_width, source_height, variant_state, variant_version, variant_error_code, variants_updated_at'
