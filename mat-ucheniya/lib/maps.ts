@@ -4,7 +4,7 @@ export type MapTokenView = {
   title: string
   x: number
   y: number
-  portrait: { id: string; url: string | null; cropX: number; cropY: number; cropZoom: number } | null
+  portrait: { id: string; mediaAssetId: string | null; url: string | null; cropX: number; cropY: number; cropZoom: number } | null
 }
 
 export type MapView = {

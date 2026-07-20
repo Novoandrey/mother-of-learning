@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { resolveMediaRenditions } from '@/lib/server/media-renditions'
 import type { MediaRendition } from '@/lib/media'
 
-const RENDITIONS = new Set<MediaRendition>(['thumb', 'preview', 'scene'])
+const RENDITIONS = new Set<MediaRendition>(['thumb', 'preview', 'scene', 'cutout'])
 
 /** Browser-safe rendition projection. It is dynamic because membership comes
  * from the request's authenticated session. */
