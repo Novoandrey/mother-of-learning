@@ -105,3 +105,34 @@ The loop:
 Migrations: apply your feature's migration to the staging DB by hand when
 you test there; the prod migration flow is unchanged. Refresh button and
 details: `infra/staging-runbook.md`.
+
+## Production migrations: direct DB path
+
+The Codex host has direct SSH access to the production box as `andrey`; agents
+do **not** need Supabase Studio to apply a reviewed production migration. The
+Postgres container is `supabase-db`, database `postgres`, user `postgres`.
+
+Only do this when the user explicitly authorises the production migration and
+the migration has been reviewed and merged. Never print connection secrets or
+copy unrelated SQL into the session.
+
+1. Check that the target objects are absent (or otherwise establish the exact
+   safe idempotency condition) through `ssh andrey@37.27.254.49` and
+   `docker exec supabase-db psql -U postgres -d postgres`.
+2. Pipe the committed migration file to `psql` with
+   `-v ON_ERROR_STOP=1`; migrations MUST contain `BEGIN` / `COMMIT` when
+   practical. Example from repository root:
+
+   ```powershell
+   Get-Content -Raw 'mat-ucheniya\supabase\migrations\NNN_feature.sql' |
+     ssh -o BatchMode=yes andrey@37.27.254.49 \
+       'docker exec -i supabase-db psql -v ON_ERROR_STOP=1 -U postgres -d postgres'
+   ```
+
+3. Run a narrow post-apply query: tables, policies, functions, triggers, or
+   indexes introduced by the migration. Report the result to the user. If the
+   migration creates a Realtime trigger, confirm that the `realtime` schema
+   exists before applying it.
+
+Application deployment remains unchanged: merge to `main` triggers Dokploy.
+Database migrations are a distinct, explicit production operation.
