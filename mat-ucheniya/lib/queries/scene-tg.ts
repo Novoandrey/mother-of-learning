@@ -14,8 +14,23 @@ export type SceneMessage = {
 export type ActiveSceneRoom = {
   id: string
   title: string
+  backgroundAssetId: string | null
+  backgroundMobileCrop: { x: number; y: number; zoom: number }
   speakers: SceneSpeaker[]
   messages: SceneMessage[]
+}
+
+export type SceneBackgroundAsset = { id: string; filename: string }
+
+export async function getSceneBackgroundAssetsTg(supabase: SupabaseClient, campaignId: string): Promise<SceneBackgroundAsset[]> {
+  const { data, error } = await supabase
+    .from('media_assets')
+    .select('id, original_filename')
+    .eq('campaign_id', campaignId)
+    .eq('variant_state', 'ready')
+    .order('original_filename')
+  if (error) throw error
+  return ((data ?? []) as Array<{ id: string; original_filename: string }>).map((asset) => ({ id: asset.id, filename: asset.original_filename }))
 }
 
 /** Reads the one active room for the Mini App. All rows remain RLS-scoped. */
@@ -25,7 +40,7 @@ export async function getActiveSceneRoomTg(
 ): Promise<ActiveSceneRoom | null> {
   const { data: room, error: roomError } = await supabase
     .from('scene_rooms')
-    .select('id, title')
+    .select('id, title, background_asset_id, background_mobile_crop')
     .eq('campaign_id', campaignId)
     .eq('is_active', true)
     .maybeSingle()
@@ -62,6 +77,8 @@ export async function getActiveSceneRoomTg(
   return {
     id: room.id,
     title: room.title,
+    backgroundAssetId: room.background_asset_id ?? null,
+    backgroundMobileCrop: parseCrop(room.background_mobile_crop),
     speakers: ((speakers ?? []) as SpeakerRow[]).map((speaker) => ({
       characterId: speaker.character_node_id,
       title: toOne(speaker.nodes)?.title ?? 'Персонаж',
@@ -75,4 +92,10 @@ export async function getActiveSceneRoomTg(
       createdAt: message.created_at,
     })),
   }
+}
+
+function parseCrop(value: unknown) {
+  const crop = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const numberOr = (key: string, fallback: number) => typeof crop[key] === 'number' ? crop[key] : fallback
+  return { x: numberOr('x', 50), y: numberOr('y', 50), zoom: numberOr('zoom', 1) }
 }

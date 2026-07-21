@@ -161,6 +161,7 @@ export function TgShell({
   // второе устройство перезагружается за ~2 с, а открытые шиты/скролл живут.
   // Если Realtime недоступен — приложение работает на ручном обновлении.
   const [refreshKey, setRefreshKey] = useState(0)
+  const [textEntryFocused, setTextEntryFocused] = useState(false)
   const bump = useCallback(() => setRefreshKey((k) => k + 1), [])
   useEffect(() => {
     let channel: RealtimeChannel | null = null
@@ -181,6 +182,22 @@ export function TgShell({
       if (channel) void supabase.removeChannel(channel)
     }
   }, [supabase, campaignId])
+
+  // Telegram does not reserve document space for the Android keyboard. Keep
+  // the global tab bar out of a composer while a text field owns focus instead
+  // of letting it sit above the keyboard and cover the send control.
+  useEffect(() => {
+    const isTextEntry = (element: Element | null) =>
+      element instanceof HTMLElement && element.matches('input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable="true"]')
+    const sync = () => setTextEntryFocused(isTextEntry(document.activeElement))
+    const deferSync = () => window.setTimeout(sync, 0)
+    document.addEventListener('focusin', sync)
+    document.addEventListener('focusout', deferSync)
+    return () => {
+      document.removeEventListener('focusin', sync)
+      document.removeEventListener('focusout', deferSync)
+    }
+  }, [])
   const refresh = useMemo<TgRefresh>(() => ({ refreshKey, bump }), [refreshKey, bump])
 
   if (characters.length === 0 || !activePc) {
@@ -215,7 +232,7 @@ export function TgShell({
           />
           <ShellScreen app={app} nav={nav} refreshKey={refreshKey} />
         </div>
-        <TabBar active={navState.tab} onSelect={reset} />
+        <TabBar active={navState.tab} onSelect={reset} hidden={textEntryFocused} />
       </RefreshContext.Provider>
     </NavContext.Provider>
   )
@@ -257,9 +274,9 @@ function ShellHeader({
   )
 }
 
-function TabBar({ active, onSelect }: { active: TgTab; onSelect: (tab: TgTab) => void }) {
+function TabBar({ active, onSelect, hidden }: { active: TgTab; onSelect: (tab: TgTab) => void; hidden: boolean }) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav className={'fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur transition-transform ' + (hidden ? 'pointer-events-none translate-y-full' : '')}>
       <div className="mx-auto flex w-full max-w-sm">
         {TABS.map((t) => (
           <button

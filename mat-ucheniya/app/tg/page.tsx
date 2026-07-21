@@ -13,7 +13,7 @@
  * actions authorise via the cookie session with no per-call token handling.
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Script from 'next/script'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
@@ -37,6 +37,9 @@ declare global {
         requestFullscreen?: () => void
         isFullscreen?: boolean
         platform?: string
+        viewportHeight?: number
+        onEvent?: (eventType: 'viewportChanged', handler: () => void) => void
+        offEvent?: (eventType: 'viewportChanged', handler: () => void) => void
         themeParams?: Record<string, string>
       }
     }
@@ -64,6 +67,20 @@ type State =
 export default function TgPage() {
   const [state, setState] = useState<State>({ phase: 'loading' })
   const startedRef = useRef(false)
+
+  useEffect(() => {
+    const updateHeight = () => {
+      const height = window.Telegram?.WebApp?.viewportHeight ?? window.visualViewport?.height ?? window.innerHeight
+      document.documentElement.style.setProperty('--tg-viewport-height', `${height}px`)
+    }
+    updateHeight()
+    window.Telegram?.WebApp?.onEvent?.('viewportChanged', updateHeight)
+    window.visualViewport?.addEventListener('resize', updateHeight)
+    return () => {
+      window.Telegram?.WebApp?.offEvent?.('viewportChanged', updateHeight)
+      window.visualViewport?.removeEventListener('resize', updateHeight)
+    }
+  }, [])
 
   const run = useCallback(async () => {
     const wa = window.Telegram?.WebApp
@@ -171,7 +188,7 @@ export default function TgPage() {
         onLoad={start}
         onReady={start}
       />
-      <main className="min-h-[var(--tg-viewport-stable-height,100dvh)] w-full max-w-none bg-neutral-950 px-4 py-6 text-neutral-100">
+      <main className="min-h-[var(--tg-viewport-height,100dvh)] w-full max-w-none bg-neutral-950 px-4 py-6 text-neutral-100">
         {state.phase === 'loading' && <Centered>Загрузка…</Centered>}
         {state.phase === 'error' && <Centered>{state.message}</Centered>}
         {state.phase === 'no-campaign' && (

@@ -278,7 +278,7 @@ export function WikiNodeScreen({
       {!error && !node && <Centered>Загрузка…</Centered>}
       {node && (
         <>
-          <DarkCarousel name={node.title} portraits={node.portraits} />
+          <DarkCarousel name={node.title} portraits={node.portraits} campaignId={campaignId} />
           {editing ? (
             <ArticleEditor
               nodeId={nodeId}
@@ -402,14 +402,31 @@ function ArticleEditor({
  * has no portraits (same rule as the desktop carousel). Arrows wrap around;
  * dots jump. Swipe isn't wired — arrows + dots are enough on a phone.
  */
-function DarkCarousel({ name, portraits }: { name: string; portraits: Portrait[] }) {
+function DarkCarousel({ name, portraits, campaignId }: { name: string; portraits: Portrait[]; campaignId: string }) {
   portraits = portraits.filter((portrait) => !!portrait.media_asset_id)
   const [idx, setIdx] = useState(0)
+  const [cutoutUrls, setCutoutUrls] = useState<Map<string, string>>(() => new Map())
+  const [showCutout, setShowCutout] = useState(false)
+  const assetIdsParam = portraits.flatMap((portrait) => portrait.media_asset_id ? [portrait.media_asset_id] : []).join(',')
+
+  useEffect(() => {
+    if (!assetIdsParam) return
+    let alive = true
+    void fetch(`/api/media/renditions?campaignId=${encodeURIComponent(campaignId)}&rendition=cutout&assetIds=${assetIdsParam}`)
+      .then((response) => response.ok ? response.json() as Promise<{ items?: Array<{ assetId: string; status: string; url?: string }> }> : null)
+      .then((data) => {
+        if (!alive || !data) return
+        setCutoutUrls(new Map((data.items ?? []).flatMap((item) => item.status === 'ready' && item.url ? [[item.assetId, item.url] as const] : [])))
+      })
+      .catch(() => { if (alive) setCutoutUrls(new Map()) })
+    return () => { alive = false }
+  }, [campaignId, assetIdsParam])
   if (portraits.length === 0) return null
 
   const clamped = Math.min(idx, portraits.length - 1)
   const cur = portraits[clamped]
   const multi = portraits.length > 1
+  const cutoutUrl = cur.media_asset_id ? cutoutUrls.get(cur.media_asset_id) : null
 
   const go = (delta: number) =>
     setIdx((i) => {
@@ -420,14 +437,17 @@ function DarkCarousel({ name, portraits }: { name: string; portraits: Portrait[]
   return (
     <div className="mb-4 rounded-2xl bg-neutral-900 p-3">
       <div className="relative mx-auto">
-        <SmartImg
-          key={cur.id}
-          keyStr={cur.r2_key ?? ''}
-          width={768}
-          alt={name}
-          className="mx-auto max-h-[60vh] w-full rounded-lg object-contain"
-          eager
-        />
+        {showCutout && cutoutUrl ? (
+          <img src={cutoutUrl} alt={`${name}, силуэт без фона`} className="mx-auto max-h-[60vh] w-full rounded-lg object-contain" />
+        ) : (
+          <SmartImg key={cur.id} keyStr={cur.r2_key ?? ''} width={768} alt={name} className="mx-auto max-h-[60vh] w-full rounded-lg object-contain" eager />
+        )}
+
+        {cutoutUrl && (
+          <button type="button" onClick={() => setShowCutout((shown) => !shown)} className="absolute bottom-2 left-2 rounded-full bg-black/55 px-3 py-1.5 text-xs text-white transition-colors hover:bg-black/70">
+            {showCutout ? 'Портрет' : 'Силуэт'}
+          </button>
+        )}
 
         {multi && (
           <>
