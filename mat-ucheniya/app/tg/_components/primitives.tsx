@@ -104,17 +104,38 @@ export function Portrait({ name, keyStr }: { name: string; keyStr: string | null
   )
 }
 
-export function Avatar({ name, keyStr, size }: { name: string; keyStr: string | null; size: number }) {
+export function Avatar({
+  name,
+  keyStr,
+  size,
+  crop,
+}: {
+  name: string
+  keyStr: string | null
+  size: number
+  crop?: { crop_x: number; crop_y: number; crop_zoom: number } | null
+}) {
   const style = { width: size, height: size }
   if (keyStr && portraitUrl(keyStr)) {
+    const x = Math.max(0, Math.min(1, crop?.crop_x ?? 0.5))
+    const y = Math.max(0, Math.min(1, crop?.crop_y ?? 0.5))
+    const zoom = Math.max(1, Math.min(4, crop?.crop_zoom ?? 1))
     return (
-      <SmartImg
-        keyStr={keyStr}
-        width={96}
-        alt={name}
-        style={style}
-        className="shrink-0 rounded-full object-cover"
-      />
+      <span style={style} className="block shrink-0 overflow-hidden rounded-full">
+        <SmartImg
+          keyStr={keyStr}
+          width={96}
+          alt={name}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectPosition: `${x * 100}% ${y * 100}%`,
+            transform: `scale(${zoom})`,
+            transformOrigin: `${x * 100}% ${y * 100}%`,
+          }}
+          className="h-full w-full object-cover"
+        />
+      </span>
     )
   }
   return (

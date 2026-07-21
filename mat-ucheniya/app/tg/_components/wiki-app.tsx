@@ -20,6 +20,9 @@ import ReactMarkdown from 'react-markdown'
 import type { PluggableList } from 'unified'
 import remarkGfm from 'remark-gfm'
 import { portraitUrl, type Portrait } from '@/lib/portraits'
+import { selectCurrentCutoutKey } from '@/lib/portrait-cutouts'
+import { PortraitCropEditor, type PortraitCrop } from '@/components/portrait-crop-editor'
+import { savePortraitCrop, setPrimaryPortrait } from '@/app/actions/portraits'
 import {
   getWikiNodes,
   getWikiNode,
@@ -93,17 +96,38 @@ function SmartImg({
 }
 
 /** Round mini-avatar for a list row: portrait if present, else a letter chip. */
-function Avatar({ name, keyStr, size }: { name: string; keyStr: string | null; size: number }) {
+function Avatar({
+  name,
+  keyStr,
+  size,
+  crop,
+}: {
+  name: string
+  keyStr: string | null
+  size: number
+  crop?: { crop_x: number; crop_y: number; crop_zoom: number } | null
+}) {
   const style = { width: size, height: size }
   if (keyStr && portraitUrl(keyStr)) {
+    const x = Math.max(0, Math.min(1, crop?.crop_x ?? 0.5))
+    const y = Math.max(0, Math.min(1, crop?.crop_y ?? 0.5))
+    const zoom = Math.max(1, Math.min(4, crop?.crop_zoom ?? 1))
     return (
-      <SmartImg
-        keyStr={keyStr}
-        width={96}
-        alt={name}
-        style={style}
-        className="shrink-0 rounded-full object-cover"
-      />
+      <span style={style} className="block shrink-0 overflow-hidden rounded-full">
+        <SmartImg
+          keyStr={keyStr}
+          width={96}
+          alt={name}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectPosition: `${x * 100}% ${y * 100}%`,
+            transform: `scale(${zoom})`,
+            transformOrigin: `${x * 100}% ${y * 100}%`,
+          }}
+          className="h-full w-full object-cover"
+        />
+      </span>
     )
   }
   return (
@@ -190,7 +214,7 @@ export function WikiListScreen({
                 onClick={() => onSelect(it)}
                 className="flex w-full items-center gap-3 rounded-lg bg-neutral-900 px-3 py-2 text-left transition-colors hover:bg-neutral-800"
               >
-                <Avatar name={it.title} keyStr={it.primaryPortraitKey} size={40} />
+                <Avatar name={it.title} keyStr={it.primaryPortraitKey} crop={it.primaryPortraitCrop} size={40} />
                 <span className="min-w-0 flex-1 truncate font-medium">{it.title}</span>
                 <TypeBadge type={it.type} />
               </button>
@@ -278,7 +302,25 @@ export function WikiNodeScreen({
       {!error && !node && <Centered>Загрузка…</Centered>}
       {node && (
         <>
-          <DarkCarousel name={node.title} portraits={node.portraits} campaignId={campaignId} />
+          <DarkCarousel
+            name={node.title}
+            portraits={node.portraits}
+            campaignId={campaignId}
+            nodeId={nodeId}
+            supabase={supabase}
+            onPortraitChange={(portraitId, changes) => {
+              setNode((previous) => previous
+                ? {
+                    ...previous,
+                    portraits: previous.portraits.map((portrait) =>
+                      portrait.id === portraitId
+                        ? { ...portrait, ...changes }
+                        : changes.is_primary ? { ...portrait, is_primary: false } : portrait,
+                    ),
+                  }
+                : previous)
+            }}
+          />
           {editing ? (
             <ArticleEditor
               nodeId={nodeId}
@@ -402,37 +444,134 @@ function ArticleEditor({
  * has no portraits (same rule as the desktop carousel). Arrows wrap around;
  * dots jump. Swipe isn't wired — arrows + dots are enough on a phone.
  */
-function DarkCarousel({ name, portraits, campaignId }: { name: string; portraits: Portrait[]; campaignId: string }) {
-  portraits = portraits.filter((portrait) => !!portrait.media_asset_id)
+function DarkCarousel({
+  name,
+  portraits,
+  campaignId,
+  nodeId,
+  supabase,
+  onPortraitChange,
+}: {
+  name: string
+  portraits: Portrait[]
+  campaignId: string
+  nodeId: string
+  supabase: SupabaseClient
+  onPortraitChange: (portraitId: string, changes: Partial<Portrait>) => void
+}) {
+  // Imported portraits predate media_assets. Their R2 key is sufficient to
+  // render them; only looking up a cutout requires a media asset id.
+  const visiblePortraits = portraits.filter((portrait) => !!portrait.r2_key || !!portrait.media_asset_id)
   const [idx, setIdx] = useState(0)
   const [cutoutUrls, setCutoutUrls] = useState<Map<string, string>>(() => new Map())
   const [showCutout, setShowCutout] = useState(false)
-  const assetIdsParam = portraits.flatMap((portrait) => portrait.media_asset_id ? [portrait.media_asset_id] : []).join(',')
+  const [editingAvatar, setEditingAvatar] = useState(false)
+  const [crop, setCrop] = useState<PortraitCrop | null>(null)
+  const [savingAvatar, setSavingAvatar] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const assetIdsParam = visiblePortraits
+    .flatMap((portrait) => portrait.media_asset_id ? [portrait.media_asset_id] : [])
+    .join(',')
 
   useEffect(() => {
-    if (!assetIdsParam) return
+    if (!assetIdsParam) {
+      setCutoutUrls(new Map())
+      return
+    }
     let alive = true
-    void fetch(`/api/media/renditions?campaignId=${encodeURIComponent(campaignId)}&rendition=cutout&assetIds=${assetIdsParam}`)
-      .then((response) => response.ok ? response.json() as Promise<{ items?: Array<{ assetId: string; status: string; url?: string }> }> : null)
-      .then((data) => {
-        if (!alive || !data) return
-        setCutoutUrls(new Map((data.items ?? []).flatMap((item) => item.status === 'ready' && item.url ? [[item.assetId, item.url] as const] : [])))
-      })
-      .catch(() => { if (alive) setCutoutUrls(new Map()) })
+    void (async () => {
+      const assetIds = assetIdsParam.split(',').filter(Boolean)
+      const { data, error } = await supabase
+        .from('media_assets')
+        .select('id, variant_version, media_asset_variants(rendition, version, storage_key)')
+        .eq('campaign_id', campaignId)
+        .in('id', assetIds)
+      if (error) throw error
+      const urls = new Map((data ?? []).flatMap((asset) => {
+        const key = selectCurrentCutoutKey(
+          asset.media_asset_variants as Array<{ rendition: string; version: number; storage_key: string }> | null,
+          asset.variant_version as number | null,
+        )
+        const url = portraitUrl(key)
+        return key && url ? [[asset.id, url] as const] : []
+      }))
+      if (alive) setCutoutUrls(urls)
+    })().catch(() => {
+      if (alive) setCutoutUrls(new Map())
+    })
     return () => { alive = false }
-  }, [campaignId, assetIdsParam])
-  if (portraits.length === 0) return null
+  }, [supabase, campaignId, assetIdsParam])
 
-  const clamped = Math.min(idx, portraits.length - 1)
-  const cur = portraits[clamped]
-  const multi = portraits.length > 1
+  if (visiblePortraits.length === 0) return null
+
+  const clamped = Math.min(idx, visiblePortraits.length - 1)
+  const cur = visiblePortraits[clamped]
+  const multi = visiblePortraits.length > 1
   const cutoutUrl = cur.media_asset_id ? cutoutUrls.get(cur.media_asset_id) : null
 
   const go = (delta: number) =>
     setIdx((i) => {
-      const n = portraits.length
+      const n = visiblePortraits.length
       return (((i + delta) % n) + n) % n
     })
+
+  const changePortrait = (next: number) => {
+    setShowCutout(false)
+    setEditingAvatar(false)
+    setAvatarError(null)
+    setIdx(next)
+  }
+
+  const openAvatarEditor = () => {
+    setShowCutout(false)
+    setAvatarError(null)
+    setCrop({ crop_x: cur.crop_x, crop_y: cur.crop_y, crop_zoom: cur.crop_zoom })
+    setEditingAvatar(true)
+  }
+
+  const saveAvatarCrop = async () => {
+    if (!crop) return
+    setSavingAvatar(true)
+    setAvatarError(null)
+    try {
+      const result = await savePortraitCrop(
+        campaignId,
+        null,
+        nodeId,
+        cur.id,
+        crop.crop_x,
+        crop.crop_y,
+        crop.crop_zoom,
+      )
+      if (result.error) {
+        setAvatarError(result.error)
+        return
+      }
+      onPortraitChange(cur.id, crop)
+      setEditingAvatar(false)
+    } catch {
+      setAvatarError('Не удалось сохранить кадр. Попробуйте ещё раз.')
+    } finally {
+      setSavingAvatar(false)
+    }
+  }
+
+  const makePrimary = async () => {
+    setSavingAvatar(true)
+    setAvatarError(null)
+    try {
+      const result = await setPrimaryPortrait(campaignId, null, nodeId, cur.id)
+      if (result.error) {
+        setAvatarError(result.error)
+        return
+      }
+      onPortraitChange(cur.id, { is_primary: true })
+    } catch {
+      setAvatarError('Не удалось выбрать аватар. Попробуйте ещё раз.')
+    } finally {
+      setSavingAvatar(false)
+    }
+  }
 
   return (
     <div className="mb-4 rounded-2xl bg-neutral-900 p-3">
@@ -453,7 +592,7 @@ function DarkCarousel({ name, portraits, campaignId }: { name: string; portraits
           <>
             <button
               type="button"
-              onClick={() => go(-1)}
+              onClick={() => { setShowCutout(false); setEditingAvatar(false); go(-1) }}
               aria-label="Предыдущий портрет"
               className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white transition-colors hover:bg-black/70"
             >
@@ -461,14 +600,14 @@ function DarkCarousel({ name, portraits, campaignId }: { name: string; portraits
             </button>
             <button
               type="button"
-              onClick={() => go(1)}
+              onClick={() => { setShowCutout(false); setEditingAvatar(false); go(1) }}
               aria-label="Следующий портрет"
               className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white transition-colors hover:bg-black/70"
             >
               ›
             </button>
             <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-xs text-white">
-              {clamped + 1}/{portraits.length}
+              {clamped + 1}/{visiblePortraits.length}
             </div>
           </>
         )}
@@ -478,13 +617,71 @@ function DarkCarousel({ name, portraits, campaignId }: { name: string; portraits
         <p className="mt-2 text-center text-sm text-neutral-400">{cur.caption}</p>
       )}
 
+      <div className="mt-3 border-t border-neutral-800 pt-3">
+        <p className="mb-2 text-xs text-neutral-500">
+          Круглый кадр используется для аватара и токена на карте.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {!cur.is_primary && (
+            <button
+              type="button"
+              disabled={savingAvatar}
+              onClick={() => void makePrimary()}
+              className="rounded-lg bg-neutral-800 px-3 py-1.5 text-sm text-neutral-200 transition-colors hover:bg-neutral-700 disabled:opacity-50"
+            >
+              Сделать аватаром
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={savingAvatar}
+            onClick={openAvatarEditor}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+          >
+            Настроить круглый кадр
+          </button>
+        </div>
+
+        {editingAvatar && crop && (
+          <div className="mt-3 rounded-xl bg-neutral-950 p-3">
+            <PortraitCropEditor
+              portrait={cur}
+              crop={crop}
+              onChange={setCrop}
+              tone="dark"
+              disabled={savingAvatar}
+            />
+            {avatarError && <p className="mt-3 text-sm text-red-300">{avatarError}</p>}
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={savingAvatar}
+                onClick={() => { setEditingAvatar(false); setAvatarError(null) }}
+                className="rounded-lg px-3 py-1.5 text-sm text-neutral-400 hover:text-neutral-200 disabled:opacity-50"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={savingAvatar}
+                onClick={() => void saveAvatarCrop()}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+              >
+                {savingAvatar ? 'Сохраняю…' : 'Сохранить кадр'}
+              </button>
+            </div>
+          </div>
+        )}
+        {!editingAvatar && avatarError && <p className="mt-3 text-sm text-red-300">{avatarError}</p>}
+      </div>
+
       {multi && (
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-          {portraits.map((p, i) => (
+          {visiblePortraits.map((p, i) => (
             <button
               key={p.id}
               type="button"
-              onClick={() => setIdx(i)}
+              onClick={() => changePortrait(i)}
               aria-label={`Портрет ${i + 1}${p.caption ? `: ${p.caption}` : ''}`}
               aria-current={i === clamped}
               className={`h-2 w-2 rounded-full transition-colors ${
