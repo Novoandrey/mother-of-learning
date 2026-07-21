@@ -29,10 +29,11 @@ import { ActionHub } from './action-hub'
 import { CharacterTab } from './character-tab'
 import { PartyTab } from './party-tab'
 import { MapTab } from './map-tab'
+import { SceneTab } from './scene-tab'
 
 // ─────────────────────────── navigation stack ───────────────────────────
 
-export type TgTab = 'action' | 'character' | 'map' | 'party'
+export type TgTab = 'action' | 'scene' | 'character' | 'map' | 'party'
 
 export type NavEntry = { screen: string; params?: Record<string, unknown> }
 
@@ -97,6 +98,7 @@ export type TgTabProps = { app: TgAppContext }
 
 const TABS: { tab: TgTab; icon: string; label: string }[] = [
   { tab: 'action', icon: '⚡', label: 'Действие' },
+  { tab: 'scene', icon: '💬', label: 'Сцена' },
   { tab: 'character', icon: '🎒', label: 'Персонаж' },
   { tab: 'map', icon: '🗺️', label: 'Карта' },
   { tab: 'party', icon: '🏰', label: 'Партия' },
@@ -171,6 +173,7 @@ export function TgShell({
       channel = supabase
         .channel(`campaign:${campaignId}`, { config: { private: true } })
         .on('broadcast', { event: 'tx_insert' }, () => setRefreshKey((k) => k + 1))
+        .on('broadcast', { event: 'scene_message_insert' }, () => setRefreshKey((k) => k + 1))
         .subscribe()
     })()
     return () => {
@@ -295,6 +298,8 @@ function ShellScreen({
     // Корни табов — контент отдают модули W2/W3/W4.
     case 'action':
       return <ActionHub app={app} />
+    case 'scene':
+      return <SceneTab app={app} />
     case 'character':
       return <CharacterTab app={app} />
     case 'map':
@@ -371,6 +376,8 @@ function ShellScreen({
       switch (nav.tab) {
         case 'action':
           return <ActionHub app={app} />
+        case 'scene':
+          return <SceneTab app={app} />
         case 'character':
           return <CharacterTab app={app} />
         case 'map':
