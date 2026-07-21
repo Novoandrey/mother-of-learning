@@ -259,7 +259,7 @@ function ShellHeader({
           (canSwitch ? 'transition-colors hover:bg-neutral-900' : 'cursor-default')
         }
       >
-        <Avatar name={pc.title} keyStr={pc.primaryPortraitKey} size={32} />
+        <Avatar name={pc.title} keyStr={pc.primaryPortraitKey} crop={pc.primaryPortraitCrop} size={32} />
         <span className="truncate font-medium">{pc.title}</span>
         {canSwitch && <span className="shrink-0 text-xs text-neutral-500">⌄</span>}
       </button>

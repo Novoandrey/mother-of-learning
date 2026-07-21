@@ -51,7 +51,7 @@ export async function getCampaignMapData(
       portrait: portrait
         ? {
             id: portrait.id,
-            url: portrait.media_asset_id ? portraitUrl(portrait.r2_key) : null,
+            url: portraitUrl(portrait.r2_key),
             mediaAssetId: portrait.media_asset_id,
             cropX: Number(portrait.crop_x),
             cropY: Number(portrait.crop_y),

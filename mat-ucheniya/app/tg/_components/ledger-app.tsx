@@ -162,7 +162,7 @@ function CharacterRow({
         onClick={() => onSelect(c)}
         className="flex w-full items-center gap-3 rounded-lg bg-neutral-900 px-3 py-2 text-left transition-colors hover:bg-neutral-800"
       >
-        <Avatar name={c.title} keyStr={c.primaryPortraitKey} size={40} />
+        <Avatar name={c.title} keyStr={c.primaryPortraitKey} crop={c.primaryPortraitCrop} size={40} />
         <span className="font-medium">{c.title}</span>
       </button>
     </li>

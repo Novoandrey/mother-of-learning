@@ -23,7 +23,11 @@ async function resolveEditableNode(campaignId: string, nodeId: string) {
   return node && slug && PORTRAIT_TYPES.has(slug) ? { admin, node } : null
 }
 
-function refresh(campaignSlug: string, nodeId: string) {
+function refresh(campaignSlug: string | null, nodeId: string) {
+  // Telegram's catalog has no campaign slug in its navigation state. Its
+  // client-side query is updated locally after a successful action, while the
+  // desktop route still receives normal Next cache invalidation.
+  if (!campaignSlug) return
   revalidatePath(`/c/${campaignSlug}/catalog/${nodeId}`)
   revalidatePath(`/c/${campaignSlug}/maps`)
 }
@@ -64,7 +68,7 @@ export async function addPortrait(campaignId: string, campaignSlug: string, node
   return { ok: true }
 }
 
-export async function setPrimaryPortrait(campaignId: string, campaignSlug: string, nodeId: string, portraitId: string) {
+export async function setPrimaryPortrait(campaignId: string, campaignSlug: string | null, nodeId: string, portraitId: string) {
   const resolved = await resolveEditableNode(campaignId, nodeId)
   if (!resolved) {
     logActivityWarning('portrait.primary.denied', { campaignId, nodeId, portraitId })
@@ -105,7 +109,7 @@ export async function deletePortrait(campaignId: string, campaignSlug: string, n
   return { ok: true }
 }
 
-export async function savePortraitCrop(campaignId: string, campaignSlug: string, nodeId: string, portraitId: string, x: number, y: number, zoom: number) {
+export async function savePortraitCrop(campaignId: string, campaignSlug: string | null, nodeId: string, portraitId: string, x: number, y: number, zoom: number) {
   const resolved = await resolveEditableNode(campaignId, nodeId)
   if (!resolved) {
     logActivityWarning('portrait.crop.denied', { campaignId, nodeId, portraitId })

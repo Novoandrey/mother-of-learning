@@ -23,6 +23,7 @@ export type WikiListItem = {
   type: WikiType
   /** Primary portrait key (or first, or null) — mini-avatar in the list. */
   primaryPortraitKey: string | null
+  primaryPortraitCrop: { crop_x: number; crop_y: number; crop_zoom: number } | null
 }
 
 /**
@@ -41,7 +42,7 @@ export async function getWikiNodes(
 ): Promise<WikiListItem[]> {
   const { data, error } = await supabase
     .from('nodes')
-    .select('id, title, node_types!inner(slug), character_portraits(r2_key, media_asset_id, is_primary)')
+    .select('id, title, node_types!inner(slug), character_portraits(r2_key, media_asset_id, is_primary, crop_x, crop_y, crop_zoom)')
     .eq('campaign_id', campaignId)
     .in('node_types.slug', WIKI_TYPES as unknown as string[])
     .order('title')
@@ -53,7 +54,14 @@ export async function getWikiNodes(
       id: string
       title: string
       node_types: { slug: string } | { slug: string }[] | null
-      character_portraits?: Array<{ r2_key: string | null; media_asset_id: string | null; is_primary: boolean }>
+      character_portraits?: Array<{
+        r2_key: string | null
+        media_asset_id: string | null
+        is_primary: boolean
+        crop_x: number
+        crop_y: number
+        crop_zoom: number
+      }>
     }
     const nt = Array.isArray(r.node_types) ? r.node_types[0] : r.node_types
     const portraits = r.character_portraits ?? []
@@ -62,7 +70,12 @@ export async function getWikiNodes(
       id: r.id,
       title: r.title,
       type: (nt?.slug ?? 'npc') as WikiType,
-      primaryPortraitKey: primary?.media_asset_id ? primary.r2_key : null,
+      // Portraits imported before the media library have no media_asset_id but
+      // retain a valid public R2 key. They are still real portraits.
+      primaryPortraitKey: primary?.r2_key ?? null,
+      primaryPortraitCrop: primary
+        ? { crop_x: Number(primary.crop_x), crop_y: Number(primary.crop_y), crop_zoom: Number(primary.crop_zoom) }
+        : null,
     }
   })
 

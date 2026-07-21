@@ -192,7 +192,7 @@ export function CharacterTab({ app }: TgTabProps) {
     <div className="pb-6">
       {/* Шапка PC: портрет + имя. */}
       <div className="mb-3 flex items-center gap-3">
-        <Avatar name={pc.title} keyStr={pc.primaryPortraitKey} size={64} />
+        <Avatar name={pc.title} keyStr={pc.primaryPortraitKey} crop={pc.primaryPortraitCrop} size={64} />
         <div className="min-w-0">
           <div className="truncate text-lg font-semibold">{pc.title}</div>
         </div>
