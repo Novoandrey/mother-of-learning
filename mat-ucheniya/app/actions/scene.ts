@@ -11,11 +11,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 type Result = { ok: true; roomId?: string } | { ok: false; error: string }
 
 /** First room for a campaign. During the testing release any member may open it. */
-export async function createInitialSceneRoom(campaignId: string): Promise<Result> {
+export async function createInitialSceneRoom(campaignId: string, input?: { title?: string; backgroundAssetId?: string | null; crop?: { x: number; y: number; zoom: number } }): Promise<Result> {
   const [user, membership] = await Promise.all([getCurrentUser(), getMembership(campaignId)])
   if (!user || !membership) return { ok: false, error: 'Нет доступа к кампании.' }
 
   const admin = createAdminClient()
+  const title = input?.title?.trim() || 'Общая сцена'
+  if (title.length > 160) return { ok: false, error: 'Название комнаты длиннее 160 знаков.' }
+  const crop = input?.crop ?? { x: 50, y: 50, zoom: 1 }
+  if (![crop.x, crop.y, crop.zoom].every(Number.isFinite) || crop.x < 0 || crop.x > 100 || crop.y < 0 || crop.y > 100 || crop.zoom < 1 || crop.zoom > 3) return { ok: false, error: 'Некорректная обрезка фона.' }
+  if (input?.backgroundAssetId) {
+    const { data: asset } = await admin.from('media_assets').select('id').eq('id', input.backgroundAssetId).eq('campaign_id', campaignId).maybeSingle()
+    if (!asset) return { ok: false, error: 'Выбранный фон не принадлежит кампании.' }
+  }
   const { data: existing } = await admin
     .from('scene_rooms')
     .select('id')
@@ -26,7 +34,7 @@ export async function createInitialSceneRoom(campaignId: string): Promise<Result
 
   const { data: room, error: roomError } = await admin
     .from('scene_rooms')
-    .insert({ campaign_id: campaignId, title: 'Общая сцена', created_by: user.id })
+    .insert({ campaign_id: campaignId, title, created_by: user.id, background_asset_id: input?.backgroundAssetId ?? null, background_mobile_crop: crop })
     .select('id')
     .single()
   if (roomError || !room) return { ok: false, error: 'Не удалось открыть комнату.' }
