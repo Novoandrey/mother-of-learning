@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { portraitUrl, type Portrait } from '@/lib/portraits'
 
 export type PortraitCrop = Pick<Portrait, 'crop_x' | 'crop_y' | 'crop_zoom'>
@@ -75,7 +75,9 @@ export function PortraitCropEditor({
   disabled?: boolean
 }) {
   const src = portraitUrl(portrait.r2_key)
+  const imageRef = useRef<HTMLImageElement | null>(null)
   const [aspect, setAspect] = useState(1)
+  const [aspectSource, setAspectSource] = useState<string | null>(null)
   const drag = useRef<{
     pointerId: number
     clientX: number
@@ -84,13 +86,34 @@ export function PortraitCropEditor({
     width: number
     height: number
   } | null>(null)
-  const current = layout(crop, aspect)
+  // A browser can serve an image from memory cache without calling React's
+  // onLoad after a page reload. Don't reuse a previous portrait's ratio or
+  // expose a temporary square crop until this exact source is measured.
+  const hasAspect = aspectSource === src
+  const current = layout(crop, hasAspect ? aspect : 1)
   const light = tone === 'light'
+
+  useEffect(() => {
+    const image = imageRef.current
+    if (!image || !src) return
+
+    const measure = () => {
+      if (!image.naturalWidth || !image.naturalHeight) return
+      setAspect(image.naturalWidth / image.naturalHeight)
+      setAspectSource(src)
+    }
+
+    // `complete` is true for a cached image, the path that previously left the
+    // editor at 1:1 after the user pressed «Сохранить кадр».
+    if (image.complete) measure()
+    image.addEventListener('load', measure)
+    return () => image.removeEventListener('load', measure)
+  }, [src])
 
   if (!src) return null
 
   const apply = (next: PortraitCrop) => {
-    const nextLayout = layout(next, aspect)
+    const nextLayout = layout(next, hasAspect ? aspect : 1)
     onChange({
       crop_x: nextLayout.x,
       crop_y: nextLayout.y,
@@ -107,7 +130,7 @@ export function PortraitCropEditor({
           } ${disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
           style={{ touchAction: 'none' }}
           onPointerDown={(event) => {
-            if (disabled) return
+            if (disabled || !hasAspect) return
             const rect = event.currentTarget.getBoundingClientRect()
             drag.current = {
               pointerId: event.pointerId,
@@ -136,17 +159,12 @@ export function PortraitCropEditor({
           }}
         >
           <img
+            ref={imageRef}
             src={src}
             alt=""
             draggable={false}
-            onLoad={(event) => {
-              const image = event.currentTarget
-              if (image.naturalWidth && image.naturalHeight) {
-                setAspect(image.naturalWidth / image.naturalHeight)
-              }
-            }}
             className="pointer-events-none absolute select-none"
-            style={current.style}
+            style={{ ...current.style, visibility: hasAspect ? 'visible' : 'hidden' }}
           />
           <span
             aria-hidden
