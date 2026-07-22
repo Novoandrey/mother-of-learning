@@ -12,8 +12,9 @@ type Tone = 'light' | 'dark'
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
 /**
- * Calculates an absolutely positioned image that fills the circular frame
- * without changing the image's aspect ratio. `crop_x`/`crop_y` are the source
+ * Calculates an absolutely positioned image that fills the circular frame.
+ * Only one dimension is ever set; the other stays `auto`, so CSS must preserve
+ * the source image's natural aspect ratio. `crop_x`/`crop_y` are the source
  * point placed in the centre of the frame; `crop_zoom` is the inverse width of
  * the visible source area.
  */
@@ -30,14 +31,23 @@ function layout(crop: PortraitCrop, aspect: number) {
     height,
     x,
     y,
-    style: {
-      width: `${width * 100}%`,
-      height: `${height * 100}%`,
-      maxWidth: 'none',
-      maxHeight: 'none',
-      left: `${50 - x * width * 100}%`,
-      top: `${50 - y * height * 100}%`,
-    },
+    style: aspect >= 1
+      ? {
+          width: 'auto',
+          height: `${height * 100}%`,
+          maxWidth: 'none',
+          maxHeight: 'none',
+          left: `${50 - x * width * 100}%`,
+          top: `${50 - y * height * 100}%`,
+        }
+      : {
+          width: `${width * 100}%`,
+          height: 'auto',
+          maxWidth: 'none',
+          maxHeight: 'none',
+          left: `${50 - x * width * 100}%`,
+          top: `${50 - y * height * 100}%`,
+        },
   }
 }
 
