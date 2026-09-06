@@ -1,7 +1,7 @@
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+For changes to Next.js APIs, routing, caching or framework configuration, consult the relevant installed-version guide in `node_modules/next/dist/docs/` and heed deprecations. If bundled docs are absent, use official Next.js documentation for the version pinned in this project. Unrelated code or documentation changes do not require this pre-read or dependency installation.
 <!-- END:nextjs-agent-rules -->
 
 ## Sidebar cache invalidation
@@ -89,50 +89,20 @@ assets. Do not build a separate Telegram-only data path.
 
 ## Shipping (spec-043)
 
-`main` deploys to prod and accepts **Pull Requests only** (GitHub ruleset).
-The loop:
+`main` deploys to production and accepts PRs only. Build on a feature branch
+from `main`; open its PR when requested. Merge/deploy only within the user's
+authorized scope; a code-edit request alone is not production authorization.
+Authorization already given for this task does not need reconfirmation.
 
-1. Branch off `main`, build the thing.
-2. Want to click around first? Merge your branch into `staging` — it
-   auto-deploys to https://staging.theloopers.org (own DB: a disposable
-   snapshot of prod; breaking staging is fine, that's what it's for).
-3. Open a PR of your **feature branch** into `main`. Green gate → merge.
-   Never merge the `staging` branch itself into anything.
-4. `staging` drifted or broke? Anyone:
-   `git fetch && git checkout staging && git reset --hard origin/main &&
-   git push --force-with-lease origin staging`
+For a requested staging preview, merge the feature into `staging`. Never merge
+`staging` back into another branch. Staging refresh, feature migrations and
+branch recovery follow [the staging runbook](../infra/staging-runbook.md);
+do not reset a shared branch as routine feature work.
 
-Migrations: apply your feature's migration to the staging DB by hand when
-you test there; the prod migration flow is unchanged. Refresh button and
-details: `infra/staging-runbook.md`.
+## Production migrations
 
-## Production migrations: direct DB path
-
-The Codex host has direct SSH access to the production box as `andrey`; agents
-do **not** need Supabase Studio to apply a reviewed production migration. The
-Postgres container is `supabase-db`, database `postgres`, user `postgres`.
-
-Only do this when the user explicitly authorises the production migration and
-the migration has been reviewed and merged. Never print connection secrets or
-copy unrelated SQL into the session.
-
-1. Check that the target objects are absent (or otherwise establish the exact
-   safe idempotency condition) through `ssh andrey@37.27.254.49` and
-   `docker exec supabase-db psql -U postgres -d postgres`.
-2. Pipe the committed migration file to `psql` with
-   `-v ON_ERROR_STOP=1`; migrations MUST contain `BEGIN` / `COMMIT` when
-   practical. Example from repository root:
-
-   ```powershell
-   Get-Content -Raw 'mat-ucheniya\supabase\migrations\NNN_feature.sql' |
-     ssh -o BatchMode=yes andrey@37.27.254.49 \
-       'docker exec -i supabase-db psql -v ON_ERROR_STOP=1 -U postgres -d postgres'
-   ```
-
-3. Run a narrow post-apply query: tables, policies, functions, triggers, or
-   indexes introduced by the migration. Report the result to the user. If the
-   migration creates a Realtime trigger, confirm that the `realtime` schema
-   exists before applying it.
-
-Application deployment remains unchanged: merge to `main` triggers Dokploy.
-Database migrations are a distinct, explicit production operation.
+Apply only an explicitly authorized, reviewed and merged migration. Follow
+[the production migration runbook](../infra/production-migrations.md) for the
+named SSH alias, verified backup, idempotency check, committed SQL, health
+checks and rollback. Do not read credentials into the conversation.
+Application deployment and database migration remain separate operations.

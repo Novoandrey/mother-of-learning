@@ -47,9 +47,11 @@ R2 runbook comes later (portraits). Decisions locked so far:
 
 ## Division of labor
 
-Claude can't SSH into the server. Claude produces the artifacts here (runbooks,
-scripts, compose files, drill procedures); the operator (Andrey + Леша) runs
-them and pastes logs back for debugging. The hands-on ops reps are the point.
+One-time provisioning remains operator work (Andrey + Леша). Codex on the
+configured workstation can perform explicitly authorized operations through the
+named `loopers-server` alias. Follow [production-migrations.md](production-migrations.md)
+for migration access, backup, verification and rollback boundaries; do not read
+credentials into the conversation or use password fallback.
 
 ## Planned contents
 
