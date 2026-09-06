@@ -63,17 +63,50 @@ When to run: staging DB got messed up, schema drifted, or you want fresh data.
 After an update of the script in the repo, re-run the `curl` install line
 from §2.
 
-## 4. Staging branch reset (any dev)
+For a feature preview, apply its reviewed migrations to the staging DB when
+testing there; this does not authorize a production migration. Production uses
+[its separate runbook](production-migrations.md).
 
-`staging` is disposable — never the source of truth:
+## 4. Staging branch recovery
 
-```bash
-git fetch && git checkout staging && git reset --hard origin/main \
-  && git push --force-with-lease origin staging
+Reset shared `staging` only for a requested recovery, not as part of ordinary
+feature work. Use an isolated clean checkout so no existing work is discarded.
+Fetch `origin/main` and `origin/staging`, record both exact SHAs, and preserve
+the old staging SHA in a named local recovery branch before changing the remote.
+Keep that branch until staging verification succeeds.
+
+PowerShell 7 template (choose a new empty worktree path; do not reuse a user's
+checkout). Each native command is checked before continuing:
+
+```powershell
+$stagingRecoveryPath = '<new-isolated-worktree-path>'
+$stagingStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$stagingRecoveryRef = 'codex/staging-recovery-' + $stagingStamp
+git fetch origin refs/heads/main:refs/remotes/origin/main refs/heads/staging:refs/remotes/origin/staging
+if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
+$previousStagingSha = git rev-parse --verify refs/remotes/origin/staging
+if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve staging' }
+$targetMainSha = git rev-parse --verify refs/remotes/origin/main
+if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve main' }
+git branch $stagingRecoveryRef $previousStagingSha
+if ($LASTEXITCODE -ne 0) { throw 'Cannot preserve staging recovery ref' }
+git worktree add --detach $stagingRecoveryPath $targetMainSha
+if ($LASTEXITCODE -ne 0) { throw 'Cannot create isolated worktree' }
+$stagingRecoveryStatus = git -C $stagingRecoveryPath status --porcelain
+if ($LASTEXITCODE -ne 0 -or $stagingRecoveryStatus) { throw 'Worktree is not clean' }
+$stagingLease = '--force-with-lease=refs/heads/staging:' + $previousStagingSha
+$stagingRefspec = $targetMainSha + ':refs/heads/staging'
+git -C $stagingRecoveryPath push $stagingLease origin $stagingRefspec
+if ($LASTEXITCODE -ne 0) { throw 'Staging changed or push failed; inspect before retrying' }
 ```
 
-Ship to `main` only via PRs of the feature branch (never merge `staging`
-itself anywhere).
+This updates only remote `staging` to the recorded main SHA; it never hard-resets
+an existing checkout. Confirm the staging pipeline and application health. If
+recovery must be undone within the authorized scope, push the saved staging SHA
+back with an explicit lease expecting `$targetMainSha`. A lease rejection needs
+review of intervening work, not a blind retry. Retain the recovery branch; remove
+the temporary worktree only after confirming its absolute path and clean status.
+Ship to `main` through feature PRs; never merge `staging` itself elsewhere.
 
 ## 5. Pipelines & keep-alive
 

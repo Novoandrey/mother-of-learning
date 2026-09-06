@@ -1,8 +1,15 @@
 # Runbook: Backups & Restore Drill (spec-025)
 
 Executable steps for automated off-box backups + a verified restore drill of the
-self-hosted Supabase from 024. **Operator (Andrey + Леша) runs these on the box;
-Claude can't SSH in.** Paste errors/logs back to Claude for debugging. Started in
+self-hosted Supabase from 024. **One-time provisioning is performed by the
+operator (Andrey + Леша).** For an explicitly authorized Codex
+operation, use the named `loopers-server` alias and the access/backup boundaries in
+[production-migrations.md](production-migrations.md). Automated privileged commands
+use `sudo -n`; never read credential files or ask for passwords. A restore drill
+must use an isolated target or an explicitly authorized production recovery
+window; do not infer permission to overwrite live data from a migration request.
+
+Started in
 `.specify/specs/025-backups-restore-drill/`; the backup/restore **method** was
 finalized in spec-026.
 
